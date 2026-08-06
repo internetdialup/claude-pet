@@ -127,11 +127,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         hooks.toolTip = "Adds a hooks entry to ~/.claude/settings.json for instant reactions. Shows the change and backs up first."
         menu.addItem(hooks)
 
-        #if DEBUG
-        // Art review: freeze the crab in each mood. Debug builds only — a
-        // release user has no reason to drive the sprite by hand, and the
-        // shipped menu should read as a product, not a workbench.
-        // The always-on version lives on the `debug/preview-tools` branch.
+        // Art review: freeze the crab in each mood.
+        //
+        // This branch keeps the submenu on in every configuration, including
+        // release builds, so the sprite can be driven by hand while working on
+        // it. On `main` the same block is wrapped in `#if DEBUG`.
         let preview = NSMenuItem(title: "Preview animation", action: nil, keyEquivalent: "")
         let previewMenu = NSMenu()
         previewMenu.addItem(action("Live") { [weak self] in self?.onPreviewMood(nil) })
@@ -141,7 +141,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         preview.submenu = previewMenu
         menu.addItem(preview)
-        #endif
 
         menu.addItem(.separator())
         menu.addItem(action("Quit Claude Pet") { [weak self] in self?.onQuit() })
