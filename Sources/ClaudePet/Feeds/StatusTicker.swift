@@ -1,0 +1,103 @@
+import Foundation
+
+/// Builds the short status lines Claw'd scrolls between shout-outs.
+///
+/// **Numerical Grounding** (`Bamboo.md` §3): every percentage here is copied
+/// from a number Claude Code itself wrote to disk. Nothing is inferred, and a
+/// figure that is absent or stale produces no line rather than a guess — a
+/// confidently wrong "82%" is worse than saying nothing.
+public enum StatusTicker {
+
+    /// Written by the user's `statusLine` command, if they run one. Absent for
+    /// most installs, and its fields go null when Claude Code stops publishing
+    /// rate limits — both handled by returning no line.
+    struct UsageCache: Decodable {
+        let writtenAt: Double?
+        let fiveHourPercent: Double?
+        let sevenDayPercent: Double?
+        let contextUsedPercent: Double?
+    }
+
+    /// Percentages older than this are not shown. A rate-limit figure from
+    /// yesterday is misinformation, not information.
+    static let maxAge: TimeInterval = 30 * 60
+
+    static var cacheURLs: [URL] {
+        [
+            ClaudeHome.root.appendingPathComponent("usage-menubar-cache.json"),
+            ClaudeHome.root.appendingPathComponent("usage-toolbar-cache.json"),
+        ]
+    }
+
+    /// Reads the freshest usable usage cache, or nil.
+    static func usage(now: Date = Date()) -> UsageCache? {
+        for url in cacheURLs {
+            guard let data = try? Data(contentsOf: url),
+                  let cache = try? JSONDecoder().decode(UsageCache.self, from: data),
+                  isFresh(cache, now: now)
+            else { continue }
+
+            let hasAnything = cache.fiveHourPercent != nil
+                || cache.sevenDayPercent != nil
+                || cache.contextUsedPercent != nil
+            if hasAnything { return cache }
+        }
+        return nil
+    }
+
+    /// Absolute difference, so a timestamp from the future is rejected too — a
+    /// one-sided check treated any future-dated cache as eternally fresh.
+    static func isFresh(_ cache: UsageCache, now: Date) -> Bool {
+        guard let writtenAt = cache.writtenAt else { return true }
+        return abs(now.timeIntervalSince1970 - writtenAt) <= maxAge
+    }
+
+    /// Turns a model id into something worth reading on a pet's forehead.
+    /// Unknown ids are upper-cased rather than dropped, so a new model still
+    /// displays instead of vanishing.
+    public static func displayName(forModel id: String) -> String {
+        let known: [(prefix: String, name: String)] = [
+            ("claude-fable-5", "Fable 5"),
+            ("claude-opus-5", "Opus 5"),
+            ("claude-sonnet-5", "Sonnet 5"),
+            ("claude-haiku-4-5", "Haiku 4.5"),
+            ("claude-opus-4", "Opus 4"),
+            ("claude-sonnet-4", "Sonnet 4"),
+        ]
+        if let match = known.first(where: { id.hasPrefix($0.prefix) }) { return match.name }
+        return id
+            .replacingOccurrences(of: "claude-", with: "")
+            .replacingOccurrences(of: "-", with: " ")
+            .capitalized
+    }
+
+    /// Every status line currently backed by real data. May be empty.
+    ///
+    /// Reads the usage cache from disk. Tests use `lines(model:usage:)` with an
+    /// explicit cache instead — `Bamboo.md` §5 forbids tests touching the
+    /// operator's `~/.claude/`, and a test that reads it would also pass or fail
+    /// depending on whether their status line happened to be running.
+    public static func lines(model: String?, now: Date = Date()) -> [String] {
+        lines(model: model, usage: usage(now: now))
+    }
+
+    static func lines(model: String?, usage cache: UsageCache?) -> [String] {
+        var result: [String] = []
+
+        if let model {
+            let name = displayName(forModel: model)
+            if let context = cache?.contextUsedPercent {
+                result.append("MODEL · \(name) @ \(Int(context.rounded()))% CONTEXT")
+            } else {
+                result.append("MODEL · \(name)")
+            }
+        }
+        if let fiveHour = cache?.fiveHourPercent {
+            result.append("5-HOUR LIMIT @ \(Int(fiveHour.rounded()))%")
+        }
+        if let weekly = cache?.sevenDayPercent {
+            result.append("WEEKLY USAGE @ \(Int(weekly.rounded()))%")
+        }
+        return result
+    }
+}
