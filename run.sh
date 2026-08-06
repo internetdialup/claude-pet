@@ -20,19 +20,29 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/ClaudePet"
 cp Sources/ClaudePet/Support/Info.plist "$APP/Contents/Info.plist"
 
-# SwiftPM emits resources as a sibling .bundle. Bundle.module looks for it next
-# to the executable, so it has to travel into the .app — the hook installer
-# reads the shim script out of it.
+# SwiftPM emits resources as a sibling .bundle, which has to travel into the
+# .app — the hook installer reads the shim script out of it. It goes in
+# Contents/Resources: that is where Bundle.module looks first (via
+# Bundle.main.resourceURL), and codesign rejects a bundle nested under
+# Contents/MacOS as "bundle format unrecognized".
 BUNDLE_DIR="$(dirname "$BIN")"
 for bundle in "$BUNDLE_DIR"/*.bundle; do
   [ -e "$bundle" ] || continue
-  cp -R "$bundle" "$APP/Contents/MacOS/"
+  cp -R "$bundle" "$APP/Contents/Resources/"
 done
 
+# Strip extended attributes first. `cp -R` carries them over from the build
+# directory, and codesign rejects a bundle with "resource fork, Finder
+# information, or similar detritus".
+xattr -cr "$APP" 2>/dev/null || true
+
 # Ad-hoc signature. Enough for local use and for SMAppService to see a stable
-# identity; not a distribution signature. --deep is required because the app now
+# identity; not a distribution signature. --deep is required because the app
 # carries SwiftPM's nested resource bundle.
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || echo "   (codesign skipped)"
+if ! codesign --force --deep --sign - "$APP" 2>/dev/null; then
+  echo "   codesign FAILED — launch at login and notifications may not work:"
+  codesign --force --deep --sign - "$APP" 2>&1 | sed 's/^/   /'
+fi
 
 if [ "${1:-}" = "--no-launch" ]; then
   echo "==> built $APP"
