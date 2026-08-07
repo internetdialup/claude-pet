@@ -178,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let style: PetState.BubbleStyle
         switch mood {
         case .idle:
-            bubble = VocabShoutouts.line(for: .idle, seed: Int(Date().timeIntervalSince1970))
+            bubble = Vocab.line(for: .idle, seed: Int(Date().timeIntervalSince1970))
             style = .plain
         case .thinking:
             bubble = "…"
@@ -190,13 +190,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bubble = "🔥 Cooking"
             style = .plain
         case .nudging:
-            bubble = VocabShoutouts.line(for: .planReady, seed: Int(Date().timeIntervalSince1970))
+            bubble = Vocab.line(for: .planReady, seed: Int(Date().timeIntervalSince1970))
             style = .plain
         case .done:
             bubble = ActivityCoordinator.celebration
             style = .plain
         case .needsAttention:
-            bubble = VocabShoutouts.line(for: .needsYou, seed: Int(Date().timeIntervalSince1970))
+            bubble = Vocab.line(for: .needsYou, seed: Int(Date().timeIntervalSince1970))
             style = .plain
         case .sleeping:
             bubble = nil

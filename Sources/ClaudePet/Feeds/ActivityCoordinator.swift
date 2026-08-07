@@ -349,7 +349,7 @@ public final class ActivityCoordinator {
             bubble = "🔥"
             chatter = nil
         case .nudging:
-            bubble = VocabShoutouts.line(for: .planReady,
+            bubble = Vocab.line(for: .planReady,
                                          seed: Int(now.timeIntervalSince1970 / 8))
             chatter = nil
         case .done:
@@ -401,7 +401,7 @@ public final class ActivityCoordinator {
         if !status.isEmpty, seed % 3 == 2 {
             next = (status[(seed / 3) % status.count], true)
         } else {
-            let line = VocabShoutouts.line(for: .idle, avoiding: chatter?.text, seed: seed)
+            let line = Vocab.line(for: .idle, avoiding: chatter?.text, seed: seed)
             next = (line ?? "Ready when you are", false)
         }
 

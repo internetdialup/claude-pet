@@ -9,14 +9,14 @@ struct VocabShoutoutsTests {
     @Test("Every occasion has lines")
     func everyOccasionPopulated() {
         for occasion in ShoutoutOccasion.allCases {
-            let lines = VocabShoutouts.catalogue[occasion]
+            let lines = Vocab.catalogue[occasion]
             #expect(lines?.isEmpty == false, "\(occasion.rawValue) has no lines")
         }
     }
 
     @Test("The operator's idle lines are present verbatim")
     func idleLinesVerbatim() throws {
-        let lines = try #require(VocabShoutouts.catalogue[.idle])
+        let lines = try #require(Vocab.catalogue[.idle])
         #expect(lines.contains("Let's build something awesome!"))
         #expect(lines.contains("Now we're cooking with crisco 🍳"))
         #expect(lines.contains("Ooo that's a spicy idea 🌶️"))
@@ -27,17 +27,17 @@ struct VocabShoutoutsTests {
     @Test("Selection is deterministic for a given seed")
     func deterministic() {
         for seed in 0..<20 {
-            let first = VocabShoutouts.line(for: .idle, seed: seed)
-            let second = VocabShoutouts.line(for: .idle, seed: seed)
+            let first = Vocab.line(for: .idle, seed: seed)
+            let second = Vocab.line(for: .idle, seed: seed)
             #expect(first == second)
         }
     }
 
     @Test("A line is never repeated back to back")
     func neverRepeatsConsecutively() throws {
-        var previous = try #require(VocabShoutouts.line(for: .idle, seed: 0))
+        var previous = try #require(Vocab.line(for: .idle, seed: 0))
         for seed in 1..<200 {
-            let next = try #require(VocabShoutouts.line(for: .idle, avoiding: previous, seed: seed))
+            let next = try #require(Vocab.line(for: .idle, avoiding: previous, seed: seed))
             #expect(next != previous)
             previous = next
         }
@@ -45,11 +45,11 @@ struct VocabShoutoutsTests {
 
     @Test("Every idle line is reachable")
     func coversTheCatalogue() throws {
-        let lines = try #require(VocabShoutouts.catalogue[.idle])
+        let lines = try #require(Vocab.catalogue[.idle])
         var seen = Set<String>()
         var previous: String?
         for seed in 0..<300 {
-            if let line = VocabShoutouts.line(for: .idle, avoiding: previous, seed: seed) {
+            if let line = Vocab.line(for: .idle, avoiding: previous, seed: seed) {
                 seen.insert(line)
                 previous = line
             }
@@ -60,9 +60,9 @@ struct VocabShoutoutsTests {
     /// `Int.min` has no positive magnitude; `abs` on it traps.
     @Test("Extreme seeds do not trap")
     func extremeSeeds() {
-        #expect(VocabShoutouts.line(for: .idle, seed: Int.min) != nil)
-        #expect(VocabShoutouts.line(for: .idle, seed: Int.max) != nil)
-        #expect(VocabShoutouts.line(for: .idle, seed: -1) != nil)
+        #expect(Vocab.line(for: .idle, seed: Int.min) != nil)
+        #expect(Vocab.line(for: .idle, seed: Int.max) != nil)
+        #expect(Vocab.line(for: .idle, seed: -1) != nil)
     }
 }
 

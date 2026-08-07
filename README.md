@@ -170,6 +170,55 @@ Three offline modes are useful when working on it:
 .build/debug/ClaudePet --render-marketing out/  # large transparent stills and loops
 ```
 
+## 🗣️ Make him say your words
+
+Everything Claw'd says lives in **one file** — no strings scattered through the
+codebase, no localisation framework, no config format to learn:
+
+```
+Sources/ClaudePet/Support/vocab.swift
+```
+
+Edit the arrays, run `./run.sh`, and he says your words instead.
+
+| | Occasion | When he says it | Ships with |
+| :---: | :--- | :--- | :--- |
+| 💬 | `.idle` | Sessions are live but Claude is between tasks | *"Let's build something awesome!"* · *"Ooo that's a spicy idea 🌶️"* |
+| ✅ | `.finished` | A turn just ended | *"Nailed it"* · *"That's a wrap 🎬"* · *"Chef's kiss"* |
+| 👀 | `.planReady` | A plan is up and he wants your verdict | *"Plan's ready 👀"* · *"Shall we?"* |
+| ‼️ | `.needsYou` | Claude is blocked on you — usually a permission prompt | *"Psst — I need you"* · *"One quick question"* |
+
+### ✏️ Editing lines
+
+Find the occasion, change the strings. That is the whole job:
+
+```swift
+// 💬 Between tasks. Encouragement, mostly.
+case .idle: [
+    "Let's build something awesome!",
+    "Now we're cooking with crisco 🍳",
+    "your line here",          // ← add as many as you like
+]
+```
+
+### ➕ Adding a whole new occasion
+
+Add a `case` to `ShoutoutOccasion` and **the build will fail until you give it
+lines**. That is deliberate — `lines(for:)` is a `switch`, not a dictionary, so
+the compiler catches a half-added occasion instead of Claw'd silently saying
+nothing at runtime.
+
+### 📏 Two rules worth knowing
+
+| | |
+| :--- | :--- |
+| **Keep it short** | The bubble truncates past roughly **46 characters**. A line that gets cut off reads worse than a shorter one. |
+| **Emoji are welcome** | They render fine in the bubble. 🍳 🌶️ 🎬 all ship by default. |
+
+Lines are chosen by a **seed, never `random()`** — the bubble is recomputed on a
+timer, so a real RNG would rewrite the sentence out from under you mid-read. He
+also never repeats the same line twice in a row.
+
 ## How it knows
 
 Claude Code already writes everything needed, and the pet only reads it:
