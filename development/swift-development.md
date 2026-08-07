@@ -26,7 +26,7 @@ Every meaningful change to a product target, its public surface, or its persiste
 ### 1.3 Type PLTRF
 - **One Home**: every file is named for its **principal type**. `PetState.swift` declares `PetState`. Two files declaring overlapping concepts is a duplicate home.
 - **Companions**: a type that has no meaning apart from its principal may share the file — `CrabPose` beside `CrabRig`, `PetViewModel` beside `PetRootView`. A type that stands alone gets its own file; `ClaudeHome` was split out of `ClaudeSession.swift` for exactly this reason. The test is whether you would look for it under that filename.
-- **Data catalogues** are named for their content rather than their type: `vocab-shoutouts.swift` declares `VocabShoutouts`. They hold no behaviour beyond selection, and the operator reads them by subject.
+- **Data catalogues** are named for their content rather than their type: `vocab.swift` declares `VocabShoutouts`. They hold no behaviour beyond selection, and the operator reads them by subject.
 - **Assets have one home too**: a file that ships to the user lives on disk once and is loaded, never transcribed into a string literal. The hook shim is `Sources/ClaudePet/Resources/claude-pet-hook.sh`, read through `Bundle.module` — the file you can read in the repo is byte-for-byte the file that gets installed.
 - **Renames**: renaming a type renames its file in the same commit, and the pointer in `docs/repo-organization.md` flips in that same commit.
 

@@ -73,7 +73,7 @@ Files are named for their **principal type** (`development/swift-development.md`
 | `Support/Preferences.swift` | Support | Persisted settings |
 | `Support/SoundBank.swift` | Support | Synthesised cues |
 | `Support/HookInstaller.swift` | Support | The one permitted writer to `~/.claude/` |
-| `Support/vocab-shoutouts.swift` | Support | The phrase catalogue |
+| `Support/vocab.swift` | Support | Everything Claw'd says. The one file a user edits to change his voice |
 | `Support/Info.plist` | Support | `LSUIElement`, bundle identity |
 | `Resources/claude-pet-hook.sh` | Resource | The hook shim, shipped via `Bundle.module` |
 | `Tests/ClaudePetTests/` | — | Unit tests. Never touch `~/.claude/` |
