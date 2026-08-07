@@ -40,6 +40,10 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     var lastActivityToday: Date?
     /// Number of subagents currently appending to their transcripts.
     public var subagentCount: Int = 0
+    /// A plan is written and waiting on the human.
+    public var awaitingApproval: Bool = false
+    /// Timestamps of recent tool calls, used to measure how hard Claude is going.
+    public var recentToolCalls: [Date] = []
     /// Last time anything at all changed for this session.
     public var lastActivity: Date = .distantPast
 

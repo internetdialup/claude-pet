@@ -60,11 +60,11 @@ enum IconRenderer {
         return true
     }
 
-    /// Claw'd with his rocket flame, on the rounded plate.
+    /// Claw'd on the rounded plate.
     private static func plate(side: CGFloat) -> AnyView {
         var pose = CrabPose()
-        pose.prop = .fire
-        pose.propPhase = 1.15          // a full, settled flame rather than a flicker trough
+        // No prop. The icon is the character, and the flame belongs to the
+        // cooking state rather than to his identity.
         pose.mouth = .smile
 
         let plateSide = side * plateFraction
@@ -79,10 +79,10 @@ enum IconRenderer {
 
                 PixelCanvasView(buffer: CrabRig.render(pose))
                     // Scaled against the plate, not the canvas, or he swims in
-                    // whitespace. 0.78 rather than filling it: with the flame
-                    // occupying the grid's left columns, anything larger pushes
-                    // his right shoulder into the plate's edge.
-                    .frame(width: plateSide * 0.78, height: plateSide * 0.78)
+                    // whitespace. Raised from 0.78 now the flame is gone: that
+                    // figure existed only to keep his shoulder clear of the
+                    // plate edge while the burst occupied the grid's flank.
+                    .frame(width: plateSide * 0.88, height: plateSide * 0.88)
             }
             .frame(width: side, height: side)
         )

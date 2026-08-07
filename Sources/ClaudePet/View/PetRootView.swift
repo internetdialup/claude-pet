@@ -62,7 +62,9 @@ public struct PetRootView: View {
             ZStack(alignment: .topTrailing) {
                 CrabView(
                     mood: model.state.mood,
-                    hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate
+                    hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate,
+                    clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,
+                    rainbowSince: model.rainbowStartedAt?.timeIntervalSinceReferenceDate
                 )
                 .frame(width: spriteSize, height: spriteSize)
 
@@ -92,5 +94,9 @@ public final class PetViewModel: ObservableObject {
     /// When the pointer arrived on him, or nil if it is elsewhere. Stored as a
     /// start time rather than a flag so the greeting can play as a timeline.
     @Published public var hoverStartedAt: Date?
+    /// When he was last poked. Cleared once the reaction has played out.
+    @Published public var clickedAt: Date?
+    /// When the party started. 🎉🪄
+    @Published public var rainbowStartedAt: Date?
     public init() {}
 }

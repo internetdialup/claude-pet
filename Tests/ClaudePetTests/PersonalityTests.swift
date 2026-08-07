@@ -334,3 +334,307 @@ struct AppVersionTests {
                 "CHANGELOG.md has no entry for \(AppVersion.current)")
     }
 }
+
+@Suite("Cooking detection")
+struct WorkloadTests {
+
+    /// The shape of a real workflow journal, reduced to the two fields that
+    /// matter. Result lines carry the agent's whole return value in practice.
+    private let journal = """
+    {"type":"started","key":"v2:aaa","agentId":"a1"}
+    {"type":"started","key":"v2:bbb","agentId":"a2"}
+    {"type":"started","key":"v2:ccc","agentId":"a3"}
+    {"type":"result","key":"v2:aaa","agentId":"a1","result":{"findings":[]}}
+    """
+
+    @Test("In-flight is started minus result")
+    func inFlightArithmetic() {
+        #expect(WorkloadWatcher.inFlight(inJournal: journal) == 2)
+    }
+
+    @Test("A finished run reports nothing in flight")
+    func finishedRun() {
+        let done = """
+        {"type":"started","agentId":"a1"}
+        {"type":"result","agentId":"a1","result":{}}
+        """
+        #expect(WorkloadWatcher.inFlight(inJournal: done) == 0)
+    }
+
+    /// More results than starts should never produce a negative count.
+    @Test("A malformed journal cannot go negative")
+    func neverNegative() {
+        let odd = """
+        {"type":"result","agentId":"a1"}
+        {"type":"result","agentId":"a2"}
+        not json at all
+        {"type":"something-else"}
+        """
+        #expect(WorkloadWatcher.inFlight(inJournal: odd) == 0)
+    }
+
+    @Test("An empty journal is not a crash")
+    func emptyJournal() {
+        #expect(WorkloadWatcher.inFlight(inJournal: "") == 0)
+    }
+
+    /// The threshold sits in the measured gap between an ordinary session
+    /// (median 4/min, p90 7) and a fanned-out workflow (median 22/min).
+    @Test("Tool rate promotes at the threshold, not below it")
+    @MainActor
+    func toolRateThreshold() {
+        let now = Date()
+        var session = ClaudeSession(id: "S", pid: 1, name: "n", cwd: "/tmp",
+                                    procStart: "", startedAt: now)
+        session.recentToolCalls = (0..<7).map { now.addingTimeInterval(-Double($0)) }
+        #expect(!ActivityCoordinator.isCooking(session, now: now), "7 calls is ordinary work")
+
+        session.recentToolCalls.append(now)
+        #expect(ActivityCoordinator.isCooking(session, now: now), "8 calls is a sprint")
+    }
+
+    @Test("Calls older than the window do not count")
+    @MainActor
+    func staleCallsExpire() {
+        let now = Date()
+        var session = ClaudeSession(id: "S", pid: 1, name: "n", cwd: "/tmp",
+                                    procStart: "", startedAt: now)
+        session.recentToolCalls = (0..<20).map {
+            now.addingTimeInterval(-ActivityCoordinator.toolRateWindow - Double($0))
+        }
+        #expect(!ActivityCoordinator.isCooking(session, now: now))
+    }
+
+    /// Either signal alone is enough — a workflow fan-out is cooking even if the
+    /// main session itself is quiet while it waits on its agents.
+    @Test("Live subagents alone trigger cooking")
+    @MainActor
+    func subagentsAloneTrigger() {
+        let now = Date()
+        var session = ClaudeSession(id: "S", pid: 1, name: "n", cwd: "/tmp",
+                                    procStart: "", startedAt: now)
+        session.recentToolCalls = []
+        session.subagentCount = 3
+        #expect(ActivityCoordinator.isCooking(session, now: now))
+    }
+}
+
+@Suite("Plan approval")
+struct AwaitingApprovalTests {
+
+    private func temporaryFile(_ lines: [String]) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("plan-\(UUID().uuidString).jsonl")
+        try lines.joined(separator: "\n").appending("\n").write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    private let exitPlan = """
+    {"type":"assistant","sessionId":"S1","timestamp":"2020-01-02T12:00:00.000Z","message":{"model":"claude-opus-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"t1","name":"ExitPlanMode","input":{}}]}}
+    """
+    private let approval = """
+    {"type":"user","sessionId":"S1","timestamp":"2020-01-02T12:05:00.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"approved"}]}}
+    """
+
+    /// An ExitPlanMode call with no result yet is Claude blocked on the human.
+    @Test("ExitPlanMode raises awaitingApproval")
+    func raisesFlag() throws {
+        let url = try temporaryFile([exitPlan])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let waiting = TranscriptFold().pump(url: url).contains {
+            if case .awaitingApproval(true) = $0.kind { return true }
+            return false
+        }
+        #expect(waiting)
+    }
+
+    @Test("The answer clears it")
+    func clearsOnResult() throws {
+        let url = try temporaryFile([exitPlan, approval])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let events = TranscriptFold().pump(url: url)
+        let flags = events.compactMap { event -> Bool? in
+            if case .awaitingApproval(let waiting) = event.kind { return waiting }
+            return nil
+        }
+        #expect(flags == [true, false])
+    }
+}
+
+@Suite("Interactions")
+struct InteractionTests {
+
+    /// Every variant must be reachable, or a "randomised" reaction silently
+    /// becomes one reaction.
+    @Test("Hover reactions vary across seeds")
+    func greetingsVary() {
+        // Fingerprint the RENDERED sprite, not a hand-picked set of fields.
+        // Comparing fields missed that `wave` and `hop` share a mouth and a wink
+        // state, and reported them as one reaction when they look nothing alike.
+        var seen = Set<String>()
+        for seed in 0..<200 {
+            var pose = CrabPose()
+            CrabAnimator.applyGreeting(elapsed: 0.6, seed: seed, to: &pose)
+            let runs = CrabRig.render(pose).runs()
+            seen.insert(runs.map { "\($0.x),\($0.y),\($0.length),\($0.ink)" }.joined())
+        }
+        #expect(seen.count >= 3, "expected several distinct reactions, saw \(seen.count)")
+    }
+
+    /// The seed comes from the hover's start time and must not change mid-hover.
+    @Test("A single hover holds one reaction")
+    func greetingStableWithinAHover() {
+        var first = CrabPose()
+        CrabAnimator.applyGreeting(elapsed: 0.5, seed: 42, to: &first)
+        var later = CrabPose()
+        CrabAnimator.applyGreeting(elapsed: 1.9, seed: 42, to: &later)
+        #expect(first.winkEye == later.winkEye)
+    }
+
+    @Test("The click shrinks him and returns him to full size")
+    func clickShrinks() {
+        var mid = CrabPose()
+        CrabAnimator.applyClick(elapsed: CrabAnimator.clickDuration * 0.35, to: &mid)
+        #expect(mid.scale < 0.85, "should visibly compress")
+
+        var after = CrabPose()
+        CrabAnimator.applyClick(elapsed: CrabAnimator.clickDuration + 0.05, to: &after)
+        #expect(after.scale == 1, "must return to full size once done")
+    }
+
+    /// A shrink that leaves pixels outside the grid would clip against the window.
+    @Test("A shrunk sprite stays inside the grid")
+    func shrinkStaysInBounds() {
+        for step in 0...10 {
+            var pose = CrabAnimator.pose(mood: .working, t: 1.0)
+            CrabAnimator.applyClick(elapsed: Double(step) * 0.03, to: &pose)
+            let runs = CrabRig.render(pose).runs()
+            #expect(runs.allSatisfy { $0.x >= 0 && $0.x + $0.length <= PixelBuffer.side })
+            #expect(runs.allSatisfy { $0.y >= 0 && $0.y < PixelBuffer.side })
+            #expect(!runs.isEmpty, "he must not vanish")
+        }
+    }
+
+    /// The hover greeting forces `asleepOverride`, which vetoes the shut-eye
+    /// branch — a wink routed through `blink` would render two open eyes.
+    @Test("A wink survives the hover's asleepOverride")
+    func winkSurvivesOverride() {
+        var pose = CrabPose()
+        pose.asleepOverride = true
+        pose.winkEye = .right
+        let runs = CrabRig.render(pose).runs()
+        // The winking eye collapses to one row, so the two eyes differ in height.
+        let eyeRuns = runs.filter { $0.ink == .eye }
+        let rows = Set(eyeRuns.map(\.y))
+        #expect(rows.count >= 2, "one eye open, one shut")
+    }
+}
+
+@Suite("Randomness quality")
+struct NoiseTests {
+
+    /// Regression: `noise` was one step of an LCG, whose output shifts by
+    /// ~0.0008 per increment. Sequential seeds therefore clustered, and a
+    /// four-way choice could reach only two of its options — quietly narrowing
+    /// the hover reactions, the idle flourishes and the working props at once.
+    @Test("Sequential seeds spread across the whole range")
+    func sequentialSeedsSpread() {
+        var buckets = Set<Int>()
+        for seed in 0..<64 {
+            var pose = CrabPose()
+            CrabAnimator.applyGreeting(elapsed: 0.6, seed: seed, to: &pose)
+            let runs = CrabRig.render(pose).runs()
+            buckets.insert(runs.count)
+        }
+        #expect(buckets.count >= 3, "sequential seeds should not cluster")
+    }
+
+    @Test("All four working props are reachable")
+    func workingPropsSpread() {
+        var seen = Set<CrabPose.Prop>()
+        for spell in 0..<60 {
+            seen.insert(CrabAnimator.workingProp(at: Double(spell) * 20 + 1, spell: 20))
+        }
+        #expect(seen.count >= 4, "saw only \(seen.count) of \(CrabPose.Prop.working.count) props")
+    }
+
+    @Test("Idle flourishes cover most of their set")
+    func flourishesSpread() {
+        var seen = Set<String>()
+        for window in 0..<80 {
+            let t = Double(window) * 7.0 + 0.2
+            if let (kind, _) = CrabAnimator.flourish(at: t) { seen.insert("\(kind)") }
+        }
+        #expect(seen.count >= 4, "saw only \(seen.count) distinct flourishes")
+    }
+}
+
+@Suite("Face alignment")
+struct FaceTests {
+
+    /// Rows occupied by eye ink, per side of the face.
+    private func eyeRows(_ pose: CrabPose) -> (left: Set<Int>, right: Set<Int>) {
+        let runs = CrabRig.render(pose).runs().filter { $0.ink == .eye }
+        var left = Set<Int>(), right = Set<Int>()
+        for run in runs {
+            // The face's midline; each eye sits wholly on one side of it.
+            if run.x < 16 { left.insert(run.y) } else { right.insert(run.y) }
+        }
+        return (left, right)
+    }
+
+    /// Regression: `.nudging` set `.wide` eyes *and* an oscillating `tilt`, which
+    /// shifts the two eyes in opposite directions. Together they landed two rows
+    /// apart and the face read as broken.
+    @Test("Both eyes sit on the same rows in every mood")
+    func eyesAreLevel() {
+        for mood in PetMood.allCases {
+            for step in 0..<30 {
+                let pose = CrabAnimator.pose(mood: mood, t: Double(step) * 0.37)
+                // A wink is meant to be asymmetric; everything else is not.
+                guard pose.winkEye == .none, pose.tilt == 0 else { continue }
+                let (left, right) = eyeRows(pose)
+                #expect(left == right,
+                        "\(mood.rawValue) step \(step): eyes on different rows \(left) vs \(right)")
+            }
+        }
+    }
+
+    @Test("A wink closes exactly one eye")
+    func winkIsAsymmetric() {
+        var pose = CrabPose()
+        pose.winkEye = .right
+        let (left, right) = eyeRows(pose)
+        #expect(left.count > right.count, "the winking eye should be the shorter one")
+        #expect(!right.isEmpty, "a winking eye is a line, not nothing")
+    }
+}
+
+@Suite("Rainbow mode")
+struct RainbowTests {
+
+    @Test("The tint runs for its duration and then stops")
+    func tintLifecycle() {
+        #expect(CrabView.rainbowTint(elapsed: 0) != nil)
+        #expect(CrabView.rainbowTint(elapsed: CrabView.rainbowDuration / 2) != nil)
+        #expect(CrabView.rainbowTint(elapsed: CrabView.rainbowDuration) == nil,
+                "must end so he returns to being Claw'd")
+        #expect(CrabView.rainbowTint(elapsed: -1) == nil)
+    }
+
+    @Test("The hue actually travels")
+    func hueMoves() {
+        let samples = stride(from: 0.0, to: CrabView.rainbowDuration, by: 0.2)
+            .compactMap { CrabView.rainbowTint(elapsed: $0)?.description }
+        #expect(Set(samples).count > 8, "the body should cycle, not sit on one colour")
+    }
+
+    /// The demo reel needs a rainbow beat or the recording has no party in it.
+    @Test("The demo script contains a rainbow beat")
+    @MainActor
+    func demoHasRainbow() {
+        #expect(DemoMode.script.contains { $0.rainbow })
+    }
+}

@@ -26,6 +26,8 @@ public struct ThoughtBubble: View {
         case .idle: Palette.green
         case .thinking: Palette.yellow
         case .working: Palette.screenLight
+        case .cooking: Palette.flame
+        case .nudging: Palette.yellow
         case .done: Palette.green
         case .needsAttention: Palette.pink
         case .sleeping: Palette.slateSoft
@@ -33,7 +35,11 @@ public struct ThoughtBubble: View {
     }
 
     private var foreground: Color {
-        mood == .working || mood == .sleeping ? Palette.white : Palette.slate
+        // Dark text on the light fills, white on the deep ones.
+        switch mood {
+        case .working, .sleeping, .cooking: Palette.white
+        default: Palette.slate
+        }
     }
 
     private var glyph: String {
@@ -42,6 +48,8 @@ public struct ThoughtBubble: View {
         guard let tool else {
             return switch mood {
             case .thinking: "*"
+            case .cooking: "🔥"
+            case .nudging: "👀"
             case .done: "✓"
             case .needsAttention: "‼️"
             default: ""

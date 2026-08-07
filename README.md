@@ -17,31 +17,106 @@ on top, and reflects your sessions continuously: what tool is running, what task
 is in progress, which one just finished, and which one is stuck waiting on you.
 No window to check, no tab to switch to. You just glance at him.
 
+He floats above your windows, follows you across Spaces, and can be dragged
+anywhere — including onto a second display. He watches **every** running Claude
+Code session, mirrors whichever one is busiest, and clicking him opens a roster
+of them all so you can pin one.
 
+## The states
 
-He floats above your windows near the dock, follows you across Spaces, and can be
-dragged anywhere. When Claude is reasoning he thinks. When a tool is running he
-works at a little terminal. When a session finishes he throws his arms up. When
-one needs your permission, he waves and chirps. The current task rides in a
-speech bubble above his head.
+Each one is driven by something real on disk, and each says what it is reacting to.
 
-He watches **every** running Claude Code session — the crab mirrors whichever one
-is busiest, and clicking him opens a roster of all of them so you can pin one.
+<table>
+<tr><td width="170"><img src="docs/media/working.gif" width="150"></td><td>
 
-| | | |
-| :---: | :---: | :---: |
-| <img src="docs/media/idle.gif" width="150"> | <img src="docs/media/thinking.gif" width="150"> | <img src="docs/media/working.gif" width="150"> |
-| **Idle** — cheers you on between tasks | **Thinking** — Claude is reasoning | **Working** — a tool is running |
-| <img src="docs/media/done.gif" width="150"> | <img src="docs/media/needsAttention.gif" width="150"> | <img src="docs/media/sleeping.gif" width="150"> |
-| **Done** — a turn finished | **Needs you** — waiting on a prompt | **Asleep** — nothing running |
+### Working
+A tool call is in flight. He picks up whatever he needs for the job — a scrolling
+terminal, a hard hat, a server rack, a phone, glasses — and swaps it every twenty
+seconds so a long task never looks frozen.
 
-<img src="docs/media/hover.gif" width="150" align="left" hspace="12">
+</td></tr>
+<tr><td><img src="docs/media/cooking.gif" width="150"></td><td>
 
-**Hover him and he says hello.** He startles, looks up at you, and waves — even
-when he is asleep. Every few seconds while idle he does something unprompted on
-his own: a jump, a stretch, a wiggle, a look around the desktop.
+### 🔥 Cooking
+Claude is *going*. Triggered by **8+ tool calls in a minute**, or by **live
+subagents** — the on-disk signature of an `ultracode` fan-out. His eyes narrow and
+he catches fire.
 
-<br clear="left">
+*Why 8? Measured from real transcripts: an ordinary session runs a median of 4
+tool calls a minute and a 90th percentile of 7, while a fanned-out workflow runs a
+median of 22. Eight sits in the gap.*
+
+</td></tr>
+<tr><td><img src="docs/media/thinking.gif" width="150"></td><td>
+
+### Thinking
+Claude is reasoning — `thinking` blocks with no tool running. The bubble shows
+three pulsing dots rather than words, because there is no honest label for that
+moment and repeating the last thing he did would be a lie.
+
+</td></tr>
+<tr><td><img src="docs/media/nudging.gif" width="150"></td><td>
+
+### 👀 Nudging
+A plan is written and Claude is blocked on **you**. Detected exactly: an
+`ExitPlanMode` call with no answer yet. He holds out the plan, leans in, taps a
+foot, and waits.
+
+</td></tr>
+<tr><td><img src="docs/media/done.gif" width="150"></td><td>
+
+### Done
+A turn just ended. Arms up, green check, ✅ 🥳 🎉 — then he settles back to idle
+after a few seconds, because finishing is a moment, not a status.
+
+</td></tr>
+<tr><td><img src="docs/media/needsAttention.gif" width="150"></td><td>
+
+### Needs you
+A permission prompt is waiting. He waves both arms, bounces, and chirps. This is
+the only state that gets to be loud, and the only one that needs hooks installed —
+permission prompts are not written to the transcript.
+
+</td></tr>
+<tr><td><img src="docs/media/idle.gif" width="150"></td><td>
+
+### Idle
+Sessions are live but Claude is between tasks. He cheers you on, and every so
+often scrolls a status ticker instead — the model answering, how many sessions are
+live, how long you have been coding today, the project and branch. Every few
+seconds he does something unprompted: a jump, a stretch, a look around.
+
+</td></tr>
+<tr><td><img src="docs/media/sleeping.gif" width="150"></td><td>
+
+### Asleep
+Nothing is running. He breathes slowly with z's drifting up, and the render rate
+drops so an idle pet costs an idle machine nothing.
+
+</td></tr>
+</table>
+
+## Interactions
+
+<table>
+<tr><td width="170"><img src="docs/media/hover-wink.gif" width="150"></td><td>
+
+### Hover him
+He notices you and reacts — randomised between a **wink**, a **little jump**, a
+**wave**, and a **wiggle**. Picked once per hover, so it holds for as long as you
+stay. He stirs even when asleep.
+
+</td></tr>
+<tr><td><img src="docs/media/hover-hop.gif" width="150"></td><td>
+
+### Click him
+He squashes down, then the session roster opens. Drag him instead and the
+reaction is suppressed — a click that moved him is a move.
+
+Poke him three times quickly for something else. 🎉🪄
+
+</td></tr>
+</table>
 
 ## Installing
 
@@ -92,6 +167,7 @@ Three offline modes are useful when working on it:
 .build/debug/ClaudePet --render-sheet out.png   # contact sheet of every mood and prop
 .build/debug/ClaudePet --render-gif docs/media  # the GIFs above
 .build/debug/ClaudePet --probe                  # print the PetState from your real sessions
+.build/debug/ClaudePet --render-marketing out/  # large transparent stills and loops
 ```
 
 ## How it knows

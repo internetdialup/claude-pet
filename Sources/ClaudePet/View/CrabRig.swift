@@ -15,6 +15,16 @@ public struct CrabPose: Sendable, Equatable {
 
     /// 0 = eyes open (3×3 squares), 1 = shut (a single row).
     public var blink: Double = 0
+    /// Which single eye is closed. Separate from `blink`, which is one scalar
+    /// consumed for both eyes at once and so cannot express a wink.
+    public var winkEye: EyeSide = .none
+    public enum EyeSide: Sendable { case none, left, right }
+    /// Eye shape. `.determined` carves the inner-top corner into a focused slant.
+    public var eyes: EyeStyle = .round
+    public enum EyeStyle: Sendable { case round, determined, wide }
+    /// Whole-pixel vertical offset applied to the eyes in opposite directions —
+    /// a head tilt, on a grid that cannot rotate.
+    public var tilt: Int = 0
     /// Eye offset in whole pixels.
     public var gazeX: Int = 0
     public var gazeY: Int = 0
@@ -37,6 +47,9 @@ public struct CrabPose: Sendable, Equatable {
     /// Landing squash: the body draws one row shorter and one column wider per
     /// unit, so a jump lands with weight instead of stopping dead.
     public var squash: Int = 0
+    /// Whole-body scale for the click reaction. 1 = full size. Never above 1:
+    /// at the largest pixel size the sprite already fills its window.
+    public var scale: Double = 1
 
     /// The prop drawn with Claw'd. Straight from the sticker set — he is almost
     /// always pictured *with* something.
@@ -44,7 +57,7 @@ public struct CrabPose: Sendable, Equatable {
     public enum Prop: String, Sendable, CaseIterable {
         case none
         // World props: drawn at a fixed spot in the frame.
-        case sparkles, terminal, check, bang, zzz, servers, balloon
+        case sparkles, terminal, check, bang, zzz, servers, balloon, plan
         // Worn props: drawn on the body, and must travel with `bob` and `lean`.
         case hardHat, phone, fire, glasses
 
@@ -110,7 +123,8 @@ public enum CrabRig {
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
         drawProp(&buffer, dx: dx, dy: dy, pose: pose)
 
-        return buffer
+        // Applied last so props shrink with him rather than floating free.
+        return pose.scale < 0.999 ? buffer.scaled(pose.scale) : buffer
     }
 
     // MARK: - Legs
@@ -157,13 +171,35 @@ public enum CrabRig {
 
     private static func drawFace(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
         let eyeTop = eyeY + dy + pose.gazeY
-        for baseX in [eyeLeftX, eyeRightX] {
+        // Tilt raises one eye and drops the other. The grid cannot rotate, so a
+        // head tilt is expressed entirely in the face.
+        for (side, baseX) in [(CrabPose.EyeSide.left, eyeLeftX), (.right, eyeRightX)] {
             let x = baseX + dx + pose.gazeX
-            if pose.blink > 0.5 && !pose.asleepOverride {
-                // Shut: a single row, held at the eye's vertical centre.
-                b.rect(x, eyeTop + 1, eyeSize, 1, .eye)
-            } else {
-                b.rect(x, eyeTop, eyeSize, eyeSize, .eye)
+            let top = eyeTop + (side == .left ? -pose.tilt : pose.tilt)
+
+            // A wink is checked independently of `blink`, and deliberately not
+            // gated on `asleepOverride` — the hover greeting sets that flag on
+            // every frame, so routing a wink through `blink` renders two open
+            // eyes and nothing else.
+            let shut = (pose.blink > 0.5 && !pose.asleepOverride) || pose.winkEye == side
+            guard !shut else {
+                b.rect(x, top + 1, eyeSize, 1, .eye)
+                continue
+            }
+
+            switch pose.eyes {
+            case .round:
+                b.rect(x, top, eyeSize, eyeSize, .eye)
+            case .wide:
+                // One row taller, for the expectant "well?" of the nudge.
+                b.rect(x, top - 1, eyeSize, eyeSize + 1, .eye)
+            case .determined:
+                // Carve the inner-top corner so the brows slant toward the nose.
+                // drawFace runs after the body, so painting `.body` over a corner
+                // is a clean erase — cutting the OUTER corners instead would read
+                // as worried rather than focused.
+                b.rect(x, top, eyeSize, eyeSize, .eye)
+                b.pixel(side == .left ? x + eyeSize - 1 : x, top, .body)
             }
         }
 
@@ -195,8 +231,11 @@ public enum CrabRig {
     private static func drawProp(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
         let phase = pose.propPhase
         switch pose.prop {
-        case .none, .fire:
-            break   // fire is drawn behind the body, before the legs
+        case .none:
+            break
+        case .fire:
+            // The blaze itself is drawn behind him; only its sparks come forward.
+            drawSparks(&b, dx: dx, dy: dy, phase: phase)
 
         case .sparkles:
             // Three sparkles pulsing out of phase above his head.
@@ -273,6 +312,19 @@ public enum CrabRig {
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)
+
+        case .plan:
+            // A little clipboard: clip, page, ruled lines. He holds it out.
+            let key: [Character: PixelBuffer.Ink] = ["p": .paper, "s": .steel, "l": .screenLight]
+            b.stamp([
+                "..ss..",
+                "pppppp",
+                "pllllp",
+                "pllllp",
+                "pppppp",
+                "pllllp",
+                "pppppp",
+            ], at: (x: 25, y: 4), key: key)
 
         case .phone:
             // Held at his side, screen facing out, content flickering.
@@ -362,22 +414,79 @@ public enum CrabRig {
         b.rect(eyeRightX + dx + 4, bridgeY, 2, 1, .steel)
     }
 
-    /// Rocket exhaust behind and below him.
-    private static func drawFire(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
-        // Streaks run leftward from the body's edge. The first version anchored
-        // them off-frame, so everything clipped to a single bar at x=0.
-        let tailX = bodyX + dx - 1
-        let rows = [bodyY + dy + 2, bodyY + dy + 5, bodyY + dy + 8]
+    /// The blaze. An upward burst rising off his back, with sparks.
+    ///
+    /// Authored as silhouettes rather than computed: at this size a flame drawn
+    /// by arithmetic reads as bars, and the eye recognises fire by its ragged
+    /// outline. Three frames cycle, so it flickers by changing shape.
+    ///
+    /// Drawn BEFORE the body (`render`), so it may bleed down behind him and be
+    /// harmlessly overpainted. Rows 0-9 are free in every fire-bearing pose.
+    private static let flameFrames: [[String]] = [
+        [
+            "....cc....",
+            "...cffc...",
+            "..cffffc..",
+            ".cffffffc.",
+            ".cfffeefc.",
+            "cffeeeeffc",
+            "cfeeeeeefc",
+            ".eeeeeeee.",
+        ],
+        [
+            "...cc.c...",
+            "..cffcfc..",
+            ".cffffffc.",
+            ".cfffffec.",
+            "cffffeeefc",
+            "cffeeeeefc",
+            ".feeeeeef.",
+            "..eeeeee..",
+        ],
+        [
+            ".....cc...",
+            "....cffc..",
+            "...cffffc.",
+            "..cffffefc",
+            ".cfffeeefc",
+            "cffeeeeeef",
+            "cfeeeeeef.",
+            ".eeeeee...",
+        ],
+    ]
 
-        for (index, y) in rows.enumerated() {
-            let flicker = sin(phase * 7 + Double(index) * 2.1)
-            let length = 5 + Int((flicker * 2).rounded())
-            let startX = max(0, tailX - length)
-            let width = tailX - startX
-            guard width > 1 else { continue }
-            b.rect(startX, y, width, 2, .flame)
-            // Hotter core at the nozzle end.
-            b.rect(startX + width / 2, y, width - width / 2, 1, .yellow)
+    private static func drawFire(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
+        let key: [Character: PixelBuffer.Ink] = [
+            "c": .flameCore, "f": .flame, "e": .ember,
+        ]
+        // Slow enough to read as flame rather than strobe.
+        let frame = flameFrames[Int(phase * 6) % flameFrames.count]
+        // Sits behind his back, rising into the free band above him. The old
+        // version anchored at the frame edge and clamped, so most of its flicker
+        // produced an identical bar.
+        b.stamp(frame, at: (x: 17 + dx, y: 1 + dy), key: key)
+    }
+
+    /// Sparks thrown off the blaze, drawn in FRONT of him.
+    ///
+    /// Four-pointed stars, from the reference art. They scatter and fade on
+    /// their own cycles so the fire never looks like a static decal.
+    private static func drawSparks(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
+        let spots = [(14, 3), (28, 6), (24, 0), (12, 8)]
+        for (index, spot) in spots.enumerated() {
+            let life = sin(phase * 3 + Double(index) * 1.9)
+            guard life > 0 else { continue }
+            let x = spot.0 + dx, y = spot.1 + dy
+            let ink: PixelBuffer.Ink = life > 0.7 ? .flameCore : .flame
+            b.pixel(x, y, ink)
+            // At full brightness it opens into a four-pointed star.
+            if life > 0.45 {
+                b.pixel(x - 1, y, ink)
+                b.pixel(x + 1, y, ink)
+                b.pixel(x, y - 1, ink)
+                b.pixel(x, y + 1, ink)
+            }
         }
     }
+
 }

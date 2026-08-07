@@ -159,6 +159,13 @@ public final class TranscriptFold {
                     ?? (input["pattern"] as? String)
                     ?? (input["command"] as? String)
                     ?? (input["query"] as? String)
+                // An ExitPlanMode call with no result yet means Claude has
+                // written a plan and is blocked on the human.
+                if name == "ExitPlanMode" {
+                    events.append(ActivityEvent(sessionID: sessionID,
+                                                kind: .awaitingApproval(true),
+                                                timestamp: timestamp))
+                }
                 pendingTools.append(name)
                 if pendingTools.count > Self.maxPendingTools { pendingTools.removeFirst() }
                 events.append(ActivityEvent(sessionID: sessionID,
@@ -188,6 +195,11 @@ public final class TranscriptFold {
         var events: [ActivityEvent] = []
         for block in blocks where block["type"] as? String == "tool_result" {
             let name = pendingTools.isEmpty ? "tool" : pendingTools.removeFirst()
+            if name == "ExitPlanMode" {
+                events.append(ActivityEvent(sessionID: sessionID,
+                                            kind: .awaitingApproval(false),
+                                            timestamp: timestamp))
+            }
             events.append(ActivityEvent(sessionID: sessionID,
                                         kind: .toolFinished(name: name),
                                         timestamp: timestamp))

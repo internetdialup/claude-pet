@@ -23,8 +23,14 @@ public struct PixelBuffer: Sendable {
         case pink
         /// Tools — wrench, screwdriver.
         case steel
-        /// Rocket flame.
+        /// Flame body.
         case flame
+        /// Hottest part of the burst.
+        case flameCore
+        /// Deep outer licks.
+        case ember
+        /// Paper — the plan clipboard.
+        case paper
     }
 
     private(set) var cells: [UInt8]
@@ -75,6 +81,33 @@ public struct PixelBuffer: Sendable {
         }
     }
 
+    /// Nearest-neighbour shrink, anchored at the feet and centred horizontally.
+    ///
+    /// Done here rather than with `.scaleEffect` on the view: `CrabView` ends in
+    /// `.drawingGroup()`, so a view-level scale resamples a finished bitmap and
+    /// softens the deliberately hard pixel edges. Resampling the grid keeps every
+    /// cell square.
+    func scaled(_ factor: Double) -> PixelBuffer {
+        guard factor < 0.999, factor > 0.1 else { return self }
+        var out = PixelBuffer()
+        let side = Double(Self.side)
+        let inset = (side - side * factor) / 2
+
+        for y in 0..<Self.side {
+            for x in 0..<Self.side {
+                // Map the destination cell back to a source cell. Anchoring the
+                // bottom edge means he compresses onto the ground rather than
+                // shrinking toward the middle of the air.
+                let sourceY = (Double(y) - (side - side * factor)) / factor
+                let sourceX = (Double(x) - inset) / factor
+                guard sourceY >= 0, sourceX >= 0 else { continue }
+                let ink = self[Int(sourceX), Int(sourceY)]
+                if ink != .clear { out[x, y] = ink }
+            }
+        }
+        return out
+    }
+
     /// Horizontal runs of identical ink, so the renderer draws tens of rects
     /// instead of hundreds.
     func runs() -> [(x: Int, y: Int, length: Int, ink: Ink)] {
@@ -103,6 +136,9 @@ public struct PixelBuffer: Sendable {
 /// silently did nothing.
 public struct PixelCanvasView: View {
     let buffer: PixelBuffer
+    /// Overrides `.body` only. His eyes, mouth and props keep their own colours —
+    /// tinting everything would just look like a hue-rotated screenshot.
+    var bodyTint: Color?
 
     public var body: some View {
         Canvas(rendersAsynchronously: false) { context, size in
@@ -124,7 +160,7 @@ public struct PixelCanvasView: View {
     private func color(for ink: PixelBuffer.Ink) -> Color {
         switch ink {
         case .clear: .clear
-        case .body: Palette.body
+        case .body: bodyTint ?? Palette.body
         case .eye: Palette.ink
         case .mouth: Palette.white
         case .screenDark: Palette.screenDark
@@ -134,6 +170,9 @@ public struct PixelCanvasView: View {
         case .pink: Palette.pink
         case .steel: Palette.steel
         case .flame: Palette.flame
+        case .flameCore: Palette.flameCore
+        case .ember: Palette.ember
+        case .paper: Palette.kraft
         }
     }
 }
