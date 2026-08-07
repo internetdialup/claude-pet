@@ -388,7 +388,9 @@ public final class ActivityCoordinator {
     /// Held for `chatterInterval` rather than re-rolled on every `recompute()`
     /// — this runs on the 2s decay timer, so choosing per call would rewrite the
     /// sentence out from under the reader three times before they finished it.
-    private func idleChatter(snapshot: StatusTicker.Snapshot, now: Date) -> (text: String, isMarquee: Bool) {
+    private func idleChatter(snapshot: StatusTicker.Snapshot,
+                             focusTask: String? = nil,
+                             now: Date) -> (text: String, isMarquee: Bool) {
         if let current = chatter, now.timeIntervalSince(chatterChosenAt) < Self.chatterInterval {
             return current
         }
@@ -401,7 +403,9 @@ public final class ActivityCoordinator {
         if !status.isEmpty, seed % 3 == 2 {
             next = (status[(seed / 3) % status.count], true)
         } else {
-            let line = Vocab.line(for: .idle, avoiding: chatter?.text, seed: seed)
+            // The shuffled cycle already guarantees no immediate repeat, so
+            // `avoiding` is gone; `task` lets a rule claim the line instead.
+            let line = Vocab.line(for: .idle, matching: focusTask, seed: seed)
             next = (line ?? "Ready when you are", false)
         }
 

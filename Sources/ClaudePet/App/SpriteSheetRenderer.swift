@@ -74,21 +74,8 @@ enum SpriteSheetRenderer {
         .padding(12)
         .background(Color(hex: 0x1A1A19))
 
-        let renderer = ImageRenderer(content: sheet)
-        renderer.scale = scale
-        guard let image = renderer.nsImage,
-              let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else {
-            return false
-        }
-        do {
-            try png.write(to: URL(fileURLWithPath: path))
-            return true
-        } catch {
-            FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
-            return false
-        }
+        return SpriteImage.write(SpriteImage.png(of: sheet, scale: scale),
+                                 to: URL(fileURLWithPath: path))
     }
 }
 

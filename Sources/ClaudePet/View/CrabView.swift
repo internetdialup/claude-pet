@@ -393,17 +393,7 @@ public struct CrabView: View {
     /// with zero Claude sessions rebuilt a 1024-cell buffer, rescanned it into
     /// runs, and re-composited an offscreen layer every display frame, all
     /// night. These rates are chosen against each mood's fastest motion.
-    private var frameInterval: Double {
-        switch mood {
-        case .sleeping: 1.0 / 6      // a breath and drifting z's
-        case .idle: 1.0 / 20         // blinks, gaze darts, occasional flourish
-        case .thinking: 1.0 / 15
-        case .working: 1.0 / 20      // typing arms and a scrolling terminal
-        case .cooking: 1.0 / 24      // the flame wants to flicker
-        case .nudging: 1.0 / 20
-        case .done, .needsAttention: 1.0 / 30   // one-shot motion, wants to pop
-        }
-    }
+    private var frameInterval: Double { mood.style.frameInterval }
 
     public var body: some View {
         if let frozenTime {

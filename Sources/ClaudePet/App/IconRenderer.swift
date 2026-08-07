@@ -89,27 +89,10 @@ enum IconRenderer {
     }
 
     /// Renders a view at an exact pixel width and writes it as PNG.
+    ///
+    /// The views above are sized in points equal to their target pixels, so
+    /// rendering at scale 1 yields exactly `pixelWidth` pixels.
     private static func write(_ view: AnyView, pixelWidth: Int, to url: URL) -> Bool {
-        let renderer = ImageRenderer(content: view)
-        // `ImageRenderer.scale` multiplies the view's point size. The views above
-        // are already sized in points equal to the target pixels, so scale 1
-        // gives exactly `pixelWidth` pixels.
-        renderer.scale = 1
-        renderer.isOpaque = false
-
-        guard let image = renderer.nsImage,
-              let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else {
-            FileHandle.standardError.write(Data("render failed for \(url.lastPathComponent)\n".utf8))
-            return false
-        }
-        do {
-            try png.write(to: url)
-            return true
-        } catch {
-            FileHandle.standardError.write(Data("write failed for \(url.path): \(error)\n".utf8))
-            return false
-        }
+        SpriteImage.write(SpriteImage.png(of: view), to: url)
     }
 }

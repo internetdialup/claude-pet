@@ -20,42 +20,22 @@ public struct ThoughtBubble: View {
     /// the ticker's content changes.
     private static let marqueeWidth: CGFloat = 150
 
-    /// One flat fill per mood, matching the sprite's prop colour.
-    private var fill: Color {
-        switch mood {
-        case .idle: Palette.green
-        case .thinking: Palette.yellow
-        case .working: Palette.screenLight
-        case .cooking: Palette.flame
-        case .nudging: Palette.yellow
-        case .done: Palette.green
-        case .needsAttention: Palette.pink
-        case .sleeping: Palette.slateSoft
-        }
-    }
-
-    private var foreground: Color {
-        // Dark text on the light fills, white on the deep ones.
-        switch mood {
-        case .working, .sleeping, .cooking: Palette.white
-        default: Palette.slate
-        }
-    }
+    /// Presentation comes from `MoodStyle`, so a new mood is one entry there
+    /// rather than three switches here.
+    private var fill: Color { mood.style.bubbleFill }
+    private var foreground: Color { mood.style.bubbleText }
 
     private var glyph: String {
         if style == .dots { return "" }        // the dots are the whole message
         if style == .marquee { return "▮" }
-        guard let tool else {
-            return switch mood {
-            case .thinking: "*"
-            case .cooking: "🔥"
-            case .nudging: "👀"
-            case .done: "✓"
-            case .needsAttention: "‼️"
-            default: ""
-            }
-        }
-        return switch tool {
+        guard let tool else { return mood.style.glyph }
+        return Self.glyph(forTool: tool)
+    }
+
+    /// Tool glyphs. A tool always wins over the mood's own glyph, because it
+    /// says something more specific about what is happening right now.
+    static func glyph(forTool tool: String) -> String {
+        switch tool {
         case "Bash": ">_"
         case "Read", "NotebookEdit": "[]"
         case "Write", "Edit": "//"

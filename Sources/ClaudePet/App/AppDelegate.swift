@@ -173,35 +173,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show what the mood actually looks like in use. Labelling the bubble
         // "preview: working" meant the one thing you could not preview was the
-        // bubble.
-        let bubble: String?
-        let style: PetState.BubbleStyle
-        switch mood {
-        case .idle:
-            bubble = Vocab.line(for: .idle, seed: Int(Date().timeIntervalSince1970))
-            style = .plain
-        case .thinking:
-            bubble = "…"
-            style = .dots
-        case .working:
-            bubble = "Running a build"
-            style = .plain
-        case .cooking:
-            bubble = "🔥 Cooking"
-            style = .plain
-        case .nudging:
-            bubble = Vocab.line(for: .planReady, seed: Int(Date().timeIntervalSince1970))
-            style = .plain
-        case .done:
-            bubble = ActivityCoordinator.celebration
-            style = .plain
-        case .needsAttention:
-            bubble = Vocab.line(for: .needsYou, seed: Int(Date().timeIntervalSince1970))
-            style = .plain
-        case .sleeping:
-            bubble = nil
-            style = .plain
-        }
+        // bubble. Text comes from the mood's own style, falling back to its
+        // vocabulary — so a preview always shows real content.
+        let bubble = mood.style.previewBubble
+            ?? mood.shoutoutOccasion.flatMap {
+                Vocab.line(for: $0, seed: Int(Date().timeIntervalSince1970))
+            }
+        let style: PetState.BubbleStyle = mood == .thinking ? .dots : .plain
 
         model.state = PetState(mood: mood,
                                bubble: bubble,

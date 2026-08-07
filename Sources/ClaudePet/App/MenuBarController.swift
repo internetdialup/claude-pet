@@ -40,8 +40,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func update(state: PetState) {
         self.state = state
-        item.button?.title = state.sessions.isEmpty ? "" : " \(state.sessions.count)"
-        item.button?.toolTip = state.bubble
+        // Just the crab. A session count beside it was noise — the number is in
+        // the menu's status line and in the roster, and a two-digit count made
+        // the menu bar item jump around as sessions came and went.
+        item.button?.toolTip = state.bubble ?? statusLine
     }
 
     // MARK: - Menu
@@ -112,7 +114,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         notifications.state = Preferences.shared.notificationsEnabled ? .on : .off
         menu.addItem(notifications)
 
-        let login = action("Launch at login") { [weak self] in
+        let login = action("Open at login") { [weak self] in
             Self.toggleLaunchAtLogin()
             self?.refresh()
         }

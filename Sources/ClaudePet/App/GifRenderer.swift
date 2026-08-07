@@ -20,21 +20,7 @@ enum GifRenderer {
     static let frameDelay = 1.0 / 12
     static let pixelsPerCell = 6      // 32×32 grid → 192×192 GIF
 
-    /// How much of each mood's cycle to capture. Long enough to include the
-    /// slowest thing each one does: the idle blink, the terminal scroll, the
-    /// one-shot `done` hop.
-    static func duration(for mood: PetMood) -> Double {
-        switch mood {
-        case .idle: 6.0          // covers a blink and a gaze dart
-        case .thinking: 4.0
-        case .working: 4.0
-        case .cooking: 4.0
-        case .nudging: 4.0
-        case .done: 2.5
-        case .needsAttention: 2.0
-        case .sleeping: 4.0
-        }
-    }
+    static func duration(for mood: PetMood) -> Double { mood.style.clipSeconds }
 
     /// Large transparent assets for marketing, rendered from the rig rather than
     /// screen-captured — so they are crisp at any size and reproducible.
@@ -72,71 +58,31 @@ enum GifRenderer {
         let rainbow = stride(from: 0.0, to: CrabView.rainbowDuration, by: frameDelay).map {
             CrabRig.render(CrabAnimator.pose(mood: .done, t: $0))
         }
-        guard writeTinted(rainbow, to: root.appendingPathComponent("rainbow.gif"),
-                          pixelsPerCell: big) else { return false }
+        guard write(rainbow, to: root.appendingPathComponent("rainbow.gif"),
+                    pixelsPerCell: big,
+                    tint: { CrabView.rainbowTint(elapsed: Double($0) * frameDelay) })
+        else { return false }
 
         // Stills: every state, and every prop.
         for mood in PetMood.allCases {
-            guard writePNG(CrabRig.render(CrabAnimator.pose(mood: mood, t: 0.4)),
-                           to: root.appendingPathComponent("still-\(mood.rawValue).png"),
-                           pixelsPerCell: 24) else { return false }
+            guard SpriteImage.write(
+                SpriteImage.png(CrabRig.render(CrabAnimator.pose(mood: mood, t: 0.4)),
+                                pixelsPerCell: 24),
+                to: root.appendingPathComponent("still-\(mood.rawValue).png")) else { return false }
         }
         for prop in CrabPose.Prop.allCases where prop != .none {
             var pose = CrabPose()
             pose.prop = prop
             pose.propPhase = 0.8
-            guard writePNG(CrabRig.render(pose),
-                           to: root.appendingPathComponent("prop-\(prop.rawValue).png"),
-                           pixelsPerCell: 24) else { return false }
+            guard SpriteImage.write(
+                SpriteImage.png(CrabRig.render(pose), pixelsPerCell: 24),
+                to: root.appendingPathComponent("prop-\(prop.rawValue).png")) else { return false }
         }
 
         print("wrote marketing assets to \(root.path)")
         return true
     }
 
-    private static func writePNG(_ buffer: PixelBuffer, to url: URL, pixelsPerCell: Int) -> Bool {
-        let side = CGFloat(PixelBuffer.side * pixelsPerCell)
-        let renderer = ImageRenderer(
-            content: PixelCanvasView(buffer: buffer).frame(width: side, height: side)
-        )
-        renderer.scale = 1
-        renderer.isOpaque = false
-        guard let image = renderer.nsImage,
-              let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else { return false }
-        return (try? png.write(to: url)) != nil
-    }
-
-    /// The rainbow loop: same frames, a moving body tint.
-    private static func writeTinted(_ frames: [PixelBuffer], to url: URL, pixelsPerCell: Int) -> Bool {
-        guard !frames.isEmpty,
-              let destination = CGImageDestinationCreateWithURL(
-                url as CFURL, UTType.gif.identifier as CFString, frames.count, nil)
-        else { return false }
-
-        CGImageDestinationSetProperties(destination, [
-            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]
-        ] as CFDictionary)
-        let props = [kCGImagePropertyGIFDictionary: [
-            kCGImagePropertyGIFDelayTime: frameDelay,
-            kCGImagePropertyGIFUnclampedDelayTime: frameDelay,
-        ]] as CFDictionary
-
-        let side = CGFloat(PixelBuffer.side * pixelsPerCell)
-        for (index, buffer) in frames.enumerated() {
-            let tint = CrabView.rainbowTint(elapsed: Double(index) * frameDelay)
-            let renderer = ImageRenderer(
-                content: PixelCanvasView(buffer: buffer, bodyTint: tint)
-                    .frame(width: side, height: side)
-            )
-            renderer.scale = 1
-            renderer.isOpaque = false
-            guard let image = renderer.cgImage else { return false }
-            CGImageDestinationAddImage(destination, image, props)
-        }
-        return CGImageDestinationFinalize(destination)
-    }
 
     static func render(to directory: String) -> Bool {
         let root = URL(fileURLWithPath: directory)
@@ -186,7 +132,11 @@ enum GifRenderer {
 
     /// Encodes buffers as an infinitely looping GIF with a transparent
     /// background, so it sits on any README theme.
-    private static func write(_ frames: [PixelBuffer], to url: URL, pixelsPerCell: Int = pixelsPerCell) -> Bool {
+    /// - Parameter tint: an optional body colour per frame index, for rainbow mode.
+    private static func write(_ frames: [PixelBuffer],
+                              to url: URL,
+                              pixelsPerCell: Int = pixelsPerCell,
+                              tint: ((Int) -> Color?)? = nil) -> Bool {
         guard !frames.isEmpty else { return false }
 
         guard let destination = CGImageDestinationCreateWithURL(
@@ -207,8 +157,10 @@ enum GifRenderer {
             ]
         ] as CFDictionary
 
-        for buffer in frames {
-            guard let image = cgImage(for: buffer, pixelsPerCell: pixelsPerCell) else { return false }
+        for (index, buffer) in frames.enumerated() {
+            guard let image = SpriteImage.cgImage(buffer, pixelsPerCell: pixelsPerCell,
+                                                  tint: tint?(index))
+            else { return false }
             CGImageDestinationAddImage(destination, image, frameProperties)
         }
 
@@ -217,15 +169,5 @@ enum GifRenderer {
             return false
         }
         return true
-    }
-
-    private static func cgImage(for buffer: PixelBuffer, pixelsPerCell: Int = pixelsPerCell) -> CGImage? {
-        let side = CGFloat(PixelBuffer.side * pixelsPerCell)
-        let renderer = ImageRenderer(
-            content: PixelCanvasView(buffer: buffer).frame(width: side, height: side)
-        )
-        renderer.scale = 1
-        renderer.isOpaque = false
-        return renderer.cgImage
     }
 }

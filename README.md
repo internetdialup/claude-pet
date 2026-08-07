@@ -139,7 +139,7 @@ drag Claw'd to Applications.
 > [build it yourself](#building-it-yourself). It takes about thirty seconds.
 
 **Claw'd has no Dock icon.** He lives in the menu bar: click the little crab
-there for size, sounds, notifications, **Launch at login**, session pinning, and
+there for size, sounds, notifications, **Open at login**, session pinning, and
 hook installation. He reappears wherever you last dragged him, on whichever
 display you left him on.
 
@@ -201,6 +201,32 @@ case .idle: [
 ]
 ```
 
+### 🎯 Custom sentences for particular work
+
+Rules let him say something specific when the task matches a pattern. The first
+match wins, so put the specific ones first:
+
+```swift
+public static let rules: [VocabRule] = [
+    VocabRule(#"\btest(s|ing)?\b"#, [
+        "Writing tests, the good kind 🧪",
+        "Red, green, refactor",
+    ]),
+    VocabRule(#"\bdeploy\b"#, ["Shipping it 🚀"]),   // ← yours here
+]
+```
+
+| | Ships with | Fires on |
+| :---: | :--- | :--- |
+| 🧪 | tests | `test`, `tests`, `testing` |
+| 📦 | commits | `commit`, `git` |
+| 🔍 | debugging | `fix`, `bug`, `debug` |
+| 📝 | docs | `README`, `doc`, `docs`, `document` |
+
+Patterns are case-insensitive regular expressions. **A pattern that doesn't
+compile is skipped, not fatal** — a typo in your vocabulary should never take
+the pet down.
+
 ### ➕ Adding a whole new occasion
 
 Add a `case` to `ShoutoutOccasion` and **the build will fail until you give it
@@ -214,10 +240,10 @@ nothing at runtime.
 | :--- | :--- |
 | **Keep it short** | The bubble truncates past roughly **46 characters**. A line that gets cut off reads worse than a shorter one. |
 | **Emoji are welcome** | They render fine in the bubble. 🍳 🌶️ 🎬 all ship by default. |
+| **He deals a deck** | Lines are dealt like a shuffled deck: every line is used once before any repeats, and the shuffle is reseeded each pass. A plain random pick would show one line four times and another never. |
 
-Lines are chosen by a **seed, never `random()`** — the bubble is recomputed on a
-timer, so a real RNG would rewrite the sentence out from under you mid-read. He
-also never repeats the same line twice in a row.
+Selection is driven by a **seed, never `random()`** — the bubble is recomputed on
+a timer, so a real RNG would rewrite the sentence out from under you mid-read.
 
 ## How it knows
 

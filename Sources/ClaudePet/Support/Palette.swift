@@ -28,19 +28,8 @@ public enum Palette {
     public static let kraft = Color(hex: 0xF0EEE6)
     public static let alert = Color(hex: 0xE05252)
 
-    /// Accent for a given mood — used by the bubble border and the status dot.
-    public static func accent(for mood: PetMood) -> Color {
-        switch mood {
-        case .idle: body
-        case .thinking: sky
-        case .working: screenLight
-        case .cooking: flame
-        case .nudging: yellow
-        case .done: green
-        case .needsAttention: alert
-        case .sleeping: slateSoft
-        }
-    }
+    /// Accent for a given mood. Defined once in `MoodStyle`.
+    public static func accent(for mood: PetMood) -> Color { mood.style.accent }
 }
 
 extension Color {

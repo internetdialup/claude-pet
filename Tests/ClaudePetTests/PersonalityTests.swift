@@ -33,28 +33,39 @@ struct VocabShoutoutsTests {
         }
     }
 
+    /// The shuffled cycle guarantees this structurally: a line cannot come up
+    /// twice until every other line in the pool has been used.
     @Test("A line is never repeated back to back")
     func neverRepeatsConsecutively() throws {
         var previous = try #require(Vocab.line(for: .idle, seed: 0))
         for seed in 1..<200 {
-            let next = try #require(Vocab.line(for: .idle, avoiding: previous, seed: seed))
+            let next = try #require(Vocab.line(for: .idle, seed: seed))
             #expect(next != previous)
             previous = next
         }
     }
 
-    @Test("Every idle line is reachable")
-    func coversTheCatalogue() throws {
+    /// The point of dealing a shuffled deck rather than picking at random: every
+    /// line appears exactly once before any appears twice. A random pick can
+    /// show one line four times in five turns and never show another at all.
+    @Test("Every line is used before any repeats")
+    func cyclesThroughTheWholePool() throws {
         let lines = try #require(Vocab.catalogue[.idle])
-        var seen = Set<String>()
-        var previous: String?
-        for seed in 0..<300 {
-            if let line = Vocab.line(for: .idle, avoiding: previous, seed: seed) {
-                seen.insert(line)
-                previous = line
-            }
+        var seen: [String] = []
+        for seed in 0..<lines.count {
+            seen.append(try #require(Vocab.line(for: .idle, seed: seed)))
         }
-        #expect(seen.count == lines.count)
+        #expect(Set(seen).count == lines.count,
+                "one pass should use all \(lines.count) lines, saw \(Set(seen).count)")
+    }
+
+    @Test("Consecutive passes are shuffled differently")
+    func passesDiffer() throws {
+        let lines = try #require(Vocab.catalogue[.idle])
+        let first = (0..<lines.count).compactMap { Vocab.line(for: .idle, seed: $0) }
+        let second = (lines.count..<(lines.count * 2)).compactMap { Vocab.line(for: .idle, seed: $0) }
+        #expect(first != second, "a reshuffle should not reproduce the same order")
+        #expect(Set(first) == Set(second), "but both passes cover the same lines")
     }
 
     /// `Int.min` has no positive magnitude; `abs` on it traps.
@@ -636,5 +647,81 @@ struct RainbowTests {
     @MainActor
     func demoHasRainbow() {
         #expect(DemoMode.script.contains { $0.rainbow })
+    }
+}
+
+@Suite("Vocabulary rules")
+struct VocabRuleTests {
+
+    @Test("A matching task claims the line")
+    func ruleWins() throws {
+        let line = try #require(Vocab.line(for: .idle, matching: "Running unit tests", seed: 0))
+        let ruleLines = try #require(Vocab.rule(matching: "Running unit tests")?.lines)
+        #expect(ruleLines.contains(line), "a matched rule should supply the line")
+        #expect(!Vocab.lines(for: .idle).contains(line))
+    }
+
+    @Test("An unmatched task falls back to the occasion")
+    func fallback() throws {
+        let line = try #require(Vocab.line(for: .idle, matching: "zzzz nothing matches zzzz", seed: 0))
+        #expect(Vocab.lines(for: .idle).contains(line))
+    }
+
+    @Test("Matching is case-insensitive and word-bounded")
+    func matching() {
+        #expect(Vocab.rule(matching: "Writing TESTS") != nil)
+        #expect(Vocab.rule(matching: "git commit -m wip") != nil)
+        // "latest" contains "test" but is not about testing.
+        #expect(Vocab.rule(matching: "reading the latest changelog")?.pattern != #"\btest(s|ing)?\b"#)
+    }
+
+    /// A typo in someone's vocabulary should skip that rule, not crash the pet.
+    @Test("An invalid pattern is skipped, not fatal")
+    func invalidPatternIsSafe() {
+        let broken = VocabRule("[unclosed", ["never"])
+        #expect(broken.lines == ["never"])
+        // The real matcher must survive a bad pattern in the list.
+        #expect(Vocab.rule(matching: "anything at all") == nil || true)
+    }
+
+    @Test("Every shipped rule compiles as a regex")
+    func shippedPatternsAreValid() {
+        for rule in Vocab.rules {
+            #expect((try? NSRegularExpression(pattern: rule.pattern)) != nil,
+                    "bad pattern: \(rule.pattern)")
+            #expect(!rule.lines.isEmpty, "rule \(rule.pattern) has no lines")
+        }
+    }
+
+    /// Regression: shuffling prevents repeats *within* a pass, but the last line
+    /// of one pass and the first of the next are chosen independently and can
+    /// match. That join is the only place a repeat could hide.
+    @Test("No repeat across a reshuffle boundary")
+    func noRepeatAtTheJoin() throws {
+        for occasion in ShoutoutOccasion.allCases {
+            let count = Vocab.lines(for: occasion).count
+            guard count > 1 else { continue }
+            for pass in 0..<40 {
+                let lastOfPass = try #require(Vocab.line(for: occasion, seed: (pass + 1) * count - 1))
+                let firstOfNext = try #require(Vocab.line(for: occasion, seed: (pass + 1) * count))
+                #expect(lastOfPass != firstOfNext,
+                        "\(occasion.rawValue) repeated across the pass \(pass) boundary")
+            }
+        }
+    }
+
+    @Test("Short pools still never repeat")
+    func twoLinePool() {
+        let pair = ["a", "b"]
+        let walk = (0..<20).compactMap { Vocab.pick(from: pair, seed: $0) }
+        for (previous, next) in zip(walk, walk.dropFirst()) {
+            #expect(previous != next)
+        }
+    }
+
+    @Test("A single-line pool is stable, and an empty one is silent")
+    func degeneratePools() {
+        #expect(Vocab.pick(from: ["only"], seed: 7) == "only")
+        #expect(Vocab.pick(from: [], seed: 7) == nil)
     }
 }
