@@ -59,6 +59,16 @@ public final class ActivityCoordinator {
     private static let sleepAfter: TimeInterval = 300
     /// How long one idle line stays on screen before a new one is chosen.
     private static let chatterInterval: TimeInterval = 14
+    /// How far back the tool-rate window looks.
+    nonisolated static let toolRateWindow: TimeInterval = 60
+    /// Tool calls within that window before he catches fire.
+    ///
+    /// Measured on real transcripts: an ordinary main session runs a median of 4
+    /// tool calls a minute with a 90th percentile of 7, while a fanned-out
+    /// workflow runs a median of 22. Eight sits in the gap, so routine work does
+    /// not trip it and a genuine sprint does.
+    nonisolated static let cookingToolRate = 8
+
     /// What a finished turn says. Emoji rather than a sentence — it is a moment,
     /// not a status, and it decays back to idle within seconds.
     static let celebration = "✅ 🥳 🎉"
@@ -81,11 +91,14 @@ public final class ActivityCoordinator {
         }
         hookServer?.start()
 
-        // Re-evaluates decay (done → idle, idle → sleeping) and reaps dead PIDs.
+        // Re-evaluates decay (done → idle, idle → sleeping), reaps dead PIDs, and
+        // refreshes the subagent count that drives the cooking state.
         decayTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.reapDeadSessions()
-                self?.recompute()
+                guard let self else { return }
+                self.reapDeadSessions()
+                self.refreshWorkload()
+                self.recompute()
             }
         }
     }
@@ -213,6 +226,10 @@ public final class ActivityCoordinator {
             case .toolStarted(let name, let detail):
                 session.mood = .working
                 session.tool = name
+                // A rolling window of recent calls — how *hard* he is going.
+                session.recentToolCalls.append(event.timestamp)
+                let cutoff = event.timestamp.addingTimeInterval(-Self.toolRateWindow)
+                session.recentToolCalls.removeAll { $0 < cutoff }
                 if session.activeTaskLabel == nil {
                     session.activity = detail.map { Self.condense($0) } ?? name
                 }
@@ -239,6 +256,8 @@ public final class ActivityCoordinator {
                 session.subagentCount = count
             case .model(let model):
                 session.model = model
+            case .awaitingApproval(let waiting):
+                session.awaitingApproval = waiting
             case .branch(let branch):
                 session.branch = branch
             case .activityStamps(let stamps):
@@ -304,6 +323,14 @@ public final class ActivityCoordinator {
             mood = .sleeping
         }
 
+        // A plan on screen outranks the work that produced it — nothing moves
+        // until the human answers.
+        if focus.awaitingApproval, mood != .needsAttention, mood != .sleeping {
+            mood = .nudging
+        } else if mood == .working, Self.isCooking(focus, now: now) {
+            mood = .cooking
+        }
+
         let task = focus.activeTaskLabel ?? focus.activity ?? focus.title
         var bubble = task.map { Self.condense($0) }
         var style = PetState.BubbleStyle.plain
@@ -317,6 +344,13 @@ public final class ActivityCoordinator {
             // show pulsing dots rather than repeating the last thing he did.
             bubble = "…"
             style = .dots
+            chatter = nil
+        case .cooking:
+            bubble = "🔥"
+            chatter = nil
+        case .nudging:
+            bubble = VocabShoutouts.line(for: .planReady,
+                                         seed: Int(now.timeIntervalSince1970 / 8))
             chatter = nil
         case .done:
             bubble = Self.celebration
@@ -380,6 +414,39 @@ public final class ActivityCoordinator {
         guard new != state else { return }
         state = new
         onChange?(new)
+    }
+
+    /// Recount in-flight subagents for every live session.
+    ///
+    /// Runs on the feed queue — it touches the filesystem, and nothing that
+    /// touches a disk belongs on the main actor. This finally constructs the
+    /// `.subagents` event, which the model has always consumed but which nothing
+    /// had ever emitted, leaving `subagentCount` permanently zero.
+    private func refreshWorkload() {
+        let targets = sessions.values.map { (id: $0.id, directory: $0.subagentsDirectory) }
+        guard !targets.isEmpty else { return }
+        queue.async { [weak self] in
+            guard let self else { return }
+            let now = Date()
+            let counts = targets.map {
+                ($0.id, WorkloadWatcher.agentsInFlight(subagents: $0.directory, now: now))
+            }
+            let events = counts.map {
+                ActivityEvent(sessionID: $0.0, kind: .subagents($0.1), timestamp: now)
+            }
+            Task { @MainActor in self.ingest(events) }
+        }
+    }
+
+    /// Is this session going hard right now?
+    ///
+    /// Either signal is enough: a rapid burst of tool calls, or a live fan-out of
+    /// subagents. They catch different shapes of intensity — a tight edit loop
+    /// versus a workflow — and neither implies the other.
+    nonisolated static func isCooking(_ session: ClaudeSession, now: Date) -> Bool {
+        if session.subagentCount > 0 { return true }
+        let cutoff = now.addingTimeInterval(-toolRateWindow)
+        return session.recentToolCalls.filter { $0 >= cutoff }.count >= cookingToolRate
     }
 
     /// Squeeze a shell command or long description into bubble-sized text.

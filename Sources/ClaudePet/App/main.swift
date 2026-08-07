@@ -21,6 +21,11 @@ if let index = arguments.firstIndex(of: "--render-gif"), index + 1 < arguments.c
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-marketing"), index + 1 < arguments.count {
+    let ok = MainActor.assumeIsolated { GifRenderer.renderMarketing(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if arguments.contains("--probe") {
     MainActor.assumeIsolated { Probe.run(seconds: 3) }
     exit(0)

@@ -26,6 +26,8 @@ public struct ActivityEvent: Sendable, Equatable {
         case branch(String)
         /// Timestamps of assistant activity, for the "coding today" figure.
         case activityStamps([Date])
+        /// A plan is on screen awaiting the human's verdict.
+        case awaitingApproval(Bool)
         /// The session process went away.
         case ended
     }

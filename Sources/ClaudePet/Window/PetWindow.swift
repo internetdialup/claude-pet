@@ -35,8 +35,9 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     private var dragOffset: CGSize?
     private let contentSize: CGSize
 
-    /// Called when the crab is clicked without being dragged.
-    var onClick: (() -> Void)?
+    /// Called when the crab is clicked without being dragged. The argument is
+    /// the click count, so a triple-click can mean something extra.
+    var onClick: ((Int) -> Void)?
     /// Called when the pointer enters or leaves the crab itself.
     var onHover: ((Bool) -> Void)?
 
@@ -261,9 +262,11 @@ private final class DragHostView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        let clicks = event.clickCount
         MainActor.assumeIsolated {
             controller?.endDrag()
-            if !didDrag { controller?.onClick?() }
+            // Still suppressed by a drag: a click that moved him is a move.
+            if !didDrag { controller?.onClick?(clicks) }
         }
     }
 }

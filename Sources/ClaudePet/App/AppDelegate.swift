@@ -13,12 +13,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Overrides the live feed while the operator previews a mood from the menu.
     private var debugMood: PetMood?
+    /// `--demo`: run the scripted reel instead of real activity, for recording.
+    private var demoTimer: Timer?
+    private var demoStartedAt: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildWindow()
 
         coordinator.onChange = { [weak self] state in
-            guard let self, self.debugMood == nil else { return }
+            guard let self, self.debugMood == nil, !self.demoMood else { return }
             self.model.state = state
             self.menuBar?.update(state: state)
         }
@@ -39,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+
+        if CommandLine.arguments.contains("--demo") { startDemo() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -68,13 +73,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             interactiveRect: interactive,
             rootView: PetRootView(model: model, pixelSize: pixelSize)
         )
-        controller.onClick = { [weak self] in self?.toggleRoster() }
+        controller.onClick = { [weak self] clicks in
+            guard let self else { return }
+            // 🎉🪄 Poke him three times and he throws a party.
+            if clicks >= 3 {
+                self.model.rainbowStartedAt = Date()
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabView.rainbowDuration) {
+                    self.model.rainbowStartedAt = nil
+                }
+            }
+            // Squash first, roster second — the reaction is feedback for the
+            // click, and the roster is what the click is for.
+            self.model.clickedAt = Date()
+            self.toggleRoster()
+            // Clear it once the animation is done so the view drops back to its
+            // mood frame rate instead of holding 30fps forever.
+            DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) {
+                self.model.clickedAt = nil
+            }
+        }
         controller.onHover = { [weak self] hovering in
             self?.model.hoverStartedAt = hovering ? Date() : nil
         }
         windowController = controller
         if !wasHidden { controller.show() }
     }
+
+    /// Replays `DemoMode.script` on a loop, ignoring real sessions.
+    private func startDemo() {
+        demoStartedAt = Date()
+        demoMood = true
+        demoTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let started = self.demoStartedAt else { return }
+                let elapsed = Date().timeIntervalSince(started)
+                let state = DemoMode.state(at: elapsed, sessions: self.model.state.sessions)
+                self.model.state = state
+                self.menuBar?.update(state: state)
+
+                // Hold the rainbow for exactly the beat that asks for it. Its
+                // start is pinned to the beat's own start so the hue cycle lines
+                // up with the beat rather than drifting against it.
+                if DemoMode.beat(at: elapsed).rainbow {
+                    if self.model.rainbowStartedAt == nil {
+                        self.model.rainbowStartedAt = Date()
+                    }
+                } else {
+                    self.model.rainbowStartedAt = nil
+                }
+            }
+        }
+    }
+
+    /// Set while the demo reel owns the display, so live updates stay out.
+    private var demoMood = false
 
     // MARK: - Interactions
 
@@ -131,6 +183,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             style = .dots
         case .working:
             bubble = "Running a build"
+            style = .plain
+        case .cooking:
+            bubble = "🔥 Cooking"
+            style = .plain
+        case .nudging:
+            bubble = VocabShoutouts.line(for: .planReady, seed: Int(Date().timeIntervalSince1970))
             style = .plain
         case .done:
             bubble = ActivityCoordinator.celebration

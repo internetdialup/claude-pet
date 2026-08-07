@@ -4,11 +4,41 @@
 **Document Metadata:**
 - **Created:** 2026-08-06
 - **Last Updated:** 2026-08-06
-- **Document Version:** v0.1.2
-- **Operational Freeze Tag:** `v0.1.2-clawd-personality`
+- **Document Version:** v1.1.0
+- **Operational Freeze Tag:** `v1.1.0-clawd-cooking`
 ---
 
 The Knob log. Newest on top. Target 4 entries, hard max 6 (`Bamboo.md` §1).
+
+## Knob: v1.1.0 — Personality, a cooking state, and a randomness bug — Thursday, August 06, 2026
+
+Claw'd could say *what* Claude was doing but not *how hard*. This Knob adds two states with real triggers, makes him fun to poke, and fixes a bug that had been quietly flattening every random choice in the app.
+
+**Two new states, both grounded.** `.cooking` fires on either of two independent signals: 8+ tool calls in a rolling minute, or live subagents. The threshold was measured rather than picked — an ordinary session runs a median of 4 tool calls a minute with a p90 of 7, while a fanned-out workflow runs a median of 22, so eight sits in the gap where routine work cannot reach it. The subagent count comes from `subagents/workflows/<runId>/journal.jsonl` as `started` minus `result`, which doubles as the on-disk signature of an "ultracode" run — that keyword leaves no field anywhere, it simply triggers a dynamic workflow. Two things had to be got right here that were not obvious: the agent transcripts must be globbed **recursively**, because a flat listing of `subagents/` reports zero live agents while three are running one level deeper; and the journal size cap had to be sized against reality — a real 13-agent journal measured **413 KB**, not the "few hundred bytes" a live one suggests, because every `result` line embeds that agent's whole return value. A 256 KB cap would have skipped exactly the long fan-outs the feature exists to catch.
+
+`.nudging` needed no heuristic at all: an `ExitPlanMode` call with no matching `tool_result` *is* Claude blocked on the human. It also connects wiring that had been dead since the start — `ActivityEvent.subagents(Int)` and `ClaudeSession.subagentCount` both existed and were consumed by `recompute`, but nothing in the codebase ever constructed that event, so the count had been permanently zero.
+
+**The randomness was barely random.** `noise()` was a single step of a linear congruential generator: `(n * 1664525 + 1013904223) & 0x7FFFFFFF`. Its output moves by roughly 0.0008 per increment of `n`, so consecutive seeds land in the same bucket, and a four-way choice could only ever reach two of its options. A test written for the new hover variants caught it — it saw two distinct reactions across two hundred seeds. The same helper drives the idle flourishes and the working prop rotation, so both had been far less varied than intended for as long as they have existed. Replaced with splitmix64's finaliser, and the regression is now pinned by a test that asserts sequential seeds do not cluster.
+
+Worth recording how the first version of that test *failed to fail correctly*: it fingerprinted a handful of pose fields, and `wave` and `hop` happen to share a mouth and a wink state, so it reported them as one reaction. Fingerprinting the rendered pixels instead is both simpler and honest — the question was always "do these look different", not "do these differ in the fields I thought to check".
+
+**Art.** The fire was three flat horizontal bars off his flank, with a clamp that swallowed most of its own flicker. It is now an upward burst of hand-authored silhouettes rising into the free band above him, with sparks drawn in the foreground through a `drawProp` case that had been a no-op. Flames read as authored shapes; computed ones read as bars. He wears a determined expression while it burns, carved by painting `.body` over the inner-top corner of each eye — `drawFace` runs after the body, so that is a clean erase rather than a real clear.
+
+The `.nudging` face broke on first render, and the cause is a good lesson in composing pixel effects: `.wide` eyes draw a row taller and a row higher, while an oscillating `tilt` shifted each eye a pixel in *opposite* directions. Neither knew about the other, and together they put the two eyes two rows apart. The tilt is gone from that state, and a test now asserts both eyes occupy the same rows in every non-wink pose.
+
+**Interaction.** Hovering picks one of four reactions, seeded from the hover's start instant so it holds for the whole hover rather than re-rolling thirty times a second. The wink had to route through a new `winkEye` field rather than `blink`, because the greeting sets `asleepOverride` on every frame, which vetoes the shut-eye branch — a wink through `blink` renders as two open eyes and no error. Clicking squashes him before opening the roster; the shrink resamples the pixel grid rather than using `.scaleEffect`, which would resample the `drawingGroup` bitmap and soften the deliberately hard edges. And the frame-rate gate had to learn about clicks: it only took the fast path for hover, so a 0.34s shrink in `.sleeping` would have rendered as two frames.
+
+**Files changed:**
+- `Model/PetState.swift`, `Model/ClaudeSession.swift`, `Model/ActivityEvent.swift` — the two moods, `awaitingApproval`, `recentToolCalls`, `branch`, `activeHoursToday`.
+- `Feeds/WorkloadWatcher.swift` — new; in-flight agent counting.
+- `Feeds/ActivityCoordinator.swift` — tool-rate ring, cooking/nudging promotion, `refreshWorkload`.
+- `Feeds/TranscriptFold.swift` — `ExitPlanMode`, `gitBranch`, activity stamps.
+- `Feeds/StatusTicker.swift` — the snapshot-based rotation.
+- `View/CrabRig.swift` — the burst, sparks, `winkEye`, `eyes`, `tilt`, `scale`, the plan prop.
+- `View/CrabView.swift` — the hash fix, four greetings, click reaction, two new poses.
+- `View/PixelBuffer.swift` — `scaled`, `bodyTint`, new inks.
+- `App/{DemoMode,GifRenderer,IconRenderer,AppDelegate}.swift` — the demo reel, marketing renderer, fire-free icon, rainbow.
+- `README.md` — rebuilt as a per-state tour; `CHANGELOG.md` — v1.1.0.
 
 ## Knob: v0.1.2 — Personality, and a hardening pass before going public — Thursday, August 06, 2026
 
@@ -90,5 +120,6 @@ The third: this repo had no Swift standard to inherit. `development/swift-develo
 
 | Version | Date | Freeze Tag | Memory Tier | Summary of Change |
 | :--- | :--- | :--- | :--- | :--- |
+| v1.1.0 | 2026-08-06 | `v1.1.0-clawd-cooking` | **Hot** | Knob v1.1.0 — cooking and nudging states, playful interactions, the noise() fix. |
 | v0.1.2 | 2026-08-06 | `v0.1.2-clawd-personality` | **Hot** | Knob v0.1.2 — personality pass and pre-OSS hardening. |
 | v0.1.0 | 2026-08-06 | `v0.1.0-claude-pet-genesis` | **Hot** | Genesis Knob. Project stood up under Bamboo governance. |

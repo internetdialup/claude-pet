@@ -30,7 +30,8 @@ The folder map. This file updates in the **same commit** as any file addition or
 | `CHANGELOG.md` | User-facing version history. Distinct from `docs/ctx-orientation.md`, which is the Knob log and carries the engineering *why* — same events, different audience, so not a duplicate home |
 | `scripts/make-icon.sh` | Regenerates `AppIcon.icns` from the sprite rig |
 | `scripts/make-dmg.sh` | Builds the ad-hoc signed installer |
-| `docs/media/` | README artwork: per-mood GIFs, the desktop capture, the icon |
+| `docs/media/` | README artwork: per-mood GIFs, hover variants, the desktop capture, the icon |
+| `build/marketing/` | Large transparent assets and captures. **Gitignored** — several MB, and no contributor needs them |
 
 ## Source
 
@@ -44,7 +45,8 @@ Files are named for their **principal type** (`development/swift-development.md`
 | `App/Probe.swift` | App | `--probe`: prints the live `PetState` and exits |
 | `App/SpriteSheetRenderer.swift` | App | `--render-sheet`: the art contact sheet |
 | `App/IconRenderer.swift` | App | `--render-icon`: the app icon and DMG background |
-| `App/GifRenderer.swift` | App | `--render-gif`: the README mood loops |
+| `App/GifRenderer.swift` | App | `--render-gif` and `--render-marketing`: the loops and assets |
+| `App/DemoMode.swift` | App | `--demo`: a scripted mood reel, for recordings |
 | `Support/AppVersion.swift` | Support | The shipped version, asserted against `Info.plist` |
 | `Resources/AppIcon.icns` | Resource | The app icon, generated and committed |
 | `Window/PetWindow.swift` | View | Borderless floating window, dragging, multi-display placement |
@@ -57,6 +59,7 @@ Files are named for their **principal type** (`development/swift-development.md`
 | `Feeds/TranscriptFold.swift` | Feed | Bounded-tail transcript reader |
 | `Feeds/TaskWatcher.swift` | Feed | The in-progress todo's `activeForm` |
 | `Feeds/StatusTicker.swift` | Feed | Model name and usage percentages, when grounded |
+| `Feeds/WorkloadWatcher.swift` | Feed | In-flight subagent count — what proves Claude is fanning out |
 | `Feeds/HookServer.swift` | Feed | Drains the hook event drop-directory |
 | `Feeds/FileWatcher.swift` | Feed | Coalescing `DispatchSource` file/directory watcher |
 | `Feeds/ActivityCoordinator.swift` | Feed | The single reducer: events → `PetState` |

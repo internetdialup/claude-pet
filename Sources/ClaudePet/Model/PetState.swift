@@ -10,6 +10,10 @@ public enum PetMood: String, Sendable, Codable, CaseIterable {
     case thinking
     /// A tool call is in flight.
     case working
+    /// Claude is going hard: rapid tool calls, or a fan-out of live subagents.
+    case cooking
+    /// A plan is written and Claude is blocked waiting for the human to approve.
+    case nudging
     /// Claude finished a turn recently. Transient; decays back to `idle`.
     case done
     /// A permission prompt or notification needs the human. Sticky until cleared.
@@ -25,7 +29,12 @@ public enum PetMood: String, Sendable, Codable, CaseIterable {
         case .done: 2
         case .thinking: 3
         case .working: 4
-        case .needsAttention: 5
+        case .cooking: 5
+        // Waiting on the human, but politely — it outranks work because nothing
+        // is progressing until you look, and sits under the hard block of a
+        // permission prompt.
+        case .nudging: 6
+        case .needsAttention: 7
         }
     }
 }

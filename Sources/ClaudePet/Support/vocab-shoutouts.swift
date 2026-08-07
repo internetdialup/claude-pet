@@ -8,6 +8,8 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case finished
     /// A session is blocked on the human.
     case needsYou
+    /// A plan is written and waiting for the human to approve it.
+    case planReady
 }
 
 /// Claw'd's vocabulary.
@@ -36,6 +38,13 @@ public enum VocabShoutouts {
             "Shipped it!",
             "Chef's kiss",
             "Another one done",
+        ],
+        .planReady: [
+            "Plan's ready 👀",
+            "Take a look?",
+            "Shall we?",
+            "Waiting on your call",
+            "Ready when you are",
         ],
         .needsYou: [
             "Psst — I need you",

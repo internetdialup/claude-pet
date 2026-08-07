@@ -20,3 +20,4 @@ xcuserdata/
 # Transcripts and session files are private work product (Bamboo.md §6).
 *.jsonl
 scratch/
+build/marketing/

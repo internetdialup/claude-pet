@@ -17,7 +17,10 @@ public enum Palette {
     public static let pink = Color(hex: 0xE86A9A)        // alert
     public static let sky = Color(hex: 0x6A9BCC)         // thinking accent
     public static let steel = Color(hex: 0x8A8F98)       // wrench, screwdriver
-    public static let flame = Color(hex: 0xE8712F)       // rocket exhaust
+    public static let flame = Color(hex: 0xE8712F)       // flame body
+    /// The existing `yellow` is a muted gold; a flame core needs to read hot.
+    public static let flameCore = Color(hex: 0xF7D046)   // hottest part of the burst
+    public static let ember = Color(hex: 0xC4451F)       // deep outer licks
 
     /// Chrome colours for the bubble and roster (not part of the sprite).
     public static let slate = Color(hex: 0x141413)
@@ -31,6 +34,8 @@ public enum Palette {
         case .idle: body
         case .thinking: sky
         case .working: screenLight
+        case .cooking: flame
+        case .nudging: yellow
         case .done: green
         case .needsAttention: alert
         case .sleeping: slateSoft

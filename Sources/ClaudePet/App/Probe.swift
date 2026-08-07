@@ -24,6 +24,11 @@ enum Probe {
         print("focused:   \(state.focusedSession?.name ?? "—")")
         print("attention: \(state.attentionCount)")
         print("sessions:  \(state.sessions.count)")
+        for session in state.sessions where session.subagentCount > 0 || session.awaitingApproval {
+            print("  ! \(session.name): agents=\(session.subagentCount) "
+                  + "awaitingApproval=\(session.awaitingApproval) "
+                  + "toolsIn60s=\(session.recentToolCalls.count)")
+        }
         for session in state.sessions {
             let detail = session.activeTaskLabel ?? session.activity ?? session.title ?? "—"
             print("  • \(session.name)  [\(session.mood.rawValue)]  \(session.projectName)")

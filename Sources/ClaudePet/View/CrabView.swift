@@ -9,9 +9,20 @@ public enum CrabAnimator {
 
     /// Deterministic pseudo-random in 0..<1, so blink timing is irregular but
     /// stable across frames (a real RNG would re-roll 60× a second).
+    ///
+    /// This is a hash, not one step of a linear congruential generator. The
+    /// previous version was `(n * 1664525 + 1013904223) & 0x7FFFFFFF`, whose
+    /// output moves by only ~0.0008 per increment of `n` — so consecutive seeds
+    /// landed in the same bucket and a four-way choice could only ever reach two
+    /// of its options. That silently narrowed the idle flourishes and the
+    /// working props as well as the hover reactions. splitmix64's finaliser
+    /// avalanches properly: one bit of input changes half the output bits.
     private static func noise(_ n: Int) -> Double {
-        let x = Double((n &* 1_664_525 &+ 1_013_904_223) & 0x7FFF_FFFF)
-        return x / Double(0x7FFF_FFFF)
+        var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
+        x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        x = (x ^ (x >> 27)) &* 0x94D0_49BB_1331_11EB
+        x = x ^ (x >> 31)
+        return Double(x >> 11) / Double(1 << 53)
     }
 
     /// A blink roughly every 5s (±1.5s), lasting 140ms.
@@ -114,6 +125,41 @@ public enum CrabAnimator {
             pose.legAmplitude = 1
             pose.prop = workingProp(at: t)
 
+        case .cooking:
+            // Head down, working fast, on fire. Quicker than `.working` but not
+            // frantic — this is flow, not panic.
+            pose.bob = sin(t * 3.4) > 0 ? 0 : 1
+            pose.blink = blink(at: t, period: 5.0)
+            pose.eyes = .determined
+            pose.gazeY = 1
+            pose.mouth = .flat
+            pose.armLeft = sin(t * 4.2) > 0 ? 0.4 : 0
+            pose.armRight = sin(t * 4.2) > 0 ? 0 : 0.4
+            pose.legPhase = t * 4
+            pose.legAmplitude = 1
+            pose.prop = .fire
+
+        case .nudging:
+            // Expectant: leaning your way, eyes wide, one arm out holding the
+            // plan, tapping a foot. Pointedly not the frantic wave of
+            // `.needsAttention` — he is waiting, not alarmed.
+            pose.bob = sin(t * 1.8) > 0 ? 0 : 1
+            pose.lean = 1
+            pose.eyes = .wide
+            pose.blink = blink(at: t, period: 4.5)
+            pose.gazeY = -1                       // looking up at you
+            pose.mouth = .smile
+            pose.armRight = 0.5                   // holding the plan out
+            pose.armLeft = 0
+            // No tilt. `.wide` already draws each eye a row taller and a row
+            // higher; adding a tilt that shifts the two eyes in OPPOSITE
+            // directions put them two rows apart, which reads as a broken face
+            // rather than an inquisitive one. The lean carries the question.
+            // One foot taps: a small, single-leg motion rather than a walk.
+            pose.legPhase = .pi / 2
+            pose.legAmplitude = sin(t * 5) > 0.4 ? 1 : 0
+            pose.prop = .plan
+
         case .done:
             // Both arms up, holding the green check. One decaying hop.
             let hop = max(0, 1 - t / 1.2)
@@ -144,15 +190,33 @@ public enum CrabAnimator {
         return pose
     }
 
+    /// The playful things he does when you put the pointer on him.
+    public enum Greeting: CaseIterable {
+        case wave, wink, hop, wiggle
+    }
+
+    /// Which reaction a given seed selects. Exposed so the renderers can show
+    /// each variant rather than whichever one a seed happens to pick.
+    public static func greeting(forSeed seed: Int) -> Greeting {
+        let variants = Greeting.allCases
+        return variants[Int(noise(seed) * Double(variants.count)) % variants.count]
+    }
+
     /// He notices you.
     ///
     /// Layered on top of whatever mood pose was already computed, so hovering a
     /// working Claw'd still shows his prop — he just looks up from it. Even
     /// asleep he stirs, which is the whole charm of poking a pet.
     ///
-    /// - Parameter elapsed: seconds since the pointer arrived.
-    public static func applyGreeting(elapsed: Double, to pose: inout CrabPose) {
-        // A startled hop on arrival, then settle into looking at you.
+    /// - Parameters:
+    ///   - elapsed: seconds since the pointer arrived.
+    ///   - seed: picks the variant. Comes from the hover's start time, so it is
+    ///     chosen once per hover — `Double.random` here would re-roll the
+    ///     reaction 20-30 times a second.
+    public static func applyGreeting(elapsed: Double, seed: Int = 0, to pose: inout CrabPose) {
+        let greeting = greeting(forSeed: seed)
+
+        // A startled hop on arrival, common to every variant — he noticed you.
         if elapsed < 0.30 {
             pose.bob -= 3
             pose.squash = 0
@@ -162,14 +226,67 @@ public enum CrabAnimator {
         }
 
         pose.asleepOverride = true      // eyes open even in the sleeping pose
-        pose.blink = 0
         pose.gazeX = 0
         pose.gazeY = -1                 // looking up, out of the screen at you
-        pose.mouth = .open
 
-        // A small wave with the near arm, held for as long as you stay.
-        pose.armRight = max(pose.armRight, 0.55 + (sin(elapsed * 8) > 0 ? 0.25 : 0))
+        switch greeting {
+        case .wave:
+            pose.blink = 0
+            pose.mouth = .open
+            pose.armRight = max(pose.armRight, 0.55 + (sin(elapsed * 8) > 0 ? 0.25 : 0))
+
+        case .wink:
+            // Routed through `winkEye` rather than `blink`, which
+            // `asleepOverride` vetoes.
+            pose.mouth = .smile
+            pose.blink = 0
+            // A wink is a brief shut, not a held one. The first version used
+            // `sin(elapsed * 2.2) > -0.3`, which keeps the eye closed for about
+            // three quarters of every cycle — that does not read as a wink, it
+            // reads as an eye that is stuck.
+            let cycle = elapsed.truncatingRemainder(dividingBy: 1.5)
+            pose.winkEye = cycle < 0.22 ? .right : .none
+            // No tilt here. Tilt offsets the two eyes by a pixel in opposite
+            // directions, and against a one-row shut eye that misalignment is
+            // exactly what made the wink look wonky.
+            pose.tilt = 0
+            pose.armRight = max(pose.armRight, 0.35)
+
+        case .hop:
+            pose.mouth = .open
+            pose.blink = 0
+            // A repeating little bounce for as long as you stay.
+            let bounce = abs(sin(elapsed * 4))
+            pose.bob -= Int((bounce * 3).rounded())
+            pose.squash = bounce < 0.15 ? 1 : 0
+            pose.legAmplitude = 1.2
+            pose.legPhase = .pi / 2
+
+        case .wiggle:
+            pose.mouth = .smile
+            pose.blink = 0
+            pose.lean += sin(elapsed * 9) > 0 ? -1 : 1
+            pose.armLeft = max(pose.armLeft, 0.3)
+            pose.armRight = max(pose.armRight, 0.3)
+        }
     }
+
+    /// The poke reaction: he squashes down, then springs back.
+    ///
+    /// - Parameter elapsed: seconds since the click.
+    public static func applyClick(elapsed: Double, to pose: inout CrabPose) {
+        guard elapsed >= 0, elapsed < clickDuration else { return }
+        let progress = elapsed / clickDuration
+        // Down fast, back slower — a spring, not a dip.
+        let compression = progress < 0.35
+            ? progress / 0.35
+            : max(0, 1 - (progress - 0.35) / 0.65)
+        pose.scale = 1 - 0.22 * compression
+        pose.squash = compression > 0.5 ? 1 : 0
+        pose.mouth = .open
+    }
+
+    public static let clickDuration = 0.34
 
     /// The jump at a given point in its arc, for the contact sheet.
     static func jumpPose(progress: Double) -> CrabPose {
@@ -238,13 +355,35 @@ public struct CrabView: View {
     public var mood: PetMood
     /// Reference-time instant the pointer arrived on him, or nil.
     public var hoverSince: Double?
+    /// Reference-time instant he was last clicked, or nil.
+    public var clickedAt: Double?
+    /// Reference-time instant rainbow mode began, or nil. 🎉🪄
+    public var rainbowSince: Double?
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
-    public init(mood: PetMood, hoverSince: Double? = nil, frozenTime: Double? = nil) {
+    public init(mood: PetMood,
+                hoverSince: Double? = nil,
+                clickedAt: Double? = nil,
+                rainbowSince: Double? = nil,
+                frozenTime: Double? = nil) {
         self.mood = mood
         self.hoverSince = hoverSince
+        self.clickedAt = clickedAt
+        self.rainbowSince = rainbowSince
         self.frozenTime = frozenTime
+    }
+
+    /// How long the party lasts.
+    public static let rainbowDuration = 4.0
+
+    /// The body colour at a moment in the cycle, or nil when not partying.
+    static func rainbowTint(elapsed: Double) -> Color? {
+        guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
+        // Two full trips round the wheel, then out. Saturation stays under 1 so
+        // he still reads as Claw'd wearing colours rather than a colour wheel.
+        let hue = (elapsed / rainbowDuration * 2).truncatingRemainder(dividingBy: 1)
+        return Color(hue: hue, saturation: 0.72, brightness: 0.92)
     }
 
     /// How often the sprite is rebuilt, per mood.
@@ -260,6 +399,8 @@ public struct CrabView: View {
         case .idle: 1.0 / 20         // blinks, gaze darts, occasional flourish
         case .thinking: 1.0 / 15
         case .working: 1.0 / 20      // typing arms and a scrolling terminal
+        case .cooking: 1.0 / 24      // the flame wants to flicker
+        case .nudging: 1.0 / 20
         case .done, .needsAttention: 1.0 / 30   // one-shot motion, wants to pop
         }
     }
@@ -268,9 +409,11 @@ public struct CrabView: View {
         if let frozenTime {
             render(at: frozenTime)
         } else {
-            // Hovering gets the smoother rate — that one is a direct response to
-            // the pointer and needs to feel immediate.
-            let interval = hoverSince == nil ? frameInterval : 1.0 / 30
+            // Hover and click get the smoother rate — both are direct responses
+            // to the pointer and need to feel immediate. Leaving clicks on the
+            // mood rate renders a 0.34s shrink as two frames in `.sleeping`.
+            let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
+            let interval = reacting ? 1.0 / 30 : frameInterval
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
                 render(at: timeline.date.timeIntervalSinceReferenceDate)
             }
@@ -280,7 +423,10 @@ public struct CrabView: View {
     private func render(at time: Double) -> some View {
         // Live: rebase onto the mood so one-shot motion (the `done` hop) starts
         // at its own t=0. Frozen: the caller's time is already relative.
-        PixelCanvasView(buffer: CrabRig.render(currentPose(at: time)))
+        PixelCanvasView(buffer: CrabRig.render(currentPose(at: time)),
+                        bodyTint: rainbowSince.flatMap {
+                            CrabView.rainbowTint(elapsed: time - $0)
+                        })
             .drawingGroup()
     }
 
@@ -288,7 +434,14 @@ public struct CrabView: View {
         let t = frozenTime == nil ? time - moodEpoch : time
         var pose = CrabAnimator.pose(mood: mood, t: t)
         if let hoverSince, frozenTime == nil {
-            CrabAnimator.applyGreeting(elapsed: time - hoverSince, to: &pose)
+            // The hover's start instant doubles as the variant seed: chosen once
+            // per hover, stable for its whole duration.
+            CrabAnimator.applyGreeting(elapsed: time - hoverSince,
+                                       seed: Int(hoverSince * 1000),
+                                       to: &pose)
+        }
+        if let clickedAt, frozenTime == nil {
+            CrabAnimator.applyClick(elapsed: time - clickedAt, to: &pose)
         }
         return pose
     }
