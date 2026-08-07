@@ -2,8 +2,8 @@
   <img src="docs/media/icon-1024.png" width="120" alt="Claude Pet">
   <h1>Claude Pet 🦀</h1>
   <p><strong>Claw'd lives on your desktop and shows you what Claude Code is doing.</strong></p>
-  <img src="docs/media/desktop.gif" width="640" alt="Claw'd running on the desktop beside another desktop pet">
-  <p><em>Claw'd on the desktop, reporting a live session — next to a friend.</em></p>
+  <img src="docs/media/desktop.gif" width="720" alt="Claw'd cycling through his states on the desktop, beside another desktop pet">
+  <p><em>Every state, in order — then a hover, and a poke. Next to a friend.</em></p>
 </div>
 
 ## What it is
