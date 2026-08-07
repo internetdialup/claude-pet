@@ -54,9 +54,12 @@ enum GifRenderer {
         guard write(tour, to: root.appendingPathComponent("state-tour.gif"), pixelsPerCell: big)
         else { return false }
 
-        // The party, on its own.
-        let rainbow = stride(from: 0.0, to: CrabView.rainbowDuration, by: frameDelay).map {
-            CrabRig.render(CrabAnimator.pose(mood: .done, t: $0))
+        // The party, on its own. Pose and colour both cycle, so this has to walk
+        // the same mood schedule the live view does rather than hold one pose.
+        let rainbow = stride(from: 0.0, to: CrabView.rainbowDuration, by: frameDelay).map { t -> PixelBuffer in
+            var pose = CrabAnimator.pose(mood: CrabView.rainbowMood(elapsed: t) ?? .done, t: t)
+            pose.mouth = .open
+            return CrabRig.render(pose)
         }
         guard write(rainbow, to: root.appendingPathComponent("rainbow.gif"),
                     pixelsPerCell: big,

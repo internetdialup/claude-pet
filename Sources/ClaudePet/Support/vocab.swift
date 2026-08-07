@@ -7,9 +7,20 @@ import Foundation
 //  with ./run.sh, and he says your words instead.
 //
 //  Two things you can add:
-//    1. LINES     — what he says for each occasion.        (`lines(for:)`)
+//    1. LINES     — what he says in each state.             (`lines(for:)`)
 //    2. RULES     — what he says when the task matches a
-//                   pattern, e.g. anything about tests.    (`rules`)
+//                   pattern, e.g. anything about tests.     (`rules`)
+//
+//  WHAT WINS, when several could apply:
+//
+//    1. A RULE matching the current task    → "Committing the good stuff 📦"
+//    2. The REAL TASK TEXT, whenever there is one
+//    3. This state's LINES
+//
+//  Point 2 is deliberate and is the reason `working` and `cooking` lines seem
+//  not to fire: while Claude is actually running something, the bubble shows
+//  what it is running. A pet that hides "Running the test suite" behind a joke
+//  is a worse pet. Your lines for those states fill the gaps BETWEEN tools.
 //
 //  Adding a whole new occasion? Add a `case` to ShoutoutOccasion and the
 //  compiler will refuse to build until you give it lines — the switch below is
@@ -19,16 +30,25 @@ import Foundation
 //  line that gets cut off reads worse than a shorter one. Emoji are welcome.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// When Claw'd has something to say.
+/// When Claw'd has something to say. One per state, so any of them can carry
+/// your words.
 public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     /// 💬 Sessions are live but Claude is between tasks.
     case idle
-    /// ✅ A session just finished its turn.
-    case finished
+    /// 💭 Claude is reasoning — no tool running.
+    case thinking
+    /// ⚙️ A tool is in flight. Shown only in the gaps; the task text wins.
+    case working
+    /// 🔥 Going hard — rapid tool calls, or a fan-out of subagents.
+    case cooking
     /// 👀 A plan is written and waiting for you to approve it.
     case planReady
+    /// ✅ A session just finished its turn.
+    case finished
     /// ‼️ A session is blocked on you — usually a permission prompt.
     case needsYou
+    /// 😴 Nothing is running at all.
+    case sleeping
 }
 
 /// A line he says when the current task matches a pattern.
@@ -76,8 +96,33 @@ public enum Vocab {
             "Ooo that's a spicy idea 🌶️",
         ]
 
+        // 💭 Reasoning. Usually shown as pulsing dots instead, so these are rare.
+        case .thinking: [
+            "Thinking it through",
+            "Give me a second",
+            "Working out the shape of it",
+        ]
+
+        // ⚙️ A tool is running. The task text wins whenever there is one, so
+        // these fill the gaps rather than replacing anything useful.
+        case .working: [
+            "On it",
+            "Making progress",
+            "This is the fun part",
+        ]
+
+        // 🔥 Really going. Same rule — the task text wins when there is one.
+        case .cooking: [
+            "🔥",
+            "Absolutely cooking 🔥",
+            "Do not disturb",
+            "Full send",
+            "In the zone",
+        ]
+
         // ✅ A turn just finished.
         case .finished: [
+            "✅ 🥳 🎉",
             "Nailed it",
             "That's a wrap 🎬",
             "Shipped it!",
@@ -100,6 +145,14 @@ public enum Vocab {
             "One quick question",
             "Waiting on you!",
             "Need a hand over here",
+        ]
+
+        // 😴 Nothing running. Shown occasionally, not on every frame — a
+        // sleeping pet that talks constantly is not asleep.
+        case .sleeping: [
+            "zzz…",
+            "Wake me when it matters",
+            "Resting my claws",
         ]
         }
     }

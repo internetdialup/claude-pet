@@ -143,8 +143,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let existing = roster, existing.isShown {
             existing.performClose(nil)
             roster = nil
+            window.acceptsKey = false
             return
         }
+
+        // The popover needs a key window to be clickable; the pet does not.
+        window.acceptsKey = true
+        window.makeKey()
 
         let popover = NSPopover()
         popover.behavior = .transient
@@ -176,9 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // bubble. Text comes from the mood's own style, falling back to its
         // vocabulary — so a preview always shows real content.
         let bubble = mood.style.previewBubble
-            ?? mood.shoutoutOccasion.flatMap {
-                Vocab.line(for: $0, seed: Int(Date().timeIntervalSince1970))
-            }
+            ?? Vocab.line(for: mood.shoutoutOccasion, seed: Int(Date().timeIntervalSince1970))
         let style: PetState.BubbleStyle = mood == .thinking ? .dots : .plain
 
         model.state = PetState(mood: mood,
@@ -191,21 +194,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleAlert(mood: PetMood, session: ClaudeSession) {
-        switch mood {
-        case .needsAttention:
-            SoundBank.play(.chirp)
-            postNotification(title: "\(session.name) needs you",
-                             body: session.activity ?? "Claude is waiting on a response.")
-        case .done:
-            SoundBank.play(.chime)
-            // Only notify about completion when the operator is elsewhere.
-            if !NSApp.isActive {
-                postNotification(title: "\(session.name) finished",
-                                 body: session.title ?? session.projectName)
-            }
-        default:
-            break
+        guard let event = NotificationNudge.event(for: mood) else { return }
+
+        switch event {
+        case .needsYou: SoundBank.play(.chirp)
+        case .finished: SoundBank.play(.chime)
+        default: break                 // plan-ready and cooking stay silent
         }
+
+        // Cooking fires often; it is opt-in.
+        if event == .cooking, !Preferences.shared.cookingNotificationsEnabled { return }
+        // Finishing is only worth a banner when you are looking elsewhere.
+        if event == .finished, NSApp.isActive { return }
+
+        let copy = NotificationNudge.copy(for: event, seed: Int(Date().timeIntervalSince1970))
+        postNotification(title: copy.title,
+                         body: "\(copy.body) — \(session.name)")
     }
 
     private func postNotification(title: String, body: String) {
@@ -213,7 +217,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+
+        // Claw'd's own icon, so the banner is recognisably his. Best-effort:
+        // a banner without an icon is fine, a crash is not, and
+        // UNNotificationAttachment rejects formats it does not like.
+        if let icon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let attachment = try? UNNotificationAttachment(identifier: "clawd",
+                                                          url: icon,
+                                                          options: nil) {
+            content.attachments = [attachment]
+        }
+
+        let request = UNNotificationRequest(identifier: UUID().uuidString,
+                                            content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
 }

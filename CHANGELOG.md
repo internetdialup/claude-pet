@@ -7,6 +7,33 @@ which is a different document for a different audience.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-08-06
+
+### Added
+
+- **🗣️ Every state can carry your words.** `vocab.swift` covered four of his
+  eight states; now it covers all eight, so thinking, working, cooking and
+  sleeping can all be written by you. The file states the precedence up front —
+  a matching rule beats the real task text, which beats the state's lines —
+  because otherwise it reads like your lines are being ignored when they are
+  simply losing to *"Running the test suite"*, which is the more useful thing to
+  show.
+- **🔔 `notification-nudge.swift`.** The macOS banners now have their own
+  editable file, the same shape as `vocab.swift`. Banners also carry Claw'd's
+  icon, and two new ones join them: **plan waiting** (a plan can sit unnoticed
+  for a long time) and **cooking started**, which ships **off** behind a menu-bar
+  toggle because it fires often.
+- **🎉 Party mode cycles poses.** Triple-click used to recolour him; now he walks
+  the full set of states while the rainbow runs — sparkles, terminal, fire,
+  clipboard — for four seconds, then goes back to reporting reality.
+
+### Fixed
+
+- **Clicking Claw'd no longer steals focus.** `canBecomeKey` was unconditionally
+  true, so poking the pet pulled the caret out of whatever you were typing in.
+  It is now true only while the roster popover is open, which is the one case
+  that genuinely needs a key window.
+
 ## [1.1.0] — 2026-08-06
 
 ### Added

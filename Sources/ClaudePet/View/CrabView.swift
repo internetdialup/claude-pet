@@ -377,6 +377,20 @@ public struct CrabView: View {
     /// How long the party lasts.
     public static let rainbowDuration = 4.0
 
+    /// How long each pose holds during the party.
+    static let rainbowPoseInterval = 0.8
+
+    /// The pose to strike at a moment in the party, or nil when not partying.
+    ///
+    /// Cycling the colour alone reads as a recolour; cycling the pose too reads
+    /// as a celebration.
+    static func rainbowMood(elapsed: Double) -> PetMood? {
+        guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
+        let order = PetMood.allCases
+        let step = Int(elapsed / rainbowPoseInterval) % order.count
+        return order[step]
+    }
+
     /// The body colour at a moment in the cycle, or nil when not partying.
     static func rainbowTint(elapsed: Double) -> Color? {
         guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
@@ -422,6 +436,17 @@ public struct CrabView: View {
 
     private func currentPose(at time: Double) -> CrabPose {
         let t = frozenTime == nil ? time - moodEpoch : time
+
+        // During the party the pose cycles too. `MoodClock` is deliberately
+        // bypassed: it rebases time on every mood change, which at 0.8s per pose
+        // would restart each one at t=0 and freeze the animation.
+        if let rainbowSince, frozenTime == nil,
+           let partyMood = CrabView.rainbowMood(elapsed: time - rainbowSince) {
+            var pose = CrabAnimator.pose(mood: partyMood, t: time - rainbowSince)
+            pose.mouth = .open
+            return pose
+        }
+
         var pose = CrabAnimator.pose(mood: mood, t: t)
         if let hoverSince, frozenTime == nil {
             // The hover's start instant doubles as the variant seed: chosen once

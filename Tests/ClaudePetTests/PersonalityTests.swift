@@ -725,3 +725,97 @@ struct VocabRuleTests {
         #expect(Vocab.pick(from: [], seed: 7) == nil)
     }
 }
+
+@Suite("Editable copy")
+struct EditableCopyTests {
+
+    /// Every state must be able to carry the user's words, or the switch in
+    /// vocab.swift is lying about what you can edit.
+    @Test("Every occasion has lines")
+    func everyOccasionHasLines() {
+        for occasion in ShoutoutOccasion.allCases {
+            #expect(!Vocab.lines(for: occasion).isEmpty, "\(occasion.rawValue) has no lines")
+        }
+    }
+
+    @Test("Every mood maps to an occasion")
+    func everyMoodMaps() {
+        for mood in PetMood.allCases {
+            #expect(!Vocab.lines(for: mood.shoutoutOccasion).isEmpty,
+                    "\(mood.rawValue) maps to an empty occasion")
+        }
+    }
+
+    @Test("Every nudge event has a title and a body")
+    func everyEventHasCopy() {
+        for event in NudgeEvent.allCases {
+            #expect(!NotificationNudge.titles(for: event).isEmpty, "\(event.rawValue): no titles")
+            #expect(!NotificationNudge.bodies(for: event).isEmpty, "\(event.rawValue): no bodies")
+        }
+    }
+
+    /// Banners truncate. A line nobody can read is worse than a terse one.
+    @Test("Banner copy fits in a notification")
+    func bannerCopyIsShort() {
+        for event in NudgeEvent.allCases {
+            for title in NotificationNudge.titles(for: event) {
+                #expect(title.count <= 40, "title too long: \(title)")
+            }
+            for body in NotificationNudge.bodies(for: event) {
+                #expect(body.count <= 80, "body too long: \(body)")
+            }
+        }
+    }
+
+    /// Bubble text truncates around 46 characters.
+    @Test("Bubble lines fit in the bubble")
+    func bubbleLinesAreShort() {
+        for occasion in ShoutoutOccasion.allCases {
+            for line in Vocab.lines(for: occasion) {
+                #expect(line.count <= 46, "\(occasion.rawValue) line too long: \(line)")
+            }
+        }
+        for rule in Vocab.rules {
+            for line in rule.lines {
+                #expect(line.count <= 46, "rule line too long: \(line)")
+            }
+        }
+    }
+
+    @Test("Only the interrupting moods produce a banner")
+    func onlySomeMoodsNudge() {
+        #expect(NotificationNudge.event(for: .done) == .finished)
+        #expect(NotificationNudge.event(for: .needsAttention) == .needsYou)
+        #expect(NotificationNudge.event(for: .nudging) == .planReady)
+        #expect(NotificationNudge.event(for: .cooking) == .cooking)
+        // Working and idling are not worth interrupting anyone for.
+        #expect(NotificationNudge.event(for: .working) == nil)
+        #expect(NotificationNudge.event(for: .idle) == nil)
+        #expect(NotificationNudge.event(for: .sleeping) == nil)
+    }
+}
+
+@Suite("Party mode")
+struct PartyTests {
+
+    @Test("The pose cycles, and stops when the party does")
+    func poseCycles() {
+        var seen = Set<PetMood>()
+        for step in stride(from: 0.0, to: CrabView.rainbowDuration, by: 0.2) {
+            if let mood = CrabView.rainbowMood(elapsed: step) { seen.insert(mood) }
+        }
+        #expect(seen.count > 1, "the party should visit more than one pose")
+        #expect(CrabView.rainbowMood(elapsed: CrabView.rainbowDuration) == nil,
+                "must end so he goes back to reporting real state")
+        #expect(CrabView.rainbowMood(elapsed: -1) == nil)
+    }
+
+    /// Colour and pose both have to move, or it is not a party.
+    @Test("Colour and pose move together")
+    func colourAndPose() {
+        #expect(CrabView.rainbowTint(elapsed: 0.1) != nil)
+        #expect(CrabView.rainbowMood(elapsed: 0.1) != nil)
+        #expect(CrabView.rainbowTint(elapsed: CrabView.rainbowDuration + 1) == nil)
+        #expect(CrabView.rainbowMood(elapsed: CrabView.rainbowDuration + 1) == nil)
+    }
+}

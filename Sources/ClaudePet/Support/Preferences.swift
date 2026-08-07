@@ -26,6 +26,7 @@ public final class Preferences {
         static let soundsEnabled = "pet.sounds"
         static let toolBlipEnabled = "pet.sounds.toolBlip"
         static let notificationsEnabled = "pet.notifications"
+        static let cookingNotifications = "pet.notifications.cooking"
         static let pinnedSession = "pet.pinnedSession"
         /// v3: became a Double for half-point sizes, then the default moved to
         /// 3.0. Bumped so stored values do not pin existing installs to the old
@@ -70,6 +71,13 @@ public final class Preferences {
     public var notificationsEnabled: Bool {
         get { store.object(forKey: Key.notificationsEnabled) as? Bool ?? true }
         set { store.set(newValue, forKey: Key.notificationsEnabled) }
+    }
+
+    /// Off by default: cooking starts often, and a banner every time would be
+    /// the kind of notification people turn off entirely.
+    public var cookingNotificationsEnabled: Bool {
+        get { store.bool(forKey: Key.cookingNotifications) }
+        set { store.set(newValue, forKey: Key.cookingNotifications) }
     }
 
     /// When set, the crab mirrors this session instead of the most recent one.

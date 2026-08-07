@@ -69,9 +69,6 @@ public final class ActivityCoordinator {
     /// not trip it and a genuine sprint does.
     nonisolated static let cookingToolRate = 8
 
-    /// What a finished turn says. Emoji rather than a sentence — it is a moment,
-    /// not a status, and it decays back to idle within seconds.
-    static let celebration = "✅ 🥳 🎉"
 
     /// The idle line currently on screen, and when it was chosen.
     private var chatter: (text: String, isMarquee: Bool)?
@@ -277,8 +274,10 @@ public final class ActivityCoordinator {
             }
 
             sessions[session.id] = session
+            // Only moods that `NotificationNudge` knows how to announce, and
+            // only on a real transition — not on every recomputation.
             if session.mood != previousMood,
-               session.mood == .needsAttention || session.mood == .done {
+               NotificationNudge.event(for: session.mood) != nil {
                 alerts.append((session.mood, session))
             }
         }
@@ -335,28 +334,30 @@ public final class ActivityCoordinator {
         var bubble = task.map { Self.condense($0) }
         var style = PetState.BubbleStyle.plain
 
+        // Precedence, documented at the top of `vocab.swift`:
+        //   1. a rule matching the current task
+        //   2. the real task text, whenever there is one
+        //   3. this state's own lines
+        // Point 2 is why `working` and `cooking` lines appear only in the gaps:
+        // a pet that hides "Running the test suite" behind a joke is worse.
+        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval)
+
         switch mood {
-        case .sleeping:
-            bubble = nil
-            chatter = nil
         case .thinking:
-            // Claude is reasoning; there is no honest label for that moment, so
-            // show pulsing dots rather than repeating the last thing he did.
+            // No honest label exists for "reasoning", so show pulsing dots
+            // rather than repeating the last thing he did.
             bubble = "…"
             style = .dots
             chatter = nil
-        case .cooking:
-            bubble = "🔥"
+
+        case .sleeping:
+            // Occasionally talks in his sleep. A sleeping pet that comments on
+            // every frame is not asleep.
+            bubble = seed % 4 == 0 ? Vocab.line(for: .sleeping, seed: seed) : nil
             chatter = nil
-        case .nudging:
-            bubble = Vocab.line(for: .planReady,
-                                         seed: Int(now.timeIntervalSince1970 / 8))
-            chatter = nil
-        case .done:
-            bubble = Self.celebration
-            chatter = nil
+
         case .idle where task == nil:
-            // Nothing to report — say something instead of going blank.
+            // Nothing to report — encouragement, or a status ticker.
             var snapshot = StatusTicker.Snapshot()
             snapshot.model = focus.model
             snapshot.branch = focus.branch
@@ -366,8 +367,17 @@ public final class ActivityCoordinator {
             let line = idleChatter(snapshot: snapshot, now: now)
             bubble = line.text
             style = line.isMarquee ? .marquee : .plain
+
         default:
             chatter = nil
+            if let task, Vocab.rule(matching: task) != nil {
+                // A rule claimed this task.
+                bubble = Vocab.line(for: mood.shoutoutOccasion, matching: task, seed: seed)
+            } else if let task {
+                bubble = Self.condense(task)
+            } else {
+                bubble = Vocab.line(for: mood.shoutoutOccasion, seed: seed)
+            }
         }
 
         publish(PetState(

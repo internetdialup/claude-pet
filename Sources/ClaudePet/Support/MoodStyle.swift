@@ -56,7 +56,7 @@ public extension PetMood {
             MoodStyle(accent: Palette.flame, bubbleFill: Palette.flame,
                       bubbleText: Palette.white, glyph: "🔥",
                       frameInterval: 1.0 / 24,     // the flame wants to flicker
-                      clipSeconds: 4.0, previewBubble: "🔥")
+                      clipSeconds: 4.0, previewBubble: nil)   // from the vocabulary
 
         case .nudging:
             MoodStyle(accent: Palette.yellow, bubbleFill: Palette.yellow,
@@ -68,7 +68,7 @@ public extension PetMood {
             MoodStyle(accent: Palette.green, bubbleFill: Palette.green,
                       bubbleText: Palette.slate, glyph: "✓",
                       frameInterval: 1.0 / 30,     // one-shot motion, wants to pop
-                      clipSeconds: 2.5, previewBubble: "✅ 🥳 🎉")
+                      clipSeconds: 2.5, previewBubble: nil)   // from the vocabulary
 
         case .needsAttention:
             MoodStyle(accent: Palette.alert, bubbleFill: Palette.pink,
@@ -84,14 +84,21 @@ public extension PetMood {
         }
     }
 
-    /// The vocabulary an idle-ish mood draws its bubble from, if any.
-    var shoutoutOccasion: ShoutoutOccasion? {
+    /// The vocabulary this mood draws its bubble from.
+    ///
+    /// Total, so every state can carry the user's own words. What actually
+    /// reaches the bubble still follows the precedence documented in
+    /// `vocab.swift`: a matching rule first, then the real task text, then these.
+    var shoutoutOccasion: ShoutoutOccasion {
         switch self {
         case .idle: .idle
-        case .done: .finished
+        case .thinking: .thinking
+        case .working: .working
+        case .cooking: .cooking
         case .nudging: .planReady
+        case .done: .finished
         case .needsAttention: .needsYou
-        default: nil
+        case .sleeping: .sleeping
         }
     }
 }

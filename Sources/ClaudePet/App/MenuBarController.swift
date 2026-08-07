@@ -114,6 +114,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         notifications.state = Preferences.shared.notificationsEnabled ? .on : .off
         menu.addItem(notifications)
 
+        let cooking = action("Notify when cooking 🔥") { [weak self] in
+            Preferences.shared.cookingNotificationsEnabled.toggle()
+            self?.refresh()
+        }
+        cooking.state = Preferences.shared.cookingNotificationsEnabled ? .on : .off
+        cooking.toolTip = "Off by default — cooking starts often."
+        menu.addItem(cooking)
+
         let login = action("Open at login") { [weak self] in
             Self.toggleLaunchAtLogin()
             self?.refresh()

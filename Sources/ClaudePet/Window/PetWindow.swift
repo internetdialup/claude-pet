@@ -7,7 +7,16 @@ import SwiftUI
 /// it follows the operator across Spaces and survives another app going fullscreen,
 /// which is the whole point of an ambient status object.
 final class PetWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
+    /// Whether a click may take keyboard focus.
+    ///
+    /// Off by default. A desktop pet that steals focus when you poke it pulls
+    /// the caret out of whatever you were typing in, which is precisely the
+    /// wrong behaviour for something that sits on top all day. It is flipped on
+    /// only while the roster popover is open, because a popover needs a key
+    /// window before its rows can be clicked.
+    var acceptsKey = false
+
+    override var canBecomeKey: Bool { acceptsKey }
     override var canBecomeMain: Bool { false }
 
     init(contentSize: CGSize) {
