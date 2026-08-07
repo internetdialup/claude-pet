@@ -15,7 +15,7 @@ This document defines the hard operational rules and structural constraints for 
 
 Every agent must internalize these three directives before execution:
 1. **Read `AGENT.md`**: Follow the cold-start loading order without exception.
-2. **Log Knobs**: Every meaningful change earns a dated narrative entry in the orientation log (`docs/memory-ctx/ctx-orientation.md` here; `docs/ctx-orientation.md` in forks).
+2. **Log Knobs**: Every meaningful change earns a dated narrative entry in the orientation log, which in this repo is `docs/ctx-orientation.md`.
 3. **Don't Bloat**: Keep the lexicon lean. Use only the load-bearing terms (**Knob**, **PLTRF**, **Hot/Warm/Cold**).
 
 ## 2. Structural Verification (The Physics of Truth)

@@ -11,6 +11,16 @@ if let index = arguments.firstIndex(of: "--render-sheet"), index + 1 < arguments
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-icon"), index + 1 < arguments.count {
+    let ok = MainActor.assumeIsolated { IconRenderer.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
+if let index = arguments.firstIndex(of: "--render-gif"), index + 1 < arguments.count {
+    let ok = MainActor.assumeIsolated { GifRenderer.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if arguments.contains("--probe") {
     MainActor.assumeIsolated { Probe.run(seconds: 3) }
     exit(0)

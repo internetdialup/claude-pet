@@ -31,6 +31,13 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     public var activeTaskLabel: String?
     /// Model id from the transcript, e.g. `claude-opus-5`.
     public var model: String?
+    /// Git branch from the transcript, e.g. `main`.
+    public var branch: String?
+    /// Hours between the first and last assistant message today. Nil until at
+    /// least one has been observed.
+    public var activeHoursToday: Double?
+    var firstActivityToday: Date?
+    var lastActivityToday: Date?
     /// Number of subagents currently appending to their transcripts.
     public var subagentCount: Int = 0
     /// Last time anything at all changed for this session.

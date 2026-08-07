@@ -19,6 +19,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/ClaudePet"
 cp Sources/ClaudePet/Support/Info.plist "$APP/Contents/Info.plist"
+cp Sources/ClaudePet/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # SwiftPM emits resources as a sibling .bundle, which has to travel into the
 # .app — the hook installer reads the shim script out of it. It goes in

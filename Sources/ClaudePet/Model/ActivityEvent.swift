@@ -22,6 +22,10 @@ public struct ActivityEvent: Sendable, Equatable {
         case subagents(Int)
         /// The model answering this session, e.g. `claude-opus-5`.
         case model(String)
+        /// The git branch the session is working on.
+        case branch(String)
+        /// Timestamps of assistant activity, for the "coding today" figure.
+        case activityStamps([Date])
         /// The session process went away.
         case ended
     }

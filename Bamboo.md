@@ -8,7 +8,7 @@
 - **Operational Freeze Tag:** `v0.1.2-clawd-personality`
 ---
 
-This repo is governed by Bamboo. Canon lives in `../bamboo-private`; this file is the **local** operating spec — the subset that binds work in `claude-pet`.
+This repo is governed by Bamboo, a project-agnostic governance layer for AI-assisted repositories. This file is the **local** operating spec — the subset of that discipline which binds work in `claude-pet`. It is self-contained; nothing outside this repo needs to be read to follow it.
 
 Ethos: **Physics over Liturgy.** If a rule cannot reduce to a file path, a script exit code, or a resource ceiling, it is not a rule here.
 

@@ -80,9 +80,9 @@ The third: this repo had no Swift standard to inherit. `development/swift-develo
 - `development/swift-development.md` — created; authored the Swift structural standard absent from canon.
 - `docs/repo-organization.md` — created; folder map for the package and governance layer.
 - `docs/ctx-orientation.md` — created; this log.
-- `behavior/ctx-rules.md` — forked verbatim from `../bamboo-private`.
-- `REPORTING_TEMPLATE.md` — forked verbatim from `../bamboo-private`.
-- `.github/workflows/pltrf-check.yml` — forked from canon; `VALID_PREFIX` and `HOTLOG` retuned for this repo's top-level folders.
+- `behavior/ctx-rules.md` — forked verbatim from the Bamboo canon.
+- `REPORTING_TEMPLATE.md` — forked verbatim from the Bamboo canon.
+- `.github/workflows/pltrf-check.yml` — forked from the Bamboo canon; `VALID_PREFIX` and `HOTLOG` retuned for this repo's top-level folders.
 - `Package.swift`, `Sources/ClaudePet/**`, `Tests/ClaudePetTests/**` — the executable target scaffold.
 
 ---

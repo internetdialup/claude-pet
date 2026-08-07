@@ -33,7 +33,7 @@ jobs:
 
           # Boundary between "real repo-relative path" and "bare filename in
           # prose": a path must start with one of these top-level folders.
-          VALID_PREFIX='^(behavior|development|docs|Sources|Tests|Hooks|\.github)/'
+          VALID_PREFIX='^(behavior|development|docs|Sources|Tests|scripts|\.github)/'
 
           # Basenames allowed to appear in more than one location. Skill folders
           # each carry their own SKILL.md and vendor overlays; READMEs recur.
@@ -116,7 +116,7 @@ jobs:
           fi
 
           # ---- 4. BROKEN POINTERS (all doc surfaces) ----
-          SCAN_FILES=( "CLAUDE.md" "AGENT.md" "Bamboo.md" "README.md" "REPORTING_TEMPLATE.md" )
+          SCAN_FILES=( "CLAUDE.md" "AGENT.md" "Bamboo.md" "README.md" "REPORTING_TEMPLATE.md" "CHANGELOG.md" )
           # The orientation log and its cold summaries are narrative history;
           # they reference deleted paths by design, so exclude them as sources.
           while IFS= read -r f; do SCAN_FILES+=("$f"); done < <(find behavior development docs -type f -name '*.md' ! -name 'ctx-orientation.md' ! -name 'ctx-ori-summary-*.md' 2>/dev/null)

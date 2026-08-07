@@ -27,6 +27,10 @@ The folder map. This file updates in the **same commit** as any file addition or
 | `.github/workflows/pltrf-check.yml` | The PLTRF CI gate |
 | `.gitignore` | Excludes build output and anything captured from `~/.claude/` |
 | `run.sh` | Builds the executable, assembles and signs `build/ClaudePet.app`, launches it |
+| `CHANGELOG.md` | User-facing version history. Distinct from `docs/ctx-orientation.md`, which is the Knob log and carries the engineering *why* — same events, different audience, so not a duplicate home |
+| `scripts/make-icon.sh` | Regenerates `AppIcon.icns` from the sprite rig |
+| `scripts/make-dmg.sh` | Builds the ad-hoc signed installer |
+| `docs/media/` | README artwork: per-mood GIFs, the desktop capture, the icon |
 
 ## Source
 
@@ -39,6 +43,10 @@ Files are named for their **principal type** (`development/swift-development.md`
 | `App/MenuBarController.swift` | App | The `NSStatusItem` menu — the app's only chrome |
 | `App/Probe.swift` | App | `--probe`: prints the live `PetState` and exits |
 | `App/SpriteSheetRenderer.swift` | App | `--render-sheet`: the art contact sheet |
+| `App/IconRenderer.swift` | App | `--render-icon`: the app icon and DMG background |
+| `App/GifRenderer.swift` | App | `--render-gif`: the README mood loops |
+| `Support/AppVersion.swift` | Support | The shipped version, asserted against `Info.plist` |
+| `Resources/AppIcon.icns` | Resource | The app icon, generated and committed |
 | `Window/PetWindow.swift` | View | Borderless floating window, dragging, multi-display placement |
 | `Window/DockMagnet.swift` | View | Edge snapping and clamping maths |
 | `Model/PetState.swift` | State | `PetState` + `PetMood` + `BubbleStyle` |

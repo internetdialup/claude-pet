@@ -71,20 +71,31 @@ public enum StatusTicker {
             .capitalized
     }
 
-    /// Every status line currently backed by real data. May be empty.
-    ///
-    /// Reads the usage cache from disk. Tests use `lines(model:usage:)` with an
-    /// explicit cache instead — `Bamboo.md` §5 forbids tests touching the
-    /// operator's `~/.claude/`, and a test that reads it would also pass or fail
-    /// depending on whether their status line happened to be running.
-    public static func lines(model: String?, now: Date = Date()) -> [String] {
-        lines(model: model, usage: usage(now: now))
+    /// What the ticker can say about a session right now.
+    public struct Snapshot: Sendable, Equatable {
+        public var model: String?
+        public var branch: String?
+        public var project: String?
+        public var sessionCount: Int = 0
+        public var activeHoursToday: Double?
+
+        public init() {}
     }
 
-    static func lines(model: String?, usage cache: UsageCache?) -> [String] {
+    /// Every status line currently backed by real data. May be empty.
+    ///
+    /// Reads the usage cache from disk. Tests use the `usage:` overload with an
+    /// explicit cache instead — `Bamboo.md` §5 forbids tests touching the
+    /// operator's `~/.claude/`, and a test that read it would pass or fail
+    /// depending on whether their status line happened to be running.
+    public static func lines(for snapshot: Snapshot, now: Date = Date()) -> [String] {
+        lines(for: snapshot, usage: usage(now: now))
+    }
+
+    static func lines(for snapshot: Snapshot, usage cache: UsageCache?) -> [String] {
         var result: [String] = []
 
-        if let model {
+        if let model = snapshot.model {
             let name = displayName(forModel: model)
             if let context = cache?.contextUsedPercent {
                 result.append("MODEL · \(name) @ \(Int(context.rounded()))% CONTEXT")
@@ -92,12 +103,44 @@ public enum StatusTicker {
                 result.append("MODEL · \(name)")
             }
         }
+
+        // These two are absent on most machines: Claude Code stopped publishing
+        // rate limits to disk, and a percentage without a measured numerator is
+        // a fabrication (`Bamboo.md` §3). They light up on their own if the data
+        // returns — that is the whole reason the cache is still read.
         if let fiveHour = cache?.fiveHourPercent {
             result.append("5-HOUR LIMIT @ \(Int(fiveHour.rounded()))%")
         }
         if let weekly = cache?.sevenDayPercent {
             result.append("WEEKLY USAGE @ \(Int(weekly.rounded()))%")
         }
+
+        if snapshot.sessionCount > 1 {
+            result.append("\(snapshot.sessionCount) SESSIONS LIVE")
+        }
+
+        if let hours = snapshot.activeHoursToday, hours >= 0.25 {
+            result.append("CODING \(formatted(hours: hours)) TODAY")
+        }
+
+        if let project = snapshot.project {
+            if let branch = snapshot.branch {
+                result.append("\(project) · \(branch)")
+            } else {
+                result.append(project)
+            }
+        }
+
         return result
+    }
+
+    /// "45m" under an hour, "3.5h" above — a decimal of an hour reads as noise
+    /// at small durations.
+    static func formatted(hours: Double) -> String {
+        if hours < 1 { return "\(Int((hours * 60).rounded()))m" }
+        let rounded = (hours * 2).rounded() / 2
+        return rounded == rounded.rounded()
+            ? "\(Int(rounded))h"
+            : String(format: "%.1fh", rounded)
     }
 }
