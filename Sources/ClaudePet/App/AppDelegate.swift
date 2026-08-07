@@ -107,7 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 guard let self, let started = self.demoStartedAt else { return }
                 let elapsed = Date().timeIntervalSince(started)
-                let state = DemoMode.state(at: elapsed, sessions: self.model.state.sessions)
+                // Fabricated sessions: the roster must not publish real project
+                // names into a recording.
+                let state = DemoMode.state(at: elapsed)
                 self.model.state = state
                 self.menuBar?.update(state: state)
 
