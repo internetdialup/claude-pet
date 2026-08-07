@@ -18,7 +18,14 @@ let package = Package(
             // The hook shim ships as a resource so the shell script on disk is
             // its only home. It was previously duplicated as a Swift string
             // literal, which is two sources of truth for one file.
-            resources: [.copy("Resources/claude-pet-hook.sh")],
+            // The icon is declared so SwiftPM does not warn about an unhandled
+            // file. `run.sh` copies it to Contents/Resources itself, because
+            // CFBundleIconFile resolves against the app bundle, not a nested
+            // resource bundle.
+            resources: [
+                .copy("Resources/claude-pet-hook.sh"),
+                .copy("Resources/AppIcon.icns"),
+            ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(

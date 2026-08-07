@@ -239,6 +239,18 @@ public final class ActivityCoordinator {
                 session.subagentCount = count
             case .model(let model):
                 session.model = model
+            case .branch(let branch):
+                session.branch = branch
+            case .activityStamps(let stamps):
+                // Span from the first to the last assistant message today. A
+                // measured window, not a sum of guessed session lengths.
+                for stamp in stamps {
+                    session.firstActivityToday = min(session.firstActivityToday ?? stamp, stamp)
+                    session.lastActivityToday = max(session.lastActivityToday ?? stamp, stamp)
+                }
+                if let first = session.firstActivityToday, let last = session.lastActivityToday {
+                    session.activeHoursToday = last.timeIntervalSince(first) / 3600
+                }
             case .ended:
                 detachFeeds(from: session.id)
                 sessions.removeValue(forKey: session.id)
@@ -311,7 +323,13 @@ public final class ActivityCoordinator {
             chatter = nil
         case .idle where task == nil:
             // Nothing to report — say something instead of going blank.
-            let line = idleChatter(model: focus.model, now: now)
+            var snapshot = StatusTicker.Snapshot()
+            snapshot.model = focus.model
+            snapshot.branch = focus.branch
+            snapshot.project = focus.projectName
+            snapshot.sessionCount = ordered.count
+            snapshot.activeHoursToday = focus.activeHoursToday
+            let line = idleChatter(snapshot: snapshot, now: now)
             bubble = line.text
             style = line.isMarquee ? .marquee : .plain
         default:
@@ -336,13 +354,13 @@ public final class ActivityCoordinator {
     /// Held for `chatterInterval` rather than re-rolled on every `recompute()`
     /// — this runs on the 2s decay timer, so choosing per call would rewrite the
     /// sentence out from under the reader three times before they finished it.
-    private func idleChatter(model: String?, now: Date) -> (text: String, isMarquee: Bool) {
+    private func idleChatter(snapshot: StatusTicker.Snapshot, now: Date) -> (text: String, isMarquee: Bool) {
         if let current = chatter, now.timeIntervalSince(chatterChosenAt) < Self.chatterInterval {
             return current
         }
 
         let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval)
-        let status = StatusTicker.lines(model: model, now: now)
+        let status = StatusTicker.lines(for: snapshot, now: now)
 
         // Roughly every third turn is a status ticker, when one is available.
         let next: (String, Bool)

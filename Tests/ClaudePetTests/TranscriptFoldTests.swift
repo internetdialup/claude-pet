@@ -5,6 +5,10 @@ import Foundation
 /// Fixtures are hand-built from the real transcript shapes observed under
 /// `~/.claude/projects/`. Tests never read the operator's actual data
 /// (`Bamboo.md` §5).
+///
+/// Timestamps are pinned to a fixed date in the past. The fold emits an
+/// `activityStamps` event only for lines dated *today*, so fixtures carrying a
+/// live date would make these counts depend on the day the suite runs.
 @Suite("Transcript fold")
 struct TranscriptFoldTests {
 
@@ -16,19 +20,19 @@ struct TranscriptFoldTests {
     }
 
     private let toolLine = """
-    {"type":"assistant","sessionId":"S1","timestamp":"2026-08-06T12:00:00.000Z","message":{"model":"claude-opus-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls","description":"List files"}}]}}
+    {"type":"assistant","sessionId":"S1","timestamp":"2020-01-02T12:00:00.000Z","message":{"model":"claude-opus-5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls","description":"List files"}}]}}
     """
     private let resultLine = """
-    {"type":"user","sessionId":"S1","timestamp":"2026-08-06T12:00:01.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}}
+    {"type":"user","sessionId":"S1","timestamp":"2020-01-02T12:00:01.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}}
     """
     private let endTurnLine = """
-    {"type":"assistant","sessionId":"S1","timestamp":"2026-08-06T12:00:02.000Z","message":{"stop_reason":"end_turn","content":[{"type":"text","text":"Done."}]}}
+    {"type":"assistant","sessionId":"S1","timestamp":"2020-01-02T12:00:02.000Z","message":{"stop_reason":"end_turn","content":[{"type":"text","text":"Done."}]}}
     """
     private let titleLine = """
     {"type":"ai-title","aiTitle":"Build the crab","sessionId":"S1"}
     """
     private let thinkingLine = """
-    {"type":"assistant","sessionId":"S1","timestamp":"2026-08-06T12:00:03.000Z","message":{"stop_reason":null,"content":[{"type":"thinking","thinking":"hmm","signature":"x"}]}}
+    {"type":"assistant","sessionId":"S1","timestamp":"2020-01-02T12:00:03.000Z","message":{"stop_reason":null,"content":[{"type":"thinking","thinking":"hmm","signature":"x"}]}}
     """
 
     @Test("A tool call and its result produce started then finished")
@@ -151,5 +155,75 @@ struct TranscriptFoldTests {
         try endTurnLine.appending("\n").write(to: url, atomically: true, encoding: .utf8)
         let events = fold.pump(url: url)
         #expect(events.count == 1)
+    }
+}
+
+@Suite("Transcript metadata")
+struct TranscriptMetadataTests {
+
+    private func temporaryFile(_ lines: [String]) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meta-\(UUID().uuidString).jsonl")
+        try lines.joined(separator: "\n").appending("\n").write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    private func assistantLine(branch: String?, timestamp: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let branchField = branch.map { "\"gitBranch\":\"\($0)\"," } ?? ""
+        return """
+        {"type":"assistant","sessionId":"S1",\(branchField)"timestamp":"\(formatter.string(from: timestamp))",\
+        "message":{"model":"claude-opus-5","stop_reason":"end_turn","content":[{"type":"text","text":"hi"}]}}
+        """
+    }
+
+    @Test("gitBranch is surfaced once, and only when it changes")
+    func branchIsReported() throws {
+        let past = Date(timeIntervalSince1970: 1_577_000_000)
+        let url = try temporaryFile([
+            assistantLine(branch: "main", timestamp: past),
+            assistantLine(branch: "main", timestamp: past),
+            assistantLine(branch: "feature/pet", timestamp: past),
+        ])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let branches = TranscriptFold().pump(url: url).compactMap { event -> String? in
+            if case .branch(let name) = event.kind { return name }
+            return nil
+        }
+        #expect(branches == ["main", "feature/pet"])
+    }
+
+    @Test("A line with no branch reports none")
+    func noBranchNoEvent() throws {
+        let past = Date(timeIntervalSince1970: 1_577_000_000)
+        let url = try temporaryFile([assistantLine(branch: nil, timestamp: past)])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let hasBranch = TranscriptFold().pump(url: url).contains {
+            if case .branch = $0.kind { return true }
+            return false
+        }
+        #expect(!hasBranch)
+    }
+
+    /// The "coding Nh today" figure must be measured from today's messages only.
+    @Test("Activity stamps are emitted for today and withheld for older lines")
+    func activityStampsAreTodayOnly() throws {
+        let past = Date(timeIntervalSince1970: 1_577_000_000)
+        let old = try temporaryFile([assistantLine(branch: nil, timestamp: past)])
+        defer { try? FileManager.default.removeItem(at: old) }
+        #expect(!TranscriptFold().pump(url: old).contains {
+            if case .activityStamps = $0.kind { return true }
+            return false
+        })
+
+        let today = try temporaryFile([assistantLine(branch: nil, timestamp: Date())])
+        defer { try? FileManager.default.removeItem(at: today) }
+        #expect(TranscriptFold().pump(url: today).contains {
+            if case .activityStamps = $0.kind { return true }
+            return false
+        })
     }
 }

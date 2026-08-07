@@ -86,14 +86,16 @@ struct StatusTickerTests {
     /// Numerical Grounding (`Bamboo.md` §3): with no usage data, no percentage
     /// may be invented. These pass an explicit cache rather than reading the
     /// operator's real `~/.claude/` (`Bamboo.md` §5).
-    @Test("No model and no usage data produces no lines")
+    @Test("An empty snapshot with no usage data produces no lines")
     func noDataNoClaims() {
-        #expect(StatusTicker.lines(model: nil, usage: nil).isEmpty)
+        #expect(StatusTicker.lines(for: StatusTicker.Snapshot(), usage: nil).isEmpty)
     }
 
     @Test("A model with no usage data yields a name-only line, no percentage")
     func modelWithoutUsage() throws {
-        let lines = StatusTicker.lines(model: "claude-opus-5", usage: nil)
+        var snapshot = StatusTicker.Snapshot()
+        snapshot.model = "claude-opus-5"
+        let lines = StatusTicker.lines(for: snapshot, usage: nil)
         #expect(lines.count == 1)
         let modelLine = try #require(lines.first)
         #expect(modelLine.contains("Opus 5"))
@@ -102,13 +104,56 @@ struct StatusTickerTests {
 
     @Test("Percentages are reported when the cache supplies them")
     func percentagesFromCache() {
+        var snapshot = StatusTicker.Snapshot()
+        snapshot.model = "claude-fable-5"
         let cache = StatusTicker.UsageCache(
             writtenAt: nil, fiveHourPercent: 24, sevenDayPercent: 82, contextUsedPercent: 41
         )
-        let lines = StatusTicker.lines(model: "claude-fable-5", usage: cache)
+        let lines = StatusTicker.lines(for: snapshot, usage: cache)
         #expect(lines.contains("MODEL · Fable 5 @ 41% CONTEXT"))
         #expect(lines.contains("5-HOUR LIMIT @ 24%"))
         #expect(lines.contains("WEEKLY USAGE @ 82%"))
+    }
+
+    @Test("Project and branch render together, project alone when detached")
+    func projectAndBranch() {
+        var snapshot = StatusTicker.Snapshot()
+        snapshot.project = "claude-pet"
+        snapshot.branch = "main"
+        #expect(StatusTicker.lines(for: snapshot, usage: nil).contains("claude-pet · main"))
+
+        snapshot.branch = nil
+        #expect(StatusTicker.lines(for: snapshot, usage: nil).contains("claude-pet"))
+    }
+
+    /// A single session is the normal case and saying "1 SESSIONS LIVE" about it
+    /// is noise, not information.
+    @Test("Session count only appears when more than one is running")
+    func sessionCountThreshold() {
+        var snapshot = StatusTicker.Snapshot()
+        snapshot.sessionCount = 1
+        #expect(!StatusTicker.lines(for: snapshot, usage: nil).contains { $0.contains("SESSIONS") })
+
+        snapshot.sessionCount = 4
+        #expect(StatusTicker.lines(for: snapshot, usage: nil).contains("4 SESSIONS LIVE"))
+    }
+
+    @Test("A few minutes of coding is not worth announcing")
+    func shortSessionsAreQuiet() {
+        var snapshot = StatusTicker.Snapshot()
+        snapshot.activeHoursToday = 0.05
+        #expect(!StatusTicker.lines(for: snapshot, usage: nil).contains { $0.contains("CODING") })
+
+        snapshot.activeHoursToday = 3.5
+        #expect(StatusTicker.lines(for: snapshot, usage: nil).contains("CODING 3.5h TODAY"))
+    }
+
+    @Test("Durations read naturally at both scales")
+    func durationFormatting() {
+        #expect(StatusTicker.formatted(hours: 0.5) == "30m")
+        #expect(StatusTicker.formatted(hours: 2) == "2h")
+        #expect(StatusTicker.formatted(hours: 3.5) == "3.5h")
+        #expect(StatusTicker.formatted(hours: 3.4) == "3.5h")
     }
 
     @Test("A stale cache is rejected in both directions")
@@ -255,5 +300,37 @@ struct DisplayTests {
         // Must not trap or return nil — the pet has to land somewhere.
         let screen = PetWindowController.screen(for: stranded)
         #expect(screen.frame.width > 0)
+    }
+}
+
+@Suite("Release metadata")
+struct AppVersionTests {
+
+    /// Walks up from this source file to the repo root, so the test does not
+    /// depend on the working directory the runner happens to use.
+    private func repoRoot(from file: StaticString = #filePath) -> URL {
+        URL(fileURLWithPath: "\(file)")
+            .deletingLastPathComponent()   // ClaudePetTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repo root
+    }
+
+    /// A constant that disagrees with the bundle it ships in is a release bug
+    /// that surfaces as a user reporting a version nobody built.
+    @Test("AppVersion.current matches the shipped Info.plist")
+    func versionMatchesBundle() throws {
+        let plist = repoRoot()
+            .appendingPathComponent("Sources/ClaudePet/Support/Info.plist")
+        let declared = try #require(AppVersion.versionInSourcePlist(at: plist),
+                                    "could not read \(plist.path)")
+        #expect(declared == AppVersion.current)
+    }
+
+    @Test("The changelog documents the current version")
+    func changelogMentionsCurrentVersion() throws {
+        let changelog = repoRoot().appendingPathComponent("CHANGELOG.md")
+        let text = try String(contentsOf: changelog, encoding: .utf8)
+        #expect(text.contains("[\(AppVersion.current)]"),
+                "CHANGELOG.md has no entry for \(AppVersion.current)")
     }
 }

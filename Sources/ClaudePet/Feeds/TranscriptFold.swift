@@ -86,6 +86,9 @@ public final class TranscriptFold {
     /// Emit a `.model` event only when it actually changes — every assistant
     /// line carries the model, and republishing it per line would be noise.
     private var lastModel: String?
+    /// Same rationale as `lastModel`: the branch is on every line, so only its
+    /// changes are worth reporting.
+    private var lastBranch: String?
 
     // MARK: - Line parsing
 
@@ -109,7 +112,21 @@ public final class TranscriptFold {
                 return [ActivityEvent(sessionID: sessionID, kind: .title(title), timestamp: timestamp)]
             }
         case "assistant":
-            return parseAssistant(object, sessionID: sessionID, timestamp: timestamp)
+            var events: [ActivityEvent] = []
+            // `gitBranch` rides on every transcript line and was being discarded.
+            if let branch = object["gitBranch"] as? String, !branch.isEmpty, branch != lastBranch {
+                lastBranch = branch
+                events.append(ActivityEvent(sessionID: sessionID, kind: .branch(branch), timestamp: timestamp))
+            }
+            // Every assistant line is a moment Claude was working. Collected so
+            // "coding Nh today" is measured rather than guessed.
+            if Calendar.current.isDateInToday(timestamp) {
+                events.append(ActivityEvent(sessionID: sessionID,
+                                            kind: .activityStamps([timestamp]),
+                                            timestamp: timestamp))
+            }
+            events.append(contentsOf: parseAssistant(object, sessionID: sessionID, timestamp: timestamp))
+            return events
         case "user":
             return parseUser(object, sessionID: sessionID, timestamp: timestamp)
         default:
