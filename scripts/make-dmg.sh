@@ -98,5 +98,34 @@ codesign --force --sign - "$DMG" 2>/dev/null || echo "    (dmg signature skipped
 
 echo "==> built $DMG ($(du -h "$DMG" | cut -f1))"
 echo
-echo "Anonymity check — this must show 'adhoc' and no TeamIdentifier:"
+echo "Anonymity check 1/2 — signature must be adhoc with no TeamIdentifier:"
 codesign -dv "$APP" 2>&1 | grep -Ei "Signature|TeamIdentifier|Authority" || echo "  (no signing authority recorded)"
+
+# Anonymity check 2/2 — the one that was missing, and that a shipped release
+# needed.
+#
+# v1.0.0 through v1.2.0 all passed the signature check above while carrying the
+# author's home path 67-77 times inside the Mach-O: SwiftPM writes it as an
+# N_OSO debug stab per object file, plus the Bundle.module fallback literal. On
+# a stock macOS install that path is /Users/<account>/, and the account name is
+# usually a real name — so the binary published the identity that skipping
+# notarization was meant to protect.
+#
+# Two traps this check is written around:
+#   - `strings` MISSES it. The path here contained a curly apostrophe (a UTF-8
+#     machine name like "Matthew’s Laptop"), which splits the run and hides the
+#     match. Use grep on the raw bytes.
+#   - The compressed .dmg shows nothing; the payload only appears once mounted.
+#     So this inspects $APP's binary directly, before compression.
+echo
+echo "Anonymity check 2/2 — no build-host paths baked into the binary:"
+MACHO="$APP/Contents/MacOS/ClaudePet"
+LEAKS="$(LC_ALL=C grep -oa "/Users/[A-Za-z0-9_.-]*" "$MACHO" | sort -u | grep -v "^/Users/dev$" || true)"
+if [ -n "$LEAKS" ]; then
+  echo "  ✗ FAIL — the following host paths are inside the shipped binary:"
+  printf '      %s\n' $LEAKS
+  echo "    Do NOT publish this build. Rebuild via ./run.sh, which sets"
+  echo "    --scratch-path outside \$HOME and -Xswiftc -gnone."
+  exit 1
+fi
+echo "  ✓ clean (only the fabricated /Users/dev demo strings remain)"

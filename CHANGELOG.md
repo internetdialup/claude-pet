@@ -7,6 +7,31 @@ which is a different document for a different audience.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] — 2026-08-07
+
+### Fixed
+
+- **🔒 Build-host paths are no longer baked into the binary.** A default SwiftPM
+  release build writes the absolute build path into the executable once per
+  object file as an `N_OSO` debug stab, plus once more as the `Bundle.module`
+  fallback literal. On a stock macOS install that path starts `/Users/<account>/`,
+  and the account name is usually a real name — so every published `.dmg`
+  carried the author's identity, which is the exact thing this project skips
+  notarization to avoid. `run.sh` now builds with `--scratch-path` outside
+  `$HOME` and `-Xswiftc -gnone`; measured on this tree, that takes the count
+  from 77 to zero.
+- **The anonymity check now checks the binary.** `scripts/make-dmg.sh` verified
+  the signature was ad-hoc with no Team ID — true, and passing, while the
+  Mach-O was wide open. It now greps the raw bytes of the executable for host
+  paths and **exits non-zero rather than shipping**. Two traps it is written
+  around: `strings` misses a path containing a non-ASCII machine name, and the
+  compressed `.dmg` reveals nothing until it is mounted.
+- **Scrubbed a real notification banner from the README demo.** A macOS banner
+  belonging to an unrelated session was captured into the recording and frozen
+  into all 192 frames — naming a private project. `DemoMode` had correctly
+  fabricated the roster; an OS notification landed on top of the sanitized
+  capture. Historical copies were rewritten out of git history at the same time.
+
 ## [1.2.0] — 2026-08-06
 
 ### Added

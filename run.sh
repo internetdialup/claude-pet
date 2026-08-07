@@ -10,9 +10,26 @@ cd "$(dirname "$0")"
 CONFIG="${CONFIG:-release}"
 APP="build/ClaudePet.app"
 
-echo "==> swift build -c $CONFIG"
-swift build -c "$CONFIG" --product ClaudePet
-BIN="$(swift build -c "$CONFIG" --product ClaudePet --show-bin-path)/ClaudePet"
+# Build somewhere neutral, without debug info.
+#
+# Both halves are anonymity, not tidiness. SwiftPM bakes the absolute build path
+# into the binary twice over: once per object file as an N_OSO debug stab, and
+# once as the `Bundle.module` fallback literal. On a stock macOS install that
+# path is /Users/<account>/... and the account name is usually a real name, so a
+# default release build ships the author's identity inside every copy — which is
+# the exact thing this project skips notarization to avoid.
+#
+# Measured on the v1.2.0 tree: default build 77 occurrences, --scratch-path
+# alone 37 (the DWARF line tables survive), -gnone alone leaves the bundle
+# literal. Both together: 0. `scripts/make-dmg.sh` asserts that zero.
+# Must live OUTSIDE $HOME. A scratch path inside the repo still canonicalizes to
+# /Users/<account>/... and would embed the very thing this is avoiding.
+SCRATCH="${SCRATCH:-/tmp/claude-pet-build}"
+BUILD=(swift build -c "$CONFIG" --product ClaudePet --scratch-path "$SCRATCH" -Xswiftc -gnone)
+
+echo "==> ${BUILD[*]}"
+"${BUILD[@]}"
+BIN="$("${BUILD[@]}" --show-bin-path)/ClaudePet"
 
 echo "==> assembling $APP"
 rm -rf "$APP"
