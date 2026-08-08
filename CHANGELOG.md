@@ -7,6 +7,45 @@ which is a different document for a different audience.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] — 2026-08-07
+
+### Fixed
+
+- **🐛 The pet no longer hangs on a finished task.**
+  ([#2](https://github.com/internetdialup/claude-pet/issues/2), reported by
+  TokyoSoyMRX.) Commit something, leave the tab open, and Claw'd would keep
+  narrating the work forever — never settling to idle, never sleeping, the
+  bubble frozen on whatever it last saw.
+
+  Two independent causes. The pet's own workload poll ran every 2 seconds and
+  emitted an event for **every** live session whether or not anything had
+  changed, and the reducer advanced `lastActivity` on every event kind — so
+  `now - lastActivity` never exceeded 2 seconds and every time-based threshold
+  was arithmetically unreachable. That includes the 6-second `done → idle`
+  decay, which means **it had never once fired in a shipped build**, and the
+  300-second sleep threshold, which is why he never slept while a session was
+  open. Underneath that, `.thinking` and `.working` had no decay path at all.
+
+  The poll no longer counts as session activity, and the per-session decay now
+  covers every mood that can strand rather than `.done` alone. Decay clears the
+  tool, the task text and any pending approval alongside the mood — leaving any
+  one of them set kept the words on screen after the pose relaxed.
+
+- **A session title no longer masquerades as a live task.** The idle branch was
+  gated on "no task", and a title counts as a task, so any *named* session — most
+  of them — froze on its own title and never reached the status ticker.
+
+### Changed
+
+- **Sleep threshold 300s → 900s.** Measured over the local corpus: the median
+  park between a finished turn and the next human prompt is 180s, and **40% of
+  ordinary parks exceed 300s** — so a 5-minute nap fired during two-fifths of
+  normal think-breaks. At 900s only 19% are longer, and those are real
+  walk-aways. (This changes no shipped behaviour, since the old threshold could
+  never fire either.)
+- **`--probe` takes an optional duration**, e.g. `--probe 320`. The default 3s
+  is shorter than every decay horizon, so it could not observe one.
+
 ## [1.2.1] — 2026-08-07
 
 ### Fixed

@@ -36,6 +36,25 @@ public struct ActivityEvent: Sendable, Equatable {
     public var kind: Kind
     public var timestamp: Date
 
+    /// Does this event mean *Claude* did something?
+    ///
+    /// `lastActivity` drives every time-based decay, so anything that bumps it
+    /// keeps the session looking busy. `.subagents` is the pet's own 2-second
+    /// poll, emitted for every live session whether or not the count changed —
+    /// counting it was the pet talking to itself and calling it work, which
+    /// pinned `lastActivity` to within 2s of now forever and made both the 6s
+    /// `doneDecay` and the 300s sleep threshold arithmetically unreachable.
+    ///
+    /// Everything else here is a genuine observation of Claude and does count,
+    /// including `.title` and `.branch`: those only change because something
+    /// happened in the session.
+    public var countsAsActivity: Bool {
+        switch kind {
+        case .subagents: false
+        default: true
+        }
+    }
+
     public init(sessionID: String, kind: Kind, timestamp: Date = Date()) {
         self.sessionID = sessionID
         self.kind = kind

@@ -54,9 +54,61 @@ public final class ActivityCoordinator {
     nonisolated let folds = FoldStore()
 
     /// How long `done` shows before decaying back to `idle`.
-    private static let doneDecay: TimeInterval = 6
+    ///
+    /// A deliberate celebration beat. It is not new — it simply never ran,
+    /// because the 2s workload poll kept `lastActivity` fresher than 6s.
+    static var doneDecay: TimeInterval = 6
+
+    /// How long a session may sit in a *working* mood, silent, before the pet
+    /// stops asserting it and falls back to `idle`.
+    ///
+    /// Measured rather than picked, over 79 local transcripts and ~65k
+    /// intra-turn gaps: silence between a `tool_result` and the next assistant
+    /// message runs p50 8s, p90 23s, p99 61s, p99.9 183s, with the longest
+    /// genuine stretch of continuous reasoning at 275s. Every gap beyond ~500s
+    /// is resume-shaped — a session picked up hours later. 300 therefore sits
+    /// just above the observed ceiling of real thinking and misfires on roughly
+    /// one gap in 3000.
+    static var staleAfter: TimeInterval = 300
+
+    /// The same, for `.working`, which has a genuinely fatter tail.
+    ///
+    /// `tool_use → tool_result` includes long builds and human permission
+    /// waits: p99 244s, and 0.86% of calls exceed 300s. The honest p99.9 is
+    /// 2909s, which is useless as a timeout, so this is a compromise rather
+    /// than a measurement — 600 halves the misfire rate to 0.36% and costs only
+    /// five extra minutes in the rare stranded case. The asymmetry is what
+    /// makes it safe: a real tool always eventually delivers its result and
+    /// snaps the pet back within one tick, whereas a stranded session never
+    /// recovers on its own.
+    static var workingStaleAfter: TimeInterval = 600
+
+    /// The same, for `.needsAttention`.
+    ///
+    /// Unlike the others this is a policy choice, not a measurement, and it is
+    /// deliberately long. `.needsAttention` means Claude is blocked on the
+    /// human, which is precisely the state you want still flagged when you come
+    /// back from lunch — decaying it on the 300s horizon would quietly drop the
+    /// ‼️ during an ordinary break and lose the one thing the pet is for.
+    ///
+    /// It does need *some* limit: it carries the highest urgency, so a prompt
+    /// answered outside the pet's view leaves a session that outranks every live
+    /// one for the face, forever. Thirty minutes keeps a real block visible
+    /// across any plausible break while still clearing a stale one inside the
+    /// hour.
+    static var attentionStaleAfter: TimeInterval = 1800
+
     /// No activity anywhere for this long and the crab sleeps.
-    private static let sleepAfter: TimeInterval = 300
+    ///
+    /// Raised from 300 because `staleAfter` now occupies that slot: at equal
+    /// values a stranded session would skip `idle` entirely and go straight to
+    /// sleep, so the idle chatter and status ticker — the thing issue #2's
+    /// reporter had never once seen — would stay unreachable. 900 is also the
+    /// better number on its own terms: turn-end to next human prompt has a
+    /// median park of 180s and 40% of ordinary parks exceed 300s, so a 300s nap
+    /// would fire during two-fifths of normal think-breaks. At 900 only 19% are
+    /// longer, and those are genuine walk-aways.
+    static var sleepAfter: TimeInterval = 900
     /// How long one idle line stays on screen before a new one is chosen.
     private static let chatterInterval: TimeInterval = 14
     /// How far back the tool-rate window looks.
@@ -214,7 +266,13 @@ public final class ActivityCoordinator {
         for event in events {
             guard var session = sessions[event.sessionID] else { continue }
             let previousMood = session.mood
-            session.lastActivity = max(session.lastActivity, event.timestamp)
+            // Only Claude's own doings advance the clock. The 2s workload poll
+            // emits for every session whether or not the count moved, and
+            // counting it kept `lastActivity` permanently fresh — see
+            // `ActivityEvent.countsAsActivity`.
+            if event.countsAsActivity {
+                session.lastActivity = max(session.lastActivity, event.timestamp)
+            }
 
             switch event.kind {
             case .thinking:
@@ -291,15 +349,49 @@ public final class ActivityCoordinator {
         }
     }
 
+    /// How long `mood` may go unrenewed before the pet stops asserting it.
+    ///
+    /// `nil` means the mood expires on nothing:
+    /// - `.idle` is already the floor — there is nowhere below it to decay to.
+    /// - `.sleeping` is derived at display time from `lastActivity`, not stored.
+    /// - `.nudging` is likewise derived, from `awaitingApproval`; it clears when
+    ///   the mood underneath it decays and takes the flag with it.
+    static func quietLimit(for mood: PetMood) -> TimeInterval? {
+        switch mood {
+        case .done: doneDecay
+        case .working: workingStaleAfter
+        case .needsAttention: attentionStaleAfter
+        case .thinking, .cooking: staleAfter
+        case .idle, .nudging, .sleeping: nil
+        }
+    }
+
     private func recompute() {
         let now = Date()
 
-        // Decay: `done` is a moment, not a state.
+        // Decay. A mood is an assertion about what Claude is doing right now,
+        // and an assertion nothing has renewed eventually stops being true.
+        //
+        // This is deliberately one route-independent rule rather than a special
+        // case per way-of-getting-stuck. The known strandings — an ESC'd tool,
+        // a turn whose end marker fell outside the bounded tail, a session
+        // adopted mid-turn at launch — all leave a mood nothing will ever
+        // clear, and the list is certainly incomplete. A timeout recovers from
+        // the ones nobody has found yet.
         for (id, var session) in sessions {
-            if session.mood == .done, now.timeIntervalSince(session.lastActivity) > Self.doneDecay {
-                session.mood = .idle
-                sessions[id] = session
-            }
+            guard let limit = Self.quietLimit(for: session.mood),
+                  now.timeIntervalSince(session.lastActivity) > limit else { continue }
+            session.mood = .idle
+            // The mood alone is not the assertion — the bubble is. Leaving any
+            // of these set keeps stale text on screen after the pose relaxes:
+            // `activeTaskLabel` outranks everything when the bubble is chosen,
+            // and a stale `awaitingApproval` re-pins the display to `.nudging`
+            // no matter what the mood says.
+            session.tool = nil
+            session.activity = nil
+            session.activeTaskLabel = nil
+            session.awaitingApproval = false
+            sessions[id] = session
         }
 
         let ordered = sessions.values.sorted { lhs, rhs in
@@ -356,7 +448,10 @@ public final class ActivityCoordinator {
             bubble = seed % 4 == 0 ? Vocab.line(for: .sleeping, seed: seed) : nil
             chatter = nil
 
-        case .idle where task == nil:
+        // A title is what a session *is*, not what it is *doing*. Gating on
+        // `task == nil` meant any titled session — which is most of them — kept
+        // showing its title forever and never reached the ticker.
+        case .idle where focus.activeTaskLabel == nil && focus.activity == nil:
             // Nothing to report — encouragement, or a status ticker.
             var snapshot = StatusTicker.Snapshot()
             snapshot.model = focus.model

@@ -26,8 +26,12 @@ if let index = arguments.firstIndex(of: "--render-marketing"), index + 1 < argum
     exit(ok ? 0 : 1)
 }
 
-if arguments.contains("--probe") {
-    MainActor.assumeIsolated { Probe.run(seconds: 3) }
+if let index = arguments.firstIndex(of: "--probe") {
+    // `--probe [seconds]`. The default is long enough to attach the feeds and
+    // fold what is already on disk, but shorter than any decay horizon — so
+    // watching a session settle to idle needs an explicit, longer window.
+    let seconds = arguments.count > index + 1 ? Double(arguments[index + 1]) ?? 3 : 3
+    MainActor.assumeIsolated { Probe.run(seconds: seconds) }
     exit(0)
 }
 
