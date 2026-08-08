@@ -26,9 +26,9 @@ enum DemoMode {
     /// fire, then the payoff. `nudging` sits before `done` because it is the
     /// state people will not have seen before.
     static let script: [Beat] = [
-        Beat(mood: .idle, bubble: "Let's build something awesome!", style: .plain, tool: nil, seconds: 3.0),
+        Beat(mood: .idle, bubble: "Let's build something great", style: .plain, tool: nil, seconds: 3.0),
         Beat(mood: .thinking, bubble: "…", style: .dots, tool: nil, seconds: 2.5),
-        Beat(mood: .working, bubble: "Wiring the activity pipeline", style: .plain, tool: "Bash", seconds: 3.0),
+        Beat(mood: .working, bubble: "Wiring the pipeline", style: .plain, tool: "Bash", seconds: 3.0),
         Beat(mood: .cooking, bubble: "🔥", style: .plain, tool: nil, seconds: 3.0),
         Beat(mood: .nudging, bubble: "Plan's ready 👀", style: .plain, tool: nil, seconds: 3.0),
         Beat(mood: .done, bubble: "✅ 🥳 🎉", style: .plain, tool: nil, seconds: 2.5),
@@ -67,13 +67,23 @@ enum DemoMode {
     }()
 
     /// The beat that should be showing `elapsed` seconds into the loop.
-    static func beat(at elapsed: Double) -> Beat {
+    static func beat(at elapsed: Double) -> Beat { cue(at: elapsed).beat }
+
+    /// The beat playing at `elapsed`, and how far into it we are.
+    ///
+    /// The offset is what an offline renderer needs and the live app gets for
+    /// free. Several moods are one-shot animations that read `t` from their own
+    /// zero — `.done`'s hop is `max(0, 1 - t / 1.2)` — and live, `MoodClock`
+    /// rebases the clock on every mood change so they fire. Handed a global
+    /// elapsed time instead, `.done` first appears at t≈14.5s, `hop` is long
+    /// since zero, and the reel's payoff beat renders as a motionless crab.
+    static func cue(at elapsed: Double) -> (beat: Beat, index: Int, since: Double) {
         var remaining = elapsed.truncatingRemainder(dividingBy: totalSeconds)
-        for beat in script {
-            if remaining < beat.seconds { return beat }
+        for (index, beat) in script.enumerated() {
+            if remaining < beat.seconds { return (beat, index, remaining) }
             remaining -= beat.seconds
         }
-        return script[0]
+        return (script[0], 0, 0)
     }
 
     static func state(at elapsed: Double, sessions: [ClaudeSession] = sessions) -> PetState {

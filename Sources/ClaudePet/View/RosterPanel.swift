@@ -7,6 +7,13 @@ public struct RosterPanel: View {
     public var pinnedID: String?
     public var onPin: (String?) -> Void
 
+    /// Whether the list scrolls.
+    ///
+    /// `ScrollView` has no intrinsic height, and `ImageRenderer` sizes from
+    /// intrinsic content — so an offline render of this panel comes out clipped
+    /// or empty. Set false for a still; the live popover leaves it true.
+    public var scrolls: Bool = true
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -29,20 +36,22 @@ public struct RosterPanel: View {
                     .foregroundStyle(.secondary)
                     .padding(12)
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(state.sessions) { session in
-                            SessionRow(
-                                session: session,
-                                isFocused: session.id == state.focusedSessionID,
-                                isPinned: session.id == pinnedID,
-                                onPin: { onPin(pinnedID == session.id ? nil : session.id) }
-                            )
-                            Divider().opacity(0.4)
-                        }
+                let rows = VStack(spacing: 0) {
+                    ForEach(state.sessions) { session in
+                        SessionRow(
+                            session: session,
+                            isFocused: session.id == state.focusedSessionID,
+                            isPinned: session.id == pinnedID,
+                            onPin: { onPin(pinnedID == session.id ? nil : session.id) }
+                        )
+                        Divider().opacity(0.4)
                     }
                 }
-                .frame(maxHeight: 280)
+                if scrolls {
+                    ScrollView { rows }.frame(maxHeight: 280)
+                } else {
+                    rows
+                }
             }
 
             if pinnedID != nil {

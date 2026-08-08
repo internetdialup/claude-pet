@@ -26,8 +26,15 @@ import Foundation
 //  compiler will refuse to build until you give it lines — the switch below is
 //  exhaustive on purpose, so a half-added occasion cannot ship silently.
 //
-//  Keep lines SHORT. The bubble truncates past roughly 46 characters, and a
-//  line that gets cut off reads worse than a shorter one. Emoji are welcome.
+//  Keep lines SHORT — about 29 characters. That is not a style preference, it
+//  is where the bubble actually cuts off: it caps at 210pt with 8pt of padding
+//  each side, and the font advances 6.62pt per character, so 194 / 6.62 ≈ 29.
+//  Emoji are welcome but count roughly double, since they render about twice
+//  as wide as a monospaced character.
+//
+//  Five lines that shipped before this was measured are longer than that and
+//  are cut off on screen. They are listed in `PersonalityTests` and left as
+//  written — they are the operator's words, not the renderer's business.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// When Claw'd has something to say. One per state, so any of them can carry

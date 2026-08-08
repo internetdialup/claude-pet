@@ -47,7 +47,7 @@ public enum CrabAnimator {
 
     /// The little unprompted things he does while waiting. Scheduled rather
     /// than random per frame, so each one plays through instead of stuttering.
-    enum Flourish: CaseIterable {
+    enum Flourish: String, CaseIterable {
         case jump, wave, wiggle, stretch, lookAround, scuttle
 
         var duration: Double {
@@ -84,6 +84,13 @@ public enum CrabAnimator {
     }
 
     public static func pose(mood: PetMood, t: Double) -> CrabPose {
+        pose(mood: mood, t: t, flourishes: true)
+    }
+
+    /// - Parameter flourishes: when false the scheduled idle flourish is left
+    ///   off, so a renderer can overlay one of its own choosing instead of
+    ///   whichever one `flourish(at:)` happens to pick for that cycle.
+    static func pose(mood: PetMood, t: Double, flourishes: Bool) -> CrabPose {
         var pose = CrabPose()
         pose.propPhase = t
 
@@ -98,7 +105,7 @@ public enum CrabAnimator {
             // on a cycle unrelated to everything else so it feels incidental.
             if sin(t * 0.23) > 0.86 { pose.mouth = .flat }
 
-            if let (kind, progress) = flourish(at: t) {
+            if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
             }
 
@@ -287,6 +294,23 @@ public enum CrabAnimator {
     }
 
     public static let clickDuration = 0.34
+
+    /// The idle pose with `kind` overlaid, `t` seconds into the flourish.
+    ///
+    /// Past `kind.duration` the flourish is over and plain idle comes back, so a
+    /// rendered loop can hold a beat of quiet before it repeats — which is what
+    /// the live schedule does between windows.
+    ///
+    /// `t` is flourish-relative here where live it is absolute, so the
+    /// oscillating ones start at a fixed phase rather than an arbitrary one.
+    /// `jumpPose` has always made that trade.
+    static func flourishPose(_ kind: Flourish, at t: Double) -> CrabPose {
+        var pose = pose(mood: .idle, t: t, flourishes: false)
+        if t < kind.duration {
+            apply(kind, progress: t / kind.duration, t: t, to: &pose)
+        }
+        return pose
+    }
 
     /// The jump at a given point in its arc, for the contact sheet.
     static func jumpPose(progress: Double) -> CrabPose {

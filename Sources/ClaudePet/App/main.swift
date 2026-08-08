@@ -26,6 +26,11 @@ if let index = arguments.firstIndex(of: "--render-marketing"), index + 1 < argum
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-reel"), index + 1 < arguments.count {
+    let ok = MainActor.assumeIsolated { ReelRenderer.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--probe") {
     // `--probe [seconds]`. The default is long enough to attach the feeds and
     // fold what is already on disk, but shorter than any decay horizon — so

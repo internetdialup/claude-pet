@@ -2,8 +2,8 @@
   <img src="docs/media/icon-1024.png" width="120" alt="Claude Pet">
   <h1>Claude Pet 🦀</h1>
   <p><strong>Claw'd lives on your desktop and shows you what Claude Code is doing.</strong></p>
-  <img src="docs/media/desktop.gif" width="760" alt="Claw'd cycling through his states on the desktop, beside another desktop pet">
-  <p><em>Every state, in order — then a hover, and a poke. Next to a friend.</em></p>
+  <img src="docs/media/desktop.gif" width="640" alt="Claw'd cycling through every state — idle, thinking, working, cooking, waiting on you, done, and the status ticker">
+  <p><em>Every state, in order. Rendered from the sprite rig, not screen-recorded.</em></p>
 </div>
 
 ## What it is
@@ -96,10 +96,28 @@ drops so an idle pet costs an idle machine nothing.
 </td></tr>
 </table>
 
+### Idle flourishes
+
+Every seven seconds, one of six unprompted little things — picked per window and
+played through as a shape rather than a frequency, so it never stutters halfway.
+
+<table>
+<tr>
+  <td width="170" align="center"><img src="docs/media/flourish-jump.gif" width="140"><br><strong>Jump</strong></td>
+  <td width="170" align="center"><img src="docs/media/flourish-stretch.gif" width="140"><br><strong>Stretch</strong></td>
+  <td width="170" align="center"><img src="docs/media/flourish-lookAround.gif" width="140"><br><strong>Look around</strong></td>
+</tr>
+<tr>
+  <td align="center"><img src="docs/media/flourish-scuttle.gif" width="140"><br><strong>Scuttle</strong></td>
+  <td align="center"><img src="docs/media/flourish-wave.gif" width="140"><br><strong>Wave</strong></td>
+  <td align="center"><img src="docs/media/flourish-wiggle.gif" width="140"><br><strong>Wiggle</strong></td>
+</tr>
+</table>
+
 ## Interactions
 
 <table>
-<tr><td width="170"><img src="docs/media/hover-wink.gif" width="150"></td><td>
+<tr><td width="170"><img src="docs/media/hover-wink.gif" width="75"><img src="docs/media/hover-hop.gif" width="75"><br><img src="docs/media/hover-wave.gif" width="75"><img src="docs/media/hover-wiggle.gif" width="75"></td><td>
 
 ### Hover him
 He notices you and reacts — randomised between a **wink**, a **little jump**, a
@@ -116,11 +134,32 @@ reaction is suppressed — a click that moved him is a move.
 Poke him three times quickly for something else. 🎉🪄
 
 </td></tr>
+<tr><td><img src="docs/media/party.gif" width="150"></td><td>
+
+### 🎉🪄 The party
+Three quick pokes and he throws one. **Pose and colour both cycle** for four
+seconds — cycling colour alone reads as a recolour, cycling the pose too reads as
+a celebration — then he goes back to reporting reality.
+
+</td></tr>
 </table>
+
+## The roster
+
+Clicking him opens every live session at once: what each is doing, which project
+it is in, and which one he is currently mirroring. Click a row to pin him to that
+session; click it again to go back to following the busiest.
+
+<div align="center">
+  <img src="docs/media/roster.png" width="360" alt="The session roster: three live sessions with status dots, activities and project names, one pinned">
+</div>
+
+<p align="center"><em>These sessions are invented. The real panel lists your
+actual project directories — which is exactly why the picture does not.</em></p>
 
 ## Installing
 
-Download **`ClaudePet-1.0.0.dmg`** from
+Download the **`.dmg`** from
 [Releases](https://github.com/internetdialup/claude-pet/releases), open it, and
 drag Claw'd to Applications.
 
@@ -263,9 +302,16 @@ nothing at runtime.
 
 | | |
 | :--- | :--- |
-| **Keep it short** | The bubble truncates past roughly **46 characters**. A line that gets cut off reads worse than a shorter one. |
-| **Emoji are welcome** | They render fine in the bubble. 🍳 🌶️ 🎬 all ship by default. |
+| **Keep it short** | The bubble cuts off at **29 characters** — it caps at 210pt, the font advances 6.62pt per character, and 194 ÷ 6.62 ≈ 29. A test enforces it. |
+| **Emoji are welcome** | They render fine — but count each as **two** characters, since they draw about twice as wide. 🍳 🌶️ 🎬 all ship by default. |
 | **He deals a deck** | Lines are dealt like a shuffled deck: every line is used once before any repeats, and the shuffle is reseeded each pass. A plain random pick would show one line four times and another never. |
+
+<div align="center">
+  <img src="docs/media/bubbles.png" width="440" alt="One speech bubble per state, each with its own fill colour and glyph">
+</div>
+
+<p align="center"><em>One bubble per state. The fill, the glyph and the text all
+come from the two files above.</em></p>
 
 ### 🔔 What the banners say
 
@@ -342,12 +388,18 @@ no shading ramp, whole-pixel motion. He is not a sprite sheet, so a new pose is 
 few numbers rather than a new asset, and the app icon is rendered from the same
 rig so the two can never drift apart.
 
+<div align="center">
+  <img src="docs/media/props.png" width="768" alt="Every prop: sparkles, terminal, check, bang, z's, servers, balloon, plan, hard hat, phone, fire, glasses">
+</div>
+
+<p align="center"><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
+
 This project is unofficial and not affiliated with or endorsed by Anthropic. See
 [LICENSE](LICENSE).
 
 ## Version history
 
-See [CHANGELOG.md](CHANGELOG.md). Currently **v1.0.0**.
+See [CHANGELOG.md](CHANGELOG.md). Currently **v1.3.0**.
 
 ## Contributing
 

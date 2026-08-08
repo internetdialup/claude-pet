@@ -28,14 +28,35 @@ public enum SpriteImage {
             .frame(width: side(pixelsPerCell), height: side(pixelsPerCell)))
     }
 
+    /// A `CGImage` for an arbitrary view — the missing twin of `png(of:)`.
+    ///
+    /// The composed scenes render hundreds of frames; routing each through
+    /// `png(of:)` would round-trip it via TIFF and PNG only for the GIF encoder
+    /// to decode it again.
+    ///
+    /// - Parameter isOpaque: true for a scene that fills its own frame, which
+    ///   keeps the encoder off the transparent palette index entirely. The
+    ///   `PixelBuffer` overload below deliberately does not expose this — it is
+    ///   always transparent, and that is what keeps the committed loops
+    ///   byte-identical.
+    public static func cgImage(of view: some View,
+                               scale: CGFloat = 1,
+                               isOpaque: Bool = false) -> CGImage? {
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = scale
+        renderer.isOpaque = isOpaque
+        return renderer.cgImage
+    }
+
     /// PNG data for an arbitrary view, sized in points equal to target pixels.
     ///
     /// Used by the icon and contact-sheet renderers, which compose more than a
     /// bare sprite.
-    public static func png(of view: some View, scale: CGFloat = 1) -> Data? {
+    public static func png(of view: some View, scale: CGFloat = 1,
+                           isOpaque: Bool = false) -> Data? {
         let renderer = ImageRenderer(content: view)
         renderer.scale = scale
-        renderer.isOpaque = false
+        renderer.isOpaque = isOpaque
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff) else { return nil }

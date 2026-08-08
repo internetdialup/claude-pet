@@ -140,18 +140,37 @@ public struct PixelCanvasView: View {
     /// tinting everything would just look like a hue-rotated screenshot.
     var bodyTint: Color?
 
+    /// Hairline overdraw that hides seams when a cell lands on a fractional
+    /// device pixel.
+    ///
+    /// Harmless against transparency, which is what every caller drew on until
+    /// the backdrop existed. Against an opaque backdrop it is not harmless: the
+    /// half pixel blends terracotta into the water down the right and bottom of
+    /// the silhouette, which is a one-sided outline on a character this file's
+    /// palette defines as having none. The composed scenes pass `0` because they
+    /// guarantee whole-pixel cells.
+    var seamBleed: CGFloat = 0.5
+
     public var body: some View {
         Canvas(rendersAsynchronously: false) { context, size in
             let px = size.width / Double(PixelBuffer.side)
             for run in buffer.runs() {
-                let rect = CGRect(
-                    x: Double(run.x) * px,
-                    y: Double(run.y) * px,
-                    // A hairline of overdraw keeps neighbouring runs from showing
-                    // a seam when px lands on a fractional device pixel.
-                    width: Double(run.length) * px + 0.5,
-                    height: px + 0.5
-                )
+                let x0 = Double(run.x) * px, x1 = Double(run.x + run.length) * px
+                let y0 = Double(run.y) * px, y1 = y0 + px
+                let rect: CGRect
+                if seamBleed > 0 {
+                    rect = CGRect(x: x0, y: y0,
+                                  width: x1 - x0 + seamBleed, height: y1 - y0 + seamBleed)
+                } else {
+                    // No bleed to hide seams with, so snap the edges instead:
+                    // neighbouring runs then share an exact boundary and tile
+                    // with neither a gap nor a blend. Necessary because a cell
+                    // is only a whole number of pixels when the frame happens to
+                    // be a multiple of 32.
+                    rect = CGRect(x: x0.rounded(), y: y0.rounded(),
+                                  width: x1.rounded() - x0.rounded(),
+                                  height: y1.rounded() - y0.rounded())
+                }
                 context.fill(Path(rect), with: .color(color(for: run.ink)))
             }
         }

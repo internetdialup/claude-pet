@@ -767,17 +767,39 @@ struct EditableCopyTests {
         }
     }
 
-    /// Bubble text truncates around 46 characters.
+    /// Bubble text truncates at 29 characters.
+    ///
+    /// Not a taste rule — it is arithmetic the bubble already commits to:
+    /// `maxWidth: 210` less 8pt padding a side, over the 6.62pt advance
+    /// `MarqueeText.measure` uses, is 29.3. This test previously allowed 46,
+    /// which let five shipped lines through that were cut off on screen —
+    /// including the one in the README hero, for months.
+    ///
+    /// The five lines that predate the measurement are named below rather than
+    /// shortened. They are the operator's phrasing — a renderer discovering
+    /// that a sentence is two characters too wide is not a reason to rewrite
+    /// someone's voice. They truncate; that is theirs to decide about.
+    /// Authored before the 29-character limit was measured. Cut off on screen.
+    static let knownLong: Set<String> = [
+        "Let's build something awesome!",
+        "Now we're cooking with crisco 🍳",
+        "Excited to see what you cook up",
+        "Writing tests, the good kind 🧪",
+        "Writing a message you'll thank me for",
+    ]
+
     @Test("Bubble lines fit in the bubble")
     func bubbleLinesAreShort() {
         for occasion in ShoutoutOccasion.allCases {
             for line in Vocab.lines(for: occasion) {
-                #expect(line.count <= 46, "\(occasion.rawValue) line too long: \(line)")
+                guard !Self.knownLong.contains(line) else { continue }
+                #expect(line.count <= 29, "\(occasion.rawValue) line too long: \(line)")
             }
         }
         for rule in Vocab.rules {
             for line in rule.lines {
-                #expect(line.count <= 46, "rule line too long: \(line)")
+                guard !Self.knownLong.contains(line) else { continue }
+                #expect(line.count <= 29, "rule line too long: \(line)")
             }
         }
     }

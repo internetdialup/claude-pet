@@ -7,6 +7,39 @@ which is a different document for a different audience.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-08-08
+
+### Added
+
+- **🌊 A backdrop, and the features that had never been pictured.** Eleven new
+  assets: the six idle flourishes (only one had ever been rendered on its own),
+  the triple-poke party, the session roster, one bubble per state, and every prop
+  in a strip. The README described all of them in text and showed none of them.
+- **`--render-reel`** renders composed scenes — the hero, the roster, the bubbles
+  and the props — entirely from code.
+
+### Changed
+
+- **The hero is rendered, not recorded.** It was the one committed asset that was
+  a screen capture, which quietly falsified the promise that a diff in the media
+  folder means the animation changed. It now renders offline from the demo
+  script: reproducible, and structurally unable to capture a stray notification
+  the way the old one did. It also shrank from 432 KB to 237 KB.
+- The backdrop is **derived** from a wallpaper's hue and saturation, not copied
+  from it — and deliberately much darker, because the sampled mid-tones sat
+  within 1.02:1 of Claw'd's body colour and would have shimmered.
+
+### Fixed
+
+- **The bubble truncates at 29 characters, not 46.** The docs and the test both
+  said 46; the bubble caps at 210pt over a 6.62pt advance, which is 29. Five
+  shipped lines are longer and are cut off on screen — including the one in the
+  README hero, which is why it read *"Let's build something aweso…"*. The limit
+  is corrected and enforced; the five lines are named rather than rewritten.
+- **Deleted `hover.gif`**, which was byte-identical to `hover-hop.gif` and
+  referenced nowhere.
+- Two stale **v1.0.0** claims in the README, four versions out of date.
+
 ## [1.2.2] — unreleased
 
 ### Fixed

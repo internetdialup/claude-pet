@@ -16,6 +16,14 @@ public struct ThoughtBubble: View {
     public var mood: PetMood
     public var style: PetState.BubbleStyle = .plain
 
+    /// Renders against a fixed instant instead of the display link.
+    ///
+    /// The dots and the ticker derive their phase from *absolute* reference
+    /// time, which is fine live and useless offline: `ImageRenderer` has no
+    /// display link, so the schedule resolves to whatever wall-clock moment the
+    /// render happened at and the same commit stops producing the same bytes.
+    public var frozenTime: Double?
+
     /// Width of the scrolling viewport. Fixed so the bubble does not resize as
     /// the ticker's content changes.
     private static let marqueeWidth: CGFloat = 150
@@ -57,9 +65,9 @@ public struct ThoughtBubble: View {
                 }
                 switch style {
                 case .dots:
-                    PulsingDots(color: foreground)
+                    PulsingDots(color: foreground, frozenTime: frozenTime)
                 case .marquee:
-                    MarqueeText(text: text, font: font, width: Self.marqueeWidth)
+                    MarqueeText(text: text, font: font, width: Self.marqueeWidth, frozenTime: frozenTime)
                 case .plain:
                     Text(text)
                         .font(font)
@@ -85,16 +93,31 @@ public struct ThoughtBubble: View {
 }
 
 /// Three squares filling in one at a time, then clearing — the universal
+/// Runs its content against the display link, or against a fixed instant when
+/// an offline renderer supplies one.
+private struct Clocked<Content: View>: View {
+    let frozenTime: Double?
+    @ViewBuilder let content: (Double) -> Content
+
+    var body: some View {
+        if let frozenTime {
+            content(frozenTime)
+        } else {
+            TimelineView(.animation) { content($0.date.timeIntervalSinceReferenceDate) }
+        }
+    }
+}
+
 /// "still thinking" tell, with no words to go stale.
 private struct PulsingDots: View {
     let color: Color
+    let frozenTime: Double?
 
     /// Seconds per dot.
     private let step = 0.34
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let elapsed = timeline.date.timeIntervalSinceReferenceDate
+        Clocked(frozenTime: frozenTime) { elapsed in
             let lit = Int(elapsed / step) % 4      // 0…3, so there is a rest beat
             HStack(spacing: 4) {
                 ForEach(0..<3, id: \.self) { index in
@@ -119,6 +142,7 @@ private struct MarqueeText: View {
     let text: String
     let font: Font
     let width: CGFloat
+    let frozenTime: Double?
 
     /// Points per second.
     private let speed: CGFloat = 26
@@ -126,9 +150,8 @@ private struct MarqueeText: View {
     private let gap: CGFloat = 34
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        Clocked(frozenTime: frozenTime) { elapsed in
             let measured = Self.measure(text) + gap
-            let elapsed = timeline.date.timeIntervalSinceReferenceDate
             let offset = measured > 0
                 ? -CGFloat(elapsed * Double(speed)).truncatingRemainder(dividingBy: measured)
                 : 0

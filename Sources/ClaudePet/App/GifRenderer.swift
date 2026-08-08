@@ -105,16 +105,11 @@ enum GifRenderer {
             }
         }
 
-        // The hover greeting, which has no mood of its own — it layers onto one.
-        let hover = stride(from: 0.0, to: 3.0, by: frameDelay).map { t -> PixelBuffer in
-            var pose = CrabAnimator.pose(mood: .idle, t: t)
-            CrabAnimator.applyGreeting(elapsed: t, seed: 1, to: &pose)
-            return CrabRig.render(pose)
-        }
-        guard write(hover, to: root.appendingPathComponent("hover.gif")) else { return false }
-
         // Each hover variant gets its own loop, so a change to one can be seen
-        // rather than inferred.
+        // rather than inferred. There used to be an unsuffixed `hover.gif` here
+        // too, rendered with `seed: 1` — which the greeting hash resolves to
+        // `.hop`, making it byte-for-byte the same file as `hover-hop.gif`
+        // under a second name, referenced by nothing.
         for (index, variant) in CrabAnimator.Greeting.allCases.enumerated() {
             // Find a seed that selects this variant; the picker is a hash, so
             // scanning is simpler and more honest than inverting it.
@@ -129,7 +124,38 @@ enum GifRenderer {
             guard write(frames, to: root.appendingPathComponent("hover-\(variant).gif")) else { return false }
         }
 
-        print("wrote \(PetMood.allCases.count + 1) GIFs to \(root.path)")
+        // One loop per idle flourish. Live these are scheduled one per seven
+        // seconds, so five of the six had never been seen on their own — they
+        // only ever appeared incidentally inside `idle.gif`.
+        //
+        // Driven off `allCases` rather than a written-out list: a hand-kept list
+        // silently drops any case added later, which is the failure `MoodStyle`
+        // was built to remove.
+        for kind in CrabAnimator.Flourish.allCases {
+            // A beat of quiet after the flourish, so the loop settles instead of
+            // snapping back to the start.
+            let frames = stride(from: 0.0, to: kind.duration + 0.6, by: frameDelay).map {
+                CrabRig.render(CrabAnimator.flourishPose(kind, at: $0))
+            }
+            guard write(frames, to: root.appendingPathComponent("flourish-\(kind.rawValue).gif"))
+            else { return false }
+        }
+
+        // The triple-poke party, at README size. It existed only as a 384px
+        // marketing asset and was never promoted, so the README's one coy line
+        // about it had no payoff.
+        let party = stride(from: 0.0, to: CrabView.rainbowDuration, by: frameDelay).map { t -> PixelBuffer in
+            var pose = CrabAnimator.pose(mood: CrabView.rainbowMood(elapsed: t) ?? .done, t: t)
+            pose.mouth = .open
+            return CrabRig.render(pose)
+        }
+        guard write(party, to: root.appendingPathComponent("party.gif"),
+                    tint: { CrabView.rainbowTint(elapsed: Double($0) * frameDelay) })
+        else { return false }
+
+        let count = PetMood.allCases.count + CrabAnimator.Greeting.allCases.count
+            + CrabAnimator.Flourish.allCases.count + 1
+        print("wrote \(count) GIFs to \(root.path)")
         return true
     }
 
@@ -141,9 +167,25 @@ enum GifRenderer {
                               pixelsPerCell: Int = pixelsPerCell,
                               tint: ((Int) -> Color?)? = nil) -> Bool {
         guard !frames.isEmpty else { return false }
+        let images = frames.enumerated().compactMap {
+            SpriteImage.cgImage($0.element, pixelsPerCell: pixelsPerCell, tint: tint?($0.offset))
+        }
+        guard images.count == frames.count else { return false }
+        return encode(images, to: url)
+    }
+
+    /// Encodes images as an infinitely looping GIF. The one home for GIF options.
+    ///
+    /// - Parameter frameDelay: seconds per frame. GIF stores this as whole
+    ///   centiseconds, so a value that is not a multiple of 0.01 is rounded on
+    ///   write and the clip plays at a rate that no longer matches the one it
+    ///   was sampled at. Callers must stride by the same number they pass here.
+    static func encode(_ images: [CGImage], to url: URL,
+                       frameDelay: Double = frameDelay) -> Bool {
+        guard !images.isEmpty else { return false }
 
         guard let destination = CGImageDestinationCreateWithURL(
-            url as CFURL, UTType.gif.identifier as CFString, frames.count, nil
+            url as CFURL, UTType.gif.identifier as CFString, images.count, nil
         ) else {
             FileHandle.standardError.write(Data("could not open \(url.path)\n".utf8))
             return false
@@ -160,10 +202,7 @@ enum GifRenderer {
             ]
         ] as CFDictionary
 
-        for (index, buffer) in frames.enumerated() {
-            guard let image = SpriteImage.cgImage(buffer, pixelsPerCell: pixelsPerCell,
-                                                  tint: tint?(index))
-            else { return false }
+        for image in images {
             CGImageDestinationAddImage(destination, image, frameProperties)
         }
 
