@@ -167,6 +167,7 @@ Three offline modes are useful when working on it:
 .build/debug/ClaudePet --render-sheet out.png   # contact sheet of every mood and prop
 .build/debug/ClaudePet --render-gif docs/media  # the GIFs above
 .build/debug/ClaudePet --probe                  # print the PetState from your real sessions
+.build/debug/ClaudePet --probe 320               # ...after watching for 320s, past the decay horizons
 .build/debug/ClaudePet --render-marketing out/  # large transparent stills and loops
 ```
 

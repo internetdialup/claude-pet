@@ -7,7 +7,7 @@ which is a different document for a different audience.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.2] — 2026-08-07
+## [1.2.2] — unreleased
 
 ### Fixed
 
