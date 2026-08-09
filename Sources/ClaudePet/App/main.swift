@@ -40,6 +40,7 @@ if let index = arguments.firstIndex(of: "--render-social"), index + 1 < argument
         ReelRenderer.renderVertical(to: root.appendingPathComponent("clawd-reel-9x16.mp4"))
             && ReelRenderer.renderLandscape(to: root.appendingPathComponent("clawd-reel-16x9.mp4"))
             && ReelRenderer.renderPoster(to: root.appendingPathComponent("clawd-reel-cover.png"))
+            && ReelRenderer.renderPlates(to: root)
     }
     exit(ok ? 0 : 1)
 }

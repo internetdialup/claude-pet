@@ -100,7 +100,8 @@ enum ReelRenderer {
     /// Shared so the two aspects cannot drift — the beat, the clock and the
     /// party handling live in one place and only the layout around them differs.
     @ViewBuilder
-    static func reelPet(at elapsed: Double, spriteSide: CGFloat) -> some View {
+    static func reelPet(at elapsed: Double, spriteSide: CGFloat,
+                        showsBubble: Bool = true) -> some View {
         let cue = DemoMode.reelCue(at: elapsed)
         let t = cue.since
         let party = cue.beat.rainbow
@@ -118,7 +119,8 @@ enum ReelRenderer {
         let crown = CGFloat(PetRootView.crownCells) * spriteSide / CGFloat(PixelBuffer.side)
 
         VStack(spacing: -crown) {
-            ThoughtBubble(text: cue.beat.bubble ?? "",
+            if showsBubble {
+                ThoughtBubble(text: cue.beat.bubble ?? "",
                           tool: cue.beat.tool,
                           mood: cue.beat.mood,
                           style: cue.beat.style,
@@ -128,11 +130,51 @@ enum ReelRenderer {
                 // through the overlap and covers its own caption. Behind the
                 // bubble it reads as a flame licking up past it instead.
                 .zIndex(1)
+            }
             PixelCanvasView(buffer: CrabRig.render(pose),
                             bodyTint: party ? CrabView.rainbowTint(elapsed: t) : nil,
                             seamBleed: 0)
                 .frame(width: spriteSide, height: spriteSide)
         }
+    }
+
+    /// One frame of a clean plate: the pet on the backdrop, centred, with no
+    /// wordmark, tagline or URL.
+    ///
+    /// For editing elsewhere — titles, captions and calls to action get added in
+    /// the edit rather than baked in, and a plate with type burned into it is
+    /// worth very little to whoever is cutting it.
+    @ViewBuilder
+    static func plateScene(at elapsed: Double, canvas: CGSize,
+                           spriteSide: CGFloat, showsBubble: Bool) -> some View {
+        ZStack {
+            Backdrop()
+            reelPet(at: elapsed, spriteSide: spriteSide, showsBubble: showsBubble)
+                // Without the bubble the group is shorter, so nudge it back to
+                // where the eye expects the character to sit.
+                .offset(y: showsBubble ? 0 : spriteSide * 0.06)
+        }
+        .frame(width: canvas.width, height: canvas.height)
+        .clipped()
+    }
+
+    /// Both aspects, with and without the speech bubble.
+    static func renderPlates(to root: URL) -> Bool {
+        let cuts: [(name: String, canvas: CGSize, sprite: CGFloat)] = [
+            ("9x16", verticalCanvas, verticalSpriteSide),
+            ("16x9", landscapeCanvas, landscapeSpriteSide),
+        ]
+        for cut in cuts {
+            for showsBubble in [true, false] {
+                let suffix = showsBubble ? "clean" : "bare"
+                let url = root.appendingPathComponent("clawd-\(suffix)-\(cut.name).mp4")
+                guard encodeReel(to: url, scene: {
+                    plateScene(at: $0, canvas: cut.canvas,
+                               spriteSide: cut.sprite, showsBubble: showsBubble)
+                }) else { return false }
+            }
+        }
+        return true
     }
 
     /// One frame of the 16:9 cut.

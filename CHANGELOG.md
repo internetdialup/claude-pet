@@ -23,6 +23,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   a GIF would be enormous and stuck at 256 colours. Encoded with AVFoundation,
   which ships with macOS, so `Package.swift` keeps its empty dependency array.
   Both cuts share one clock and one beat list, so their timing cannot drift.
+  It also writes **clean plates** in both aspects — the pet on the backdrop with
+  no wordmark, tagline or URL, in a `clean` variant that keeps the speech bubble
+  and a `bare` variant that drops it. Titles belong in the edit, not baked into
+  the footage.
 
 ### Changed
 
