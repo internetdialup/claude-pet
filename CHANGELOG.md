@@ -17,11 +17,12 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   in a strip. The README described all of them in text and showed none of them.
 - **`--render-reel`** renders composed scenes — the hero, the roster, the bubbles
   and the props — entirely from code.
-- **`--render-social`** renders a **9:16, 15-second, 1080×1920 MP4** for a social
-  reel, plus a cover still. Video rather than GIF because a reel cannot be a GIF,
-  and at that size a GIF would be enormous and stuck at 256 colours. Encoded with
-  AVFoundation, which ships with macOS — `Package.swift` keeps its empty
-  dependency array.
+- **`--render-social`** renders the same 15 seconds in **two aspects** — 9:16 at
+  1080×1920 for Reels and 16:9 at 1920×1080 for Threads — plus a cover still.
+  Video rather than GIF because neither platform takes a GIF, and at those sizes
+  a GIF would be enormous and stuck at 256 colours. Encoded with AVFoundation,
+  which ships with macOS, so `Package.swift` keeps its empty dependency array.
+  Both cuts share one clock and one beat list, so their timing cannot drift.
 
 ### Changed
 

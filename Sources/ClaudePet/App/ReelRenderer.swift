@@ -46,20 +46,36 @@ enum ReelRenderer {
     /// the subject has to survive being a few centimetres tall.
     static let verticalSpriteSide: CGFloat = 264
 
+    /// 16:9 in points; ×3 gives 1920×1080.
+    static let landscapeCanvas = CGSize(width: 640, height: 360)
+    static let landscapeSpriteSide: CGFloat = 224
+
     /// Renders the 15-second vertical reel as an MP4.
     ///
     /// MP4 rather than GIF because a reel cannot be a GIF — and at 1080×1920 a
     /// GIF would be both enormous and stuck at 256 colours, which is exactly the
     /// constraint the committed loops are designed around and this is not.
     static func renderVertical(to url: URL) -> Bool {
-        let total = DemoMode.reelSeconds
-        let count = Int((total * Double(verticalFPS)).rounded())
+        encodeReel(to: url) { verticalScene(at: $0) }
+    }
+
+    /// The same fifteen seconds, laid out wide — for platforms that want 16:9.
+    static func renderLandscape(to url: URL) -> Bool {
+        encodeReel(to: url) { landscapeScene(at: $0) }
+    }
+
+    /// Renders the reel script frame by frame and encodes it.
+    ///
+    /// Both aspects run the same clock and the same beats, so the timing cannot
+    /// drift between cuts.
+    static func encodeReel<V: View>(to url: URL, scene: (Double) -> V) -> Bool {
+        let count = Int((DemoMode.reelSeconds * Double(verticalFPS)).rounded())
         var images: [CGImage] = []
         images.reserveCapacity(count)
 
         for index in 0..<count {
             let elapsed = Double(index) / Double(verticalFPS)
-            guard let image = SpriteImage.cgImage(of: verticalScene(at: elapsed),
+            guard let image = SpriteImage.cgImage(of: scene(elapsed),
                                                   scale: verticalScale, isOpaque: true)
             else { return false }
             images.append(image)
@@ -79,13 +95,12 @@ enum ReelRenderer {
             to: url)
     }
 
-    /// One frame of the vertical reel.
+    /// The pet as both reels draw him: bubble above, sprite below, party applied.
     ///
-    /// The ocean ramp already darkens top to bottom, which is why it suits a
-    /// tall frame better than a wide one — the surface sits behind the wordmark
-    /// and the abyss behind the feet, with no extra work.
+    /// Shared so the two aspects cannot drift — the beat, the clock and the
+    /// party handling live in one place and only the layout around them differs.
     @ViewBuilder
-    static func verticalScene(at elapsed: Double) -> some View {
+    static func reelPet(at elapsed: Double, spriteSide: CGFloat) -> some View {
         let cue = DemoMode.reelCue(at: elapsed)
         let t = cue.since
         let party = cue.beat.rainbow
@@ -94,6 +109,78 @@ enum ReelRenderer {
         var pose = CrabAnimator.pose(mood: mood, t: t)
         let _ = { if party { pose.mouth = .open } }()
 
+        // The sprite frame carries about ten empty grid rows above the body —
+        // headroom the props grow into. Left alone, the bubble floats a long way
+        // off his head on any beat without a tall prop. `PetRootView` solves the
+        // same problem by overlapping the bubble into that crown, so reuse its
+        // constant rather than inventing a second number: one cell here is
+        // `spriteSide / 32`.
+        let crown = CGFloat(PetRootView.crownCells) * spriteSide / CGFloat(PixelBuffer.side)
+
+        VStack(spacing: -crown) {
+            ThoughtBubble(text: cue.beat.bubble ?? "",
+                          tool: cue.beat.tool,
+                          mood: cue.beat.mood,
+                          style: cue.beat.style,
+                          frozenTime: t)
+                // Above the sprite, not below it. A VStack draws later children
+                // on top, so without this the fire on the cooking beat grows up
+                // through the overlap and covers its own caption. Behind the
+                // bubble it reads as a flame licking up past it instead.
+                .zIndex(1)
+            PixelCanvasView(buffer: CrabRig.render(pose),
+                            bodyTint: party ? CrabView.rainbowTint(elapsed: t) : nil,
+                            seamBleed: 0)
+                .frame(width: spriteSide, height: spriteSide)
+        }
+    }
+
+    /// One frame of the 16:9 cut.
+    ///
+    /// Side by side rather than stacked. A wide frame only has height to spare
+    /// if nothing is competing for it, and stacking a wordmark, a bubble, a
+    /// sprite and a URL into 360 points leaves all four cramped. Putting the
+    /// words in a left column gives the pet the full height and gives the type
+    /// somewhere to breathe.
+    @ViewBuilder
+    static func landscapeScene(at elapsed: Double) -> some View {
+        ZStack {
+            Backdrop()
+
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("CLAUDE PET")
+                        .font(.system(size: 30, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(Palette.kraft)
+                        .tracking(4)
+                    Text("what Claude Code is doing,\non your desktop")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundStyle(Palette.kraft.opacity(0.72))
+                        .lineSpacing(3)
+                    Text("github.com/internetdialup/claude-pet")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Palette.kraft.opacity(0.6))
+                        .padding(.top, 6)
+                }
+                .padding(.leading, 52)
+
+                Spacer(minLength: 12)
+
+                reelPet(at: elapsed, spriteSide: landscapeSpriteSide)
+                    .padding(.trailing, 44)
+            }
+        }
+        .frame(width: landscapeCanvas.width, height: landscapeCanvas.height)
+        .clipped()
+    }
+
+    /// One frame of the vertical reel.
+    ///
+    /// The ocean ramp already darkens top to bottom, which is why it suits a
+    /// tall frame better than a wide one — the surface sits behind the wordmark
+    /// and the abyss behind the feet, with no extra work.
+    @ViewBuilder
+    static func verticalScene(at elapsed: Double) -> some View {
         ZStack {
             Backdrop()
 
@@ -113,17 +200,7 @@ enum ReelRenderer {
 
                 Spacer(minLength: 0)
 
-                VStack(spacing: 0) {
-                    ThoughtBubble(text: cue.beat.bubble ?? "",
-                                  tool: cue.beat.tool,
-                                  mood: cue.beat.mood,
-                                  style: cue.beat.style,
-                                  frozenTime: t)
-                    PixelCanvasView(buffer: CrabRig.render(pose),
-                                    bodyTint: party ? CrabView.rainbowTint(elapsed: t) : nil,
-                                    seamBleed: 0)
-                        .frame(width: verticalSpriteSide, height: verticalSpriteSide)
-                }
+                reelPet(at: elapsed, spriteSide: verticalSpriteSide)
 
                 // Weighted lighter than the spacer above, so the pet sits just
                 // below centre — where a thumb is not covering it.
