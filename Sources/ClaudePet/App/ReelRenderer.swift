@@ -35,6 +35,112 @@ enum ReelRenderer {
     /// gets to be the size of one.
     static let spriteSide: CGFloat = 128
 
+    // MARK: - Vertical social reel
+
+    /// 9:16 in points; ×3 gives 1080×1920, the size Instagram wants.
+    static let verticalCanvas = CGSize(width: 360, height: 640)
+    static let verticalScale: CGFloat = 3
+    /// 30fps — what social players expect, and it divides 15s exactly.
+    static let verticalFPS: Int32 = 30
+    /// Bigger than the hero's: a reel is watched at thumb size on a phone, so
+    /// the subject has to survive being a few centimetres tall.
+    static let verticalSpriteSide: CGFloat = 264
+
+    /// Renders the 15-second vertical reel as an MP4.
+    ///
+    /// MP4 rather than GIF because a reel cannot be a GIF — and at 1080×1920 a
+    /// GIF would be both enormous and stuck at 256 colours, which is exactly the
+    /// constraint the committed loops are designed around and this is not.
+    static func renderVertical(to url: URL) -> Bool {
+        let total = DemoMode.reelSeconds
+        let count = Int((total * Double(verticalFPS)).rounded())
+        var images: [CGImage] = []
+        images.reserveCapacity(count)
+
+        for index in 0..<count {
+            let elapsed = Double(index) / Double(verticalFPS)
+            guard let image = SpriteImage.cgImage(of: verticalScene(at: elapsed),
+                                                  scale: verticalScale, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return VideoWriter.write(images, to: url, fps: verticalFPS)
+    }
+
+    /// A still from the reel, for the cover frame social platforms ask for.
+    ///
+    /// Taken from the cooking beat rather than frame zero: a cover is a
+    /// thumbnail competing in a grid, and the fire is the one frame that reads
+    /// at that size.
+    static func renderPoster(to url: URL) -> Bool {
+        let coverAt = DemoMode.reelScript.prefix(3).reduce(0) { $0 + $1.seconds } + 1.2
+        return SpriteImage.write(
+            SpriteImage.png(of: verticalScene(at: coverAt), scale: verticalScale, isOpaque: true),
+            to: url)
+    }
+
+    /// One frame of the vertical reel.
+    ///
+    /// The ocean ramp already darkens top to bottom, which is why it suits a
+    /// tall frame better than a wide one — the surface sits behind the wordmark
+    /// and the abyss behind the feet, with no extra work.
+    @ViewBuilder
+    static func verticalScene(at elapsed: Double) -> some View {
+        let cue = DemoMode.reelCue(at: elapsed)
+        let t = cue.since
+        let party = cue.beat.rainbow
+        let mood = party ? (CrabView.rainbowMood(elapsed: t) ?? cue.beat.mood) : cue.beat.mood
+
+        var pose = CrabAnimator.pose(mood: mood, t: t)
+        let _ = { if party { pose.mouth = .open } }()
+
+        ZStack {
+            Backdrop()
+
+            VStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    Text("CLAUDE PET")
+                        .font(.system(size: 22, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(Palette.kraft)
+                        .tracking(3)
+                    Text("what Claude Code is doing,\non your desktop")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Palette.kraft.opacity(0.72))
+                        .lineSpacing(2)
+                }
+                .padding(.top, 56)
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: 0) {
+                    ThoughtBubble(text: cue.beat.bubble ?? "",
+                                  tool: cue.beat.tool,
+                                  mood: cue.beat.mood,
+                                  style: cue.beat.style,
+                                  frozenTime: t)
+                    PixelCanvasView(buffer: CrabRig.render(pose),
+                                    bodyTint: party ? CrabView.rainbowTint(elapsed: t) : nil,
+                                    seamBleed: 0)
+                        .frame(width: verticalSpriteSide, height: verticalSpriteSide)
+                }
+
+                // Weighted lighter than the spacer above, so the pet sits just
+                // below centre — where a thumb is not covering it.
+                Spacer(minLength: 0).frame(maxHeight: 40)
+
+                Text("github.com/internetdialup/claude-pet")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Palette.kraft.opacity(0.6))
+                    .padding(.bottom, 56)
+            }
+        }
+        .frame(width: verticalCanvas.width, height: verticalCanvas.height)
+        .clipped()
+    }
+
+    // MARK: - Committed assets
+
     static func render(to directory: String) -> Bool {
         let root = URL(fileURLWithPath: directory)
         do {

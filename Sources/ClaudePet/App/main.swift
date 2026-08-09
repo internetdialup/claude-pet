@@ -31,6 +31,18 @@ if let index = arguments.firstIndex(of: "--render-reel"), index + 1 < arguments.
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-social"), index + 1 < arguments.count {
+    // Vertical 9:16 MP4 for a social reel. Separate from `--render-reel` so a
+    // multi-MB video can never land in `docs/media` by a typo.
+    let root = URL(fileURLWithPath: arguments[index + 1])
+    try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let ok = MainActor.assumeIsolated {
+        ReelRenderer.renderVertical(to: root.appendingPathComponent("clawd-reel-9x16.mp4"))
+            && ReelRenderer.renderPoster(to: root.appendingPathComponent("clawd-reel-cover.png"))
+    }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--probe") {
     // `--probe [seconds]`. The default is long enough to attach the feeds and
     // fold what is already on disk, but shorter than any decay horizon — so

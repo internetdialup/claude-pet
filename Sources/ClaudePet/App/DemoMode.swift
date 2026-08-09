@@ -43,6 +43,35 @@ enum DemoMode {
 
     static var totalSeconds: Double { script.reduce(0) { $0 + $1.seconds } }
 
+    /// A 15-second cut for a vertical social reel.
+    ///
+    /// Not a slice of `script`: a reel is watched for a second before someone
+    /// decides to keep watching, so it opens on the line rather than easing in,
+    /// drops the two marquee beats — a scrolling ticker is illegible at thumb
+    /// size — and gives the fire and the party the room they earn. The beats
+    /// sum to exactly `reelSeconds`, which the renderer asserts.
+    static let reelScript: [Beat] = [
+        Beat(mood: .idle, bubble: "Let's build something great", style: .plain, tool: nil, seconds: 2.5),
+        Beat(mood: .thinking, bubble: "…", style: .dots, tool: nil, seconds: 2.0),
+        Beat(mood: .working, bubble: "Wiring the pipeline", style: .plain, tool: "Bash", seconds: 2.5),
+        Beat(mood: .cooking, bubble: "Absolutely cooking 🔥", style: .plain, tool: nil, seconds: 2.5),
+        Beat(mood: .nudging, bubble: "Plan's ready 👀", style: .plain, tool: nil, seconds: 2.0),
+        Beat(mood: .done, bubble: "✅ 🥳 🎉", style: .plain, tool: nil, seconds: 1.5),
+        Beat(mood: .done, bubble: "🎉🪄", style: .plain, tool: nil, seconds: 2.0, rainbow: true),
+    ]
+
+    static var reelSeconds: Double { reelScript.reduce(0) { $0 + $1.seconds } }
+
+    /// The beat playing `elapsed` into the vertical reel, and how far into it.
+    static func reelCue(at elapsed: Double) -> (beat: Beat, since: Double) {
+        var remaining = elapsed.truncatingRemainder(dividingBy: reelSeconds)
+        for beat in reelScript {
+            if remaining < beat.seconds { return (beat, remaining) }
+            remaining -= beat.seconds
+        }
+        return (reelScript[0], 0)
+    }
+
     /// Fabricated sessions for the roster.
     ///
     /// The roster lists session names, activities and project directories. In a
