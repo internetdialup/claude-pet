@@ -108,6 +108,35 @@ public struct PixelBuffer: Sendable {
         return out
     }
 
+    /// Copies the non-clear cells of `overlay` in, keeping each cell only when
+    /// its hash clears `visibility` — the pixel-art alpha fade. The hash is a
+    /// pure function of the cell and `seed`, so a dissolve is a stable pattern
+    /// that fills in as visibility rises rather than a per-frame shimmer. At
+    /// visibility 1 this is a plain paint: identical output to drawing direct.
+    mutating func composite(_ overlay: PixelBuffer, visibility: Double, seed: Int) {
+        guard visibility > 0 else { return }
+        for y in 0..<Self.side {
+            for x in 0..<Self.side {
+                let ink = overlay[x, y]
+                guard ink != .clear else { continue }
+                if visibility >= 1 || Self.hash01(x, y, seed) < visibility {
+                    self[x, y] = ink
+                }
+            }
+        }
+    }
+
+    /// splitmix64's finaliser over the cell index — the same generator the
+    /// animator schedules with, for the same reason: deterministic, avalanched.
+    private static func hash01(_ x: Int, _ y: Int, _ seed: Int) -> Double {
+        var v = UInt64(bitPattern: Int64(x &+ y &* side &+ seed &* 4099))
+        v = v &+ 0x9E37_79B9_7F4A_7C15
+        v = (v ^ (v >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        v = (v ^ (v >> 27)) &* 0x94D0_49BB_1331_11EB
+        v = v ^ (v >> 31)
+        return Double(v >> 11) / Double(1 << 53)
+    }
+
     /// Horizontal runs of identical ink, so the renderer draws tens of rects
     /// instead of hundreds.
     func runs() -> [(x: Int, y: Int, length: Int, ink: Ink)] {

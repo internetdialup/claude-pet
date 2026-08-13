@@ -67,6 +67,7 @@ public struct PetRootView: View {
                 CrabView(
                     mood: model.state.mood,
                     hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate,
+                    hoverEndedAt: model.hoverEndedAt?.timeIntervalSinceReferenceDate,
                     clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,
                     rainbowSince: model.rainbowStartedAt?.timeIntervalSinceReferenceDate
                 )
@@ -98,6 +99,9 @@ public final class PetViewModel: ObservableObject {
     /// When the pointer arrived on him, or nil if it is elsewhere. Stored as a
     /// start time rather than a flag so the greeting can play as a timeline.
     @Published public var hoverStartedAt: Date?
+    /// When the pointer left, while the greeting eases back out. `hoverStartedAt`
+    /// stays set through the release; both clear once it has finished.
+    @Published public var hoverEndedAt: Date?
     /// When he was last poked. Cleared once the reaction has played out.
     @Published public var clickedAt: Date?
     /// When the party started. 🎉🪄

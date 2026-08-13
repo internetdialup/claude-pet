@@ -75,6 +75,25 @@ public struct CrabPose: Sendable, Equatable {
     /// Drives the prop's own animation (scrolling code, blinking cursor,
     /// drifting z's, flickering flame).
     public var propPhase: Double = 0
+
+    /// How much of the prop is present, 0…1. Below 1 the prop renders as a
+    /// deterministic pixel dissolve — an indexed grid has no alpha to fade.
+    public var propVisibility: Double = 1
+    /// The outgoing prop during a swap or a mood blend, dissolving away.
+    public var ghostProp: Prop = .none
+    public var ghostPropPhase: Double = 0
+    public var ghostPropVisibility: Double = 0
+
+    /// Fire-state body heat, 0…1, and the cascade's own clock. Inert until a
+    /// pose sets them; the rig repaints body rows in banded heat inks.
+    public var heat: Double = 0
+    public var heatPhase: Double = 0
+}
+
+extension CrabPose.Prop {
+    /// A dissolve seed that is stable across runs — `String.hashValue` is
+    /// per-process randomised, which would re-deal the dissolve every launch.
+    var stableSeed: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 }
 
 /// Rasterises a `CrabPose` into a `PixelBuffer`.
@@ -109,8 +128,9 @@ public enum CrabRig {
         let dx = pose.lean
         let dy = pose.bob
 
-        // Behind the body.
-        if pose.prop == .fire { drawFire(&buffer, dx: dx, dy: dy, phase: pose.propPhase) }
+        // Behind the body. The flame dissolves with its prop's visibility, so a
+        // prop swap away from fire cannot vanish the burst in one frame.
+        firePass(&buffer, pose: pose, dx: dx, dy: dy)
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
         drawArms(&buffer, dx: dx, dy: dy, pose: pose)
@@ -121,10 +141,53 @@ public enum CrabRig {
                     bodyW + squash * 2, bodyH - squash, .body)
 
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
-        drawProp(&buffer, dx: dx, dy: dy, pose: pose)
+
+        // Ghost first, so an incoming prop paints over an outgoing one where
+        // they overlap.
+        propPass(&buffer, pose: pose, prop: pose.ghostProp,
+                 phase: pose.ghostPropPhase, visibility: pose.ghostPropVisibility,
+                 dx: dx, dy: dy)
+        propPass(&buffer, pose: pose, prop: pose.prop,
+                 phase: pose.propPhase, visibility: pose.propVisibility,
+                 dx: dx, dy: dy)
 
         // Applied last so props shrink with him rather than floating free.
         return pose.scale < 0.999 ? buffer.scaled(pose.scale) : buffer
+    }
+
+    /// The behind-the-body flame layer for whichever of the live and ghost
+    /// props is `.fire`, at its own visibility.
+    private static func firePass(_ b: inout PixelBuffer, pose: CrabPose, dx: Int, dy: Int) {
+        func layer(phase: Double, visibility: Double) {
+            guard visibility > 0.001 else { return }
+            if visibility > 0.999 {
+                drawFire(&b, dx: dx, dy: dy, phase: phase)
+            } else {
+                var scratch = PixelBuffer()
+                drawFire(&scratch, dx: dx, dy: dy, phase: phase)
+                b.composite(scratch, visibility: visibility, seed: CrabPose.Prop.fire.stableSeed)
+            }
+        }
+        if pose.ghostProp == .fire { layer(phase: pose.ghostPropPhase, visibility: pose.ghostPropVisibility) }
+        if pose.prop == .fire { layer(phase: pose.propPhase, visibility: pose.propVisibility) }
+    }
+
+    /// One prop at a given visibility. Full visibility draws straight into the
+    /// buffer — byte-identical to the pre-dissolve renderer; anything less
+    /// renders to a scratch buffer and composites as a stable pixel dissolve.
+    private static func propPass(_ b: inout PixelBuffer, pose: CrabPose, prop: CrabPose.Prop,
+                                 phase: Double, visibility: Double, dx: Int, dy: Int) {
+        guard prop != .none, visibility > 0.001 else { return }
+        var proxy = pose
+        proxy.prop = prop
+        proxy.propPhase = phase
+        if visibility > 0.999 {
+            drawProp(&b, dx: dx, dy: dy, pose: proxy)
+        } else {
+            var scratch = PixelBuffer()
+            drawProp(&scratch, dx: dx, dy: dy, pose: proxy)
+            b.composite(scratch, visibility: visibility, seed: prop.stableSeed)
+        }
     }
 
     // MARK: - Legs

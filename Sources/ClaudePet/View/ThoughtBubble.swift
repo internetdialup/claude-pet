@@ -74,12 +74,30 @@ public struct ThoughtBubble: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
+                if mood == .nudging, style == .plain {
+                    // The plan is ready and he wants a verdict: a slow, eased
+                    // pulse on the check, always present so the bubble never
+                    // changes width, never brighter than the text it trails.
+                    Clocked(frozenTime: frozenTime) { t in
+                        Text("✓")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(Palette.green)
+                            .opacity(0.25 + 0.75 * Ease.smoothstep(0.5 + 0.5 * sin(t * .pi)))
+                    }
+                }
             }
             .foregroundStyle(foreground)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(maxWidth: 210, alignment: .leading)
             .background(Rectangle().fill(fill))
+            .overlay {
+                // An occasional light sweep across the bubble when he is asking
+                // for something — attention drawn by motion, not by colour.
+                if mood == .needsAttention || mood == .nudging {
+                    BubbleShimmer(frozenTime: frozenTime)
+                }
+            }
             .fixedSize(horizontal: true, vertical: false)
 
             // Stepped tail, centred. Built from two squares rather than a
@@ -89,6 +107,38 @@ public struct ThoughtBubble: View {
                 Rectangle().fill(fill).frame(width: 4, height: 4)
             }
         }
+    }
+}
+
+/// A flat white band sweeping the bubble once in a while. Scheduled with the
+/// animator's dice so it fires on some cycles and rests on others, and shaped
+/// by `sin(π·u)` so it fades in and out inside its own traverse — the sweep
+/// obeys the same no-snap rule as the sprite. Never fires in cycle zero, so a
+/// frozen render at t=0 shows a clean bubble.
+private struct BubbleShimmer: View {
+    let frozenTime: Double?
+
+    private static let cycle = 7.0
+    private static let traverse = 0.6
+
+    var body: some View {
+        Clocked(frozenTime: frozenTime) { t in
+            GeometryReader { geo in
+                let cycle = Int(floor(t / Self.cycle))
+                let since = t - Double(cycle) * Self.cycle
+                let fires = cycle > 0 && CrabAnimator.noise(cycle &* 19 &+ 13) < 0.5
+                if fires, since < Self.traverse {
+                    let u = since / Self.traverse
+                    Rectangle()
+                        .fill(Palette.white)
+                        .frame(width: 8)
+                        .opacity(0.28 * sin(.pi * u))
+                        .offset(x: (geo.size.width + 16) * u - 8)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .clipped()
     }
 }
 

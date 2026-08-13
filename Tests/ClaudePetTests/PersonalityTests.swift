@@ -247,17 +247,26 @@ struct AnimationTests {
 
     /// Arm and leg motion was distracting in peripheral vision at the original
     /// rates. `working` must stay well under a couple of beats per second.
+    ///
+    /// Counted on the *rendered* arm — the whole-pixel reach the rig draws —
+    /// not the raw channel. The two were the same number until the arms were
+    /// eased; now the channel glides through many values per beat while the
+    /// eye still sees a few pixel steps, and the eye is what this test is for.
     @Test("Working animation is calm, not frantic")
     func workingIsCalm() {
-        var armFlips = 0
-        var previous = CrabAnimator.pose(mood: .working, t: 0).armLeft
+        func renderedReach(at t: Double) -> Int {
+            let lift = CrabAnimator.pose(mood: .working, t: t).armLeft
+            return Int((max(0, min(1, lift)) * 6).rounded())
+        }
+        var armSteps = 0
+        var previous = renderedReach(at: 0)
         for step in 1...1000 {
-            let arm = CrabAnimator.pose(mood: .working, t: Double(step) * 0.01).armLeft
-            if arm != previous { armFlips += 1 }
+            let arm = renderedReach(at: Double(step) * 0.01)
+            if arm != previous { armSteps += 1 }
             previous = arm
         }
-        // 10 seconds of samples; more than ~25 flips reads as a flutter.
-        #expect(armFlips <= 25, "arms flipped \(armFlips) times in 10s")
+        // 10 seconds of samples; more than ~25 visible steps reads as a flutter.
+        #expect(armSteps <= 25, "arms moved \(armSteps) visible steps in 10s")
     }
 
     @Test("Every mood renders without trapping and paints something")

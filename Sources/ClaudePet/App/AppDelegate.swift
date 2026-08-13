@@ -93,7 +93,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         controller.onHover = { [weak self] hovering in
-            self?.model.hoverStartedAt = hovering ? Date() : nil
+            guard let self else { return }
+            if hovering {
+                self.model.hoverStartedAt = Date()
+                self.model.hoverEndedAt = nil
+            } else {
+                // Keep the start time so the greeting eases out from where it
+                // was, then clear both once the release has played so the view
+                // drops back to its mood frame rate.
+                self.model.hoverEndedAt = Date()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                    guard let self, let ended = self.model.hoverEndedAt,
+                          Date().timeIntervalSince(ended) >= 0.55 else { return }
+                    self.model.hoverStartedAt = nil
+                    self.model.hoverEndedAt = nil
+                }
+            }
         }
         windowController = controller
         if !wasHidden { controller.show() }

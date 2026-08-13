@@ -17,7 +17,7 @@ public enum CrabAnimator {
     /// of its options. That silently narrowed the idle flourishes and the
     /// working props as well as the hover reactions. splitmix64's finaliser
     /// avalanches properly: one bit of input changes half the output bits.
-    private static func noise(_ n: Int) -> Double {
+    static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
         x = (x ^ (x >> 27)) &* 0x94D0_49BB_1331_11EB
@@ -83,6 +83,31 @@ public enum CrabAnimator {
         return options[Int(noise(cycle &* 13 &+ 5) * Double(options.count)) % options.count]
     }
 
+    /// Eases the 20-second prop re-roll: the outgoing prop dissolves over the
+    /// spell's last 0.35s and the incoming one dissolves in over the next
+    /// spell's first 0.35s — he puts one down, then picks the next up. Pure in
+    /// `t`, so it flows through the offline renderers unchanged; the first
+    /// spell never fades in (there is nothing before it to put down).
+    private static let propFade = 0.35
+
+    static func applyPropDissolve(at t: Double, spell: Double = 20, to pose: inout CrabPose) {
+        let cycle = Int(floor(t / spell))
+        let within = t - Double(cycle) * spell
+        let current = workingProp(at: t, spell: spell)
+
+        if cycle > 0, within < propFade {
+            let previous = workingProp(at: (Double(cycle) - 0.5) * spell, spell: spell)
+            if previous != current {
+                pose.propVisibility = Ease.smoothstep(within / propFade)
+            }
+        } else if within > spell - propFade {
+            let next = workingProp(at: (Double(cycle) + 1.5) * spell, spell: spell)
+            if next != current {
+                pose.propVisibility = Ease.smoothstep((spell - within) / propFade)
+            }
+        }
+    }
+
     public static func pose(mood: PetMood, t: Double) -> CrabPose {
         pose(mood: mood, t: t, flourishes: true)
     }
@@ -126,11 +151,14 @@ public enum CrabAnimator {
             pose.blink = blink(at: t, period: 4.0)
             pose.gazeY = 1                       // looking down at the work
             // Arms alternate like hands on a keyboard, about one beat a second.
-            pose.armLeft = sin(t * 2.6) > 0 ? 0.35 : 0
-            pose.armRight = sin(t * 2.6) > 0 ? 0 : 0.35
+            // Eased square: same rhythm as the old hard flip, no cliff.
+            let beat = Ease.square(t * 2.6)
+            pose.armLeft = 0.35 * beat
+            pose.armRight = 0.35 * (1 - beat)
             pose.legPhase = t * 2.4
             pose.legAmplitude = 1
             pose.prop = workingProp(at: t)
+            applyPropDissolve(at: t, to: &pose)
 
         case .cooking:
             // Head down, working fast, on fire. Quicker than `.working` but not
@@ -140,8 +168,9 @@ public enum CrabAnimator {
             pose.eyes = .determined
             pose.gazeY = 1
             pose.mouth = .flat
-            pose.armLeft = sin(t * 4.2) > 0 ? 0.4 : 0
-            pose.armRight = sin(t * 4.2) > 0 ? 0 : 0.4
+            let sprint = Ease.square(t * 4.2)
+            pose.armLeft = 0.4 * sprint
+            pose.armRight = 0.4 * (1 - sprint)
             pose.legPhase = t * 4
             pose.legAmplitude = 1
             pose.prop = .fire
@@ -163,8 +192,10 @@ public enum CrabAnimator {
             // directions put them two rows apart, which reads as a broken face
             // rather than an inquisitive one. The lean carries the question.
             // One foot taps: a small, single-leg motion rather than a walk.
+            // Gated trapezoid rather than a hard threshold — the tap keeps its
+            // impatient duty cycle but lands and lifts instead of teleporting.
             pose.legPhase = .pi / 2
-            pose.legAmplitude = sin(t * 5) > 0.4 ? 1 : 0
+            pose.legAmplitude = Ease.gate(sin(t * 5), above: 0.4, soft: 0.25)
             pose.prop = .plan
 
         case .done:
@@ -220,61 +251,78 @@ public enum CrabAnimator {
     ///   - seed: picks the variant. Comes from the hover's start time, so it is
     ///     chosen once per hover — `Double.random` here would re-roll the
     ///     reaction 20-30 times a second.
-    public static func applyGreeting(elapsed: Double, seed: Int = 0, to pose: inout CrabPose) {
+    ///   - amount: the reaction envelope, 0…1. Rises when the pointer arrives
+    ///     and falls after it leaves, so the greeting eases out through the
+    ///     same shapes it eased in through instead of vanishing in one frame.
+    ///     Continuous channels scale by it; discrete flips gate at 0.4.
+    public static func applyGreeting(elapsed: Double, seed: Int = 0,
+                                     amount: Double = 1, to pose: inout CrabPose) {
+        guard amount > 0.001 else { return }
         let greeting = greeting(forSeed: seed)
+        let engaged = amount >= 0.4
 
         // A startled hop on arrival, common to every variant — he noticed you.
         if elapsed < 0.30 {
-            pose.bob -= 3
+            pose.bob -= Int((3 * amount).rounded())
             pose.squash = 0
         } else if elapsed < 0.42 {
-            pose.squash = 1
-            pose.bob += 1
+            pose.squash = engaged ? 1 : pose.squash
+            pose.bob += engaged ? 1 : 0
         }
 
-        pose.asleepOverride = true      // eyes open even in the sleeping pose
-        pose.gazeX = 0
-        pose.gazeY = -1                 // looking up, out of the screen at you
+        if engaged {
+            pose.asleepOverride = true  // eyes open even in the sleeping pose
+            pose.gazeX = 0
+            pose.gazeY = -1             // looking up, out of the screen at you
+        }
 
         switch greeting {
         case .wave:
-            pose.blink = 0
-            pose.mouth = .open
-            pose.armRight = max(pose.armRight, 0.55 + (sin(elapsed * 8) > 0 ? 0.25 : 0))
+            if engaged {
+                pose.blink = 0
+                pose.mouth = .open
+            }
+            pose.armRight = max(pose.armRight, (0.55 + (sin(elapsed * 8) > 0 ? 0.25 : 0)) * amount)
 
         case .wink:
             // Routed through `winkEye` rather than `blink`, which
             // `asleepOverride` vetoes.
-            pose.mouth = .smile
-            pose.blink = 0
-            // A wink is a brief shut, not a held one. The first version used
-            // `sin(elapsed * 2.2) > -0.3`, which keeps the eye closed for about
-            // three quarters of every cycle — that does not read as a wink, it
-            // reads as an eye that is stuck.
-            let cycle = elapsed.truncatingRemainder(dividingBy: 1.5)
-            pose.winkEye = cycle < 0.22 ? .right : .none
-            // No tilt here. Tilt offsets the two eyes by a pixel in opposite
-            // directions, and against a one-row shut eye that misalignment is
-            // exactly what made the wink look wonky.
-            pose.tilt = 0
-            pose.armRight = max(pose.armRight, 0.35)
+            if engaged {
+                pose.mouth = .smile
+                pose.blink = 0
+                // A wink is a brief shut, not a held one. The first version used
+                // `sin(elapsed * 2.2) > -0.3`, which keeps the eye closed for
+                // about three quarters of every cycle — that does not read as a
+                // wink, it reads as an eye that is stuck.
+                let cycle = elapsed.truncatingRemainder(dividingBy: 1.5)
+                pose.winkEye = cycle < 0.22 ? .right : .none
+                // No tilt here. Tilt offsets the two eyes by a pixel in opposite
+                // directions, and against a one-row shut eye that misalignment
+                // is exactly what made the wink look wonky.
+                pose.tilt = 0
+            }
+            pose.armRight = max(pose.armRight, 0.35 * amount)
 
         case .hop:
-            pose.mouth = .open
-            pose.blink = 0
+            if engaged {
+                pose.mouth = .open
+                pose.blink = 0
+            }
             // A repeating little bounce for as long as you stay.
             let bounce = abs(sin(elapsed * 4))
-            pose.bob -= Int((bounce * 3).rounded())
-            pose.squash = bounce < 0.15 ? 1 : 0
-            pose.legAmplitude = 1.2
+            pose.bob -= Int((bounce * 3 * amount).rounded())
+            pose.squash = (bounce < 0.15 && engaged) ? 1 : pose.squash
+            pose.legAmplitude = max(pose.legAmplitude, 1.2 * amount)
             pose.legPhase = .pi / 2
 
         case .wiggle:
-            pose.mouth = .smile
-            pose.blink = 0
-            pose.lean += sin(elapsed * 9) > 0 ? -1 : 1
-            pose.armLeft = max(pose.armLeft, 0.3)
-            pose.armRight = max(pose.armRight, 0.3)
+            if engaged {
+                pose.mouth = .smile
+                pose.blink = 0
+                pose.lean += sin(elapsed * 9) > 0 ? -1 : 1
+            }
+            pose.armLeft = max(pose.armLeft, 0.3 * amount)
+            pose.armRight = max(pose.armRight, 0.3 * amount)
         }
     }
 
@@ -284,10 +332,11 @@ public enum CrabAnimator {
     public static func applyClick(elapsed: Double, to pose: inout CrabPose) {
         guard elapsed >= 0, elapsed < clickDuration else { return }
         let progress = elapsed / clickDuration
-        // Down fast, back slower — a spring, not a dip.
+        // Down fast, back slower — a spring, not a dip. Each leg of the ramp is
+        // smoothstepped so the compression arrives and releases without a corner.
         let compression = progress < 0.35
-            ? progress / 0.35
-            : max(0, 1 - (progress - 0.35) / 0.65)
+            ? Ease.smoothstep(progress / 0.35)
+            : Ease.smoothstep(max(0, 1 - (progress - 0.35) / 0.65))
         pose.scale = 1 - 0.22 * compression
         pose.squash = compression > 0.5 ? 1 : 0
         pose.mouth = .open
@@ -379,6 +428,9 @@ public struct CrabView: View {
     public var mood: PetMood
     /// Reference-time instant the pointer arrived on him, or nil.
     public var hoverSince: Double?
+    /// Reference-time instant the pointer left, while the greeting eases out.
+    /// `hoverSince` stays set through the release so the envelope has both ends.
+    public var hoverEndedAt: Double?
     /// Reference-time instant he was last clicked, or nil.
     public var clickedAt: Double?
     /// Reference-time instant rainbow mode began, or nil. 🎉🪄
@@ -388,11 +440,13 @@ public struct CrabView: View {
 
     public init(mood: PetMood,
                 hoverSince: Double? = nil,
+                hoverEndedAt: Double? = nil,
                 clickedAt: Double? = nil,
                 rainbowSince: Double? = nil,
                 frozenTime: Double? = nil) {
         self.mood = mood
         self.hoverSince = hoverSince
+        self.hoverEndedAt = hoverEndedAt
         self.clickedAt = clickedAt
         self.rainbowSince = rainbowSince
         self.frozenTime = frozenTime
@@ -420,8 +474,12 @@ public struct CrabView: View {
         guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
         // Two full trips round the wheel, then out. Saturation stays under 1 so
         // he still reads as Claw'd wearing colours rather than a colour wheel.
+        // The trapezoid mixes the party colour up from terracotta and back down
+        // to it, so the tint has no seam at either end of the party.
         let hue = (elapsed / rainbowDuration * 2).truncatingRemainder(dividingBy: 1)
-        return Color(hue: hue, saturation: 0.72, brightness: 0.92)
+        let amount = Ease.window(elapsed, duration: rainbowDuration, edge: 0.4)
+        return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.72, brightness: 0.92),
+                                  amount: amount)
     }
 
     /// How often the sprite is rebuilt, per mood.
@@ -440,6 +498,8 @@ public struct CrabView: View {
             // Hover and click get the smoother rate — both are direct responses
             // to the pointer and need to feel immediate. Leaving clicks on the
             // mood rate renders a 0.34s shrink as two frames in `.sleeping`.
+            // `hoverSince` stays set through the greeting's ease-out, so the
+            // release renders at the reaction rate too instead of at 6fps.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
             let interval = reacting ? 1.0 / 30 : frameInterval
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
@@ -451,10 +511,20 @@ public struct CrabView: View {
     private func render(at time: Double) -> some View {
         // Live: rebase onto the mood so one-shot motion (the `done` hop) starts
         // at its own t=0. Frozen: the caller's time is already relative.
-        PixelCanvasView(buffer: CrabRig.render(currentPose(at: time)),
-                        bodyTint: rainbowSince.flatMap {
-                            CrabView.rainbowTint(elapsed: time - $0)
-                        })
+        var pose = currentPose(at: time)
+        if frozenTime == nil {
+            // Cross-ease mood changes from the last pose that was actually on
+            // screen. Offline renderers never note a displayed pose, so the
+            // blend can never engage there — parity by construction.
+            if let (from, u) = MoodClock.shared.crossfade(at: time) {
+                pose = CrabPose.blend(from: from, to: pose, u: u)
+            }
+            MoodClock.shared.note(displayed: pose)
+        }
+        return PixelCanvasView(buffer: CrabRig.render(pose),
+                               bodyTint: rainbowSince.flatMap {
+                                   CrabView.rainbowTint(elapsed: time - $0)
+                               })
             .drawingGroup()
     }
 
@@ -477,6 +547,9 @@ public struct CrabView: View {
             // per hover, stable for its whole duration.
             CrabAnimator.applyGreeting(elapsed: time - hoverSince,
                                        seed: Int(hoverSince * 1000),
+                                       amount: Ease.amount(now: time,
+                                                           since: hoverSince,
+                                                           endedAt: hoverEndedAt),
                                        to: &pose)
         }
         if let clickedAt, frozenTime == nil {
@@ -490,18 +563,48 @@ public struct CrabView: View {
 }
 
 /// Records when each mood was last entered, so `done` and `needsAttention`
-/// replay their one-shot motion instead of joining mid-cycle.
+/// replay their one-shot motion instead of joining mid-cycle — and snapshots
+/// the last displayed pose at each change, so the new mood can cross-ease in
+/// from exactly where the old one left him.
 @MainActor
 final class MoodClock {
     static let shared = MoodClock()
+    nonisolated static let blendDuration = 0.4
+
     private var current: PetMood = .sleeping
     private var startedAt: Double = Date.timeIntervalSinceReferenceDate
+    private var lastDisplayed: CrabPose?
+    private var blendFrom: CrabPose?
+    private var blendStartedAt: Double = -.infinity
 
     func epoch(for mood: PetMood) -> Double {
         if mood != current {
             current = mood
             startedAt = Date.timeIntervalSinceReferenceDate
+            // Snapshotting the *displayed* pose (not the previous mood's raw
+            // pose) keeps a second mood change mid-blend continuous: the new
+            // blend starts from whatever hybrid was actually on screen.
+            blendFrom = lastDisplayed
+            blendStartedAt = startedAt
         }
         return startedAt
+    }
+
+    /// The epoch without the rebase side effect, for callers that only want to
+    /// ask "how long has this mood been on screen" (nil when it is not current).
+    func currentEpoch(for mood: PetMood) -> Double? {
+        mood == current ? startedAt : nil
+    }
+
+    /// The live view reports each frame it drew; offline renderers never do.
+    func note(displayed pose: CrabPose) { lastDisplayed = pose }
+
+    /// The outgoing snapshot and eased progress while a blend is running.
+    func crossfade(at time: Double) -> (from: CrabPose, u: Double)? {
+        guard let blendFrom else { return nil }
+        let progress = (time - blendStartedAt) / Self.blendDuration
+        guard progress < 1 else { self.blendFrom = nil; return nil }
+        guard progress > 0 else { return (blendFrom, 0) }
+        return (blendFrom, Ease.smoothstep(progress))
     }
 }
