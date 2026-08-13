@@ -580,6 +580,13 @@ public struct CrabView: View {
     public var pouncedAt: Double?
     /// Reference-time instant the sleeping-click snack began, or nil.
     public var snackSince: Double?
+    /// The quiet completion badge. `completedAt` is the identity (nudge
+    /// windows + the five-minute clock); the shown/ended pair is the
+    /// appearance latch, so every entrance and exit — first show, early
+    /// clear, focus switch, session death — goes through one eased envelope.
+    public var completedAt: Double?
+    public var badgeShownAt: Double?
+    public var badgeEndedAt: Double?
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
@@ -595,6 +602,9 @@ public struct CrabView: View {
                 petEndedAt: Double? = nil,
                 pouncedAt: Double? = nil,
                 snackSince: Double? = nil,
+                completedAt: Double? = nil,
+                badgeShownAt: Double? = nil,
+                badgeEndedAt: Double? = nil,
                 frozenTime: Double? = nil) {
         self.mood = mood
         self.costume = costume
@@ -608,6 +618,9 @@ public struct CrabView: View {
         self.petEndedAt = petEndedAt
         self.pouncedAt = pouncedAt
         self.snackSince = snackSince
+        self.completedAt = completedAt
+        self.badgeShownAt = badgeShownAt
+        self.badgeEndedAt = badgeEndedAt
         self.frozenTime = frozenTime
     }
 
@@ -801,6 +814,32 @@ public struct CrabView: View {
         }
         if let snackSince, frozenTime == nil {
             CrabAnimator.applySnack(elapsed: time - snackSince, to: &pose)
+        }
+        if let completedAt, frozenTime == nil {
+            // The foot badge: the appearance latch eased both ways, times a
+            // two-second tail ending at the five-minute mark. Written into
+            // the pose here so mood-blend ghost snapshots carry it.
+            let age = time - completedAt
+            let latch = Ease.amount(now: time, since: badgeShownAt, endedAt: badgeEndedAt,
+                                    attack: 0.5, release: 0.45)
+            let tail = 1 - Ease.smoothstep((age - (ActivityCoordinator.badgeLifetime - 2)) / 2)
+            pose.doneBadge = max(0, latch * tail)
+
+            // The reminder wave, on the same clock as the coordinator's
+            // banner nudge. Idle-only: a plan or a blocked session outranks
+            // a reminder, and the badge cannot outlive him into sleep.
+            if mood == .idle {
+                for start in ActivityCoordinator.nudgeWindows {
+                    let amount = Ease.window(age - start,
+                                             duration: ActivityCoordinator.nudgeDuration,
+                                             edge: 0.4)
+                    guard amount > 0.001 else { continue }
+                    pose.gazeY = -1
+                    if amount > 0.5 { pose.mouth = .open }
+                    pose.armRight = max(pose.armRight,
+                                        (0.55 + (sin((age - start) * 8) > 0 ? 0.25 : 0)) * amount)
+                }
+            }
         }
         return pose
     }

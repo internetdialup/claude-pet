@@ -64,6 +64,14 @@ public final class ActivityCoordinator {
     /// so the decay waits for the animation plus a beat of afterglow.
     static var celebrationDecay: TimeInterval = 12
 
+    /// The completion badge's lifetime, and when inside it the reminder nudges
+    /// fire (a wave + the banner back for a few seconds, twice). The badge
+    /// itself is the view's business; these constants keep the coordinator's
+    /// bubble nudges and the view's wave on one clock.
+    nonisolated static let badgeLifetime: TimeInterval = 300
+    nonisolated static let nudgeWindows: [TimeInterval] = [90, 210]
+    nonisolated static let nudgeDuration: TimeInterval = 4
+
     /// How long a session may sit in a *working* mood, silent, before the pet
     /// stops asserting it and falls back to `idle`.
     ///
@@ -295,9 +303,11 @@ public final class ActivityCoordinator {
             case .thinking:
                 session.mood = .thinking
                 session.tool = nil
+                session.completionBadgeAt = nil     // new work consumes the marker
             case .toolStarted(let name, let detail):
                 session.mood = .working
                 session.tool = name
+                session.completionBadgeAt = nil     // new work consumes the marker
                 // A rolling window of recent calls — how *hard* he is going.
                 session.recentToolCalls.append(event.timestamp)
                 let cutoff = event.timestamp.addingTimeInterval(-Self.toolRateWindow)
@@ -318,6 +328,16 @@ public final class ActivityCoordinator {
                 // cooking pace when the turn ended?
                 session.celebrating = session.mood == .working
                     && Self.isCooking(session, now: event.timestamp)
+                // A turn end can arrive twice — the transcript fold and the
+                // Stop hook — so the first stamp of this turn wins; a genuine
+                // new turn always passes through thinking/working first, which
+                // clears it. On the priming replay this carries a historical
+                // timestamp: launching the pet within five minutes of an old
+                // completion shows the badge, which is the feature ("finished
+                // while you were away"), not an accident.
+                if session.mood != .done {
+                    session.completionBadgeAt = event.timestamp
+                }
                 session.mood = .done
                 session.tool = nil
                 // Clear the last tool's description too. Leaving it set meant an
@@ -517,6 +537,24 @@ public final class ActivityCoordinator {
             taskFraction = (Double(done) / Double(total) / 0.05).rounded() * 0.05
         }
 
+        // The reminder nudge: inside the badge's five minutes, twice, the
+        // banner pops back with a finished line for a few seconds (the view
+        // waves on the same clock). Idle-only, so a plan awaiting a verdict
+        // or a blocked session always outranks a reminder. Slotted after the
+        // mood switch so `idleChatter`'s cache is untouched and the ticker
+        // resumes cleanly when the window closes. The seed is derived from
+        // the completion instant, not the chatter clock — a window that
+        // straddles a chatter re-roll must not swap its sentence mid-air.
+        if mood == .idle, let completedAt = focus.completionBadgeAt {
+            let age = now.timeIntervalSince(completedAt)
+            for (index, windowStart) in Self.nudgeWindows.enumerated()
+            where age >= windowStart && age < windowStart + Self.nudgeDuration {
+                bubble = Vocab.line(for: .finished,
+                                    seed: Int(completedAt.timeIntervalSince1970) + index)
+                style = .plain
+            }
+        }
+
         publish(PetState(
             mood: mood,
             bubble: bubble,
@@ -526,7 +564,8 @@ public final class ActivityCoordinator {
             attentionCount: ordered.filter { $0.mood == .needsAttention && $0.id != focus.id }.count,
             bubbleStyle: style,
             taskFraction: taskFraction,
-            celebrating: mood == .done && focus.celebrating
+            celebrating: mood == .done && focus.celebrating,
+            completedAt: focus.completionBadgeAt
         ))
     }
 

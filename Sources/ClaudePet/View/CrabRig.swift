@@ -99,6 +99,11 @@ public struct CrabPose: Sendable, Equatable {
     /// The midnight telescope: envelope 0…1 and its own clock for twinkles.
     public var stargaze: Double = 0
     public var stargazePhase: Double = 0
+
+    /// The quiet completion badge at his bottom-right foot, 0…1. Written each
+    /// frame by the live view from timestamps (like `heartsElapsed`), so the
+    /// mood blend deliberately does not lerp it — the envelope owns it.
+    public var doneBadge: Double = 0
 }
 
 extension CrabPose.Prop {
@@ -188,7 +193,10 @@ public enum CrabRig {
 
         // The quiet-hour extras: a scuttling bug on the floor, hearts while he
         // is petted, the snack, the telescope. Each is a world overlay that
-        // dissolves in and out like everything else.
+        // dissolves in and out like everything else. The completion badge
+        // draws before the bug on purpose: a visiting bug scuttles in front
+        // of it rather than being erased by it.
+        if pose.doneBadge > 0.001 { drawDoneBadge(&buffer, visibility: pose.doneBadge) }
         if let bugX = pose.bugX { drawBug(&buffer, x: bugX, phase: pose.propPhase) }
         if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts, dx: dx, dy: dy) }
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
@@ -199,6 +207,24 @@ public enum CrabRig {
     }
 
     // MARK: - Quiet-hour extras
+
+    /// The quiet completion marker: the same 8-bit checkbox the done pose
+    /// holds overhead, parked at his bottom-right foot on the floor. The
+    /// signal a finished task leaves behind once the pose has relaxed —
+    /// present, not insistent.
+    private static func drawDoneBadge(_ b: inout PixelBuffer, visibility: Double) {
+        var badge = PixelBuffer()
+        let key: [Character: PixelBuffer.Ink] = ["g": .green, "w": .mouth]
+        badge.stamp([
+            ".gggg.",
+            "gggggg",
+            "ggg.wg",
+            "gw.wgg",
+            "g.wggg",
+            ".gggg.",
+        ], at: (x: 26, y: 26), key: key)
+        b.composite(badge, visibility: Ease.clamp01(visibility), seed: 730)
+    }
 
     /// A two-pixel bug on floor row 29, legs flickering, with a tiny bob.
     private static func drawBug(_ b: inout PixelBuffer, x: Int, phase: Double) {

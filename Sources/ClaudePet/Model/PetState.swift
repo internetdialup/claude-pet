@@ -61,6 +61,11 @@ public struct PetState: Sendable, Equatable {
     /// A `.cooking` sprint just landed — the done state plays its extended
     /// payoff instead of the plain hop.
     public var celebrating: Bool = false
+    /// The focused session's completion marker: drives the foot badge for
+    /// five minutes after a turn lands, and the reminder nudges inside that
+    /// window. Written once per completion, so the equality-gated publish
+    /// does not churn.
+    public var completedAt: Date? = nil
 
     public enum BubbleStyle: Sendable, Equatable {
         /// Text, truncated if long. The default for task descriptions.

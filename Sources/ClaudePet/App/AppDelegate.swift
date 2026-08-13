@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, self.debugMood == nil, !self.demoMood else { return }
             self.model.state = state
             self.menuBar?.update(state: state)
+            self.refreshBubbleGrab()
+            self.updateBadgeLatches()
         }
         coordinator.onAlert = { [weak self] mood, session in
             self?.handleAlert(mood: mood, session: session)
@@ -99,15 +101,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let seed = Int(Date().timeIntervalSince1970)
                 self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
                                               Date().addingTimeInterval(2.4))
+                self.refreshBubbleGrab()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                     self.model.pouncedAt = nil
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    self.refreshBubbleGrab()
                 }
                 return
             }
 
             // 🍤 A click on a sleeping crab is a snack, not a roster request —
-            // the roster stays a menu-bar away.
-            if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil {
+            // the roster stays a menu-bar away. Gated on the sprite itself:
+            // with the grab halo, a click on the bubble band above a sleeping
+            // crab is a grip, not a feeding.
+            if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil,
+               self.gridCell(for: location) != nil {
                 self.model.snackStartedAt = Date()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) {
                     self.model.snackStartedAt = nil
@@ -174,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let state = DemoMode.state(at: elapsed)
                 self.model.state = state
                 self.menuBar?.update(state: state)
+                self.refreshBubbleGrab()
 
                 // Hold the rainbow for exactly the beat that asks for it. Its
                 // start is pinned to the beat's own start so the hue cycle lines
@@ -197,6 +207,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleVisibility() {
         guard let controller = windowController else { return }
         controller.isVisible ? controller.hide() : controller.show()
+    }
+
+    /// The completion badge's appearance latches. Rules: the badge waits for
+    /// the done pose to relax (the crossfade dissolves the big overhead check
+    /// out while the foot badge dissolves in — never two checkmarks); a
+    /// completion ending for any reason — new work, focus switch away,
+    /// session death — eases out through one 0.45s envelope rather than
+    /// vanishing; a focus switch between two live completions swaps identity
+    /// without re-running the attack, so the badge never dips.
+    private func updateBadgeLatches() {
+        let state = model.state
+        if let live = state.completedAt {
+            guard state.mood != .done else { return }   // wait out the pose
+            if model.badgeCompletionAt == nil || model.badgeEndedAt != nil {
+                model.badgeCompletionAt = live
+                model.badgeShownAt = Date()
+                model.badgeEndedAt = nil
+            } else if model.badgeCompletionAt != live {
+                model.badgeCompletionAt = live
+            }
+        } else if model.badgeCompletionAt != nil, model.badgeEndedAt == nil {
+            let ended = Date()
+            model.badgeEndedAt = ended
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, self.model.badgeEndedAt == ended else { return }
+                self.model.badgeCompletionAt = nil
+                self.model.badgeShownAt = nil
+                self.model.badgeEndedAt = nil
+            }
+        }
+    }
+
+    /// The bubble band is a grab handle exactly while a bubble is visible —
+    /// mirrors `PetRootView`'s display condition, so what you can see is what
+    /// you can grab.
+    private func refreshBubbleGrab() {
+        let transient = model.transientBubble.map { $0.until > Date() } ?? false
+        let stateBubble = !(model.state.bubble ?? "").isEmpty && model.state.mood != .sleeping
+        windowController?.setBubbleGrabbable(transient || stateBubble)
     }
 
     /// Maps a click in view coordinates to a sprite-grid cell. View y runs
@@ -245,6 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// "Live" hands control back to the coordinator.
     private func previewMood(_ mood: PetMood?) {
         debugMood = mood
+        defer { refreshBubbleGrab() }
         guard let mood else {
             model.state = coordinator.state
             return

@@ -51,6 +51,10 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// Set when a `.cooking` sprint lands on `.done`: the payoff animation
     /// runs longer than a plain done, and the decay window stretches with it.
     public var celebrating: Bool = false
+    /// When the last turn finished — the quiet completion marker. Outlives the
+    /// done pose (mood decay does not clear it); consumed by new work or by
+    /// its own five-minute clock.
+    public var completionBadgeAt: Date?
     /// Last time anything at all changed for this session.
     public var lastActivity: Date = .distantPast
 

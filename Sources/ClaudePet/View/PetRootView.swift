@@ -80,7 +80,10 @@ public struct PetRootView: View {
                     petSince: model.pettingStartedAt?.timeIntervalSinceReferenceDate,
                     petEndedAt: model.pettingEndedAt?.timeIntervalSinceReferenceDate,
                     pouncedAt: model.pouncedAt?.timeIntervalSinceReferenceDate,
-                    snackSince: model.snackStartedAt?.timeIntervalSinceReferenceDate
+                    snackSince: model.snackStartedAt?.timeIntervalSinceReferenceDate,
+                    completedAt: model.badgeCompletionAt?.timeIntervalSinceReferenceDate,
+                    badgeShownAt: model.badgeShownAt?.timeIntervalSinceReferenceDate,
+                    badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate
                 )
                 .frame(width: spriteSize, height: spriteSize)
 
@@ -130,5 +133,10 @@ public final class PetViewModel: ObservableObject {
     /// A short-lived line that outranks the state's bubble — the pounce
     /// one-liner. Cleared by its own deadline.
     @Published public var transientBubble: (text: String, until: Date)?
+    /// The completion badge's identity and appearance latches, managed by
+    /// AppDelegate from published state changes.
+    @Published public var badgeCompletionAt: Date?
+    @Published public var badgeShownAt: Date?
+    @Published public var badgeEndedAt: Date?
     public init() {}
 }

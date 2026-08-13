@@ -27,9 +27,17 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   pulses a slow check when a plan awaits your verdict.
 - **🎨 A vector bridge.** `--render-vectors` exports the base body and every
   prop as layered SVGs for design review. Code stays the source of truth.
+- **✅ The quiet done.** A finished task no longer leaves a lingering banner:
+  the done pose plays its moment, then hands the signal to a small 8-bit
+  checkbox parked at his bottom-right foot for five minutes (or until new
+  work consumes it). Twice inside that window he reminds you — a little
+  wave, the banner back for a few seconds, then gone.
 
 ### Changed
 
+- **He's easier to grab.** The mouse target grew a 14-point halo around the
+  sprite, and the speech bubble is now a drag handle whenever it's visible —
+  anywhere you see pixels moves him. Empty air stays click-through.
 - **Nothing snaps anymore.** Mood changes cross-ease from the pose that was
   actually on screen; the hover greeting decays from wherever it had reached
   instead of vanishing; the 20-second prop re-roll puts one prop down and
