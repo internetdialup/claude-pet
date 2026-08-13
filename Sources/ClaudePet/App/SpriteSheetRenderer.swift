@@ -69,6 +69,30 @@ enum SpriteSheetRenderer {
                     }
                 }
             }
+
+            // The wardrobe, worn across contrasting moods — a costume that only
+            // works standing still is not finished.
+            VStack(alignment: .leading, spacing: 6) {
+                Text("costumes")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .frame(height: labelHeight, alignment: .leading)
+                let costumes = Costume.allCases.filter { $0 != .none }
+                ForEach(Array(costumes.enumerated()), id: \.offset) { _, costume in
+                    HStack(spacing: 6) {
+                        ForEach(Array([(PetMood.idle, 0.36), (.working, 3.0),
+                                       (.done, 0.05), (.sleeping, 0.6)].enumerated()),
+                                id: \.offset) { _, sample in
+                            CostumePreview(costume: costume, mood: sample.0, t: sample.1)
+                                .frame(width: cell, height: cell)
+                                .background(Color.white.opacity(0.04))
+                        }
+                        Text(costume.rawValue)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+            }
         }
         .padding(12)
         .background(Color(hex: 0x1A1A19))
@@ -88,6 +112,22 @@ private struct PropPreview: View {
         pose.prop = prop
         pose.propPhase = phase
         return PixelCanvasView(buffer: CrabRig.render(pose))
+    }
+}
+
+/// One costume on a mood pose, worn at full strength — the settled state, not
+/// the dissolve.
+private struct CostumePreview: View {
+    let costume: Costume
+    let mood: PetMood
+    let t: Double
+
+    var body: some View {
+        PixelCanvasView(buffer: CrabRig.render(CrabAnimator.pose(mood: mood, t: t),
+                                               costume: costume),
+                        inkOverrides: CostumeStyle.blendedOverrides(from: costume,
+                                                                    to: costume,
+                                                                    u: 1))
     }
 }
 

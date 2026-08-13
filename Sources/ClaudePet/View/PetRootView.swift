@@ -66,6 +66,7 @@ public struct PetRootView: View {
             ZStack(alignment: .topTrailing) {
                 CrabView(
                     mood: model.state.mood,
+                    costume: model.costume,
                     hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate,
                     hoverEndedAt: model.hoverEndedAt?.timeIntervalSinceReferenceDate,
                     clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,
@@ -106,5 +107,8 @@ public final class PetViewModel: ObservableObject {
     @Published public var clickedAt: Date?
     /// When the party started. 🎉🪄
     @Published public var rainbowStartedAt: Date?
+    /// The wardrobe, mirrored from `Preferences` so the sprite re-renders on a
+    /// costume change.
+    @Published public var costume: Costume = .none
     public init() {}
 }

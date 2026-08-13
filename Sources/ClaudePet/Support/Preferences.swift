@@ -32,6 +32,18 @@ public final class Preferences {
         /// 3.0. Bumped so stored values do not pin existing installs to the old
         /// default.
         static let scale = "pet.pixelSize.v3"
+        static let costume = "pet.costume"
+    }
+
+    /// The costume he is wearing.
+    ///
+    /// Stored by `rawValue` rather than by ordinal, so reordering the enum or
+    /// removing a case cannot silently dress him as something else. An unknown
+    /// string — a costume that existed in a newer build — falls back to `.none`
+    /// rather than trapping.
+    public var costume: Costume {
+        get { store.string(forKey: Key.costume).flatMap(Costume.init(rawValue:)) ?? .none }
+        set { store.set(newValue.rawValue, forKey: Key.costume) }
     }
 
     /// The window's bottom-left origin in global screen coordinates.

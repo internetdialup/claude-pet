@@ -31,6 +31,11 @@ public struct PixelBuffer: Sendable {
         case ember
         /// Paper — the plan clipboard.
         case paper
+        /// Costume accessory slots. Their colours come from the worn
+        /// `CostumeStyle` via `PixelCanvasView.inkOverrides`, so one pair of
+        /// inks dresses every costume.
+        case costumeA
+        case costumeB
     }
 
     private(set) var cells: [UInt8]
@@ -169,6 +174,11 @@ public struct PixelCanvasView: View {
     /// tinting everything would just look like a hue-rotated screenshot.
     var bodyTint: Color?
 
+    /// Costume colours by ink slot. Resolution order for the body is
+    /// `bodyTint ?? inkOverrides[.body] ?? Palette.body` — status tints always
+    /// beat wardrobe, wardrobe beats the default shell.
+    var inkOverrides: [PixelBuffer.Ink: Color] = [:]
+
     /// Hairline overdraw that hides seams when a cell lands on a fractional
     /// device pixel.
     ///
@@ -208,7 +218,7 @@ public struct PixelCanvasView: View {
     private func color(for ink: PixelBuffer.Ink) -> Color {
         switch ink {
         case .clear: .clear
-        case .body: bodyTint ?? Palette.body
+        case .body: bodyTint ?? inkOverrides[.body] ?? Palette.body
         case .eye: Palette.ink
         case .mouth: Palette.white
         case .screenDark: Palette.screenDark
@@ -221,6 +231,10 @@ public struct PixelCanvasView: View {
         case .flameCore: Palette.flameCore
         case .ember: Palette.ember
         case .paper: Palette.kraft
+        // A costume slot with no wardrobe behind it should be impossible; the
+        // shell colour keeps it invisible-in-practice rather than magenta-loud.
+        case .costumeA: inkOverrides[.costumeA] ?? Palette.body
+        case .costumeB: inkOverrides[.costumeB] ?? Palette.body
         }
     }
 }

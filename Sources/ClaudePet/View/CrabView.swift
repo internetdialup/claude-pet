@@ -426,6 +426,8 @@ public enum CrabAnimator {
 /// Claw'd himself, animating continuously off the display link.
 public struct CrabView: View {
     public var mood: PetMood
+    /// The wardrobe. Costume changes cross-dissolve via `CostumeClock`.
+    public var costume: Costume = .none
     /// Reference-time instant the pointer arrived on him, or nil.
     public var hoverSince: Double?
     /// Reference-time instant the pointer left, while the greeting eases out.
@@ -439,12 +441,14 @@ public struct CrabView: View {
     public var frozenTime: Double?
 
     public init(mood: PetMood,
+                costume: Costume = .none,
                 hoverSince: Double? = nil,
                 hoverEndedAt: Double? = nil,
                 clickedAt: Double? = nil,
                 rainbowSince: Double? = nil,
                 frozenTime: Double? = nil) {
         self.mood = mood
+        self.costume = costume
         self.hoverSince = hoverSince
         self.hoverEndedAt = hoverEndedAt
         self.clickedAt = clickedAt
@@ -512,6 +516,8 @@ public struct CrabView: View {
         // Live: rebase onto the mood so one-shot motion (the `done` hop) starts
         // at its own t=0. Frozen: the caller's time is already relative.
         var pose = currentPose(at: time)
+        var ghostCostume = Costume.none
+        var costumeProgress = 1.0
         if frozenTime == nil {
             // Cross-ease mood changes from the last pose that was actually on
             // screen. Offline renderers never note a displayed pose, so the
@@ -520,11 +526,22 @@ public struct CrabView: View {
                 pose = CrabPose.blend(from: from, to: pose, u: u)
             }
             MoodClock.shared.note(displayed: pose)
+            // Same contract for the wardrobe: live changes cross-dissolve,
+            // frozen and offline renders wear the costume at full strength.
+            CostumeClock.shared.note(costume)
+            costumeProgress = CostumeClock.shared.progress(at: time)
+            if costumeProgress < 1 { ghostCostume = CostumeClock.shared.previous }
         }
-        return PixelCanvasView(buffer: CrabRig.render(pose),
+        return PixelCanvasView(buffer: CrabRig.render(pose,
+                                                      costume: costume,
+                                                      ghostCostume: ghostCostume,
+                                                      costumeVisibility: costumeProgress),
                                bodyTint: rainbowSince.flatMap {
                                    CrabView.rainbowTint(elapsed: time - $0)
-                               })
+                               },
+                               inkOverrides: CostumeStyle.blendedOverrides(from: ghostCostume,
+                                                                           to: costume,
+                                                                           u: costumeProgress))
             .drawingGroup()
     }
 

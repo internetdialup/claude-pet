@@ -122,25 +122,48 @@ public enum CrabRig {
     private static let eyeLeftX = 10
     private static let eyeRightX = 19
 
-    public static func render(_ pose: CrabPose) -> PixelBuffer {
+    /// - Parameters:
+    ///   - costume: the wardrobe drawn into the sprite. Defaults to `.none`, so
+    ///     every pre-costume call site renders byte-identically.
+    ///   - ghostCostume: the outgoing wardrobe during a change, dissolving away.
+    ///   - costumeVisibility: eased progress of a costume change, 1 when settled.
+    public static func render(_ pose: CrabPose,
+                              costume: Costume = .none,
+                              ghostCostume: Costume = .none,
+                              costumeVisibility: Double = 1) -> PixelBuffer {
         var buffer = PixelBuffer()
 
         let dx = pose.lean
         let dy = pose.bob
+        let squash = max(0, pose.squash)
+
+        // A crown accessory steps aside while a crown prop is worn — the prop
+        // is a status signal, and status outranks wardrobe.
+        let crownProp = pose.prop == .hardHat && pose.propVisibility > 0.5
+        func costumeLayer(_ layer: CrabCostume.Layer) {
+            costumePass(&buffer, pose: pose, costume: ghostCostume, layer: layer,
+                        visibility: 1 - costumeVisibility, crownProp: crownProp,
+                        dx: dx, dy: dy, squash: squash)
+            costumePass(&buffer, pose: pose, costume: costume, layer: layer,
+                        visibility: costumeVisibility, crownProp: crownProp,
+                        dx: dx, dy: dy, squash: squash)
+        }
 
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
         firePass(&buffer, pose: pose, dx: dx, dy: dy)
+        costumeLayer(.behind)
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
         drawArms(&buffer, dx: dx, dy: dy, pose: pose)
 
         // Squash widens and shortens the body, keeping its feet on the ground.
-        let squash = max(0, pose.squash)
         buffer.rect(bodyX + dx - squash, bodyY + dy + squash,
                     bodyW + squash * 2, bodyH - squash, .body)
 
+        costumeLayer(.onBody)
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
+        costumeLayer(.front)
 
         // Ghost first, so an incoming prop paints over an outgoing one where
         // they overlap.
@@ -153,6 +176,24 @@ public enum CrabRig {
 
         // Applied last so props shrink with him rather than floating free.
         return pose.scale < 0.999 ? buffer.scaled(pose.scale) : buffer
+    }
+
+    /// One costume layer at a given visibility, dissolving like a prop does.
+    private static func costumePass(_ b: inout PixelBuffer, pose: CrabPose, costume: Costume,
+                                    layer: CrabCostume.Layer, visibility: Double,
+                                    crownProp: Bool, dx: Int, dy: Int, squash: Int) {
+        guard costume != .none, visibility > 0.001 else { return }
+        if layer == .front, crownProp, CostumeStyle.of(costume).yieldsCrownToProps { return }
+        if visibility > 0.999 {
+            CrabCostume.draw(&b, costume: costume, layer: layer,
+                             dx: dx, dy: dy, squash: squash, pose: pose)
+        } else {
+            var scratch = PixelBuffer()
+            CrabCostume.draw(&scratch, costume: costume, layer: layer,
+                             dx: dx, dy: dy, squash: squash, pose: pose)
+            b.composite(scratch, visibility: visibility,
+                        seed: 900 + (Costume.allCases.firstIndex(of: costume) ?? 0))
+        }
     }
 
     /// The behind-the-body flame layer for whichever of the live and ghost

@@ -38,8 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Preferences.shared.pixelSize = size
                 self?.buildWindow()
             },
+            onSetCostume: { [weak self] costume in
+                Preferences.shared.costume = costume
+                self?.model.costume = costume
+            },
             onQuit: { NSApp.terminate(nil) }
         )
+        model.costume = Preferences.shared.costume
 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 

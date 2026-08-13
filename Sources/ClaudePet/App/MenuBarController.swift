@@ -13,17 +13,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onPin: (String?) -> Void
     private let onPreviewMood: (PetMood?) -> Void
     private let onSetPixelSize: (Double) -> Void
+    private let onSetCostume: (Costume) -> Void
     private let onQuit: () -> Void
 
     init(onToggleVisibility: @escaping () -> Void,
          onPin: @escaping (String?) -> Void,
          onPreviewMood: @escaping (PetMood?) -> Void,
          onSetPixelSize: @escaping (Double) -> Void,
+         onSetCostume: @escaping (Costume) -> Void,
          onQuit: @escaping () -> Void) {
         self.onToggleVisibility = onToggleVisibility
         self.onPin = onPin
         self.onPreviewMood = onPreviewMood
         self.onSetPixelSize = onSetPixelSize
+        self.onSetCostume = onSetCostume
         self.onQuit = onQuit
 
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -73,6 +76,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         sizeItem.submenu = sizeMenu
         menu.addItem(sizeItem)
+
+        // Costume submenu.
+        let costumeItem = NSMenuItem(title: "Costume", action: nil, keyEquivalent: "")
+        let costumeMenu = NSMenu()
+        let worn = Preferences.shared.costume
+        for costume in Costume.allCases {
+            let entry = action(costume.title) { [weak self] in
+                self?.onSetCostume(costume)
+            }
+            entry.state = costume == worn ? .on : .off
+            costumeMenu.addItem(entry)
+        }
+        costumeItem.submenu = costumeMenu
+        menu.addItem(costumeItem)
 
         // Pin submenu
         let pinItem = NSMenuItem(title: "Follow session", action: nil, keyEquivalent: "")
