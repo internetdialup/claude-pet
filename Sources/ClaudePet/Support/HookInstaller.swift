@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 
 /// The **only** code path in this app permitted to write inside `~/.claude/`
-/// (`Bamboo.md` §5). Every guarantee in that redline is enforced here:
+/// — the redline. Every guarantee of it is enforced here:
 /// user-initiated, shows the exact change, backs up first, merges only `hooks`.
 @MainActor
 public enum HookInstaller {
@@ -83,8 +83,8 @@ public enum HookInstaller {
     }
 
     /// - Returns: the absolute path of the backup that was written, or nil when
-    ///   there was no existing `settings.json` to back up (Durability Honesty,
-    ///   `AGENT.md` §8 — never name a path that was not written).
+    ///   there was no existing `settings.json` to back up (Durability Honesty —
+    ///   never name a path that was not written).
     @discardableResult
     static func install() throws -> URL? {
         let fm = FileManager.default
@@ -100,7 +100,7 @@ public enum HookInstaller {
 
         // 2. Back up settings.json before touching it. `backup` stays nil when
         //    there was no file to copy, so the success dialog never names a
-        //    path that does not exist (Durability Honesty, `AGENT.md` §8).
+        //    path that does not exist (Durability Honesty).
         var backup: URL?
         var root: [String: Any] = [:]
 

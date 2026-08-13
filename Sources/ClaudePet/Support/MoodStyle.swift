@@ -9,7 +9,7 @@ import SwiftUI
 /// caught you if a switch happened to be exhaustive.
 ///
 /// Now a mood is one entry. `PetMood` itself stays in the Model layer with no
-/// SwiftUI import (`development/swift-development.md` §1.2); this is the View
+/// SwiftUI import; this is the View
 /// side of the same concept.
 public struct MoodStyle: Sendable {
     /// Bubble border, roster status dot.

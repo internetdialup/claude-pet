@@ -2,7 +2,7 @@ import Foundation
 
 /// Builds the short status lines Claw'd scrolls between shout-outs.
 ///
-/// **Numerical Grounding** (`Bamboo.md` §3): every percentage here is copied
+/// **Numerical Grounding**: every percentage here is copied
 /// from a number Claude Code itself wrote to disk. Nothing is inferred, and a
 /// figure that is absent or stale produces no line rather than a guess — a
 /// confidently wrong "82%" is worse than saying nothing.
@@ -85,7 +85,7 @@ public enum StatusTicker {
     /// Every status line currently backed by real data. May be empty.
     ///
     /// Reads the usage cache from disk. Tests use the `usage:` overload with an
-    /// explicit cache instead — `Bamboo.md` §5 forbids tests touching the
+    /// explicit cache instead — the redline forbids tests touching the
     /// operator's `~/.claude/`, and a test that read it would pass or fail
     /// depending on whether their status line happened to be running.
     public static func lines(for snapshot: Snapshot, now: Date = Date()) -> [String] {
@@ -106,7 +106,7 @@ public enum StatusTicker {
 
         // These two are absent on most machines: Claude Code stopped publishing
         // rate limits to disk, and a percentage without a measured numerator is
-        // a fabrication (`Bamboo.md` §3). They light up on their own if the data
+        // a fabrication (Numerical Grounding). They light up on their own if the data
         // returns — that is the whole reason the cache is still read.
         if let fiveHour = cache?.fiveHourPercent {
             result.append("5-HOUR LIMIT @ \(Int(fiveHour.rounded()))%")

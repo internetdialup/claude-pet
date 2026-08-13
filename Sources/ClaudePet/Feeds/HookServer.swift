@@ -4,7 +4,7 @@ import Foundation
 ///
 /// The shim appends one JSON file per event into `~/.claude/claude-pet-events/`
 /// and this watches that directory. A drop-directory rather than a socket,
-/// deliberately: `Bamboo.md` §5 requires the pet never block Claude, and a
+/// deliberately: the redline requires the pet never block Claude, and a
 /// failed `nc -U` to a dead socket can stall a hook, whereas a failed file write
 /// cannot. The shim exits 0 unconditionally either way.
 ///

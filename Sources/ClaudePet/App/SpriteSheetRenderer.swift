@@ -4,8 +4,7 @@ import AppKit
 /// Renders every mood to a single PNG contact sheet.
 ///
 /// Exists because "the animation looks right" is not a claim you can make from
-/// reading code (`development/swift-development.md` §2: screenshots prove
-/// rendering). Invoked with `ClaudePet --render-sheet <path.png>`.
+/// reading code — screenshots prove rendering. Invoked with `ClaudePet --render-sheet <path.png>`.
 @MainActor
 enum SpriteSheetRenderer {
 

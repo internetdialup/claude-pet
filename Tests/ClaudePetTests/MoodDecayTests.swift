@@ -5,7 +5,7 @@ import Foundation
 /// A scratch `CLAUDE_PET_HOME` built in `FileManager.temporaryDirectory`.
 ///
 /// Nothing here reads or writes the operator's real `~/.claude/`
-/// (`Bamboo.md` §5, restated in `CLAUDE.md` — "the redline").
+/// — the redline.
 private enum DecayFixture {
 
     /// Redirects `ClaudeHome` before anything in the process resolves it.

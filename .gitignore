@@ -17,7 +17,13 @@ xcuserdata/
 .DS_Store
 
 # Never commit anything captured from the operator's live Claude Code data.
-# Transcripts and session files are private work product (Bamboo.md §6).
+# Transcripts and session files are private work product.
 *.jsonl
 scratch/
 build/marketing/
+
+# Operator-private docs and local Claude Code config — never tracked.
+docs/internal/
+/CLAUDE.md
+/AGENT.md
+.claude/

@@ -2,7 +2,7 @@ import Foundation
 
 /// What the crab is doing right now. Derived from `ActivityEvent`s by `ActivityCoordinator`.
 ///
-/// State layer: `Foundation` only, no SwiftUI (`development/swift-development.md` §1.2).
+/// State layer: `Foundation` only, no SwiftUI — the Model layer never imports UI.
 public enum PetMood: String, Sendable, Codable, CaseIterable {
     /// A live session exists but Claude is not acting — waiting on the human.
     case idle

@@ -6,7 +6,7 @@ import AppKit
 /// Contrast cover for the ocean backdrop.
 ///
 /// `Palette.Ocean`'s doc comment quotes specific contrast ratios as the reason
-/// its lightness sits where it does. `Bamboo.md` §Numerical Grounding says a
+/// its lightness sits where it does. Numerical Grounding says a
 /// stated metric needs a runnable command behind it — this is that command.
 ///
 /// The stops exist because the *sampled* wallpaper colours could not be used:

@@ -94,9 +94,9 @@ struct StatusTickerTests {
         #expect(!name.contains("claude-"))
     }
 
-    /// Numerical Grounding (`Bamboo.md` §3): with no usage data, no percentage
+    /// Numerical Grounding: with no usage data, no percentage
     /// may be invented. These pass an explicit cache rather than reading the
-    /// operator's real `~/.claude/` (`Bamboo.md` §5).
+    /// operator's real `~/.claude/` (the redline).
     @Test("An empty snapshot with no usage data produces no lines")
     func noDataNoClaims() {
         #expect(StatusTicker.lines(for: StatusTicker.Snapshot(), usage: nil).isEmpty)

@@ -4,7 +4,7 @@ import Foundation
 ///
 /// The filename is the PID; liveness is `kill(pid, 0)` **plus** a `procStart` match,
 /// because PIDs are recycled and a stale registry file would otherwise resurrect a
-/// dead session (`docs/ctx-orientation.md`, Knob v0.1.0).
+/// dead session.
 public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// The Claude Code session UUID. Also the transcript filename stem.
     public var id: String

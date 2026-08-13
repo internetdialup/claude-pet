@@ -2,7 +2,7 @@ import Foundation
 
 /// Canonical locations inside the user's Claude Code home.
 ///
-/// Read-only by default — see the redline in `Bamboo.md` §5. The only permitted
+/// Read-only by default — that is the redline. The only permitted
 /// writer is `HookInstaller`.
 public enum ClaudeHome {
     /// Overridable so tests can point at `Tests/ClaudePetTests/Fixtures/`

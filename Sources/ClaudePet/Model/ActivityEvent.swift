@@ -14,7 +14,7 @@ public struct ActivityEvent: Sendable, Equatable {
         case turnEnded
         /// A permission prompt or idle notification wants the human.
         case needsAttention(reason: String)
-        /// The in-progress todo changed. `activeForm`, e.g. "Forking Bamboo doctrine".
+        /// The in-progress todo changed. `activeForm`, e.g. "Refactoring the parser".
         case activeTask(String?)
         /// Session title changed.
         case title(String)

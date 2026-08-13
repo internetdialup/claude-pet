@@ -1,8 +1,6 @@
 # Changelog
 
-All notable changes to Claude Pet, for people who use it. The engineering *why*
-behind each change lives in [`docs/ctx-orientation.md`](docs/ctx-orientation.md),
-which is a different document for a different audience.
+All notable changes to Claude Pet, for people who use it.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

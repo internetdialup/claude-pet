@@ -4,7 +4,7 @@
 # Claude Code pipes the hook payload as JSON on stdin. This drops it into a
 # directory the pet watches, and gets out of the way.
 #
-# Bamboo.md §5: the pet must never block Claude. Every failure mode here — no
+# The pet must never block Claude. Every failure mode here — no
 # directory, no disk, no pet running — still exits 0.
 DIR="$HOME/.claude/claude-pet-events"
 mkdir -p "$DIR" 2>/dev/null

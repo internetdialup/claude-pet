@@ -7,8 +7,9 @@ let package = Package(
     products: [
         .executable(name: "ClaudePet", targets: ["ClaudePet"])
     ],
-    // Intentionally empty. Bamboo.md §6 claims no network egress; a dependency-free
-    // graph is what makes that claim verifiable rather than promised.
+    // Intentionally empty. The README's "What it will not do" section claims no
+    // network egress; a dependency-free graph is what makes that claim verifiable
+    // rather than promised.
     dependencies: [],
     targets: [
         .executableTarget(

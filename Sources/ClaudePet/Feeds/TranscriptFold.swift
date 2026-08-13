@@ -3,7 +3,7 @@ import Foundation
 /// Folds a Claude Code transcript tail into `ActivityEvent`s.
 ///
 /// **Bounded reads are a correctness requirement, not an optimisation**
-/// (`Bamboo.md` §5). Transcripts reach 85 MB; a full read is a hang, not a slow
+/// (the redline). Transcripts reach 85 MB; a full read is a hang, not a slow
 /// path. This type keeps a byte offset and only ever reads forward from it, and
 /// on first attach it seeks to the last `initialWindow` bytes.
 public final class TranscriptFold {

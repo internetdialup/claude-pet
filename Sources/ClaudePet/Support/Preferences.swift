@@ -2,7 +2,7 @@ import Foundation
 
 /// Persisted user settings.
 ///
-/// Durability Honesty (`Bamboo.md` §3): every value here lands in the
+/// Durability Honesty: every value here lands in the
 /// `com.internetdialup.claude-pet` UserDefaults suite, which macOS backs with
 /// `~/Library/Preferences/com.internetdialup.claude-pet.plist`. Any claim that
 /// something "was saved" refers to that exact file.

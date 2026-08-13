@@ -11,7 +11,7 @@ import Foundation
 public enum WorkloadWatcher {
 
     /// Ceiling on a journal read. Reading one whole is a deliberate, bounded
-    /// exception to the tail-only rule in `Bamboo.md` §5 — the in-flight count
+    /// exception to the tail-only rule — the in-flight count
     /// needs both ends of the file, so a tail cannot answer it — and this cap is
     /// what keeps the exception enforceable rather than a promise.
     ///

@@ -3,7 +3,7 @@ import Foundation
 /// Reads `~/.claude/tasks/<sessionId>/*.json`.
 ///
 /// Claude Code already writes a present-progressive label for the task it is
-/// working on (`activeForm`, e.g. "Forking Bamboo doctrine"). That is a better
+/// working on (`activeForm`, e.g. "Refactoring the parser"). That is a better
 /// bubble string than anything we could synthesise from tool names, so it wins
 /// the preference order in `ActivityCoordinator`.
 public enum TaskWatcher {

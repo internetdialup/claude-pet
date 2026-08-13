@@ -194,7 +194,7 @@ That builds the executable, assembles `build/ClaudePet.app`, ad-hoc signs it, an
 launches it. Requires macOS 14+ and a Swift 6 toolchain (Xcode 16 or newer).
 
 ```bash
-swift build --product ClaudePet    # the Build Target from AGENT.md
+swift build --product ClaudePet    # build just the app
 swift test                          # unit tests; synthetic fixtures, never touches ~/.claude/
 ./scripts/make-icon.sh              # regenerate the app icon from the sprite rig
 ./scripts/make-dmg.sh               # build the installer
@@ -364,7 +364,7 @@ is the honest answer; a made-up percentage is not.
 
 ## What it will not do
 
-`~/.claude/` is your live working data. The rules are in `Bamboo.md` §5 and §6:
+`~/.claude/` is your live working data. The rules:
 
 - **Read-only** for everything Claude Code owns — sessions, transcripts, todos,
   settings. The pet writes in exactly two places, neither of which is Claude's
@@ -402,12 +402,6 @@ This project is unofficial and not affiliated with or endorsed by Anthropic. See
 See [CHANGELOG.md](CHANGELOG.md). Currently **v1.3.0**.
 
 ## Contributing
-
-The repo follows Bamboo, a governance discipline for AI-assisted codebases. Start
-at [`AGENT.md`](AGENT.md), then [`Bamboo.md`](Bamboo.md), then
-[`docs/ctx-orientation.md`](docs/ctx-orientation.md) for why things are the way
-they are. [`development/swift-development.md`](development/swift-development.md)
-is the structural standard for the Swift itself.
 
 Two rules worth knowing before you open a PR:
 

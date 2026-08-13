@@ -4,7 +4,7 @@ import Foundation
 
 /// Fixtures are hand-built from the real transcript shapes observed under
 /// `~/.claude/projects/`. Tests never read the operator's actual data
-/// (`Bamboo.md` §5).
+/// — the redline.
 ///
 /// Timestamps are pinned to a fixed date in the past. The fold emits an
 /// `activityStamps` event only for lines dated *today*, so fixtures carrying a
@@ -109,7 +109,7 @@ struct TranscriptFoldTests {
         guard case .toolStarted = events[1].kind else { Issue.record("expected toolStarted"); return }
     }
 
-    /// The load-bearing guarantee from `Bamboo.md` §5. A transcript larger than
+    /// The load-bearing guarantee of the redline. A transcript larger than
     /// the attach window must not be read whole, and must not emit the history
     /// that predates the pet.
     @Test("Attaching to a large file reads only the tail window")

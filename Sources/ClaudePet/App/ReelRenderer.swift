@@ -7,7 +7,7 @@ import AppKit
 /// The reel this replaces was a screen recording, and a screen recording carries
 /// whatever the operating system chose to draw at capture time. A real
 /// notification banner from an unrelated project was frozen into all 192 frames
-/// of the README hero and published (`docs/ctx-orientation.md`, Knob v1.2.1).
+/// of the README hero and published (see the v1.2.1 notes in CHANGELOG.md).
 /// The repair only worked because the desktop behind it was flat black, and the
 /// history rewrite that finished the job only worked because nobody had cloned
 /// yet. Both of those escape hatches are gone.
