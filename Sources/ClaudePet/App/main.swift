@@ -16,6 +16,12 @@ if let index = arguments.firstIndex(of: "--render-icon"), index + 1 < arguments.
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-vectors"), index + 1 < arguments.count {
+    // The base body and every prop as SVG pixel-rects, for the Figma bridge.
+    let ok = VectorExporter.render(to: arguments[index + 1])
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-gif"), index + 1 < arguments.count {
     let ok = MainActor.assumeIsolated { GifRenderer.render(to: arguments[index + 1]) }
     exit(ok ? 0 : 1)
