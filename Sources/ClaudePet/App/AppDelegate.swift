@@ -78,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             interactiveRect: interactive,
             rootView: PetRootView(model: model, pixelSize: pixelSize)
         )
-        controller.onClick = { [weak self] clicks in
+        controller.onClick = { [weak self] clicks, location in
             guard let self else { return }
             // 🎉🪄 Poke him three times and he throws a party.
             if clicks >= 3 {
@@ -87,6 +87,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.model.rainbowStartedAt = nil
                 }
             }
+
+            // 🐛 A click on the visiting floor bug is a pounce, not a roster
+            // request. The bug's schedule is pure, so ask it where it is.
+            if self.model.state.mood == .idle,
+               let epoch = MoodClock.shared.currentEpoch(for: .idle),
+               let bug = CrabAnimator.bugPosition(idleT: Date.timeIntervalSinceReferenceDate - epoch),
+               let cell = self.gridCell(for: location),
+               cell.y >= 26, cell.x >= bug - 2, cell.x <= bug + 3 {
+                self.model.pouncedAt = Date()
+                let seed = Int(Date().timeIntervalSince1970)
+                self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
+                                              Date().addingTimeInterval(2.4))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    self.model.pouncedAt = nil
+                }
+                return
+            }
+
+            // 🍤 A click on a sleeping crab is a snack, not a roster request —
+            // the roster stays a menu-bar away.
+            if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil {
+                self.model.snackStartedAt = Date()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) {
+                    self.model.snackStartedAt = nil
+                }
+                return
+            }
+
             // Squash first, roster second — the reaction is feedback for the
             // click, and the roster is what the click is for.
             self.model.clickedAt = Date()
@@ -95,6 +123,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // mood frame rate instead of holding 30fps forever.
             DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) {
                 self.model.clickedAt = nil
+            }
+        }
+        controller.onPetStart = { [weak self] in
+            self?.model.pettingStartedAt = Date()
+            self?.model.pettingEndedAt = nil
+        }
+        controller.onPetEnd = { [weak self] in
+            guard let self else { return }
+            self.model.pettingEndedAt = Date()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, let ended = self.model.pettingEndedAt,
+                      Date().timeIntervalSince(ended) >= 0.55 else { return }
+                self.model.pettingStartedAt = nil
+                self.model.pettingEndedAt = nil
             }
         }
         controller.onHover = { [weak self] hovering in
@@ -155,6 +197,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleVisibility() {
         guard let controller = windowController else { return }
         controller.isVisible ? controller.hide() : controller.show()
+    }
+
+    /// Maps a click in view coordinates to a sprite-grid cell. View y runs
+    /// upward from the window's bottom; the buffer's y runs downward from its
+    /// top row, hence the flip.
+    private func gridCell(for location: CGPoint) -> (x: Int, y: Int)? {
+        let pixelSize = Preferences.shared.pixelSize
+        let frame = PetRootView.spriteFrame(pixelSize: pixelSize)
+        guard frame.contains(location), pixelSize > 0 else { return nil }
+        let x = Int((location.x - frame.minX) / pixelSize)
+        let y = PixelBuffer.side - 1 - Int((location.y - frame.minY) / pixelSize)
+        return (x, y)
     }
 
     private func toggleRoster() {

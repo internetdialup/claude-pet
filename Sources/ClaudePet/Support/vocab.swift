@@ -56,6 +56,8 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case needsYou
     /// 😴 Nothing is running at all.
     case sleeping
+    /// 🐛 The operator clicked the visiting floor bug and he pounced on it.
+    case bugCaught
 }
 
 /// A line he says when the current task matches a pattern.
@@ -160,6 +162,14 @@ public enum Vocab {
             "zzz…",
             "Wake me when it matters",
             "Resting my claws",
+        ]
+
+        // 🐛 He caught the bug. The oldest joke in the trade, four ways.
+        case .bugCaught: [
+            "Bug fixed 🐛✅",
+            "Zero known issues",
+            "It was a race condition",
+            "Closed as completed",
         ]
         }
     }

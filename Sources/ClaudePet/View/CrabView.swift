@@ -112,10 +112,41 @@ public enum CrabAnimator {
         pose(mood: mood, t: t, flourishes: true)
     }
 
-    /// - Parameter flourishes: when false the scheduled idle flourish is left
-    ///   off, so a renderer can overlay one of its own choosing instead of
-    ///   whichever one `flourish(at:)` happens to pick for that cycle.
-    static func pose(mood: PetMood, t: Double, flourishes: Bool) -> CrabPose {
+    /// Where the bug is during an idle spell, or nil. Rarely, on dice, a
+    /// two-pixel bug scuttles across the floor over six seconds — direction
+    /// alternating by cycle, entering and leaving off-grid so there is no
+    /// pop at either edge. Never in the first cycle.
+    static func bugPosition(idleT t: Double) -> Int? {
+        let cycle = Int(floor(t / 90))
+        guard cycle > 0, noise(cycle &* 53 &+ 7) < 0.3 else { return nil }
+        let since = t - Double(cycle) * 90
+        guard since < 6 else { return nil }
+        let progress = since / 6
+        let x = -3.0 + progress * 37.0
+        let column = cycle % 2 == 0 ? Int(x.rounded()) : 31 - Int(x.rounded())
+        return column >= -2 && column <= 33 ? column : nil
+    }
+
+    /// The midnight stargazer's envelope and clock during an idle spell, in
+    /// the small hours only. 12s of telescope, eased 0.8s at both ends.
+    static func stargaze(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
+        guard let hourOfDay, hourOfDay >= 23 || hourOfDay <= 4 else { return nil }
+        let cycle = Int(floor(t / 120))
+        guard cycle > 0, noise(cycle &* 61 &+ 3) < 0.35 else { return nil }
+        let since = t - Double(cycle) * 120
+        guard since < 12 else { return nil }
+        return (Ease.window(since, duration: 12, edge: 0.8), since)
+    }
+
+    /// - Parameters:
+    ///   - flourishes: when false the scheduled idle flourish is left off, so a
+    ///     renderer can overlay one of its own choosing instead of whichever
+    ///     one `flourish(at:)` happens to pick for that cycle.
+    ///   - hourOfDay: the local hour, for the midnight stargazer. Offline
+    ///     renderers pass nothing, so the telescope can never appear in a
+    ///     committed asset by accident.
+    static func pose(mood: PetMood, t: Double, flourishes: Bool,
+                     hourOfDay: Int? = nil) -> CrabPose {
         var pose = CrabPose()
         pose.propPhase = t
 
@@ -132,6 +163,25 @@ public enum CrabAnimator {
 
             if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
+            }
+
+            // A visiting bug owns his attention: eyes drop to the floor and
+            // follow it across.
+            if let bug = bugPosition(idleT: t) {
+                pose.bugX = bug
+                pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
+                pose.gazeY = 1
+            }
+
+            // And deep in the night, sometimes, the telescope comes out.
+            if let gazing = stargaze(idleT: t, hourOfDay: hourOfDay) {
+                pose.stargaze = gazing.amount
+                pose.stargazePhase = gazing.phase
+                if gazing.amount > 0.4 {
+                    pose.gazeY = -1
+                    pose.gazeX = 1
+                    pose.mouth = .open
+                }
             }
 
         case .thinking:
@@ -336,6 +386,58 @@ public enum CrabAnimator {
         }
     }
 
+    /// Being petted: eyes ease shut, a purr wiggle, and hearts. Applied after
+    /// the greeting so a hold wins over a hover — you cannot pet him and be
+    /// waved at simultaneously.
+    public static func applyPetting(elapsed: Double, amount: Double, to pose: inout CrabPose) {
+        guard amount > 0.001 else { return }
+        if amount >= 0.5 {
+            pose.blink = 1
+            pose.asleepOverride = false
+            pose.winkEye = .none
+            pose.mouth = .smile
+            pose.lean += Ease.square(elapsed * 2.5) > 0.5 ? 1 : -1
+            pose.heartsElapsed = elapsed
+        }
+        pose.armLeft = max(pose.armLeft, 0.2 * amount)
+        pose.armRight = max(pose.armRight, 0.2 * amount)
+    }
+
+    /// The pounce after a bug is caught: crouch toward the floor, one hop, a
+    /// check dissolving in and out. 1.4s, eased at both ends.
+    public static func applyPounce(elapsed: Double, to pose: inout CrabPose) {
+        let envelope = Ease.window(elapsed, duration: 1.4, edge: 0.25)
+        guard envelope > 0.001 else { return }
+        pose.gazeY = 1
+        pose.mouth = .open
+        if elapsed < 0.3 {
+            pose.squash = 1                                  // the crouch
+        } else if elapsed < 0.8 {
+            pose.bob -= Int((sin((elapsed - 0.3) / 0.5 * .pi) * 3).rounded())
+        } else {
+            pose.squash = elapsed < 0.95 ? 1 : 0             // the landing
+        }
+        pose.prop = .check
+        pose.propVisibility = min(pose.propVisibility, envelope)
+    }
+
+    /// The shrimp snack, 2.8s: he stirs, munches three beats, and settles. The
+    /// shrimp itself is drawn by the rig off `snackElapsed`.
+    public static func applySnack(elapsed: Double, to pose: inout CrabPose) {
+        let envelope = Ease.window(elapsed, duration: 2.8, edge: 0.4)
+        guard envelope > 0.001 else { return }
+        pose.asleepOverride = true
+        pose.snackElapsed = elapsed
+        pose.gazeX = -1                                       // eyeing the shrimp
+        // Munch: mouth flips on each bite beat, eased square between.
+        let munching = elapsed > 0.7 && elapsed < 2.3
+        pose.mouth = munching && Ease.square(elapsed * 2 * .pi) > 0.5 ? .open : .smile
+        // One happy hop at the end.
+        if elapsed > 2.3, elapsed < 2.55 {
+            pose.bob -= 2
+        }
+    }
+
     /// The extended payoff after a cooking sprint lands (the game-design
     /// trick: the work is done, the reward runs longer). Layered over the
     /// normal done pose for ~10s under one master envelope — scale breathing
@@ -471,6 +573,13 @@ public struct CrabView: View {
     public var clickedAt: Double?
     /// Reference-time instant rainbow mode began, or nil. 🎉🪄
     public var rainbowSince: Double?
+    /// Petting: press-and-hold without moving. Same two-ended envelope as hover.
+    public var petSince: Double?
+    public var petEndedAt: Double?
+    /// Reference-time instant a floor bug was caught, or nil.
+    public var pouncedAt: Double?
+    /// Reference-time instant the sleeping-click snack began, or nil.
+    public var snackSince: Double?
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
@@ -482,6 +591,10 @@ public struct CrabView: View {
                 hoverEndedAt: Double? = nil,
                 clickedAt: Double? = nil,
                 rainbowSince: Double? = nil,
+                petSince: Double? = nil,
+                petEndedAt: Double? = nil,
+                pouncedAt: Double? = nil,
+                snackSince: Double? = nil,
                 frozenTime: Double? = nil) {
         self.mood = mood
         self.costume = costume
@@ -491,6 +604,10 @@ public struct CrabView: View {
         self.hoverEndedAt = hoverEndedAt
         self.clickedAt = clickedAt
         self.rainbowSince = rainbowSince
+        self.petSince = petSince
+        self.petEndedAt = petEndedAt
+        self.pouncedAt = pouncedAt
+        self.snackSince = snackSince
         self.frozenTime = frozenTime
     }
 
@@ -593,6 +710,7 @@ public struct CrabView: View {
             // `hoverSince` stays set through the greeting's ease-out, so the
             // release renders at the reaction rate too instead of at 6fps.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
+                || petSince != nil || pouncedAt != nil || snackSince != nil
             let interval = reacting ? 1.0 / 30 : frameInterval
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
                 render(at: timeline.date.timeIntervalSinceReferenceDate)
@@ -651,7 +769,10 @@ public struct CrabView: View {
             return pose
         }
 
-        var pose = CrabAnimator.pose(mood: mood, t: t)
+        var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
+                                     hourOfDay: frozenTime == nil
+                                         ? Calendar.current.component(.hour, from: Date())
+                                         : nil)
         if mood == .done, celebrating, frozenTime == nil {
             CrabAnimator.applyCelebration(t: t, to: &pose)
         }
@@ -665,8 +786,21 @@ public struct CrabView: View {
                                                            endedAt: hoverEndedAt),
                                        to: &pose)
         }
+        if let petSince, frozenTime == nil {
+            CrabAnimator.applyPetting(elapsed: time - petSince,
+                                      amount: Ease.amount(now: time,
+                                                          since: petSince,
+                                                          endedAt: petEndedAt),
+                                      to: &pose)
+        }
         if let clickedAt, frozenTime == nil {
             CrabAnimator.applyClick(elapsed: time - clickedAt, to: &pose)
+        }
+        if let pouncedAt, frozenTime == nil {
+            CrabAnimator.applyPounce(elapsed: time - pouncedAt, to: &pose)
+        }
+        if let snackSince, frozenTime == nil {
+            CrabAnimator.applySnack(elapsed: time - snackSince, to: &pose)
         }
         return pose
     }

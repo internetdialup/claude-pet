@@ -120,6 +120,7 @@ extension CrabPose {
         out.legAmplitude = lerp(from.legAmplitude, to.legAmplitude)
         out.scale = lerp(from.scale, to.scale)
         out.heat = lerp(from.heat, to.heat)
+        out.stargaze = lerp(from.stargaze, to.stargaze)
 
         // `legPhase` is an angle; averaging two unrelated phases produces a
         // third, unrelated one. The incoming pose owns the walk.

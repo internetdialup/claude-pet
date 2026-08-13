@@ -88,6 +88,17 @@ public struct CrabPose: Sendable, Equatable {
     /// pose sets them; the rig repaints body rows in banded heat inks.
     public var heat: Double = 0
     public var heatPhase: Double = 0
+
+    /// A pixel bug scuttling across the floor rows, or nil. The column is the
+    /// bug's centre; the animator owns its schedule.
+    public var bugX: Int?
+    /// Seconds into a petting session, for the floating hearts. nil = no hearts.
+    public var heartsElapsed: Double?
+    /// Seconds into the shrimp snack, for the shrinking 🍤. nil = no snack.
+    public var snackElapsed: Double?
+    /// The midnight telescope: envelope 0…1 and its own clock for twinkles.
+    public var stargaze: Double = 0
+    public var stargazePhase: Double = 0
 }
 
 extension CrabPose.Prop {
@@ -175,8 +186,106 @@ public enum CrabRig {
                  phase: pose.propPhase, visibility: pose.propVisibility,
                  dx: dx, dy: dy)
 
+        // The quiet-hour extras: a scuttling bug on the floor, hearts while he
+        // is petted, the snack, the telescope. Each is a world overlay that
+        // dissolves in and out like everything else.
+        if let bugX = pose.bugX { drawBug(&buffer, x: bugX, phase: pose.propPhase) }
+        if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts, dx: dx, dy: dy) }
+        if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
+        if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
+
         // Applied last so props shrink with him rather than floating free.
         return pose.scale < 0.999 ? buffer.scaled(pose.scale) : buffer
+    }
+
+    // MARK: - Quiet-hour extras
+
+    /// A two-pixel bug on floor row 29, legs flickering, with a tiny bob.
+    private static func drawBug(_ b: inout PixelBuffer, x: Int, phase: Double) {
+        let bob = sin(phase * 9) > 0.6 ? -1 : 0
+        b.rect(x, 29 + bob, 2, 1, .eye)
+        // Leg flicker: alternate single pixels under the body.
+        if sin(phase * 12) > 0 {
+            b.pixel(x - 1, 30 + bob, .eye)
+            b.pixel(x + 2, 30 + bob, .eye)
+        } else {
+            b.pixel(x, 30 + bob, .eye)
+            b.pixel(x + 1, 30 + bob, .eye)
+        }
+    }
+
+    /// Up to three pink hearts spawning at the crown every 0.8s, each rising a
+    /// pixel every 0.15s and dissolving as it climbs.
+    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
+        let spawns = [0.3, 1.1, 1.9]
+        for (index, born) in spawns.enumerated() {
+            let age = (elapsed - born).truncatingRemainder(dividingBy: 2.4)
+            guard elapsed > born, age >= 0 else { continue }
+            let rise = Int(age / 0.15)
+            let y = 8 + dy - rise
+            guard y > 0 else { continue }
+            let x = 10 + index * 5 + dx
+            var heart = PixelBuffer()
+            heart.stamp([
+                "p.p",
+                "ppp",
+                ".p.",
+            ], at: (x: x, y: y), key: ["p": .pink])
+            let fade = max(0, 1 - age / 1.6)
+            b.composite(heart, visibility: fade, seed: 700 + index)
+        }
+    }
+
+    /// The 🍤: a small pink shrimp beside his mouth that loses a column per
+    /// munch beat, easing in at the start and gone by the last bite.
+    private static func drawSnack(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
+        // Three munch beats at 0.9, 1.5, 2.1s; a column disappears at each.
+        let bites = [0.9, 1.5, 2.1].filter { elapsed >= $0 }.count
+        let width = 4 - bites
+        guard width > 0 else { return }
+        var shrimp = PixelBuffer()
+        shrimp.stamp([
+            ".ppp",
+            "pppk",
+            ".pp.",
+        ], at: (x: 3 + dx, y: 15 + dy), key: ["p": .pink, "k": .paper])
+        // Eat right-to-left: clear the consumed columns.
+        for eaten in 0..<bites {
+            for row in 15...17 { shrimp.pixel(3 + dx + 3 - eaten, row + dy, .clear) }
+        }
+        let entry = Ease.smoothstep(elapsed / 0.4)
+        b.composite(shrimp, visibility: entry, seed: 710)
+    }
+
+    /// The midnight telescope: a steel tube angled at the sky, twinkling stars
+    /// in the top rows, and one shooting-star streak per session.
+    private static func drawStargaze(_ b: inout PixelBuffer, pose: CrabPose, dx: Int, dy: Int) {
+        var scene = PixelBuffer()
+        let phase = pose.stargazePhase
+
+        // Tube: a 5-pixel diagonal from his right claw toward the sky.
+        for step in 0..<5 {
+            scene.pixel(24 + step + dx, 14 - step + dy, .steel)
+        }
+        scene.pixel(24 + dx, 15 + dy, .steel)   // tripod hint
+
+        // Four stars on offset twinkle phases — a twinkle snaps like a blink.
+        let stars = [(4, 2), (9, 5), (17, 1), (27, 3)]
+        for (index, star) in stars.enumerated() {
+            if sin(phase * (1.1 + Double(index) * 0.4) + Double(index) * 2.3) > 0.1 {
+                scene.pixel(star.0, star.1, index % 2 == 0 ? .yellow : .mouth)
+            }
+        }
+
+        // One shooting star early in the session: a three-pixel diagonal streak.
+        if phase > 2, phase < 2.5 {
+            let head = Int((phase - 2) * 20)
+            for trail in 0..<3 {
+                scene.pixel(6 + head - trail, 3 + (head - trail) / 3, .mouth)
+            }
+        }
+
+        b.composite(scene, visibility: Ease.clamp01(pose.stargaze), seed: 720)
     }
 
     /// One costume layer at a given visibility, dissolving like a prop does.

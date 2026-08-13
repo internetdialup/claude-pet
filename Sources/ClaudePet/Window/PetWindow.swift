@@ -44,11 +44,16 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     private var dragOffset: CGSize?
     private let contentSize: CGSize
 
-    /// Called when the crab is clicked without being dragged. The argument is
-    /// the click count, so a triple-click can mean something extra.
-    var onClick: ((Int) -> Void)?
+    /// Called when the crab is clicked without being dragged or petted. The
+    /// arguments are the click count (a triple-click means something extra)
+    /// and the click's location in view coordinates, so a click can hit a
+    /// specific sprite cell — the floor bug earns a pounce.
+    var onClick: ((Int, CGPoint) -> Void)?
     /// Called when the pointer enters or leaves the crab itself.
     var onHover: ((Bool) -> Void)?
+    /// A press held still for 0.35s is petting, ended by release or movement.
+    var onPetStart: (() -> Void)?
+    var onPetEnd: (() -> Void)?
 
     /// - Parameter interactiveRect: the part of the window that actually
     ///   responds to the mouse, in view coordinates. Everything outside it is
@@ -207,6 +212,23 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     }
 }
 
+/// What a press turned out to be. Pure so the thresholds are testable without
+/// synthesising AppKit events: movement always wins (drag), a still press
+/// matures into petting at 0.35s, anything shorter is a click.
+enum PressGesture {
+    case click
+    case drag
+    case pet
+
+    static let movementThreshold: CGFloat = 3
+    static let petDelay: TimeInterval = 0.35
+
+    static func classify(elapsed: TimeInterval, movement: CGFloat) -> PressGesture {
+        if movement > movementThreshold { return .drag }
+        return elapsed >= petDelay ? .pet : .click
+    }
+}
+
 /// Hosts the SwiftUI view and turns raw mouse events into drags.
 ///
 /// SwiftUI's own `DragGesture` cannot move an `NSWindow` without fighting the
@@ -215,6 +237,11 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 private final class DragHostView: NSView {
     private weak var controller: PetWindowController?
     private var didDrag = false
+    private var pressStartedAt: Date?
+    private var pressOrigin: NSPoint = .zero
+    private var maxMovement: CGFloat = 0
+    private var isPetting = false
+    private var petTimer: Timer?
 
     /// Only this rect accepts the mouse. Outside it, `hitTest` returns nil and
     /// the click passes through to whatever is behind the window.
@@ -263,24 +290,55 @@ private final class DragHostView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         didDrag = false
+        isPetting = false
+        maxMovement = 0
+        pressOrigin = NSEvent.mouseLocation
+        pressStartedAt = Date()
         MainActor.assumeIsolated {
             controller?.beginDrag(at: NSEvent.mouseLocation)
+        }
+        // A press that stays put matures into petting. The timer dies on the
+        // first real movement, so drag always wins.
+        petTimer?.invalidate()
+        petTimer = Timer.scheduledTimer(withTimeInterval: PressGesture.petDelay,
+                                        repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.maxMovement <= PressGesture.movementThreshold else { return }
+                self.isPetting = true
+                self.controller?.onPetStart?()
+            }
         }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let location = NSEvent.mouseLocation
+        maxMovement = max(maxMovement, hypot(location.x - pressOrigin.x, location.y - pressOrigin.y))
+        guard maxMovement > PressGesture.movementThreshold else { return }
+        petTimer?.invalidate()
         didDrag = true
         MainActor.assumeIsolated {
-            controller?.continueDrag(to: NSEvent.mouseLocation)
+            // Movement cancels an engaged petting into a normal drag.
+            if isPetting {
+                isPetting = false
+                controller?.onPetEnd?()
+            }
+            controller?.continueDrag(to: location)
         }
     }
 
     override func mouseUp(with event: NSEvent) {
+        petTimer?.invalidate()
         let clicks = event.clickCount
+        let location = convert(event.locationInWindow, from: nil)
         MainActor.assumeIsolated {
             controller?.endDrag()
-            // Still suppressed by a drag: a click that moved him is a move.
-            if !didDrag { controller?.onClick?(clicks) }
+            if isPetting {
+                isPetting = false
+                controller?.onPetEnd?()
+            } else if !didDrag {
+                // Still suppressed by a drag: a click that moved him is a move.
+                controller?.onClick?(clicks, location)
+            }
         }
     }
 }

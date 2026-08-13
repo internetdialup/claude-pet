@@ -46,12 +46,16 @@ public struct PetRootView: View {
     public var body: some View {
         VStack(spacing: -overlap) {
             ZStack {
-                if let text = model.state.bubble, !text.isEmpty, model.state.mood != .sleeping {
+                // A transient line (the pounce one-liner) outranks the state's
+                // bubble and may appear even while he sleeps.
+                let transient = model.transientBubble.flatMap { $0.until > Date() ? $0.text : nil }
+                let stateText = model.state.mood != .sleeping ? model.state.bubble : nil
+                if let text = transient ?? stateText, !text.isEmpty {
                     ThoughtBubble(
                         text: text,
-                        tool: model.state.tool,
-                        mood: model.state.mood,
-                        style: model.state.bubbleStyle
+                        tool: transient == nil ? model.state.tool : nil,
+                        mood: transient == nil ? model.state.mood : .done,
+                        style: transient == nil ? model.state.bubbleStyle : .plain
                     )
                     .transition(.opacity)
                     .id(text)
@@ -72,7 +76,11 @@ public struct PetRootView: View {
                     hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate,
                     hoverEndedAt: model.hoverEndedAt?.timeIntervalSinceReferenceDate,
                     clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,
-                    rainbowSince: model.rainbowStartedAt?.timeIntervalSinceReferenceDate
+                    rainbowSince: model.rainbowStartedAt?.timeIntervalSinceReferenceDate,
+                    petSince: model.pettingStartedAt?.timeIntervalSinceReferenceDate,
+                    petEndedAt: model.pettingEndedAt?.timeIntervalSinceReferenceDate,
+                    pouncedAt: model.pouncedAt?.timeIntervalSinceReferenceDate,
+                    snackSince: model.snackStartedAt?.timeIntervalSinceReferenceDate
                 )
                 .frame(width: spriteSize, height: spriteSize)
 
@@ -112,5 +120,15 @@ public final class PetViewModel: ObservableObject {
     /// The wardrobe, mirrored from `Preferences` so the sprite re-renders on a
     /// costume change.
     @Published public var costume: Costume = .none
+    /// Press-and-hold petting, same two-ended shape as hover.
+    @Published public var pettingStartedAt: Date?
+    @Published public var pettingEndedAt: Date?
+    /// A floor bug was just caught.
+    @Published public var pouncedAt: Date?
+    /// The sleeping-click shrimp snack began.
+    @Published public var snackStartedAt: Date?
+    /// A short-lived line that outranks the state's bubble — the pounce
+    /// one-liner. Cleared by its own deadline.
+    @Published public var transientBubble: (text: String, until: Date)?
     public init() {}
 }
