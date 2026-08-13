@@ -37,4 +37,25 @@ public enum TaskWatcher {
         guard let current = tasks.first(where: { $0.1.status == "in_progress" })?.1 else { return nil }
         return current.activeForm ?? current.subject
     }
+
+    /// How much of the todo list is done — the near-done glow and the
+    /// completion celebration are gated on this. `nil` when there are no task
+    /// files at all; a directory of tasks with none completed is `(0, n)`.
+    public static func progress(in directory: URL) -> (completed: Int, total: Int)? {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        else { return nil }
+
+        let statuses = entries
+            .filter { $0.pathExtension == "json" }
+            .compactMap { url -> String? in
+                guard let data = try? Data(contentsOf: url),
+                      let task = try? JSONDecoder().decode(TaskFile.self, from: data)
+                else { return nil }
+                return task.status
+            }
+
+        guard !statuses.isEmpty else { return nil }
+        return (statuses.filter { $0 == "completed" }.count, statuses.count)
+    }
 }

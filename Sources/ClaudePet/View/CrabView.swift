@@ -174,6 +174,16 @@ public enum CrabAnimator {
             pose.legPhase = t * 4
             pose.legAmplitude = 1
             pose.prop = .fire
+            // Sometimes the heat gets into the shell: a banded cascade sweeps
+            // up the body for a couple of seconds, on dice that skip more
+            // cycles than they hit. Never in the first cycle — a frozen render
+            // at t=0 must show a cool crab.
+            let heatCycle = Int(floor(t / 8))
+            if heatCycle > 0, noise(heatCycle &* 29 &+ 11) < 0.45 {
+                let sinceCycle = t - Double(heatCycle) * 8
+                pose.heat = Ease.window(sinceCycle, duration: 2.4, edge: 0.4)
+                pose.heatPhase = sinceCycle / 1.2
+            }
 
         case .nudging:
             // Expectant: leaning your way, eyes wide, one arm out holding the
@@ -326,6 +336,26 @@ public enum CrabAnimator {
         }
     }
 
+    /// The extended payoff after a cooking sprint lands (the game-design
+    /// trick: the work is done, the reward runs longer). Layered over the
+    /// normal done pose for ~10s under one master envelope — scale breathing
+    /// about a pixel deep, and the done hop re-armed twice — then the
+    /// envelope's tail cools everything back to a plain done before the mood
+    /// decays away.
+    public static func applyCelebration(t: Double, to pose: inout CrabPose) {
+        let envelope = Ease.window(t, duration: 10, edge: 0.6)
+        guard envelope > 0.001 else { return }
+
+        pose.scale = min(pose.scale, 1 - 0.04 * envelope * (0.5 + 0.5 * sin(t * 2.5)))
+
+        for start in [3.5, 7.0] {
+            let hop = t - start
+            if hop >= 0, hop < 1.2, sin(hop * 5) > 0.3 {
+                pose.bob = min(pose.bob, -2)
+            }
+        }
+    }
+
     /// The poke reaction: he squashes down, then springs back.
     ///
     /// - Parameter elapsed: seconds since the click.
@@ -428,6 +458,10 @@ public struct CrabView: View {
     public var mood: PetMood
     /// The wardrobe. Costume changes cross-dissolve via `CostumeClock`.
     public var costume: Costume = .none
+    /// A cooking sprint just landed — the done pose plays its extended payoff.
+    public var celebrating: Bool = false
+    /// The focused session's todo completion, for the near-done glow.
+    public var taskFraction: Double?
     /// Reference-time instant the pointer arrived on him, or nil.
     public var hoverSince: Double?
     /// Reference-time instant the pointer left, while the greeting eases out.
@@ -442,6 +476,8 @@ public struct CrabView: View {
 
     public init(mood: PetMood,
                 costume: Costume = .none,
+                celebrating: Bool = false,
+                taskFraction: Double? = nil,
                 hoverSince: Double? = nil,
                 hoverEndedAt: Double? = nil,
                 clickedAt: Double? = nil,
@@ -449,6 +485,8 @@ public struct CrabView: View {
                 frozenTime: Double? = nil) {
         self.mood = mood
         self.costume = costume
+        self.celebrating = celebrating
+        self.taskFraction = taskFraction
         self.hoverSince = hoverSince
         self.hoverEndedAt = hoverEndedAt
         self.clickedAt = clickedAt
@@ -471,6 +509,56 @@ public struct CrabView: View {
         let order = PetMood.allCases
         let step = Int(elapsed / rainbowPoseInterval) % order.count
         return order[step]
+    }
+
+    /// The occasional disco during a long cook: one slow trip round the wheel
+    /// at half saturation, pose untouched — he keeps working, head down, while
+    /// the lights happen to him. Dice-gated to roughly one flash per few
+    /// minutes of continuous cooking, never in the first cycle.
+    static func discoTint(cookingT t: Double) -> Color? {
+        let cycle = Int(floor(t / 45))
+        guard cycle > 0, CrabAnimator.noise(cycle &* 41 &+ 17) < 0.22 else { return nil }
+        let since = t - Double(cycle) * 45
+        guard since < 5 else { return nil }
+        let amount = Ease.window(since, duration: 5, edge: 0.7)
+        guard amount > 0.01 else { return nil }
+        return SpriteTint.towards(SpriteTint.rgb(hue: since / 5, saturation: 0.5, brightness: 0.92),
+                                  amount: amount)
+    }
+
+    /// The near-done glow: once the todo list is ≥80% complete, a soft white
+    /// pulse every 2.5s while he cooks — the sprint is almost home.
+    static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
+        guard let fraction, fraction >= 0.8 else { return nil }
+        let pulse = Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 2.5))
+        let amount = 0.35 * pulse
+        guard amount > 0.01 else { return nil }
+        return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
+    }
+
+    /// The celebration flash train: quick white pulses under the same 10s
+    /// master envelope as the pose overlay, cooling to nothing in the tail.
+    static func celebrationTint(doneT t: Double) -> Color? {
+        let envelope = Ease.window(t, duration: 10, edge: 0.6)
+        guard envelope > 0.001 else { return nil }
+        let pulse = Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 1.2))
+        let amount = 0.4 * envelope * pulse
+        guard amount > 0.01 else { return nil }
+        return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
+    }
+
+    /// One place decides which tint owns the body, so two effects can never
+    /// fight frame-by-frame: the user's party outranks the celebration, which
+    /// outranks the disco, which outranks the near-done glow.
+    static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
+                             celebrating: Bool, taskFraction: Double?) -> Color? {
+        if let rainbowElapsed, let party = rainbowTint(elapsed: rainbowElapsed) { return party }
+        if mood == .done, celebrating, let flash = celebrationTint(doneT: t) { return flash }
+        if mood == .cooking {
+            if let disco = discoTint(cookingT: t) { return disco }
+            if let glow = nearDoneTint(cookingT: t, fraction: taskFraction) { return glow }
+        }
+        return nil
     }
 
     /// The body colour at a moment in the cycle, or nil when not partying.
@@ -532,13 +620,18 @@ public struct CrabView: View {
             costumeProgress = CostumeClock.shared.progress(at: time)
             if costumeProgress < 1 { ghostCostume = CostumeClock.shared.previous }
         }
+        let localT = frozenTime == nil ? time - moodEpoch : time
+        let tint = CrabView.composedTint(mood: mood,
+                                         t: localT,
+                                         rainbowElapsed: frozenTime == nil
+                                             ? rainbowSince.map { time - $0 } : nil,
+                                         celebrating: celebrating,
+                                         taskFraction: taskFraction)
         return PixelCanvasView(buffer: CrabRig.render(pose,
                                                       costume: costume,
                                                       ghostCostume: ghostCostume,
                                                       costumeVisibility: costumeProgress),
-                               bodyTint: rainbowSince.flatMap {
-                                   CrabView.rainbowTint(elapsed: time - $0)
-                               },
+                               bodyTint: tint,
                                inkOverrides: CostumeStyle.blendedOverrides(from: ghostCostume,
                                                                            to: costume,
                                                                            u: costumeProgress))
@@ -559,6 +652,9 @@ public struct CrabView: View {
         }
 
         var pose = CrabAnimator.pose(mood: mood, t: t)
+        if mood == .done, celebrating, frozenTime == nil {
+            CrabAnimator.applyCelebration(t: t, to: &pose)
+        }
         if let hoverSince, frozenTime == nil {
             // The hover's start instant doubles as the variant seed: chosen once
             // per hover, stable for its whole duration.

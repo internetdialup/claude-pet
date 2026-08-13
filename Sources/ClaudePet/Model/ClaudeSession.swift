@@ -44,6 +44,13 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     public var awaitingApproval: Bool = false
     /// Timestamps of recent tool calls, used to measure how hard Claude is going.
     public var recentToolCalls: [Date] = []
+    /// The todo list's tally, from `TaskWatcher.progress` — nil when the
+    /// session has no task files.
+    public var tasksCompleted: Int?
+    public var tasksTotal: Int?
+    /// Set when a `.cooking` sprint lands on `.done`: the payoff animation
+    /// runs longer than a plain done, and the decay window stretches with it.
+    public var celebrating: Bool = false
     /// Last time anything at all changed for this session.
     public var lastActivity: Date = .distantPast
 

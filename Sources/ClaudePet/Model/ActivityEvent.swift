@@ -16,6 +16,8 @@ public struct ActivityEvent: Sendable, Equatable {
         case needsAttention(reason: String)
         /// The in-progress todo changed. `activeForm`, e.g. "Refactoring the parser".
         case activeTask(String?)
+        /// The todo list's completion count moved, e.g. 4 of 5 done.
+        case taskProgress(completed: Int, total: Int)
         /// Session title changed.
         case title(String)
         /// Subagent count changed.
@@ -50,7 +52,10 @@ public struct ActivityEvent: Sendable, Equatable {
     /// happened in the session.
     public var countsAsActivity: Bool {
         switch kind {
-        case .subagents: false
+        // `.taskProgress` rides the same watcher as `.activeTask` but is a
+        // derived tally, not a fresh observation of Claude doing something —
+        // counting it would re-pin `lastActivity` on every re-read.
+        case .subagents, .taskProgress: false
         default: true
         }
     }

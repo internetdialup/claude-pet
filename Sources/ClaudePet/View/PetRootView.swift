@@ -67,6 +67,8 @@ public struct PetRootView: View {
                 CrabView(
                     mood: model.state.mood,
                     costume: model.costume,
+                    celebrating: model.state.celebrating,
+                    taskFraction: model.state.taskFraction,
                     hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate,
                     hoverEndedAt: model.hoverEndedAt?.timeIntervalSinceReferenceDate,
                     clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,

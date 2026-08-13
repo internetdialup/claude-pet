@@ -162,6 +162,7 @@ public enum CrabRig {
                     bodyW + squash * 2, bodyH - squash, .body)
 
         costumeLayer(.onBody)
+        if pose.heat > 0.001 { heatPass(&buffer, pose: pose, dy: dy, squash: squash) }
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
         costumeLayer(.front)
 
@@ -211,6 +212,33 @@ public enum CrabRig {
         }
         if pose.ghostProp == .fire { layer(phase: pose.ghostPropPhase, visibility: pose.ghostPropVisibility) }
         if pose.prop == .fire { layer(phase: pose.propPhase, visibility: pose.propVisibility) }
+    }
+
+    /// The cooking heat: a three-row band of quantised heat inks sweeping up
+    /// through the shell. Only cells that are currently `.body` repaint — the
+    /// face, the costume pixels and the props sit above the heat, and the
+    /// arms and legs staying terracotta is what makes it read as heat rising
+    /// through the shell rather than a whole-sprite recolour. Banded, never a
+    /// gradient: the band's width is itself quantised by the heat envelope, so
+    /// the cascade eases in as a growing band and out as a shrinking one.
+    private static func heatPass(_ b: inout PixelBuffer, pose: CrabPose, dy: Int, squash: Int) {
+        let top = bodyY + dy + squash
+        let height = bodyH - squash
+        let bottom = top + height - 1
+        guard height > 0 else { return }
+
+        let sweep = pose.heatPhase - floor(pose.heatPhase)
+        let center = Double(bottom) - sweep * Double(height + 3)
+        let halfWidth = Int((Ease.clamp01(pose.heat) * 2).rounded())
+
+        for y in max(0, top)...min(PixelBuffer.side - 1, bottom) {
+            let distance = abs(Double(y) - center)
+            guard distance <= Double(halfWidth) + 0.001 else { continue }
+            let ink: PixelBuffer.Ink = distance <= Double(max(0, halfWidth - 1)) ? .bodyEmber : .bodyHot
+            for x in 0..<PixelBuffer.side where b[x, y] == .body {
+                b[x, y] = ink
+            }
+        }
     }
 
     /// One prop at a given visibility. Full visibility draws straight into the

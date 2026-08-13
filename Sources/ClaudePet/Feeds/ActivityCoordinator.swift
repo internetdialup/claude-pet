@@ -59,6 +59,11 @@ public final class ActivityCoordinator {
     /// because the 2s workload poll kept `lastActivity` fresher than 6s.
     static var doneDecay: TimeInterval = 6
 
+    /// The celebrated done: a cooking sprint that lands plays a ~10s payoff
+    /// (the game-design trick — the work is finished, the reward runs longer),
+    /// so the decay waits for the animation plus a beat of afterglow.
+    static var celebrationDecay: TimeInterval = 12
+
     /// How long a session may sit in a *working* mood, silent, before the pet
     /// stops asserting it and falls back to `idle`.
     ///
@@ -219,6 +224,11 @@ public final class ActivityCoordinator {
             if let active = TaskWatcher.activeTask(in: tasksDirectory) {
                 events.append(ActivityEvent(sessionID: id, kind: .activeTask(active)))
             }
+            if let progress = TaskWatcher.progress(in: tasksDirectory) {
+                events.append(ActivityEvent(sessionID: id,
+                                            kind: .taskProgress(completed: progress.completed,
+                                                                total: progress.total)))
+            }
             guard !events.isEmpty else { return }
             Task { @MainActor in self.ingest(events, suppressAlerts: true) }
         }
@@ -245,8 +255,15 @@ public final class ActivityCoordinator {
         taskWatchers[id] = FileWatcher(url: watchURL, queue: queue, coalesce: 0.2) { [weak self] in
             guard let self else { return }
             let label = TaskWatcher.activeTask(in: tasksURL)
+            let progress = TaskWatcher.progress(in: tasksURL)
             Task { @MainActor in
-                self.ingest([ActivityEvent(sessionID: id, kind: .activeTask(label))])
+                var events = [ActivityEvent(sessionID: id, kind: .activeTask(label))]
+                if let progress {
+                    events.append(ActivityEvent(sessionID: id,
+                                                kind: .taskProgress(completed: progress.completed,
+                                                                    total: progress.total)))
+                }
+                self.ingest(events)
             }
         }
     }
@@ -293,6 +310,14 @@ public final class ActivityCoordinator {
                 if session.mood == .working { session.mood = .thinking }
                 session.tool = nil
             case .turnEnded:
+                // A sprint that lands earns a longer bow: the celebration flag
+                // stretches the done pose's decay and unlocks its payoff
+                // animation. `.cooking` is a display-time promotion — the
+                // session record itself never stores it — so the edge is
+                // detected the same way the promotion is: was he working at a
+                // cooking pace when the turn ended?
+                session.celebrating = session.mood == .working
+                    && Self.isCooking(session, now: event.timestamp)
                 session.mood = .done
                 session.tool = nil
                 // Clear the last tool's description too. Leaving it set meant an
@@ -305,6 +330,9 @@ public final class ActivityCoordinator {
             case .activeTask(let label):
                 session.activeTaskLabel = label
                 if let label { session.activity = label }
+            case .taskProgress(let completed, let total):
+                session.tasksCompleted = completed
+                session.tasksTotal = total
             case .title(let title):
                 session.title = title
             case .subagents(let count):
@@ -331,6 +359,10 @@ public final class ActivityCoordinator {
                 continue
             }
 
+            // The celebration belongs to the done pose alone; any move off it
+            // takes the flag along.
+            if session.mood != .done { session.celebrating = false }
+
             sessions[session.id] = session
             // Only moods that `NotificationNudge` knows how to announce, and
             // only on a real transition — not on every recomputation.
@@ -356,9 +388,11 @@ public final class ActivityCoordinator {
     /// - `.sleeping` is derived at display time from `lastActivity`, not stored.
     /// - `.nudging` is likewise derived, from `awaitingApproval`; it clears when
     ///   the mood underneath it decays and takes the flag with it.
-    static func quietLimit(for mood: PetMood) -> TimeInterval? {
+    static func quietLimit(for mood: PetMood, celebrating: Bool = false) -> TimeInterval? {
         switch mood {
-        case .done: doneDecay
+        // A celebrated done holds for the whole payoff animation (~10s) plus a
+        // beat of afterglow; a plain done keeps its quick exit.
+        case .done: celebrating ? celebrationDecay : doneDecay
         case .working: workingStaleAfter
         case .needsAttention: attentionStaleAfter
         case .thinking, .cooking: staleAfter
@@ -379,9 +413,10 @@ public final class ActivityCoordinator {
         // clear, and the list is certainly incomplete. A timeout recovers from
         // the ones nobody has found yet.
         for (id, var session) in sessions {
-            guard let limit = Self.quietLimit(for: session.mood),
+            guard let limit = Self.quietLimit(for: session.mood, celebrating: session.celebrating),
                   now.timeIntervalSince(session.lastActivity) > limit else { continue }
             session.mood = .idle
+            session.celebrating = false
             // The mood alone is not the assertion — the bubble is. Leaving any
             // of these set keeps stale text on screen after the pose relaxes:
             // `activeTaskLabel` outranks everything when the bubble is chosen,
@@ -475,6 +510,13 @@ public final class ActivityCoordinator {
             }
         }
 
+        // The near-done glow needs a real list behind it: three or more tasks,
+        // quantised so the equality-gated publish does not churn on re-reads.
+        var taskFraction: Double?
+        if let done = focus.tasksCompleted, let total = focus.tasksTotal, total >= 3 {
+            taskFraction = (Double(done) / Double(total) / 0.05).rounded() * 0.05
+        }
+
         publish(PetState(
             mood: mood,
             bubble: bubble,
@@ -482,7 +524,9 @@ public final class ActivityCoordinator {
             sessions: ordered,
             focusedSessionID: focus.id,
             attentionCount: ordered.filter { $0.mood == .needsAttention && $0.id != focus.id }.count,
-            bubbleStyle: style
+            bubbleStyle: style,
+            taskFraction: taskFraction,
+            celebrating: mood == .done && focus.celebrating
         ))
     }
 

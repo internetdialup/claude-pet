@@ -36,6 +36,9 @@ public struct PixelBuffer: Sendable {
         /// inks dresses every costume.
         case costumeA
         case costumeB
+        /// The cooking heat bands — body cells repainted as quantised heat.
+        case bodyHot
+        case bodyEmber
     }
 
     private(set) var cells: [UInt8]
@@ -235,6 +238,8 @@ public struct PixelCanvasView: View {
         // shell colour keeps it invisible-in-practice rather than magenta-loud.
         case .costumeA: inkOverrides[.costumeA] ?? Palette.body
         case .costumeB: inkOverrides[.costumeB] ?? Palette.body
+        case .bodyHot: Palette.bodyHot
+        case .bodyEmber: Palette.bodyEmber
         }
     }
 }

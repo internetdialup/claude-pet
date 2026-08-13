@@ -54,6 +54,13 @@ public struct PetState: Sendable, Equatable {
     public var attentionCount: Int
     /// How the bubble presents its contents.
     public var bubbleStyle: BubbleStyle = .plain
+    /// The focused session's todo completion, 0…1, quantised to 0.05 steps so
+    /// the equality-gated publish does not churn on every re-read. Only set
+    /// when the list is substantial enough to mean something (3+ tasks).
+    public var taskFraction: Double?
+    /// A `.cooking` sprint just landed — the done state plays its extended
+    /// payoff instead of the plain hop.
+    public var celebrating: Bool = false
 
     public enum BubbleStyle: Sendable, Equatable {
         /// Text, truncated if long. The default for task descriptions.
