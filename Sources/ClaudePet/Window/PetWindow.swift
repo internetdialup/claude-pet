@@ -236,6 +236,11 @@ private final class DragHostView: NSView {
         return interactiveRect.contains(local) ? self : nil
     }
 
+    /// The app is an accessory and the window never takes key focus, so without
+    /// this the first press while another app is frontmost is treated as an
+    /// activation click and swallowed — you had to click him twice to drag.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     /// Tracking is scoped to `interactiveRect`, so hovering the transparent
     /// margin — or the bubble — does not make him react.
     override func updateTrackingAreas() {

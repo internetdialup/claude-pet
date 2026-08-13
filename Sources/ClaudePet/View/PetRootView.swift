@@ -58,6 +58,10 @@ public struct PetRootView: View {
                 }
             }
             .frame(height: PetRootView.bubbleBand, alignment: .bottom)
+            // The bubble overlaps the sprite by `overlap`, and SwiftUI draws
+            // later siblings on top — without this the sprite ate the bubble's
+            // tail. ReelRenderer carried the same fix; the live view never did.
+            .zIndex(1)
 
             ZStack(alignment: .topTrailing) {
                 CrabView(

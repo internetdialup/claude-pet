@@ -253,7 +253,7 @@ public enum CrabRig {
             }
 
         case .terminal:
-            drawTerminal(&b, phase: phase)
+            drawTerminal(&b, dx: dx, dy: dy, phase: phase)
 
         case .check:
             let key: [Character: PixelBuffer.Ink] = ["g": .green, "w": .mouth]
@@ -338,14 +338,16 @@ public enum CrabRig {
 
     /// The little code window, with output scrolling up through it.
     ///
-    /// The frame is stamped once and the code lines are drawn per frame at a
-    /// shifting offset, which is what makes it read as a live terminal rather
-    /// than a decal.
-    private static func drawTerminal(_ b: inout PixelBuffer, phase: Double) {
-        let originX = 22
-        let originY = 1
-        let width = 10
-        let height = 9
+    /// Held in front of him like a laptop: the frame overlaps the lower body
+    /// and the inner legs, his claws grip the top corners, and his eyes peer
+    /// over the lid — so it reads as something he is using, not backdrop
+    /// furniture. It tracks `dx`/`dy` for the same reason: a console that
+    /// ignores his bob reads as painted onto the wall behind him.
+    private static func drawTerminal(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
+        let originX = 10 + dx
+        let originY = 17 + dy
+        let width = 12
+        let height = 7
 
         b.rect(originX, originY, width, height, .screenDark)
         b.rect(originX, originY, width, 2, .screenLight)
@@ -373,6 +375,10 @@ public enum CrabRig {
         if sin(phase * 4) > 0 {
             b.rect(originX + 1, interiorTop + interiorHeight, 2, 1, .green)
         }
+
+        // Claw tips over the top corners: the grip is what sells "held".
+        b.rect(originX, originY, 2, 1, .body)
+        b.rect(originX + width - 2, originY, 2, 1, .body)
     }
 
     /// Yellow hat on his crown, wrench and screwdriver at his sides.
