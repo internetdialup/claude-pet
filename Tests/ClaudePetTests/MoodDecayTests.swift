@@ -283,4 +283,30 @@ struct MoodDecayTests {
         #expect(ActivityCoordinator.attentionStaleAfter > ActivityCoordinator.sleepAfter)
         #expect(ActivityCoordinator.attentionStaleAfter >= 1800)
     }
+
+    @Test("Stale thinking dots retire long before the mood does")
+    func staleDotsRetire() async throws {
+        let stored = ActivityCoordinator.dotsQuietAfter
+        ActivityCoordinator.dotsQuietAfter = 0.15
+        defer { ActivityCoordinator.dotsQuietAfter = stored }
+
+        let id = "s-dots"
+        let coordinator = try quietCoordinator([id])
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
+        #expect(coordinator.state.bubble == "…")
+        #expect(coordinator.state.bubbleStyle == .dots)
+
+        try await Task.sleep(for: .milliseconds(300))
+        tick(coordinator)
+
+        // The bubble is gone; the pose still thinks (the 300s decay is a
+        // separate, much later question).
+        #expect(coordinator.state.mood == .thinking)
+        #expect(coordinator.state.bubble == nil,
+                "dots pulsing over a quiet session are a stale claim")
+
+        // Fresh reasoning brings them straight back.
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
+        #expect(coordinator.state.bubble == "…")
+    }
 }

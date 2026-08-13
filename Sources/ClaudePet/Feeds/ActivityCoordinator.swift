@@ -72,6 +72,12 @@ public final class ActivityCoordinator {
     nonisolated static let nudgeWindows: [TimeInterval] = [90, 210]
     nonisolated static let nudgeDuration: TimeInterval = 4
 
+    /// How long the thinking dots may pulse without renewal before the bubble
+    /// retires (the `.thinking` mood itself lives on until `staleAfter`).
+    /// "Still thinking" is a claim; thirty quiet seconds is where it stops
+    /// being one the pet can stand behind.
+    static var dotsQuietAfter: TimeInterval = 30
+
     /// How long a session may sit in a *working* mood, silent, before the pet
     /// stops asserting it and falls back to `idle`.
     ///
@@ -492,9 +498,16 @@ public final class ActivityCoordinator {
         switch mood {
         case .thinking:
             // No honest label exists for "reasoning", so show pulsing dots
-            // rather than repeating the last thing he did.
-            bubble = "…"
-            style = .dots
+            // rather than repeating the last thing he did — but only while
+            // the claim is fresh. The mood itself decays on `staleAfter`
+            // (300s), and dots pulsing over a quiet session for minutes are
+            // exactly the lingering banner the quiet-done round removed:
+            // after 30 unrenewed seconds the bubble retires and the pose
+            // (sparkles, scanning eyes) carries the state; the next
+            // transcript write brings the dots straight back.
+            let fresh = now.timeIntervalSince(focus.lastActivity) < Self.dotsQuietAfter
+            bubble = fresh ? "…" : nil
+            style = fresh ? .dots : .plain
             chatter = nil
 
         case .sleeping:
