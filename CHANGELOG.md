@@ -5,6 +5,48 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-08-12
+
+### Added
+
+- **👘 A wardrobe.** Four costumes — Ninja, Wizard, Astro, Tuxedo — picked from
+  the new menubar Costume submenu and remembered between launches. Costumes
+  survive every mood and every prop; status effects always paint over them.
+  The ninja trades the shell for shadow with a terracotta eye window, because
+  a mask may frame the eyes but never cover them.
+- **🔥 Fire that heats the shell.** During a hard cook, a banded heat cascade
+  sometimes sweeps up his body; when the todo list passes 80%, a soft white
+  pulse says the sprint is almost home; and when a cooking sprint lands, the
+  done state plays a ~10-second payoff — flash train, scale breathing, the hop
+  re-armed twice — before cooling back down. Rarely, mid-cook, a five-second
+  disco finds him. He keeps working through it.
+- **🥚 Four secrets.** A floor bug worth clicking, press-and-hold petting with
+  rising hearts, a shrimp snack for whoever pokes a sleeping crab, and — in
+  the small hours only — a telescope.
+- **✨ Attention, eased.** The bubble sweeps an occasional light band and
+  pulses a slow check when a plan awaits your verdict.
+- **🎨 A vector bridge.** `--render-vectors` exports the base body and every
+  prop as layered SVGs for design review. Code stays the source of truth.
+
+### Changed
+
+- **Nothing snaps anymore.** Mood changes cross-ease from the pose that was
+  actually on screen; the hover greeting decays from wherever it had reached
+  instead of vanishing; the 20-second prop re-roll puts one prop down and
+  picks the next up through a pixel dissolve; the working arms are eased
+  squares instead of square waves. The exemptions are single-pixel steps and
+  blinks, which snap in nature.
+- **The console is in his claws.** The little code window sits in front of him
+  like a held laptop — claw tips gripping the lid, eyes peering over it — and
+  tracks his bob instead of hanging painted on the sky.
+
+### Fixed
+
+- **First click grabs him.** A press while another app was frontmost was
+  swallowed as an activation click; dragging him needed a second try.
+- **The bubble tail is no longer eaten by the sprite** in the overlap band —
+  the live view gets the fix the reel renderer already had.
+
 ## [1.3.0] — 2026-08-08
 
 ### Added
