@@ -36,19 +36,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - The backdrop is **derived** from a wallpaper's hue and saturation, not copied
   from it — and deliberately much darker, because the sampled mid-tones sat
   within 1.02:1 of Claw'd's body colour and would have shimmered.
-
-### Fixed
-
-- **The bubble truncates at 29 characters, not 46.** The docs and the test both
-  said 46; the bubble caps at 210pt over a 6.62pt advance, which is 29. Five
-  shipped lines are longer and are cut off on screen — including the one in the
-  README hero, which is why it read *"Let's build something aweso…"*. The limit
-  is corrected and enforced; the five lines are named rather than rewritten.
-- **Deleted `hover.gif`**, which was byte-identical to `hover-hop.gif` and
-  referenced nowhere.
-- Two stale **v1.0.0** claims in the README, four versions out of date.
-
-## [1.2.2] — unreleased
+- **Sleep threshold 300s → 900s.** Measured over the local corpus: the median
+  park between a finished turn and the next human prompt is 180s, and **40% of
+  ordinary parks exceed 300s** — so a 5-minute nap fired during two-fifths of
+  normal think-breaks. At 900s only 19% are longer, and those are real
+  walk-aways. (This changes no shipped behaviour, since the old threshold could
+  never fire either.)
+- **`--probe` takes an optional duration**, e.g. `--probe 320`. The default 3s
+  is shorter than every decay horizon, so it could not observe one.
 
 ### Fixed
 
@@ -76,16 +71,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   gated on "no task", and a title counts as a task, so any *named* session — most
   of them — froze on its own title and never reached the status ticker.
 
-### Changed
-
-- **Sleep threshold 300s → 900s.** Measured over the local corpus: the median
-  park between a finished turn and the next human prompt is 180s, and **40% of
-  ordinary parks exceed 300s** — so a 5-minute nap fired during two-fifths of
-  normal think-breaks. At 900s only 19% are longer, and those are real
-  walk-aways. (This changes no shipped behaviour, since the old threshold could
-  never fire either.)
-- **`--probe` takes an optional duration**, e.g. `--probe 320`. The default 3s
-  is shorter than every decay horizon, so it could not observe one.
+- **The bubble truncates at 29 characters, not 46.** The docs and the test both
+  said 46; the bubble caps at 210pt over a 6.62pt advance, which is 29. Five
+  shipped lines are longer and are cut off on screen — including the one in the
+  README hero, which is why it read *"Let's build something aweso…"*. The limit
+  is corrected and enforced; the five lines are named rather than rewritten.
+- **Deleted `hover.gif`**, which was byte-identical to `hover-hop.gif` and
+  referenced nowhere.
+- Two stale **v1.0.0** claims in the README, four versions out of date.
 
 ## [1.2.1] — 2026-08-07
 
