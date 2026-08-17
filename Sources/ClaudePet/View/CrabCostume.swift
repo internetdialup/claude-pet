@@ -239,13 +239,18 @@ enum CrabCostume {
 
         case .tiger:
             guard layer == .onBody else { break }
-            // Staggered two-tall stripe dashes — enough rhythm to read tiger,
-            // few enough cells to stay a crab.
+            // Three bold 2-wide stripes per band, staggered — the first draft
+            // ran twelve thin dashes and read cactus, not cat. Columns chosen
+            // clear of the eye windows (10-12 and 19-21), where a stripe just
+            // vanishes behind the face.
             let base = bodyY + dy + squash
-            for (index, column) in [8, 11, 14, 17, 20, 23].enumerated() {
-                let drop = index % 2 == 0 ? 1 : 3
-                b.rect(column + dx, base + drop, 1, 2, .costumeA)
-                b.rect(column + dx, base + drop + 6, 1, 2, .costumeA)
+            // Stripes hang from the back and rise from the belly — staggered
+            // bars, not spots; spots read leopard.
+            for column in [7, 14, 22] {
+                b.rect(column + dx, base, 2, 3, .costumeA)
+            }
+            for column in [10, 18] {
+                b.rect(column + dx, base + 7, 2, 3, .costumeA)
             }
 
         case .white:
