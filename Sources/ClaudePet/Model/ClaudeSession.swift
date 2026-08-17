@@ -58,6 +58,9 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// The landing sprint had been cooking a while: the done state plays the
     /// FULL finale — flash, glow, transform, rainbow.
     public var epicCelebrating: Bool = false
+    /// The highest cook-progress milestone already notified (25/50/75), so a
+    /// crossing fires exactly once. Dies with the session; reset per turn.
+    public var notifiedMilestone: Int?
     /// When the last turn finished — the quiet completion marker. Outlives the
     /// done pose (mood decay does not clear it); consumed by new work or by
     /// its own five-minute clock.

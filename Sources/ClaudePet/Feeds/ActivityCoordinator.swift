@@ -61,6 +61,16 @@ public final class ActivityCoordinator {
     /// and notifications. Not fired on every state recomputation.
     public var onAlert: ((PetMood, ClaudeSession) -> Void)?
 
+    /// A cook began, or crossed a quarter of its todo list. The OLD cooking
+    /// notification path was dead code — `.cooking` is a display promotion
+    /// the session record never holds, so its mood-transition alert had
+    /// never once fired. This is the living replacement.
+    public enum CookMilestone: Equatable, Sendable {
+        case started
+        case fraction(Int)   // 25, 50, 75
+    }
+    public var onCookingProgress: ((CookMilestone, ClaudeSession) -> Void)?
+
     private var sessions: [String: ClaudeSession] = [:]
     private var transcriptWatchers: [String: FileWatcher] = [:]
     private var taskWatchers: [String: FileWatcher] = [:]
@@ -346,6 +356,7 @@ public final class ActivityCoordinator {
     public func ingest(_ events: [ActivityEvent], suppressAlerts: Bool = false) {
         guard !events.isEmpty else { return }
         var alerts: [(PetMood, ClaudeSession)] = []
+        var milestones: [(CookMilestone, ClaudeSession)] = []
 
         for event in events {
             guard var session = sessions[event.sessionID] else { continue }
@@ -394,6 +405,7 @@ public final class ActivityCoordinator {
                         event.timestamp.timeIntervalSince($0) >= Self.epicCookThreshold
                     } ?? false
                 session.cookingSince = nil
+                session.notifiedMilestone = nil
                 // A turn end can arrive twice — the transcript fold and the
                 // Stop hook — so the first stamp of this turn wins; a genuine
                 // new turn always passes through thinking/working first, which
@@ -421,6 +433,16 @@ public final class ActivityCoordinator {
             case .taskProgress(let completed, let total):
                 session.tasksCompleted = completed
                 session.tasksTotal = total
+                // Quarter-crossings while cooking, each fired exactly once —
+                // the same 3+-task gate the near-done glow uses.
+                if session.cookingSince != nil, total >= 3 {
+                    let pct = completed * 100 / total
+                    if let crossed = [75, 50, 25].first(where: { pct >= $0 }),
+                       crossed > (session.notifiedMilestone ?? 0) {
+                        session.notifiedMilestone = crossed
+                        milestones.append((.fraction(crossed), session))
+                    }
+                }
             case .title(let title):
                 session.title = title
             case .subagents(let count):
@@ -456,6 +478,7 @@ public final class ActivityCoordinator {
             case .toolStarted, .subagents:
                 if session.cookingSince == nil, Self.isCooking(session, now: event.timestamp) {
                     session.cookingSince = event.timestamp
+                    milestones.append((.started, session))
                 }
             default:
                 break
@@ -483,6 +506,12 @@ public final class ActivityCoordinator {
         // in the same batch.
         for alert in alerts where sessions[alert.1.id] != nil {
             onAlert?(alert.0, alert.1)
+        }
+        // Same discipline as alerts: suppressed during the priming replay —
+        // a stale 75% banner from history is exactly the disease the replay
+        // suppression exists to prevent.
+        for milestone in milestones where sessions[milestone.1.id] != nil {
+            onCookingProgress?(milestone.0, milestone.1)
         }
     }
 

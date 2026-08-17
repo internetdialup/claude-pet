@@ -9,17 +9,33 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
-- **👘 A wardrobe.** Four costumes — Ninja, Wizard, Astro, Tuxedo — picked from
-  the new menubar Costume submenu and remembered between launches. Costumes
-  survive every mood and every prop; status effects always paint over them.
-  The ninja trades the shell for shadow with a terracotta eye window, because
-  a mask may frame the eyes but never cover them.
+- **👘 A wardrobe.** Six costumes — Ninja, Retro Black, Matrix, Jungle
+  Tiger, Arctic White, Gundam — picked from the new menubar Costume submenu
+  and remembered between launches. Costumes survive every mood and every
+  prop; status effects always paint over them. The ninja trades the shell
+  for shadow with a terracotta eye window, because a mask may frame the eyes
+  but never cover them; the Matrix shell rains live green code down his
+  back; the Gundam brings the RX-78 head home — V-fin, red crest, yellow
+  cameras in a black visor recess.
 - **🔥 Fire that heats the shell.** During a hard cook, a banded heat cascade
   sometimes sweeps up his body; when the todo list passes 80%, a soft white
   pulse says the sprint is almost home; and when a cooking sprint lands, the
   done state plays a ~10-second payoff — flash train, scale breathing, the hop
   re-armed twice — before cooling back down. Rarely, mid-cook, a five-second
   disco finds him. He keeps working through it.
+- **🏆 The epic finale.** A cook that runs a full minute and lands earns the
+  bigger payoff: the white flash, a warm glow blooming behind him under
+  three expanding 8-bit rings, his whole body growing a fifth and settling
+  back, and a rainbow sweeping the shell — all inside the same ten-second
+  bow, easing back to a plain done before it fades. Short cooks keep the
+  ordinary celebration.
+- **📊 The cooking card.** With notifications on, a cook starting posts a
+  macOS banner, and each quarter of the todo list crossed updates it in
+  place — `▓▓▓▓░░░░ 50%` — silently, no re-chime. The done chime retires
+  the card so a stale bar never sits under it.
+- **⬛ Ground under his feet.** A soft 8-bit shadow block sits at his
+  footline — 15% black, one and a half cells tall — so he stands on the
+  desk instead of floating over it.
 - **🥚 Four secrets.** A floor bug worth clicking, press-and-hold petting with
   rising hearts, a shrimp snack for whoever pokes a sleeping crab, and — in
   the small hours only — a telescope.

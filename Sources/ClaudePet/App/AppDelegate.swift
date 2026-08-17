@@ -81,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         coordinator.onAlert = { [weak self] mood, session in
             self?.handleAlert(mood: mood, session: session)
         }
+        coordinator.onCookingProgress = { [weak self] milestone, session in
+            self?.postCookProgress(milestone, session: session)
+        }
         coordinator.start()
 
         menuBar = MenuBarController(
@@ -283,6 +286,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     // MARK: - Alerts
 
     private func handleAlert(mood: PetMood, session: ClaudeSession) {
+        // A finished turn retires its cooking-progress card either way — a
+        // stale 75% bar must never sit under the chimed Done.
+        if NotificationNudge.event(for: mood) == .finished {
+            Notifier.center?.removeDeliveredNotifications(withIdentifiers: ["cook-\(session.id)"])
+        }
         // Chirps and banners over a film are the same disease as a pet over a
         // film — suppressed if ANY pet's display has one, whether or not he
         // steps aside for it.
@@ -303,6 +311,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let copy = NotificationNudge.copy(for: event, seed: Int(Date().timeIntervalSince1970))
         postNotification(title: copy.title,
                          body: "\(copy.body) — \(session.name)")
+    }
+
+    /// The cooking card: posted at cook start, silently replaced in place at
+    /// each quarter (same identifier, passive interruption — updates the
+    /// banner and the Notification Center entry without re-chiming), retired
+    /// by the Done alert. Opt-in via the cooking toggle, like the transition
+    /// notification this path replaces.
+    private func postCookProgress(_ milestone: ActivityCoordinator.CookMilestone,
+                                  session: ClaudeSession) {
+        guard Preferences.shared.notificationsEnabled,
+              Preferences.shared.cookingNotificationsEnabled,
+              !pets.contains(where: { $0.filmPlaying }) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.threadIdentifier = session.id
+        content.sound = nil
+        switch milestone {
+        case .started:
+            let copy = NotificationNudge.copy(for: .cooking, seed: Int(Date().timeIntervalSince1970))
+            content.title = copy.title
+            content.body = "\(copy.body) — \(session.name)"
+            content.interruptionLevel = .active
+        case .fraction(let pct):
+            content.title = "Cooking — \(session.name)"
+            content.body = Self.progressBar(pct)
+            content.interruptionLevel = .passive
+        }
+        let request = UNNotificationRequest(identifier: "cook-\(session.id)",
+                                            content: content, trigger: nil)
+        Notifier.center?.add(request)
+    }
+
+    /// An 8-cell text bar — the most progress a notification can honestly
+    /// hold. `▓▓▓▓░░░░ 50%`.
+    static func progressBar(_ percent: Int) -> String {
+        let clamped = max(0, min(100, percent))
+        let filled = clamped * 8 / 100
+        return String(repeating: "▓", count: filled)
+            + String(repeating: "░", count: 8 - filled)
+            + " \(clamped)%"
     }
 
     private func postNotification(title: String, body: String) {
