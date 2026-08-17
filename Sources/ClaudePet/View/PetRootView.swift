@@ -68,6 +68,27 @@ public struct PetRootView: View {
             .zIndex(1)
 
             ZStack(alignment: .topTrailing) {
+                // The world behind him: the 8-bit shadow he stands on, and —
+                // during an epic finale — the glow. Neither exists in offline
+                // renders, which compose CrabView directly.
+                Color.clear
+                    .frame(width: spriteSize, height: spriteSize)
+                    .overlay(alignment: .top) {
+                        // A flat 0.15 block under the footline (legs end at
+                        // grid row 24) — the floor's opinion, not the rig's.
+                        Rectangle()
+                            .fill(Color.black.opacity(0.15))
+                            .frame(width: 20 * pixelSize, height: 1.5 * pixelSize)
+                            .offset(y: 25 * pixelSize)
+                    }
+                    .allowsHitTesting(false)
+
+                if let started = model.celebrationStartedAt {
+                    CelebrationGlow(since: started.timeIntervalSinceReferenceDate)
+                        .frame(width: spriteSize, height: spriteSize)
+                        .allowsHitTesting(false)
+                }
+
                 CrabView(
                     mood: model.state.mood,
                     costume: model.costume,
@@ -109,6 +130,45 @@ public struct PetRootView: View {
     }
 }
 
+/// The epic finale's backdrop: a soft radial bloom under three expanding
+/// 8-bit square rings, all inside one 10s eased envelope. Live-only by
+/// construction — offline renderers never compose PetRootView.
+private struct CelebrationGlow: View {
+    let since: Double
+
+    var body: some View {
+        TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate - since
+            let envelope = Ease.window(t, duration: 10, edge: 0.9)
+            Canvas { context, size in
+                guard envelope > 0.001 else { return }
+                let px = size.width / Double(PixelBuffer.side)
+                let centre = CGPoint(x: size.width / 2, y: size.height * 0.55)
+
+                // The bloom: warm light swelling with the envelope.
+                let radius = size.width * (0.30 + 0.18 * envelope)
+                let bloom = Gradient(colors: [Palette.flameCore.opacity(0.35 * envelope), .clear])
+                context.fill(
+                    Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius,
+                                           width: radius * 2, height: radius * 2)),
+                    with: .radialGradient(bloom, center: centre, startRadius: 0, endRadius: radius))
+
+                // The burst: three pixel-snapped square rings expanding on a
+                // staggered loop, fading as they grow.
+                for ring in 0..<3 {
+                    let phase = (t * 0.5 + Double(ring) / 3).truncatingRemainder(dividingBy: 1)
+                    let cells = (6 + phase * 10).rounded()
+                    let half = cells * px
+                    let alpha = (1 - phase) * 0.30 * envelope
+                    let rect = CGRect(x: centre.x - half, y: centre.y - half,
+                                      width: half * 2, height: half * 2)
+                    context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
+                }
+            }
+        }
+    }
+}
+
 /// Bridges the `ActivityCoordinator`'s state into SwiftUI.
 @MainActor
 public final class PetViewModel: ObservableObject {
@@ -141,6 +201,10 @@ public final class PetViewModel: ObservableObject {
     @Published public var badgeCompletionAt: Date?
     @Published public var badgeShownAt: Date?
     @Published public var badgeEndedAt: Date?
+    /// When the epic finale began — the glow layer's own t=0, latched by
+    /// PetInstance from published state (never from MoodClock, whose epoch
+    /// rebases on blends).
+    @Published public var celebrationStartedAt: Date?
     /// This pet's own view-state clocks — never the shared singletons, which
     /// exist only as defaults for bare constructions. Two pets rebasing one
     /// clock would restart each other's one-shot beats.

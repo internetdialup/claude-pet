@@ -208,6 +208,13 @@ final class PetInstance {
     /// A fresh state from the coordinator: forward to the model and settle
     /// the latches that derive from it.
     func take(state: PetState) {
+        // The glow's own t=0: latched on the epic edge, released when the
+        // celebration ends (the envelope is long done by then).
+        if state.epicCelebration, model.celebrationStartedAt == nil {
+            model.celebrationStartedAt = Date()
+        } else if !state.celebrating, model.celebrationStartedAt != nil {
+            model.celebrationStartedAt = nil
+        }
         model.state = state
         refreshBubbleGrab()
         updateBadgeLatches()
