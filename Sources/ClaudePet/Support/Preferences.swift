@@ -34,6 +34,21 @@ public final class Preferences {
         static let scale = "pet.pixelSize.v3"
         static let costume = "pet.costume"
         static let stepsAsideForVideo = "pet.video.stepsAside"
+        static let persistency = "pet.persistency"
+    }
+
+    /// Whether he floats above every window (the classic desktop-pet posture)
+    /// or sits at normal window level, where opening Finder or a browser
+    /// covers him and nothing ever shuffles him forward.
+    ///
+    /// ON by default — floating is what the pet has always done, and the
+    /// toggle exists for the operator who wants him ambient rather than
+    /// omnipresent. Independent of the film step-aside: that gates an alpha
+    /// fade, this gates a window level, and they never touch each other's
+    /// property.
+    public var persistent: Bool {
+        get { store.object(forKey: Key.persistency) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.persistency) }
     }
 
     /// Whether he gets out of the way of a fullscreen film on his own display.

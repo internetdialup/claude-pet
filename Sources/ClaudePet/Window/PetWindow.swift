@@ -148,6 +148,15 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// Whether a drag is in flight — the step-aside defers to a held crab.
     var isDragging: Bool { dragOffset != nil }
 
+    /// Floating (above every window) or normal (apps cover him) — the
+    /// Persistency toggle. A level change is live; no rebuild involved. At
+    /// `.normal` the pet still never raises himself on app switches: the app
+    /// is an accessory and nothing here calls order-front except deliberate
+    /// shows, so "not shuffled" holds by omission.
+    func setPersistent(_ on: Bool) {
+        window.level = on ? .floating : .normal
+    }
+
     /// Eases the window out over `duration`, ordering it out only when the
     /// fade actually finishes. Retargeting an NSWindow animator's `alphaValue`
     /// continues from its current value, so an interrupted fade never snaps.

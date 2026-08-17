@@ -27,6 +27,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   pulses a slow check when a plan awaits your verdict.
 - **🎨 A vector bridge.** `--render-vectors` exports the base body and every
   prop as layered SVGs for design review. Code stays the source of truth.
+- **📌 Persistency.** A new menu toggle for how present he is. On (the
+  default, and the classic posture) he floats above every window — still
+  stepping aside for video. Off, he lives at normal window level: opening
+  Finder or a browser covers him, nothing ever shuffles him forward, and
+  you see him again when the windows move off.
 - **🎬 He steps aside for films.** Fullscreen video on his display — Netflix,
   YouTube, whatever holds the screen awake — fades him out; the credits (or
   your escape key) bring him back. Deliberately film-only: a window covering
@@ -36,10 +41,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   showing him mid-film keeps him up for the rest of it.
 - **✅ The quiet done.** A finished task no longer leaves a lingering banner:
   the done pose plays its moment, then hands the signal to a small 8-bit
-  checkbox parked at his bottom-right foot. It stays until new work consumes
-  it — not until a clock does — and every three minutes it takes one soft
-  golden breath to catch your eye. Completions older than half an hour don't
-  resurrect on launch; recent ones greet you back.
+  checkbox parked beside his feet, bottom edge on his footline. It stays
+  until new work consumes it — not until a clock does — and every three
+  minutes it takes one soft golden breath to catch your eye. He stands in
+  front of it when he leans over it. Completions older than half an hour
+  don't resurrect on launch; recent ones greet you back.
 
 ### Changed
 

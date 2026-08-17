@@ -15,6 +15,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onSetPixelSize: (Double) -> Void
     private let onSetCostume: (Costume) -> Void
     private let onToggleStepAside: () -> Void
+    private let onTogglePersistency: () -> Void
     private let onQuit: () -> Void
 
     init(onToggleVisibility: @escaping () -> Void,
@@ -23,6 +24,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
          onSetPixelSize: @escaping (Double) -> Void,
          onSetCostume: @escaping (Costume) -> Void,
          onToggleStepAside: @escaping () -> Void,
+         onTogglePersistency: @escaping () -> Void,
          onQuit: @escaping () -> Void) {
         self.onToggleVisibility = onToggleVisibility
         self.onPin = onPin
@@ -30,6 +32,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.onSetPixelSize = onSetPixelSize
         self.onSetCostume = onSetCostume
         self.onToggleStepAside = onToggleStepAside
+        self.onTogglePersistency = onTogglePersistency
         self.onQuit = onQuit
 
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -63,6 +66,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(action("Show / hide pet") { [weak self] in self?.onToggleVisibility() })
+
+        // A visibility concern, so it lives beside the visibility row.
+        let persistency = action("Persistency") { [weak self] in
+            self?.onTogglePersistency()
+            self?.refresh()
+        }
+        persistency.state = Preferences.shared.persistent ? .on : .off
+        persistency.toolTip = "On: floats above every window (still steps aside for video). Off: app windows cover him."
+        menu.addItem(persistency)
 
         // Size submenu.
         let sizeItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")

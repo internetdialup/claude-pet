@@ -121,12 +121,18 @@ public struct PixelBuffer: Sendable {
     /// pure function of the cell and `seed`, so a dissolve is a stable pattern
     /// that fills in as visibility rises rather than a per-frame shimmer. At
     /// visibility 1 this is a plain paint: identical output to drawing direct.
-    mutating func composite(_ overlay: PixelBuffer, visibility: Double, seed: Int) {
+    /// - Parameter preservingExisting: when true, destination cells that are
+    ///   already painted keep their ink — the overlay slides in BEHIND the
+    ///   scene instead of over it. This is how a ground object (the completion
+    ///   badge) lets the character stand in front of it.
+    mutating func composite(_ overlay: PixelBuffer, visibility: Double, seed: Int,
+                            preservingExisting: Bool = false) {
         guard visibility > 0 else { return }
         for y in 0..<Self.side {
             for x in 0..<Self.side {
                 let ink = overlay[x, y]
                 guard ink != .clear else { continue }
+                if preservingExisting, self[x, y] != .clear { continue }
                 if visibility >= 1 || Self.hash01(x, y, seed) < visibility {
                     self[x, y] = ink
                 }

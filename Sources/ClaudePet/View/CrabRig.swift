@@ -195,9 +195,9 @@ public enum CrabRig {
 
         // The quiet-hour extras: a scuttling bug on the floor, hearts while he
         // is petted, the snack, the telescope. Each is a world overlay that
-        // dissolves in and out like everything else. The completion badge
-        // draws before the bug on purpose: a visiting bug scuttles in front
-        // of it rather than being erased by it.
+        // dissolves in and out like everything else. The completion badge is
+        // a GROUND object: composited preserving existing cells, so the body,
+        // costume and props drawn above all win — he stands in front of it.
         if pose.doneBadge > 0.001 {
             drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
         }
@@ -213,9 +213,16 @@ public enum CrabRig {
     // MARK: - Quiet-hour extras
 
     /// The quiet completion marker: the same 8-bit checkbox the done pose
-    /// holds overhead, parked at his bottom-right foot on the floor. The
-    /// signal a finished task leaves behind once the pose has relaxed —
-    /// present, not insistent.
+    /// holds overhead, parked beside his right legs with its bottom edge
+    /// exactly on the footline (legs end at row 24) — beside him, not
+    /// floating in the void below him, which is where its first position
+    /// (rows 26–31) read. The signal a finished task leaves behind once the
+    /// pose has relaxed — present, not insistent.
+    ///
+    /// Composited BEHIND the scene: a lean or a squash pushes his edge over
+    /// column 26, and a badge that painted over his shoulder would be a green
+    /// glitch — preserved cells make it depth instead. The character always
+    /// stands in front of the ground object.
     private static func drawDoneBadge(_ b: inout PixelBuffer, visibility: Double, pulse: Double) {
         let shape = [
             ".gggg.",
@@ -226,18 +233,21 @@ public enum CrabRig {
             ".gggg.",
         ]
         var badge = PixelBuffer()
-        badge.stamp(shape, at: (x: 26, y: 26), key: ["g": .green, "w": .mouth])
-        b.composite(badge, visibility: Ease.clamp01(visibility), seed: 730)
+        badge.stamp(shape, at: (x: 26, y: 19), key: ["g": .green, "w": .mouth])
 
         // The reminder breath: a golden shimmer through the badge's own
-        // footprint — never a ring. A ring at (25,25) clips off the 32-cell
-        // grid into an L and paints his trailing foot, which reaches
-        // (25-26, 25) under an ordinary bob-plus-lean. The house dissolve
-        // gives the swell its speckle; the envelope gives it its ease.
-        guard pulse > 0.001 else { return }
-        var glow = PixelBuffer()
-        glow.stamp(shape, at: (x: 26, y: 26), key: ["g": .yellow, "w": .yellow])
-        b.composite(glow, visibility: Ease.clamp01(pulse * visibility), seed: 731)
+        // footprint, applied to the badge's scratch buffer so the pair lands
+        // in one preserving pass. Never a ring — a ring one cell out clips
+        // off the grid and collides with his trailing foot. The house
+        // dissolve gives the swell its speckle; the envelope gives its ease.
+        if pulse > 0.001 {
+            var glow = PixelBuffer()
+            glow.stamp(shape, at: (x: 26, y: 19), key: ["g": .yellow, "w": .yellow])
+            badge.composite(glow, visibility: Ease.clamp01(pulse), seed: 731)
+        }
+
+        b.composite(badge, visibility: Ease.clamp01(visibility), seed: 730,
+                    preservingExisting: true)
     }
 
     /// A two-pixel bug on floor row 29, legs flickering, with a tiny bob.

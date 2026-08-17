@@ -94,32 +94,56 @@ struct QuietDoneTests {
         }
     }
 
-    /// The badge paints only its own corner, only over empty floor, and the
-    /// visiting bug walks in front of it.
+    /// The badge paints only its footline patch, never over content, and the
+    /// body wins wherever a lean or squash pushes him over it.
     @Test func badgePaintsItsCornerOnly() {
         var pose = CrabAnimator.pose(mood: .idle, t: 2)
         let bare = CrabRig.render(pose)
         pose.doneBadge = 1
-        // Pulse at full, too: the shimmer must stay inside the same corner —
+        // Pulse at full, too: the shimmer must stay inside the same footprint —
         // this is the regression net for the clipped-ring bug, where a glow
-        // ring at (25,25) painted his trailing foot and fell off the grid.
+        // ring one cell out painted his trailing foot and fell off the grid.
         pose.doneBadgePulse = 1
         let badged = CrabRig.render(pose)
         for y in 0..<PixelBuffer.side {
             for x in 0..<PixelBuffer.side where bare[x, y] != badged[x, y] {
-                #expect(x >= 26 && y >= 26, "badge cell outside its corner at (\(x),\(y))")
+                #expect(x >= 26 && x <= 31 && y >= 19 && y <= 24,
+                        "badge cell outside its footline patch at (\(x),\(y))")
                 #expect(bare[x, y] == .clear, "badge overpainted content at (\(x),\(y))")
             }
         }
-        // The bug draws after the badge, so where both occupy a cell the bug wins.
+        // Bottom edge ON the footline: something of the badge paints row 24,
+        // nothing below it.
+        #expect((26...31).contains { badged[$0, 24] != bare[$0, 24] || badged[$0, 24] != .clear },
+                "the badge's bottom edge belongs on the footline")
+
+        // A lean-and-squash pose pushes his edge over column 26: the body must
+        // win those cells — the badge is a ground object he stands in front of.
+        var leaning = CrabAnimator.pose(mood: .idle, t: 2)
+        leaning.lean = 1
+        leaning.squash = 1
+        let bareLean = CrabRig.render(leaning)
+        leaning.doneBadge = 1
+        leaning.doneBadgePulse = 1
+        let badgedLean = CrabRig.render(leaning)
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where bareLean[x, y] != .clear {
+                #expect(badgedLean[x, y] == bareLean[x, y],
+                        "the badge overpainted him at (\(x),\(y))")
+            }
+        }
+
+        // The floor bug's walk (rows 28-30) no longer intersects the badge at
+        // all — pinned so the geometry claim cannot drift silently.
         var withBug = pose
         withBug.bugX = 27
         let both = CrabRig.render(withBug)
-        var bugOverBadge = false
         for y in 28...30 {
-            for x in 26...31 where both[x, y] == .eye { bugOverBadge = true }
+            for x in 26...31 where both[x, y] == .eye {
+                #expect(bare[x, y] == .clear || badged[x, y] == bare[x, y],
+                        "bug and badge should occupy disjoint rows now")
+            }
         }
-        #expect(bugOverBadge, "the bug should scuttle in front of the badge")
     }
 
     /// The idle-chatter gate: constant company while idle is fresh, roughly

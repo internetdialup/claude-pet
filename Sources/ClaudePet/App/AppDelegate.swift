@@ -83,6 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if !self.petHiddenByUser { self.windowController?.fadeIn() }
                 }
             },
+            onTogglePersistency: { [weak self] in
+                Preferences.shared.persistent.toggle()
+                self?.windowController?.setPersistent(Preferences.shared.persistent)
+            },
             onQuit: { NSApp.terminate(nil) }
         )
         model.costume = Preferences.shared.costume
@@ -275,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.filmWatch?.reconsider()
             self?.stepAsideIfWanted()
         }
+        controller.setPersistent(Preferences.shared.persistent)
         windowController = controller
         if steppedAside {
             // A rebuild mid-film (or mid-fade) must not flash a full-alpha
