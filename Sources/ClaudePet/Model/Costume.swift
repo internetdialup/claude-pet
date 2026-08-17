@@ -18,10 +18,9 @@ import Foundation
 public enum Costume: String, Sendable, CaseIterable, Codable {
     case none
     case ninja
-    case wizard
-    case astro
-    case tuxedo
-    // Draft round two: colourways and a mobile suit.
+    // Wizard, astro and tuxedo were tried and retired in v1.4.0 — "default
+    // is dope, ninja is dope." Their raw values fall back to Classic on
+    // decode, so a stored preference cannot strand anyone.
     case retroBlack
     case matrix
     case tiger
@@ -33,9 +32,6 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         switch self {
         case .none: "Classic Claw'd"
         case .ninja: "Ninja"
-        case .wizard: "Wizard"
-        case .astro: "Astro"
-        case .tuxedo: "Tuxedo"
         case .retroBlack: "Retro Black"
         case .matrix: "Matrix"
         case .tiger: "Jungle Tiger"

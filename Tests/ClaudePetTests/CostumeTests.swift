@@ -45,22 +45,33 @@ struct CostumeTests {
     }
 
     /// Crown accessories step aside for the hard hat; status beats wardrobe.
+    /// The yield suppresses the whole `.front` layer — under a hard hat the
+    /// Gundam also loses his chest band and red feet for the 20-second prop
+    /// spell, which is accepted and documented at the yield site. The visor
+    /// lives on the `.onBody` layer and rightly persists: it is the face,
+    /// not the crown.
     @Test func crownAccessoryYieldsToTheHardHat() {
         var pose = CrabPose()
         pose.prop = .hardHat
-        for costume in [Costume.wizard, .astro] {
-            let dressed = CrabRig.render(pose, costume: costume)
-            for y in 0..<PixelBuffer.side {
-                for x in 0..<PixelBuffer.side {
-                    #expect(dressed[x, y] != .costumeA && dressed[x, y] != .costumeB,
-                            "\(costume.rawValue) crown pixel at (\(x),\(y)) under the hard hat")
-                }
+        let dressed = CrabRig.render(pose, costume: .gundam)
+
+        // No costume ink in the crown band — the V-fin and crest stand down.
+        for y in 0..<10 {
+            for x in 0..<PixelBuffer.side {
+                let ink = dressed[x, y]
+                #expect(ink != .costumeA && ink != .costumeB && ink != .costumeC,
+                        "gundam crown pixel at (\(x),\(y)) under the hard hat")
             }
         }
-        // The bow tie is nowhere near the crown and stays put.
-        let tuxedo = CrabRig.render(pose, costume: .tuxedo)
-        let bowPixels = tuxedo.runs().filter { $0.ink == .costumeA || $0.ink == .costumeB }
-        #expect(!bowPixels.isEmpty, "the bow tie should not care about headwear")
+
+        // The visor recess is the new bow tie: nowhere near the crown, stays.
+        var visorSeen = false
+        for y in 13...16 {
+            for x in 0..<PixelBuffer.side where dressed[x, y] == .costumeC {
+                visorSeen = true
+            }
+        }
+        #expect(visorSeen, "the visor is the face, not the crown — it stays")
     }
 
     /// `.none` must render byte-identically to the pre-costume rig.

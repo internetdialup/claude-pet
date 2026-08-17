@@ -27,27 +27,6 @@ struct CostumeStyle {
                     .costumeB: rgb(0xCE_7B5C),  // the mask's eye window — his own terracotta
                 ],
                 yieldsCrownToProps: false)
-        case .wizard:
-            return CostumeStyle(
-                inks: [
-                    .costumeA: rgb(0x53_409E),  // hat
-                    .costumeB: rgb(0x7A_65C9),  // hat band
-                ],
-                yieldsCrownToProps: true)
-        case .astro:
-            return CostumeStyle(
-                inks: [
-                    .costumeA: rgb(0xE8_E8EC),  // helmet dome
-                    .costumeB: rgb(0xE0_5252),  // antenna beacon
-                ],
-                yieldsCrownToProps: true)
-        case .tuxedo:
-            return CostumeStyle(
-                inks: [
-                    .costumeA: rgb(0x14_1413),  // bow tie
-                    .costumeB: rgb(0xF0_EEE6),  // collar studs
-                ],
-                yieldsCrownToProps: false)
         case .retroBlack:
             return CostumeStyle(
                 inks: [
@@ -168,49 +147,8 @@ enum CrabCostume {
                 break
             }
 
-        case .wizard:
-            guard layer == .front else { break }
-            let crown = bodyY + dy + squash
-            // Brim, band, and a leaning cone; two stars twinkling on offset
-            // phases — a twinkle snaps like a blink, which nature allows.
-            b.rect(8 + dx, crown - 1, 16, 1, .costumeA)          // brim
-            b.rect(11 + dx, crown - 2, 10, 1, .costumeB)         // band
-            b.rect(12 + dx, crown - 3, 8, 1, .costumeA)
-            b.rect(13 + dx, crown - 4, 6, 1, .costumeA)
-            b.rect(14 + dx, crown - 5, 4, 1, .costumeA)
-            b.rect(15 + dx, crown - 6, 2, 1, .costumeA)
-            b.pixel(16 + dx, crown - 7, .costumeA)               // tip
-            if sin(pose.propPhase * 1.7) > 0.2 { b.pixel(13 + dx, crown - 3, .yellow) }
-            if sin(pose.propPhase * 2.3 + 1.9) > 0.2 { b.pixel(18 + dx, crown - 4, .yellow) }
 
-        case .astro:
-            guard layer == .front else { break }
-            let crown = bodyY + dy + squash
-            // A one-pixel dome outline over the crown — never over the eyes;
-            // covering an eye is how a costume stops being Claw'd.
-            b.rect(11 + dx, crown - 5, 10, 1, .costumeA)         // dome top
-            b.pixel(10 + dx, crown - 4, .costumeA)
-            b.pixel(21 + dx, crown - 4, .costumeA)
-            b.pixel(9 + dx, crown - 3, .costumeA)
-            b.pixel(22 + dx, crown - 3, .costumeA)
-            b.pixel(8 + dx, crown - 2, .costumeA)
-            b.pixel(23 + dx, crown - 2, .costumeA)
-            b.pixel(8 + dx, crown - 1, .costumeA)
-            b.pixel(23 + dx, crown - 1, .costumeA)
-            // Antenna, beacon blinking slowly.
-            b.pixel(16 + dx, crown - 6, .costumeA)
-            if sin(pose.propPhase * 1.2) > -0.2 { b.pixel(16 + dx, crown - 7, .costumeB) }
 
-        case .tuxedo:
-            guard layer == .onBody else { break }
-            // Bow tie under the mouth: two wings and a knot, with a collar
-            // stud either side.
-            let y = 19 + dy
-            b.rect(13 + dx, y, 2, 2, .costumeA)
-            b.rect(17 + dx, y, 2, 2, .costumeA)
-            b.rect(15 + dx, y, 2, 1, .costumeA)
-            b.pixel(12 + dx, y, .costumeB)
-            b.pixel(19 + dx, y, .costumeB)
 
         case .retroBlack:
             guard layer == .onBody else { break }
