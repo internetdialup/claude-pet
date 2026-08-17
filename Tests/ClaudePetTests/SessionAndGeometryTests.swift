@@ -101,6 +101,29 @@ struct DockMagnetTests {
         #expect(result.y == screen.minY)
     }
 
+    @Test("Two pets snapped to one corner de-stack along the edge")
+    func snapDeStacks() {
+        // Pet 1 already owns the bottom-right corner.
+        let occupied = CGRect(x: screen.maxX - size.width, y: screen.minY,
+                              width: size.width, height: size.height)
+        // Pet 2 dropped near the same corner would snap to the identical
+        // origin — fully hidden. Avoiding the sibling slides him along the
+        // edge by his own width instead.
+        let result = DockMagnet.snap(origin: CGPoint(x: screen.maxX - size.width - 10, y: 20),
+                                     size: size, visibleFrame: screen, avoiding: occupied)
+        #expect(result.y == screen.minY, "still on the dock line")
+        #expect(result.x <= occupied.minX - size.width, "slid clear of the sibling")
+        #expect(result.x >= screen.minX, "and still on screen")
+
+        // A deliberate mid-screen overlap is left exactly alone: only the
+        // snap resolution de-stacks.
+        let midOverlap = CGRect(x: 600, y: 400, width: size.width, height: size.height)
+        let dropped = DockMagnet.snap(origin: CGPoint(x: 610, y: 410),
+                                      size: size, visibleFrame: screen, avoiding: midOverlap)
+        #expect(dropped == CGPoint(x: 610, y: 410),
+                "mid-screen drags are the operator's business")
+    }
+
     @Test("Mid-screen is left alone")
     func noSnapInTheMiddle() {
         let origin = CGPoint(x: 600, y: 400)

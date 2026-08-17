@@ -90,12 +90,29 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             Self.grabRects(sprite: spriteRect, window: contentSize, bubbleVisible: visible)
     }
 
+    /// Where this pet's position persists. Injected because pet 2 keeps his
+    /// own home — the controller must not hardcode pet 1's keys.
+    private let loadPosition: () -> CGPoint?
+    private let storePosition: (CGPoint) -> Void
+    /// Shifts the first-launch dock park along the edge, so a summoned second
+    /// pet does not land exactly under the first and look like a no-op.
+    private let parkOffset: CGFloat
+    /// The other pet's frame, for snap de-stacking. Nil when there is no
+    /// other pet.
+    var avoidingFrame: () -> CGRect? = { nil }
+
     /// - Parameter interactiveRect: the sprite square, in view coordinates —
     ///   the seed for the grab area. Hover and petting stay scoped to it; the
     ///   mouse target itself is widened by `grabRects`.
-    init(contentSize: CGSize, interactiveRect: CGRect, rootView: some View) {
+    init(contentSize: CGSize, interactiveRect: CGRect, rootView: some View,
+         loadPosition: @escaping () -> CGPoint? = { Preferences.shared.position },
+         storePosition: @escaping (CGPoint) -> Void = { Preferences.shared.position = $0 },
+         parkOffset: CGFloat = 0) {
         self.contentSize = contentSize
         self.spriteRect = interactiveRect
+        self.loadPosition = loadPosition
+        self.storePosition = storePosition
+        self.parkOffset = parkOffset
         window = PetWindow(contentSize: contentSize)
         super.init()
 
@@ -238,7 +255,8 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             onDragEnded?()
             return
         }
-        let snapped = DockMagnet.snap(origin: window.frame.origin, size: contentSize, visibleFrame: target)
+        let snapped = DockMagnet.snap(origin: window.frame.origin, size: contentSize,
+                                      visibleFrame: target, avoiding: avoidingFrame())
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.16
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -294,7 +312,7 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// Persists to the `com.internetdialup.claude-pet` UserDefaults suite,
     /// backed by `~/Library/Preferences/com.internetdialup.claude-pet.plist`.
     private func savePosition(origin: CGPoint) {
-        Preferences.shared.position = origin
+        storePosition(origin)
     }
 
     /// Whether the launch placement is still owed. An `LSUIElement` app that
@@ -319,7 +337,7 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// display was attached and the window is exactly where it was.
     private func attemptRestorePosition() -> Bool {
         let origin: CGPoint
-        if let saved = Preferences.shared.position,
+        if let saved = loadPosition(),
            Self.isUsable(origin: saved, size: contentSize) {
             origin = saved
         } else {
@@ -336,9 +354,11 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             let (edge, thickness) = DockMagnet.dockEdge(frame: screen.frame,
                                                         visibleFrame: frame)
             switch edge {
-            case .left:  origin = CGPoint(x: frame.minX, y: frame.minY + thickness + 8)
-            case .right: origin = CGPoint(x: frame.maxX - contentSize.width, y: frame.minY + thickness + 8)
-            default:     origin = CGPoint(x: frame.maxX - contentSize.width - 24, y: frame.minY)
+            case .left:  origin = CGPoint(x: frame.minX + parkOffset, y: frame.minY + thickness + 8)
+            case .right: origin = CGPoint(x: frame.maxX - contentSize.width - parkOffset,
+                                          y: frame.minY + thickness + 8)
+            default:     origin = CGPoint(x: frame.maxX - contentSize.width - 24 - parkOffset,
+                                          y: frame.minY)
             }
         }
         guard let target = Self.screen(for: CGRect(origin: origin, size: contentSize))?.visibleFrame

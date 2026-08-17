@@ -40,7 +40,14 @@ public enum DockMagnet {
     ///   - origin: proposed bottom-left origin of the window.
     ///   - size: the window's size.
     ///   - visibleFrame: the area the window must stay inside.
-    public static func snap(origin: CGPoint, size: CGSize, visibleFrame: CGRect) -> CGPoint {
+    ///   - avoiding: another pet's frame. Both pets snap to exact corners, so
+    ///     two dropped near the same one would land at the identical origin
+    ///     with the back one fully hidden — when the snapped frame would
+    ///     overlap `avoiding` by more than half, it slides along the edge by
+    ///     its own width instead. Deliberate mid-screen overlap from a drag is
+    ///     left alone; only the snap resolution de-stacks.
+    public static func snap(origin: CGPoint, size: CGSize, visibleFrame: CGRect,
+                            avoiding: CGRect? = nil) -> CGPoint {
         var result = clamp(origin: origin, size: size, visibleFrame: visibleFrame)
 
         let distLeft = result.minXDistance(to: visibleFrame)
@@ -60,6 +67,21 @@ public enum DockMagnet {
             result.y = visibleFrame.minY
         } else if distTop <= snapDistance {
             result.y = visibleFrame.maxY - size.height
+        }
+
+        // De-stack only when a snap actually moved the window: a deliberate
+        // mid-screen drop onto the sibling is the operator's business.
+        let preSnap = clamp(origin: origin, size: size, visibleFrame: visibleFrame)
+        if let avoiding, result != preSnap {
+            let snapped = CGRect(origin: result, size: size)
+            let overlap = snapped.intersection(avoiding)
+            if !overlap.isNull, overlap.width * overlap.height > size.width * size.height * 0.5 {
+                // Slide away from the occupied spot, along x (the shared edge
+                // is almost always the bottom), and stay on screen.
+                let step = size.width + 12
+                result.x = snapped.midX <= avoiding.midX ? avoiding.minX - step : avoiding.maxX + 12
+                result = clamp(origin: result, size: size, visibleFrame: visibleFrame)
+            }
         }
 
         return result

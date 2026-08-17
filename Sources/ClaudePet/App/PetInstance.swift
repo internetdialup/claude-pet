@@ -22,6 +22,9 @@ final class PetInstance {
 
     /// Opens the global roster anchored to this pet's window.
     var onRosterRequested: (() -> Void)?
+    /// The other pet's window frame, for snap de-stacking. Wired by the app,
+    /// which is the only thing that knows about siblings.
+    var siblingFrame: (() -> CGRect?)?
 
     // MARK: - Visibility policy
     //
@@ -75,11 +78,22 @@ final class PetInstance {
         // so the grab area cannot drift away from the character.
         let interactive = PetRootView.spriteFrame(pixelSize: pixelSize)
 
+        let slot = self.slot
         let controller = PetWindowController(
             contentSize: size,
             interactiveRect: interactive,
-            rootView: PetRootView(model: model, pixelSize: pixelSize)
+            rootView: PetRootView(model: model, pixelSize: pixelSize),
+            loadPosition: { slot == 0 ? Preferences.shared.position : Preferences.shared.pet2Position },
+            storePosition: { origin in
+                if slot == 0 { Preferences.shared.position = origin }
+                else { Preferences.shared.pet2Position = origin }
+            },
+            // A summoned second pet must not park exactly under the first and
+            // look like a no-op: his default home sits one window further
+            // along the dock edge.
+            parkOffset: slot == 0 ? 0 : size.width + 12
         )
+        controller.avoidingFrame = { [weak self] in self?.siblingFrame?() }
         wire(controller)
         controller.setPersistent(Preferences.shared.persistent)
         self.controller = controller

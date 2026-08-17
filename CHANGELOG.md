@@ -27,6 +27,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   pulses a slow check when a plan awaits your verdict.
 - **🎨 A vector bridge.** `--render-vectors` exports the base body and every
   prop as layered SVGs for design review. Code stays the source of truth.
+- **🦀🦀 A second pet.** Summon him from the menu ("Second pet") and a
+  second Claw'd joins the desk — following the busiest session the first
+  isn't showing (or any session you pin him to), wearing his own costume,
+  remembering his own spot, and getting everything the first has: petting,
+  eggs, the badge, the film step-aside. Two windows, one app — never two
+  processes, which would fight over the event feed. He parks beside his
+  sibling, never under him, and dock-corner snaps de-stack. Maximum two;
+  this is a desk, not a beach.
 - **📌 Persistency.** A new menu toggle for how present he is. On (the
   default, and the classic posture) he floats above every window — still
   stepping aside for video. Off, he lives at normal window level: opening

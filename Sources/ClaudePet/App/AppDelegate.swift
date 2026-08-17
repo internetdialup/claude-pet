@@ -112,6 +112,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 Preferences.shared.persistent.toggle()
                 self?.pets.forEach { $0.applyPersistency() }
             },
+            onToggleSecondPet: { [weak self] in
+                guard let self else { return }
+                self.pets.count > 1 ? self.dismissSecondPet() : self.summonSecondPet()
+            },
+            onPinSecond: { [weak self] id in self?.coordinator.pin(slot: 1, sessionID: id) },
+            onSetSecondCostume: { [weak self] costume in
+                Preferences.shared.pet2Costume = costume
+                guard let self, self.pets.count > 1 else { return }
+                self.pets[1].model.costume = costume
+            },
             onQuit: { NSApp.terminate(nil) }
         )
         primary.model.costume = Preferences.shared.costume
@@ -119,7 +129,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         Notifier.center?.requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
-        if CommandLine.arguments.contains("--demo") { startDemo() }
+        if CommandLine.arguments.contains("--demo") {
+            startDemo()
+        } else if Preferences.shared.pet2Enabled {
+            // The summon survives relaunches; the demo reel keeps a single
+            // performer by rule.
+            summonSecondPet()
+        }
+    }
+
+    // MARK: - The second pet
+
+    private func summonSecondPet() {
+        guard pets.count == 1 else { return }
+        let pet = PetInstance(slot: 1)
+        pet.onRosterRequested = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.toggleRoster(anchoredTo: pet)
+        }
+        pets.append(pet)
+        // Each pet dodges the other's spot when a drag-release snap would
+        // stack them; only the app knows about siblings.
+        for (index, each) in pets.enumerated() {
+            each.siblingFrame = { [weak self] in
+                guard let self, self.pets.count > 1 else { return nil }
+                return self.pets[1 - index].controller?.window.frame
+            }
+        }
+        pet.model.costume = Preferences.shared.pet2Costume
+        pet.rebuildWindow()
+        pet.startFilmWatch()
+        coordinator.setSlots(2)
+        Preferences.shared.pet2Enabled = true
+    }
+
+    private func dismissSecondPet() {
+        guard pets.count == 2 else { return }
+        pets[1].teardown()
+        pets.removeLast()
+        primary.siblingFrame = nil
+        coordinator.setSlots(1)
+        Preferences.shared.pet2Enabled = false
     }
 
     func applicationWillTerminate(_ notification: Notification) {

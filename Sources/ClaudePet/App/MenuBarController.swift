@@ -16,6 +16,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onSetCostume: (Costume) -> Void
     private let onToggleStepAside: () -> Void
     private let onTogglePersistency: () -> Void
+    private let onToggleSecondPet: () -> Void
+    private let onPinSecond: (String?) -> Void
+    private let onSetSecondCostume: (Costume) -> Void
     private let onQuit: () -> Void
 
     init(onToggleVisibility: @escaping () -> Void,
@@ -25,6 +28,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
          onSetCostume: @escaping (Costume) -> Void,
          onToggleStepAside: @escaping () -> Void,
          onTogglePersistency: @escaping () -> Void,
+         onToggleSecondPet: @escaping () -> Void,
+         onPinSecond: @escaping (String?) -> Void,
+         onSetSecondCostume: @escaping (Costume) -> Void,
          onQuit: @escaping () -> Void) {
         self.onToggleVisibility = onToggleVisibility
         self.onPin = onPin
@@ -33,6 +39,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.onSetCostume = onSetCostume
         self.onToggleStepAside = onToggleStepAside
         self.onTogglePersistency = onTogglePersistency
+        self.onToggleSecondPet = onToggleSecondPet
+        self.onPinSecond = onPinSecond
+        self.onSetSecondCostume = onSetSecondCostume
         self.onQuit = onQuit
 
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -122,6 +131,50 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         pinItem.submenu = pinMenu
         menu.addItem(pinItem)
+
+        // The second pet: summon/dismiss, and — while he is out — his own
+        // session to follow and his own wardrobe.
+        let secondItem = NSMenuItem(title: "Second pet 🦀", action: nil, keyEquivalent: "")
+        let secondMenu = NSMenu()
+        let summoned = Preferences.shared.pet2Enabled
+        secondMenu.addItem(action(summoned ? "Dismiss second pet" : "Summon second pet") { [weak self] in
+            self?.onToggleSecondPet()
+            self?.refresh()
+        })
+        if summoned {
+            secondMenu.addItem(.separator())
+
+            let followItem = NSMenuItem(title: "Follow session", action: nil, keyEquivalent: "")
+            let followMenu = NSMenu()
+            let pinned2 = Preferences.shared.pet2PinnedSessionID
+            let auto2 = action("Busiest other session (auto)") { [weak self] in self?.onPinSecond(nil) }
+            auto2.state = pinned2 == nil ? .on : .off
+            followMenu.addItem(auto2)
+            if !state.sessions.isEmpty { followMenu.addItem(.separator()) }
+            for session in state.sessions {
+                let entry = action(session.name) { [weak self] in self?.onPinSecond(session.id) }
+                entry.state = pinned2 == session.id ? .on : .off
+                entry.toolTip = session.cwd
+                followMenu.addItem(entry)
+            }
+            followItem.submenu = followMenu
+            secondMenu.addItem(followItem)
+
+            let costume2Item = NSMenuItem(title: "Costume", action: nil, keyEquivalent: "")
+            let costume2Menu = NSMenu()
+            let worn2 = Preferences.shared.pet2Costume
+            for costume in Costume.allCases {
+                let entry = action(costume.title) { [weak self] in
+                    self?.onSetSecondCostume(costume)
+                }
+                entry.state = costume == worn2 ? .on : .off
+                costume2Menu.addItem(entry)
+            }
+            costume2Item.submenu = costume2Menu
+            secondMenu.addItem(costume2Item)
+        }
+        secondItem.submenu = secondMenu
+        menu.addItem(secondItem)
 
         menu.addItem(.separator())
 
