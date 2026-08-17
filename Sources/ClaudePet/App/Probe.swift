@@ -8,6 +8,17 @@ import Foundation
 /// this touches nothing under `~/.claude/` except to read — that is the redline.
 @MainActor
 enum Probe {
+    /// A duration off the command line, or nil for anything a probe cannot
+    /// honour. `Double` parses "nan", "inf" and "1e30" perfectly happily, so
+    /// the check has to live where the string becomes a number — the only
+    /// place still holding both what was typed and whether anything was. An
+    /// hour is longer than any probe anyone means and short of everything
+    /// that overflows on the way to a frame count.
+    nonisolated static func clampedDuration(_ text: String) -> Double? {
+        guard let value = Double(text), value.isFinite, value > 0 else { return nil }
+        return min(value, 3600)
+    }
+
     static func run(seconds: Double) {
         let coordinator = ActivityCoordinator()
         coordinator.start()

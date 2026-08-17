@@ -146,8 +146,18 @@ public enum HookInstaller {
     /// shipped as a bundle resource. Reading it rather than duplicating it as a
     /// string literal means the file you can read in the repo is exactly the file
     /// that gets installed.
+    ///
+    /// Resolved through `ResourceBundle`, never `Bundle.module`: SwiftPM's
+    /// generated accessor probes the app's `bundleURL` (beside the .app, where
+    /// the bundle has never been) and then an absolute path into the BUILD
+    /// machine's scratch directory — and calls `fatalError` when both miss. A
+    /// downloaded build died on this exact menu row before the `guard` was
+    /// ever evaluated; the machine that could see it was the one machine that
+    /// could not. `HookError.missingShim` was always the right answer — the
+    /// optional bundle is what finally connects it to its condition.
     static func shimSource() throws -> String {
-        guard let url = Bundle.module.url(forResource: "claude-pet-hook", withExtension: "sh") else {
+        guard let bundle = ResourceBundle.resolved,
+              let url = bundle.url(forResource: "claude-pet-hook", withExtension: "sh") else {
             throw HookError.missingShim
         }
         return try String(contentsOf: url, encoding: .utf8)

@@ -17,7 +17,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var demoTimer: Timer?
     private var demoStartedAt: Date?
 
+    /// `UNUserNotificationCenter.current()` RAISES — it does not return nil —
+    /// when the process has no bundle identifier, which is every `swift run`
+    /// and every bare `.build/debug/ClaudePet` the README documents. Looked up
+    /// once behind an identity check so a run from source posts no banner
+    /// instead of aborting to raise one. This check must not be "simplified"
+    /// back out: it looks redundant from inside a packaged build, which is the
+    /// only place it looks redundant.
+    @MainActor
+    private enum Notifier {
+        static let center: UNUserNotificationCenter? =
+            Bundle.main.bundleIdentifier == nil ? nil : .current()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Two pets is a bug, not company: a rebuild opened over a running copy
+        // (or a plain double-open) left both on the desktop. Latest wins — the
+        // copy the operator just launched is the one they mean, so it asks the
+        // elders to quit rather than quitting itself. Politely: terminate(),
+        // never forceTerminate — the old copy gets its applicationWillTerminate.
+        // Skipped without a bundle identity (bare `swift run` development runs).
+        if let identity = Bundle.main.bundleIdentifier {
+            let ourPID = ProcessInfo.processInfo.processIdentifier
+            for elder in NSRunningApplication.runningApplications(withBundleIdentifier: identity)
+            where elder.processIdentifier != ourPID {
+                elder.terminate()
+            }
+        }
+
         buildWindow()
 
         coordinator.onChange = { [weak self] state in
@@ -61,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.costume = Preferences.shared.costume
         startFilmWatch()
 
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        Notifier.center?.requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         if CommandLine.arguments.contains("--demo") { startDemo() }
     }
@@ -93,8 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // Re-read the controller every sample: `buildWindow` replaces
                 // it wholesale, and a captured window is the one that is wrong
                 // at the moment it matters.
-                guard let window = self?.windowController?.window else { return nil }
-                return FullScreenWatch.geometry(of: PetWindowController.screen(for: window.frame))
+                guard let window = self?.windowController?.window,
+                      let screen = PetWindowController.screen(for: window.frame)
+                else { return nil }   // no display → no geometry → the detector surfaces him
+                return FullScreenWatch.geometry(of: screen)
             },
             onChange: { [weak self] playing in self?.filmChanged(playing: playing) })
         film.start()
@@ -452,6 +481,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let request = UNNotificationRequest(identifier: UUID().uuidString,
                                             content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+        Notifier.center?.add(request)
     }
 }

@@ -159,8 +159,13 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             window.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            guard let self, self.fadeSeq == seq else { return }
-            self.window.orderOut(nil)
+            // AppKit delivers animation completions on the main thread; the
+            // closure is typed Sendable, so re-assert the isolation the same
+            // way the mouse handlers below do.
+            MainActor.assumeIsolated {
+                guard let self, self.fadeSeq == seq else { return }
+                self.window.orderOut(nil)
+            }
         })
     }
 
@@ -217,8 +222,13 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 
     fileprivate func endDrag() {
         dragOffset = nil
-        // Resolve against whichever display he actually landed on.
-        let target = Self.screen(for: window.frame).visibleFrame
+        // Resolve against whichever display he actually landed on. With no
+        // display at all, defer: leave the window where the hand let go, and
+        // do not persist an origin resolved against nothing.
+        guard let target = Self.screen(for: window.frame)?.visibleFrame else {
+            onDragEnded?()
+            return
+        }
         let snapped = DockMagnet.snap(origin: window.frame.origin, size: contentSize, visibleFrame: target)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.16
@@ -231,26 +241,43 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - Screens
 
-    /// The screen containing `rect`'s centre, else the one whose centre is
-    /// nearest. Never returns nil: a window dropped in the gap between two
-    /// non-aligned displays still has to land somewhere.
-    static func screen(for rect: CGRect) -> NSScreen {
+    /// The rule, pure over plain geometry: the frame containing `rect`'s
+    /// centre, else the nearest by centre distance — as an INDEX into the
+    /// array it was asked about, so "no displays" is `[]` in a unit test
+    /// instead of hardware nobody owns. Ties go to the earliest index, which
+    /// is `NSScreen.screens` order; without that rule a window on a seam
+    /// resolves to a different monitor per call.
+    static func nearestScreenIndex(to rect: CGRect, among frames: [CGRect]) -> Int? {
+        guard !frames.isEmpty else { return nil }
         let centre = CGPoint(x: rect.midX, y: rect.midY)
-        if let hit = NSScreen.screens.first(where: { $0.frame.contains(centre) }) { return hit }
-        let nearest = NSScreen.screens.min { lhs, rhs in
-            Self.distanceSquared(centre, CGPoint(x: lhs.frame.midX, y: lhs.frame.midY))
-                < Self.distanceSquared(centre, CGPoint(x: rhs.frame.midX, y: rhs.frame.midY))
+        if let hit = frames.firstIndex(where: { $0.contains(centre) }) { return hit }
+        return frames.enumerated().min { lhs, rhs in
+            Self.distanceSquared(centre, CGPoint(x: lhs.element.midX, y: lhs.element.midY))
+                < Self.distanceSquared(centre, CGPoint(x: rhs.element.midX, y: rhs.element.midY))
+        }?.offset
+    }
+
+    /// The screen for `rect`, or nil when no display is attached.
+    ///
+    /// nil is an honest answer, not a defect to paper over: `NSScreen.main` is
+    /// documented to return nil and `NSScreen.screens` documented to be empty
+    /// exactly then (clamshell with the external unplugged, mid-
+    /// reconfiguration, wake). The old chain ended in `NSScreen.screens[0]`,
+    /// which subscripts the exact array whose emptiness got it there — a
+    /// launch or an unplug became an abort. Callers defer rather than guess:
+    /// there is no right position when there is nowhere to put it, and the
+    /// display-change notification is the same one that will ask again.
+    static func screen(for rect: CGRect) -> NSScreen? {
+        let screens = NSScreen.screens   // one read; the index resolves against this local
+        guard let index = nearestScreenIndex(to: rect, among: screens.map(\.frame)) else {
+            return nil
         }
-        return nearest ?? NSScreen.main ?? NSScreen.screens[0]
+        return screens[index]
     }
 
     private static func distanceSquared(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
         let dx = a.x - b.x, dy = a.y - b.y
         return dx * dx + dy * dy
-    }
-
-    private var currentVisibleFrame: CGRect {
-        Self.screen(for: window.frame).visibleFrame
     }
 
     // MARK: - Position persistence
@@ -261,16 +288,43 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         Preferences.shared.position = origin
     }
 
+    /// Whether the launch placement is still owed. An `LSUIElement` app that
+    /// launched with no display attached has an unplaced, invisible window, no
+    /// Dock icon to click, and no way to be asked back short of relaunching —
+    /// so that path must remember the debt and settle it when a display
+    /// arrives. Cleared only when a placement actually lands, never by being
+    /// read: the display change that still has no display must not discharge
+    /// it.
+    struct PlacementDebt: Equatable, Sendable {
+        private(set) var isOwed = false
+        mutating func attempted(placed: Bool) { isOwed = !placed }
+    }
+
+    private var placementDebt = PlacementDebt()
+
     private func restorePosition() {
+        placementDebt.attempted(placed: attemptRestorePosition())
+    }
+
+    /// One placement attempt. Returns whether it landed — false means no
+    /// display was attached and the window is exactly where it was.
+    private func attemptRestorePosition() -> Bool {
         let origin: CGPoint
         if let saved = Preferences.shared.position,
            Self.isUsable(origin: saved, size: contentSize) {
             origin = saved
         } else {
-            let frame = currentVisibleFrame
             // First launch: park next to the dock, which is where the operator
-            // asked for it to live.
-            let (edge, thickness) = DockMagnet.dockEdge(frame: (window.screen ?? NSScreen.main!).frame,
+            // asked for it to live. The screen comes from the optional lookup —
+            // the old `window.screen ?? NSScreen.main!` spent its optional
+            // chain on the wrong operand: both nils fire for the same reason
+            // (nothing attached), so the force unwrap aborted first launches
+            // in clamshell.
+            guard let screen = window.screen ?? Self.screen(for: window.frame) else {
+                return false
+            }
+            let frame = screen.visibleFrame
+            let (edge, thickness) = DockMagnet.dockEdge(frame: screen.frame,
                                                         visibleFrame: frame)
             switch edge {
             case .left:  origin = CGPoint(x: frame.minX, y: frame.minY + thickness + 8)
@@ -278,13 +332,20 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             default:     origin = CGPoint(x: frame.maxX - contentSize.width - 24, y: frame.minY)
             }
         }
-        let target = Self.screen(for: CGRect(origin: origin, size: contentSize)).visibleFrame
+        guard let target = Self.screen(for: CGRect(origin: origin, size: contentSize))?.visibleFrame
+        else { return false }
         window.setFrameOrigin(DockMagnet.clamp(origin: origin, size: contentSize, visibleFrame: target))
+        return true
     }
 
     /// A saved position is usable if a decent chunk of the window would still be
     /// on some display. Guards against restoring onto a monitor that has since
     /// been unplugged.
+    ///
+    /// `contains` on the empty array is false, so "no displays" reads as "not
+    /// usable" — safe, and correctly so. That is the load-bearing difference
+    /// from the subscript this file used to end its screen lookup with: this
+    /// read degrades to the parking path, that one took the process.
     static func isUsable(origin: CGPoint, size: CGSize) -> Bool {
         let rect = CGRect(origin: origin, size: size)
         let needed = size.width * size.height * 0.5
@@ -294,11 +355,18 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Displays were added, removed, or rearranged. Only intervene if he is now
-    /// stranded — otherwise leave him exactly where the operator put him.
+    /// Displays were added, removed, or rearranged. The launch debt settles
+    /// first — "was he ever placed" and "did he drift off screen" are
+    /// different questions and the first one comes first. Otherwise intervene
+    /// only if he is stranded, and defer when there is currently no display
+    /// to resolve against: the frame is still the best record of where he was.
     @objc private func screenParametersChanged() {
+        if placementDebt.isOwed {
+            placementDebt.attempted(placed: attemptRestorePosition())
+            return
+        }
         guard !Self.isUsable(origin: window.frame.origin, size: contentSize) else { return }
-        let target = currentVisibleFrame
+        guard let target = Self.screen(for: window.frame)?.visibleFrame else { return }
         window.setFrameOrigin(DockMagnet.clamp(origin: window.frame.origin, size: contentSize, visibleFrame: target))
         savePosition(origin: window.frame.origin)
     }

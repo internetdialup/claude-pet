@@ -129,3 +129,30 @@ if [ -n "$LEAKS" ]; then
   exit 1
 fi
 echo "  ✓ clean (only the fabricated /Users/dev demo strings remain)"
+
+# Portability check 3/3 — the gap the anonymity fix hid.
+#
+# run.sh builds under /tmp to keep the build path out of $HOME. Correct for
+# anonymity — and its side effect is that SwiftPM's Bundle.module fallback
+# literal becomes /tmp/… instead of /Users/…, so the check above goes quiet
+# about it. A binary carrying its build directory resolves resources on
+# exactly one Mac in the world: the one that compiled it. v1.x of the fork
+# shipped three releases that died on every machine but that one, from the
+# menu row the app exists to perform. Same technique as above: raw bytes,
+# against the .app's binary before compression.
+echo
+echo "Portability check 3/3 — no build-machine paths, no fatalError resource accessor:"
+BUILDPATHS="$(LC_ALL=C grep -oa "/tmp/claude-pet-build[A-Za-z0-9_./-]*" "$MACHO" | sort -u || true)"
+if [ -n "$BUILDPATHS" ]; then
+  echo "  ✗ FAIL — the binary names a build directory that exists on this machine only:"
+  printf '      %s\n' $BUILDPATHS
+  echo "    Resources resolved through it die on every other Mac."
+  exit 1
+fi
+if LC_ALL=C grep -qa "could not load resource bundle" "$MACHO"; then
+  echo "  ✗ FAIL — SwiftPM's resource-bundle fatalError is reachable."
+  echo "    Something resolves resources through Bundle.module; route it"
+  echo "    through ResourceBundle.resolved instead."
+  exit 1
+fi
+echo "  ✓ clean (resources resolve relative to the app, on any machine)"

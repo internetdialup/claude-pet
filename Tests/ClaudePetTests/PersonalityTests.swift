@@ -317,9 +317,13 @@ struct DisplayTests {
     @Test("A window between displays still resolves to one")
     func alwaysResolvesToAScreen() {
         let stranded = CGRect(x: -50_000, y: -50_000, width: 200, height: 150)
-        // Must not trap or return nil — the pet has to land somewhere.
+        // With a display attached the lookup must resolve, however far off the
+        // pet was thrown. nil is reserved for genuinely zero displays — this
+        // runner has at least one — and that branch is covered as pure
+        // geometry in CrashHardeningTests, where "no displays" is `[]`.
         let screen = PetWindowController.screen(for: stranded)
-        #expect(screen.frame.width > 0)
+        #expect(screen != nil)
+        #expect((screen?.frame.width ?? 0) > 0)
     }
 }
 

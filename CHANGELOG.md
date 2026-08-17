@@ -62,6 +62,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Fixed
 
+- **One pet, ever.** Launching the app while a copy is already running now
+  quits the old copy instead of doubling him — the build you just launched
+  is the one you meant.
+- **Crash hardening, from the fork's crash hunt.** A launch or display
+  unplug with no screen attached no longer aborts (the pet defers placement
+  and settles the debt when a display arrives); "Install Claude hooks…"
+  works on machines that didn't compile the app (resources resolve relative
+  to the app, and two release checks now prove it); a clock that briefly
+  runs backwards can no longer kill him mid-flame; building from source and
+  running the bare binary reaches the desktop instead of aborting on the
+  notification centre; and `--probe nan`/`inf` run the default instead of
+  probing nothing or forever.
 - **First click grabs him.** A press while another app was frontmost was
   swallowed as an activation click; dragging him needed a second try.
 - **The bubble tail is no longer eaten by the sprite** in the overlap band —

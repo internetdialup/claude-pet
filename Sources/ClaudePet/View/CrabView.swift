@@ -751,7 +751,7 @@ public struct CrabView: View {
             costumeProgress = CostumeClock.shared.progress(at: time)
             if costumeProgress < 1 { ghostCostume = CostumeClock.shared.previous }
         }
-        let localT = frozenTime == nil ? time - moodEpoch : time
+        let localT = frozenTime == nil ? MoodClock.shared.age(of: mood, at: time) : time
         let tint = CrabView.composedTint(mood: mood,
                                          t: localT,
                                          rainbowElapsed: frozenTime == nil
@@ -770,7 +770,7 @@ public struct CrabView: View {
     }
 
     private func currentPose(at time: Double) -> CrabPose {
-        let t = frozenTime == nil ? time - moodEpoch : time
+        let t = frozenTime == nil ? MoodClock.shared.age(of: mood, at: time) : time
 
         // During the party the pose cycles too. `MoodClock` is deliberately
         // bypassed: it rebases time on every mood change, which at 0.8s per pose
@@ -849,7 +849,6 @@ public struct CrabView: View {
     static let badgePulseDuration = 2.4
 
     /// Set when the mood changes so transient animations replay from the start.
-    private var moodEpoch: Double { MoodClock.shared.epoch(for: mood) }
 }
 
 /// Records when each mood was last entered, so `done` and `needsAttention`
@@ -878,6 +877,29 @@ final class MoodClock {
             blendStartedAt = startedAt
         }
         return startedAt
+    }
+
+    /// The mood's age at `time`, clamped at zero — and this wrapper is where
+    /// EVERY reader gets the number, not `time - epoch` by hand.
+    ///
+    /// The age can genuinely run backwards: the epoch is stamped off the wall
+    /// clock at the moment of the call, while `time` is a `TimelineView`
+    /// `.periodic` entry — a scheduled instant, by construction at or before
+    /// the frame it renders, re-anchored on every mood change and every
+    /// reaction fast-path flip. The coarsest tier (sleeping, 1/6s) can hand
+    /// back a date ~167ms behind the epoch, and Swift's `%` keeps the sign of
+    /// the dividend — so an unclamped age reached `flameFrames[-1]` and killed
+    /// the process while the pet was on fire. Four readers already guarded
+    /// their own arithmetic; this clamps the number they all read, and the
+    /// downstream subscripts stay deliberately partial — their totality is
+    /// this seam's promise, and two guards for one invariant is how the second
+    /// one drifts.
+    ///
+    /// Still rebases: the clamp wraps the mutating `epoch`, never replaces it.
+    /// A clamp that quietly stopped committing mood flips would freeze every
+    /// one-shot beat at the previous mood's clock.
+    func age(of mood: PetMood, at time: Double) -> Double {
+        max(0, time - epoch(for: mood))
     }
 
     /// The epoch without the rebase side effect, for callers that only want to
