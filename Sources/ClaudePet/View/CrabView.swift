@@ -444,7 +444,7 @@ public enum CrabAnimator {
     /// about a pixel deep, and the done hop re-armed twice — then the
     /// envelope's tail cools everything back to a plain done before the mood
     /// decays away.
-    public static func applyCelebration(t: Double, to pose: inout CrabPose) {
+    public static func applyCelebration(t: Double, epic: Bool = false, to pose: inout CrabPose) {
         let envelope = Ease.window(t, duration: 10, edge: 0.6)
         guard envelope > 0.001 else { return }
 
@@ -456,6 +456,23 @@ public enum CrabAnimator {
                 pose.bob = min(pose.bob, -2)
             }
         }
+
+        if epic {
+            // The transform: he grows a fifth through the crown rows and
+            // settles back, eased at both ends. The overhead check dissolves
+            // away for the peak — at 1.2x it renders as a mangled fragment
+            // cropped by the grid's edge, and a missing prop reads better
+            // than a broken one.
+            let peak = Ease.window(t - 1.2, duration: 2.2, edge: 0.8)
+            pose.scale *= 1 + 0.2 * peak
+            pose.propVisibility = min(pose.propVisibility, 1 - peak)
+        }
+    }
+
+    /// The peak of the epic transform at `t`, exposed for the tint composer
+    /// and the tests — one envelope, two consumers.
+    static func epicPeak(doneT t: Double) -> Double {
+        Ease.window(t - 1.2, duration: 2.2, edge: 0.8)
     }
 
     /// The poke reaction: he squashes down, then springs back.
@@ -564,6 +581,8 @@ public struct CrabView: View {
     public var costume: Costume = .none
     /// A cooking sprint just landed — the done pose plays its extended payoff.
     public var celebrating: Bool = false
+    /// …after cooking a while: the payoff is the full finale.
+    public var epicCelebration: Bool = false
     /// The focused session's todo completion, for the near-done glow.
     public var taskFraction: Double?
     /// Reference-time instant the pointer arrived on him, or nil.
@@ -602,6 +621,7 @@ public struct CrabView: View {
     public init(mood: PetMood,
                 costume: Costume = .none,
                 celebrating: Bool = false,
+                epicCelebration: Bool = false,
                 taskFraction: Double? = nil,
                 hoverSince: Double? = nil,
                 hoverEndedAt: Double? = nil,
@@ -620,6 +640,7 @@ public struct CrabView: View {
         self.mood = mood
         self.costume = costume
         self.celebrating = celebrating
+        self.epicCelebration = epicCelebration
         self.taskFraction = taskFraction
         self.hoverSince = hoverSince
         self.hoverEndedAt = hoverEndedAt
@@ -679,6 +700,25 @@ public struct CrabView: View {
         return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
     }
 
+    /// The epic finale's tint: the rainbow burst under the same 10s master
+    /// envelope, with the flash train riding ON the hue cycle — colour first,
+    /// white light over it, everything easing up from and back down to
+    /// terracotta.
+    static func epicTint(doneT t: Double) -> Color? {
+        let envelope = Ease.window(t, duration: 10, edge: 0.6)
+        guard envelope > 0.001 else { return nil }
+        let hue = (t / 5).truncatingRemainder(dividingBy: 1)
+        let target = SpriteTint.rgb(hue: hue, saturation: 0.7, brightness: 0.95)
+        let base = SpriteTint.bodyRGB
+        let r = base.r + (target.r - base.r) * envelope
+        let g = base.g + (target.g - base.g) * envelope
+        let b = base.b + (target.b - base.b) * envelope
+        let flash = 0.35 * envelope * Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 1.2))
+        return Color(red: r + (1 - r) * flash,
+                     green: g + (1 - g) * flash,
+                     blue: b + (1 - b) * flash)
+    }
+
     /// The celebration flash train: quick white pulses under the same 10s
     /// master envelope as the pose overlay, cooling to nothing in the tail.
     static func celebrationTint(doneT t: Double) -> Color? {
@@ -694,8 +734,10 @@ public struct CrabView: View {
     /// fight frame-by-frame: the user's party outranks the celebration, which
     /// outranks the disco, which outranks the near-done glow.
     static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
-                             celebrating: Bool, taskFraction: Double?) -> Color? {
+                             celebrating: Bool, epic: Bool = false,
+                             taskFraction: Double?) -> Color? {
         if let rainbowElapsed, let party = rainbowTint(elapsed: rainbowElapsed) { return party }
+        if mood == .done, celebrating, epic, let burst = epicTint(doneT: t) { return burst }
         if mood == .done, celebrating, let flash = celebrationTint(doneT: t) { return flash }
         if mood == .cooking {
             if let disco = discoTint(cookingT: t) { return disco }
@@ -770,6 +812,7 @@ public struct CrabView: View {
                                          rainbowElapsed: frozenTime == nil
                                              ? rainbowSince.map { time - $0 } : nil,
                                          celebrating: celebrating,
+                                         epic: epicCelebration,
                                          taskFraction: taskFraction)
         return PixelCanvasView(buffer: CrabRig.render(pose,
                                                       costume: costume,
@@ -800,7 +843,7 @@ public struct CrabView: View {
                                          ? Calendar.current.component(.hour, from: Date())
                                          : nil)
         if mood == .done, celebrating, frozenTime == nil {
-            CrabAnimator.applyCelebration(t: t, to: &pose)
+            CrabAnimator.applyCelebration(t: t, epic: epicCelebration, to: &pose)
         }
         if let hoverSince, frozenTime == nil {
             // The hover's start instant doubles as the variant seed: chosen once
