@@ -85,6 +85,10 @@ public final class ActivityCoordinator {
     /// so the decay waits for the animation plus a beat of afterglow.
     static var celebrationDecay: TimeInterval = 12
 
+    /// A sprint this long earns the FULL finale — flash, dual glow, the
+    /// transform, the rainbow burst. Shorter sprints keep the standard bow.
+    static var epicCookThreshold: TimeInterval = 60
+
     /// How old a replayed turn-end may be and still stamp the completion
     /// badge. The badge now lives until new work consumes it, so without this
     /// cap every launch would resurrect the last completion of every live
@@ -383,6 +387,13 @@ public final class ActivityCoordinator {
                 // cooking pace when the turn ended?
                 session.celebrating = session.mood == .working
                     && Self.isCooking(session, now: event.timestamp)
+                // The stopwatch decides the tier, then resets for the next
+                // sprint.
+                session.epicCelebrating = session.celebrating
+                    && session.cookingSince.map {
+                        event.timestamp.timeIntervalSince($0) >= Self.epicCookThreshold
+                    } ?? false
+                session.cookingSince = nil
                 // A turn end can arrive twice — the transcript fold and the
                 // Stop hook — so the first stamp of this turn wins; a genuine
                 // new turn always passes through thinking/working first, which
@@ -436,9 +447,26 @@ public final class ActivityCoordinator {
                 continue
             }
 
+            // The cook stopwatch: stamped when the cooking pace first appears
+            // on a real tool or subagent observation — event-side, the single
+            // writer, so the per-slot derives can never double-stamp. Never
+            // cleared on the thinking beat between tools; that would reset
+            // the stopwatch mid-sprint.
+            switch event.kind {
+            case .toolStarted, .subagents:
+                if session.cookingSince == nil, Self.isCooking(session, now: event.timestamp) {
+                    session.cookingSince = event.timestamp
+                }
+            default:
+                break
+            }
+
             // The celebration belongs to the done pose alone; any move off it
             // takes the flag along.
-            if session.mood != .done { session.celebrating = false }
+            if session.mood != .done {
+                session.celebrating = false
+                session.epicCelebrating = false
+            }
 
             sessions[session.id] = session
             // Only moods that `NotificationNudge` knows how to announce, and
@@ -489,6 +517,17 @@ public final class ActivityCoordinator {
         // adopted mid-turn at launch — all leave a mood nothing will ever
         // clear, and the list is certainly incomplete. A timeout recovers from
         // the ones nobody has found yet.
+        // The stopwatch clears only when a session is fully cold — no tool
+        // calls left in the rate window and no subagents in flight. A sprint
+        // that pauses to think keeps its clock.
+        for (id, var session) in sessions where session.cookingSince != nil {
+            let cutoff = now.addingTimeInterval(-Self.toolRateWindow)
+            if session.recentToolCalls.filter({ $0 >= cutoff }).isEmpty, session.subagentCount == 0 {
+                session.cookingSince = nil
+                sessions[id] = session
+            }
+        }
+
         for (id, var session) in sessions {
             guard let limit = Self.quietLimit(for: session.mood, celebrating: session.celebrating),
                   now.timeIntervalSince(session.lastActivity) > limit else { continue }
@@ -646,6 +685,7 @@ public final class ActivityCoordinator {
             bubbleStyle: style,
             taskFraction: taskFraction,
             celebrating: mood == .done && focus.celebrating,
+            epicCelebration: mood == .done && focus.epicCelebrating,
             completedAt: focus.completionBadgeAt
         )
     }

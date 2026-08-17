@@ -61,6 +61,8 @@ public struct PetState: Sendable, Equatable {
     /// A `.cooking` sprint just landed — the done state plays its extended
     /// payoff instead of the plain hop.
     public var celebrating: Bool = false
+    /// …and it had been cooking a while: the payoff is the full finale.
+    public var epicCelebration: Bool = false
     /// The focused session's completion marker: drives the foot badge for
     /// five minutes after a turn lands, and the reminder nudges inside that
     /// window. Written once per completion, so the equality-gated publish

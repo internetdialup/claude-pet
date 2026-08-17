@@ -51,6 +51,13 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// Set when a `.cooking` sprint lands on `.done`: the payoff animation
     /// runs longer than a plain done, and the decay window stretches with it.
     public var celebrating: Bool = false
+    /// When this sprint's cooking pace first appeared — the cook stopwatch.
+    /// Survives the `.thinking` beats between tools; cleared when the turn
+    /// lands or the session goes fully cold.
+    public var cookingSince: Date?
+    /// The landing sprint had been cooking a while: the done state plays the
+    /// FULL finale — flash, glow, transform, rainbow.
+    public var epicCelebrating: Bool = false
     /// When the last turn finished — the quiet completion marker. Outlives the
     /// done pose (mood decay does not clear it); consumed by new work or by
     /// its own five-minute clock.
