@@ -54,6 +54,9 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// A press held still for 0.35s is petting, ended by release or movement.
     var onPetStart: (() -> Void)?
     var onPetEnd: (() -> Void)?
+    /// Fired after a drag settles — the film watch re-reads a window that may
+    /// have landed on another display, and a deferred step-aside gets its turn.
+    var onDragEnded: (() -> Void)?
 
     /// The sprite square — hover tracking and pet eligibility never widen
     /// beyond it, because greeting and petting mean "the pointer is on HIM".
@@ -121,10 +124,64 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        // A deliberate show cancels any fade in flight and clears its alpha —
+        // without this, "show" after an interrupted step-aside orders front an
+        // invisible window with no path back (the alpha-0 trap).
+        fadeSeq += 1
+        window.alphaValue = 1
         window.orderFrontRegardless()
     }
 
     func hide() {
+        fadeSeq += 1
+        window.orderOut(nil)
+    }
+
+    // MARK: - Step-aside fades
+
+    /// Bumped by every deliberate show/hide and every new fade, so a deadline
+    /// belonging to an abandoned fade lands on nothing — an interrupted
+    /// step-aside must not order the window out half a second after he came
+    /// back.
+    private var fadeSeq = 0
+
+    /// Whether a drag is in flight — the step-aside defers to a held crab.
+    var isDragging: Bool { dragOffset != nil }
+
+    /// Eases the window out over `duration`, ordering it out only when the
+    /// fade actually finishes. Retargeting an NSWindow animator's `alphaValue`
+    /// continues from its current value, so an interrupted fade never snaps.
+    func fadeOut(over duration: TimeInterval = 0.45) {
+        fadeSeq += 1
+        let seq = fadeSeq
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            window.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            guard let self, self.fadeSeq == seq else { return }
+            self.window.orderOut(nil)
+        })
+    }
+
+    /// Orders the window front at its CURRENT alpha first, then eases it up —
+    /// in at zero, then rise. Committing the frame before the animation is
+    /// what keeps a return from a film from flashing.
+    func fadeIn(over duration: TimeInterval = 0.5) {
+        fadeSeq += 1
+        window.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().alphaValue = 1
+        }
+    }
+
+    /// Builds the window already faded out, for a rebuild that happens while
+    /// he is stepped aside — the new window must not flash over the film.
+    func prepareSteppedAside() {
+        fadeSeq += 1
+        window.alphaValue = 0
         window.orderOut(nil)
     }
 
@@ -169,6 +226,7 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             window.animator().setFrameOrigin(snapped)
         }
         savePosition(origin: snapped)
+        onDragEnded?()
     }
 
     // MARK: - Screens

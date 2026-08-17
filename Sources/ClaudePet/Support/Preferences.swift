@@ -33,6 +33,23 @@ public final class Preferences {
         /// default.
         static let scale = "pet.pixelSize.v3"
         static let costume = "pet.costume"
+        static let stepsAsideForVideo = "pet.video.stepsAside"
+    }
+
+    /// Whether he gets out of the way of a fullscreen film on his own display.
+    ///
+    /// **ON by default**, because the asymmetry runs one way: wrongly absent is
+    /// a politely missing pet you can bring back with one menu row; wrongly
+    /// present is a crab sitting on top of something you may be presenting
+    /// from, in front of people. A default that ships off is a feature nobody
+    /// discovers until after the meeting it would have helped.
+    ///
+    /// This gates what is DONE with the film answer, never whether the
+    /// question is asked — `FilmWatch` runs regardless, because sound cues are
+    /// suppressed during films whether or not he steps aside for them.
+    public var stepsAsideForVideo: Bool {
+        get { store.object(forKey: Key.stepsAsideForVideo) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.stepsAsideForVideo) }
     }
 
     /// The costume he is wearing.

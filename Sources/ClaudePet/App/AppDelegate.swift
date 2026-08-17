@@ -44,9 +44,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Preferences.shared.costume = costume
                 self?.model.costume = costume
             },
+            onToggleStepAside: { [weak self] in
+                guard let self else { return }
+                Preferences.shared.stepsAsideForVideo.toggle()
+                // Act on the cached answer now — the watch only calls back on
+                // belief CHANGES, and the film is already believed.
+                if Preferences.shared.stepsAsideForVideo {
+                    self.stepAsideIfWanted()
+                } else if self.steppedAside {
+                    self.steppedAside = false
+                    if !self.petHiddenByUser { self.windowController?.fadeIn() }
+                }
+            },
             onQuit: { NSApp.terminate(nil) }
         )
         model.costume = Preferences.shared.costume
+        startFilmWatch()
 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
@@ -54,7 +67,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        filmWatch?.stop()
         coordinator.stop()
+    }
+
+    // MARK: - Stepping aside for films
+
+    /// The three facts visibility policy is decided from. `isVisible` is never
+    /// read for policy — a window faded out by the film watch reads as hidden,
+    /// and one menu click would then both surface him and corrupt the
+    /// bookkeeping.
+    private var petHiddenByUser = false
+    private var steppedAside = false
+    /// The operator brought him back mid-film: an answer to THIS film, cleared
+    /// when it ends.
+    private var filmOverride = false
+    /// The watch's current belief, cached because the preference toggles need
+    /// the answer now, not the next change.
+    private var filmPlaying = false
+    private var filmWatch: FilmWatch?
+
+    private func startFilmWatch() {
+        let film = FilmWatch(
+            geometry: { [weak self] in
+                // Re-read the controller every sample: `buildWindow` replaces
+                // it wholesale, and a captured window is the one that is wrong
+                // at the moment it matters.
+                guard let window = self?.windowController?.window else { return nil }
+                return FullScreenWatch.geometry(of: PetWindowController.screen(for: window.frame))
+            },
+            onChange: { [weak self] playing in self?.filmChanged(playing: playing) })
+        film.start()
+        filmWatch = film
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.filmWatch?.reconsider() }
+        }
+    }
+
+    private func filmChanged(playing: Bool) {
+        filmPlaying = playing
+        if playing {
+            stepAsideIfWanted()
+        } else {
+            // The film's reason is withdrawn; so is the override it earned.
+            filmOverride = false
+            if steppedAside {
+                steppedAside = false
+                // Coming back is not a promise to appear — the operator's own
+                // hide stands on its own.
+                if !petHiddenByUser { windowController?.fadeIn() }
+            }
+        }
+    }
+
+    private func stepAsideIfWanted() {
+        guard filmPlaying, Preferences.shared.stepsAsideForVideo,
+              !petHiddenByUser, !filmOverride, !steppedAside,
+              windowController?.isDragging != true else { return }
+        steppedAside = true
+        windowController?.fadeOut()
     }
 
     /// Builds (or rebuilds, after a size change) the floating window.
@@ -62,7 +136,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The window is recreated rather than resized because its size, its
     /// content, and its click-through region all derive from `pixelSize`.
     private func buildWindow() {
-        let wasHidden = windowController.map { !$0.isVisible } ?? false
         // Close, not just hide. `hide()` only orders the window out; the old
         // NSWindow and its SwiftUI host stayed alive and kept ticking their
         // TimelineView, so every size change added another animating ghost.
@@ -166,8 +239,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        controller.onDragEnded = { [weak self] in
+            // A step-aside deferred to a held crab gets its chance now, and
+            // the watch re-reads a window that may have landed on another
+            // display.
+            self?.filmWatch?.reconsider()
+            self?.stepAsideIfWanted()
+        }
         windowController = controller
-        if !wasHidden { controller.show() }
+        if steppedAside {
+            // A rebuild mid-film (or mid-fade) must not flash a full-alpha
+            // pet over it; the eventual fade-in rises from here.
+            controller.prepareSteppedAside()
+        } else if !petHiddenByUser {
+            controller.show()
+        }
     }
 
     /// Replays `DemoMode.script` on a loop, ignoring real sessions.
@@ -206,7 +292,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleVisibility() {
         guard let controller = windowController else { return }
-        controller.isVisible ? controller.hide() : controller.show()
+        if steppedAside {
+            // Bringing him back mid-film is an answer to THIS film: he stays
+            // up for the rest of it and the override dies with it.
+            filmOverride = true
+            steppedAside = false
+            controller.fadeIn()
+            return
+        }
+        petHiddenByUser.toggle()
+        petHiddenByUser ? controller.hide() : controller.show()
     }
 
     /// The completion badge's appearance latches. Rules: the badge waits for
@@ -318,6 +413,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleAlert(mood: PetMood, session: ClaudeSession) {
+        // Chirps and banners over a film are the same disease as a pet over a
+        // film — suppressed whether or not he steps aside for it.
+        guard !filmPlaying else { return }
         guard let event = NotificationNudge.event(for: mood) else { return }
 
         switch event {

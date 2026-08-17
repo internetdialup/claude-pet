@@ -27,6 +27,13 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   pulses a slow check when a plan awaits your verdict.
 - **🎨 A vector bridge.** `--render-vectors` exports the base body and every
   prop as layered SVGs for design review. Code stays the source of truth.
+- **🎬 He steps aside for films.** Fullscreen video on his display — Netflix,
+  YouTube, whatever holds the screen awake — fades him out; the credits (or
+  your escape key) bring him back. Deliberately film-only: a window covering
+  the display AND that same app keeping the display awake, so a fullscreen
+  editor or a slide deck never scares him off. Sound cues hush during films
+  too. On by default; "Step aside for video" in the menu turns it off, and
+  showing him mid-film keeps him up for the rest of it.
 - **✅ The quiet done.** A finished task no longer leaves a lingering banner:
   the done pose plays its moment, then hands the signal to a small 8-bit
   checkbox parked at his bottom-right foot. It stays until new work consumes

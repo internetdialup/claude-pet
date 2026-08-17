@@ -14,6 +14,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onPreviewMood: (PetMood?) -> Void
     private let onSetPixelSize: (Double) -> Void
     private let onSetCostume: (Costume) -> Void
+    private let onToggleStepAside: () -> Void
     private let onQuit: () -> Void
 
     init(onToggleVisibility: @escaping () -> Void,
@@ -21,12 +22,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
          onPreviewMood: @escaping (PetMood?) -> Void,
          onSetPixelSize: @escaping (Double) -> Void,
          onSetCostume: @escaping (Costume) -> Void,
+         onToggleStepAside: @escaping () -> Void,
          onQuit: @escaping () -> Void) {
         self.onToggleVisibility = onToggleVisibility
         self.onPin = onPin
         self.onPreviewMood = onPreviewMood
         self.onSetPixelSize = onSetPixelSize
         self.onSetCostume = onSetCostume
+        self.onToggleStepAside = onToggleStepAside
         self.onQuit = onQuit
 
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -137,7 +140,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         cooking.state = Preferences.shared.cookingNotificationsEnabled ? .on : .off
         cooking.toolTip = "Off by default — cooking starts often."
+
+        // The preference itself lives in Preferences; the toggle goes through
+        // the app because flipping it mid-film has to act NOW (step aside or
+        // come back), not on the next belief change.
+        let stepAside = action("Step aside for video 🎬") { [weak self] in
+            self?.onToggleStepAside()
+            self?.refresh()
+        }
+        stepAside.state = Preferences.shared.stepsAsideForVideo ? .on : .off
+        stepAside.toolTip = "He fades out while a film plays fullscreen on his display."
         menu.addItem(cooking)
+        menu.addItem(stepAside)
 
         let login = action("Open at login") { [weak self] in
             Self.toggleLaunchAtLogin()
