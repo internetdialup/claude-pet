@@ -21,6 +21,12 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
     case wizard
     case astro
     case tuxedo
+    // Draft round two: colourways and a mobile suit.
+    case retroBlack
+    case matrix
+    case tiger
+    case white
+    case gundam
 
     /// The menu label.
     public var title: String {
@@ -30,6 +36,11 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .wizard: "Wizard"
         case .astro: "Astro"
         case .tuxedo: "Tuxedo"
+        case .retroBlack: "Retro Black"
+        case .matrix: "Matrix"
+        case .tiger: "Jungle Tiger"
+        case .white: "Arctic White"
+        case .gundam: "Gundam"
         }
     }
 }

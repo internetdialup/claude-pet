@@ -48,6 +48,61 @@ struct CostumeStyle {
                     .costumeB: rgb(0xF0_EEE6),  // collar studs
                 ],
                 yieldsCrownToProps: false)
+        case .retroBlack:
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x1C_1C1E),      // matte black shell
+                    .costumeB: rgb(0x3A_3A40),  // charcoal eye backing — black-on-black eyes vanish
+                ],
+                yieldsCrownToProps: false)
+        case .matrix:
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x0C_100C),      // terminal-dark shell
+                    .costumeA: rgb(0x53_F26A),  // rain heads, phosphor bright
+                    .costumeB: rgb(0x1E_6B2E),  // rain trails, dim
+                    .eye: rgb(0x53_F26A),       // he IS in the terminal
+                    .mouth: rgb(0x2E_9C43),
+                ],
+                yieldsCrownToProps: false)
+        case .tiger:
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x3E_7A45),      // jungle green shell
+                    .costumeA: rgb(0x1F_4023),  // stripes
+                ],
+                yieldsCrownToProps: false)
+        case .white:
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0xEC_EAE2),      // warm arctic white
+                    .mouth: rgb(0x3D_3D3A),     // a white mouth on a white shell is no mouth
+                ],
+                yieldsCrownToProps: false)
+        case .gundam:
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0xE8_EAF0),      // RX-78 white
+                    .costumeA: rgb(0x2C_4FA3),  // federation blue — shoulders, chest
+                    .costumeB: rgb(0xC6_3A3A),  // the red — crest, chin, feet
+                    .costumeC: rgb(0x14_161A),  // the visor recess — the black the face is built on
+                    .eye: rgb(0xF2_D23C),       // camera-yellow, straight off the reference
+                    .mouth: rgb(0x3D_3D3A),
+                ],
+                yieldsCrownToProps: true)       // the V-fin yields the crown to the hard hat
+        }
+    }
+
+    /// The palette colour a slot mixes against when one side of a costume
+    /// change has no opinion — eyes anchor to ink-black, mouths to white, the
+    /// body to terracotta. Without this, a change into the Matrix look would
+    /// snap the eyes green at the first blend frame instead of easing there.
+    private static func defaultRGB(for slot: PixelBuffer.Ink) -> (r: Double, g: Double, b: Double)? {
+        switch slot {
+        case .body: SpriteTint.bodyRGB
+        case .eye: (0, 0, 0)
+        case .mouth: (1, 1, 1)
+        default: nil
         }
     }
 
@@ -66,7 +121,7 @@ struct CostumeStyle {
         let b = of(to).inks
         var out: [PixelBuffer.Ink: Color] = [:]
         for slot in Set(a.keys).union(b.keys) {
-            let fallback = slot == .body ? SpriteTint.bodyRGB : (a[slot] ?? b[slot])
+            let fallback = defaultRGB(for: slot) ?? a[slot] ?? b[slot]
             guard let fromRGB = a[slot] ?? fallback, let toRGB = b[slot] ?? fallback else { continue }
             let m = Ease.clamp01(u)
             out[slot] = Color(red: fromRGB.r + (toRGB.r - fromRGB.r) * m,
@@ -85,7 +140,7 @@ enum CrabCostume {
 
     /// Body geometry mirrored from `CrabRig` — the accessories are tailored to
     /// the same measurements the shell is drawn with.
-    private static let bodyX = 6, bodyW = 20, bodyY = 10
+    private static let bodyX = 6, bodyW = 20, bodyY = 10, bodyH = 11
 
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
                      dx: Int, dy: Int, squash: Int, pose: CrabPose) {
@@ -156,6 +211,88 @@ enum CrabCostume {
             b.rect(15 + dx, y, 2, 1, .costumeA)
             b.pixel(12 + dx, y, .costumeB)
             b.pixel(19 + dx, y, .costumeB)
+
+        case .retroBlack:
+            guard layer == .onBody else { break }
+            // Only the eye backing — the whole point of this look is what it
+            // leaves out. Charcoal behind the eyes, or black-on-black blinds him.
+            b.rect(bodyX + 2 + dx, 12 + dy, bodyW - 4, 5, .costumeB)
+
+        case .matrix:
+            guard layer == .onBody else { break }
+            // The rain: one drop per column, scrolling DOWN the shell on the
+            // prop clock, each column offset by its own constant so the field
+            // never marches in step. Head bright, three-cell trail dim, all
+            // clipped to the shell.
+            let top = bodyY + dy + squash
+            let height = bodyH - squash
+            let span = height + 6
+            for (index, column) in [7, 10, 13, 16, 19, 22].enumerated() {
+                let phase = pose.propPhase * 3.0 + Double(index) * 7.3
+                let head = Int(phase.truncatingRemainder(dividingBy: Double(span)))
+                for trail in 0..<4 {
+                    let y = top + head - trail
+                    guard y >= top, y < top + height else { continue }
+                    b.pixel(column + dx, y, trail == 0 ? .costumeA : .costumeB)
+                }
+            }
+
+        case .tiger:
+            guard layer == .onBody else { break }
+            // Staggered two-tall stripe dashes — enough rhythm to read tiger,
+            // few enough cells to stay a crab.
+            let base = bodyY + dy + squash
+            for (index, column) in [8, 11, 14, 17, 20, 23].enumerated() {
+                let drop = index % 2 == 0 ? 1 : 3
+                b.rect(column + dx, base + drop, 1, 2, .costumeA)
+                b.rect(column + dx, base + drop + 6, 1, 2, .costumeA)
+            }
+
+        case .white:
+            break   // the colourway IS the costume — no accessories
+
+        case .gundam:
+            if layer == .onBody {
+                // The face is built on black: a visor recess across the eye
+                // rows — the reference's whole read — with the camera eyes
+                // yellow inside it and the crest's red tip dropping between
+                // them. Same window geometry as the ninja mask, opposite
+                // intent: the ninja lets his own shell through, the Gundam
+                // sinks the eyes into shadow.
+                b.rect(bodyX + 2 + dx, 13 + dy, bodyW - 4, 4, .costumeC)
+                b.pixel(16 + dx, 13 + dy, .costumeB)
+                break
+            }
+            guard layer == .front else { break }
+            let crown = bodyY + dy + squash
+            // The RX-78 merge, per the operator's reference sheet: long V-fin
+            // antennae sweeping up and out, the red crest at their root, blue
+            // shoulder plates, red chin under the mouth, a blue chest band
+            // with yellow vents, and red feet on all four legs. The camera
+            // eyes go yellow through the ink override.
+            b.pixel(10 + dx, crown - 6, .yellow)        // antenna tips, high and wide
+            b.pixel(22 + dx, crown - 6, .yellow)
+            b.pixel(11 + dx, crown - 5, .yellow)
+            b.pixel(21 + dx, crown - 5, .yellow)
+            b.pixel(12 + dx, crown - 4, .yellow)
+            b.pixel(20 + dx, crown - 4, .yellow)
+            b.pixel(13 + dx, crown - 3, .yellow)
+            b.pixel(19 + dx, crown - 3, .yellow)
+            b.pixel(14 + dx, crown - 2, .yellow)
+            b.pixel(18 + dx, crown - 2, .yellow)
+            b.rect(16 + dx, crown - 3, 1, 3, .costumeB) // crest: a proper red blade
+            b.pixel(15 + dx, crown - 1, .yellow)
+            b.pixel(17 + dx, crown - 1, .yellow)
+            b.rect(bodyX + dx - squash, crown, 2, 2, .costumeA)
+            b.rect(bodyX + bodyW - 2 + dx + squash, crown, 2, 2, .costumeA)
+            b.pixel(13 + dx, 19 + dy, .yellow)          // collar, per the reference
+            b.pixel(19 + dx, 19 + dy, .yellow)
+            b.rect(15 + dx, 19 + dy, 3, 1, .costumeB)   // chin
+            b.rect(13 + dx, 20 + dy, 7, 1, .costumeA)   // chest band
+            b.pixel(16 + dx, 20 + dy, .yellow)          // vent
+            for leg in [7, 11, 20, 24] {                // red feet
+                b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
+            }
         }
     }
 }

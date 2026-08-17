@@ -36,6 +36,8 @@ public struct PixelBuffer: Sendable {
         /// inks dresses every costume.
         case costumeA
         case costumeB
+        /// A third accessory slot — the Gundam's visor recess earned it.
+        case costumeC
         /// The cooking heat bands — body cells repainted as quantised heat.
         case bodyHot
         case bodyEmber
@@ -228,8 +230,10 @@ public struct PixelCanvasView: View {
         switch ink {
         case .clear: .clear
         case .body: bodyTint ?? inkOverrides[.body] ?? Palette.body
-        case .eye: Palette.ink
-        case .mouth: Palette.white
+        // Eye and mouth accept costume overrides too: a white shell swallows
+        // a white mouth, and the Matrix look wants terminal-green eyes.
+        case .eye: inkOverrides[.eye] ?? Palette.ink
+        case .mouth: inkOverrides[.mouth] ?? Palette.white
         case .screenDark: Palette.screenDark
         case .screenLight: Palette.screenLight
         case .green: Palette.green
@@ -244,6 +248,7 @@ public struct PixelCanvasView: View {
         // shell colour keeps it invisible-in-practice rather than magenta-loud.
         case .costumeA: inkOverrides[.costumeA] ?? Palette.body
         case .costumeB: inkOverrides[.costumeB] ?? Palette.body
+        case .costumeC: inkOverrides[.costumeC] ?? Palette.body
         case .bodyHot: Palette.bodyHot
         case .bodyEmber: Palette.bodyEmber
         }
