@@ -29,15 +29,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   prop as layered SVGs for design review. Code stays the source of truth.
 - **✅ The quiet done.** A finished task no longer leaves a lingering banner:
   the done pose plays its moment, then hands the signal to a small 8-bit
-  checkbox parked at his bottom-right foot for five minutes (or until new
-  work consumes it). Twice inside that window he reminds you — a little
-  wave, the banner back for a few seconds, then gone.
+  checkbox parked at his bottom-right foot. It stays until new work consumes
+  it — not until a clock does — and every three minutes it takes one soft
+  golden breath to catch your eye. Completions older than half an hour don't
+  resurrect on launch; recent ones greet you back.
 
 ### Changed
 
 - **He's easier to grab.** The mouse target grew a 14-point halo around the
   sprite, and the speech bubble is now a drag handle whenever it's visible —
   anywhere you see pixels moves him. Empty air stays click-through.
+- **Idle chatter goes intermittent.** For the first minute and a half of
+  quiet he keeps you company as always; past that, roughly one cycle in
+  three shows a line and the rest are calm. The status ticker keeps its
+  share of the cycles that do show.
 - **Nothing snaps anymore.** Mood changes cross-ease from the pose that was
   actually on screen; the hover greeting decays from wherever it had reached
   instead of vanishing; the 20-second prop re-roll puts one prop down and

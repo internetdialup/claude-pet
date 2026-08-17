@@ -25,39 +25,61 @@ struct QuietDoneTests {
         #expect(session.completionBadgeAt == first)
     }
 
-    /// The badge envelope: zero before it is shown, eased while live, gone
-    /// after the five-minute tail.
+    /// The badge envelope: zero before it is shown, eased while live, and —
+    /// this is the point — NOT expired by any clock. Only the latch ends it.
     @Test func badgeEnvelopeEndpoints() {
         let shown = 100.0
-        func visibility(at now: Double, completedAt: Double = 95, endedAt: Double? = nil) -> Double {
-            let age = now - completedAt
-            let latch = Ease.amount(now: now, since: shown, endedAt: endedAt,
-                                    attack: 0.5, release: 0.45)
-            let tail = 1 - Ease.smoothstep((age - (ActivityCoordinator.badgeLifetime - 2)) / 2)
-            return max(0, latch * tail)
+        func visibility(at now: Double, endedAt: Double? = nil) -> Double {
+            Ease.amount(now: now, since: shown, endedAt: endedAt,
+                        attack: 0.5, release: 0.45)
         }
         #expect(visibility(at: 99.9) == 0)
         #expect(visibility(at: shown + 0.5) == 1)
-        #expect(visibility(at: shown + 100) == 1)
-        // Two-second tail ending at completedAt + 300.
-        let midFade = visibility(at: 95 + 299)
-        #expect(midFade > 0 && midFade < 1)
-        #expect(visibility(at: 95 + 300.1) == 0)
+        #expect(visibility(at: shown + 301) == 1,
+                "the badge outlives the old five-minute cap — consumed, not expired")
+        #expect(visibility(at: shown + 7200) == 1)
         // Early clear eases out through the release.
         let releasing = visibility(at: shown + 10.2, endedAt: shown + 10)
         #expect(releasing > 0 && releasing < 1)
         #expect(visibility(at: shown + 10.5, endedAt: shown + 10) == 0)
     }
 
-    /// The nudge windows sit strictly inside the badge's lifetime and do not
-    /// overlap its fade tail.
-    @Test func nudgeWindowsFitInsideTheBadge() {
-        for start in ActivityCoordinator.nudgeWindows {
-            #expect(start > 0)
-            #expect(start + ActivityCoordinator.nudgeDuration
-                    < ActivityCoordinator.badgeLifetime - 2)
+    /// The reminder pulse: silent through the first cycle, one bounded eased
+    /// breath at the top of every later one.
+    @Test func pulseCycleMath() {
+        for age in stride(from: 0.0, through: 179.9, by: 2.3) {
+            #expect(CrabView.badgePulse(age: age) == 0, "no pulse in the first cycle (age \(age))")
         }
-        #expect(ActivityCoordinator.nudgeWindows.count == 2, "once or twice — twice")
+        #expect(CrabView.badgePulse(age: 181.2) > 0.5, "mid-breath at the top of cycle two")
+        #expect(CrabView.badgePulse(age: 183.5) == 0, "the breath is over")
+        #expect(CrabView.badgePulse(age: 250) == 0, "quiet between cycles")
+        #expect(CrabView.badgePulse(age: 361.2) > 0.5, "and it comes back next cycle")
+        // Every value inside a breath is eased and bounded.
+        for phase in stride(from: 180.0, through: 182.4, by: 0.1) {
+            let value = CrabView.badgePulse(age: phase)
+            #expect(value >= 0 && value <= 1)
+        }
+    }
+
+    /// The stale-stamp cap: a replayed completion older than the cap must not
+    /// stamp — the badge no longer expires, so archaeology would pulse forever.
+    @Test func staleReplayDoesNotStamp() {
+        var session = ClaudeSession(id: "s", pid: 1, name: "s", cwd: "/", procStart: "",
+                                    startedAt: Date())
+        let stale = Date().addingTimeInterval(-ActivityCoordinator.completionStampMaxAge - 60)
+        let fresh = Date().addingTimeInterval(-120)
+
+        if session.mood != .done,
+           Date().timeIntervalSince(stale) < ActivityCoordinator.completionStampMaxAge {
+            session.completionBadgeAt = stale
+        }
+        #expect(session.completionBadgeAt == nil, "a completion from beyond the cap stays quiet")
+
+        if session.mood != .done,
+           Date().timeIntervalSince(fresh) < ActivityCoordinator.completionStampMaxAge {
+            session.completionBadgeAt = fresh
+        }
+        #expect(session.completionBadgeAt == fresh, "a recent one still greets you")
     }
 
     /// The frozen sentinel: no animator-built pose carries a badge; only the
@@ -65,7 +87,9 @@ struct QuietDoneTests {
     @Test func noPoseCarriesABadgeByItself() {
         for mood in PetMood.allCases {
             for t in stride(from: 0.0, through: 30.0, by: 1.7) {
-                #expect(CrabAnimator.pose(mood: mood, t: t).doneBadge == 0)
+                let pose = CrabAnimator.pose(mood: mood, t: t)
+                #expect(pose.doneBadge == 0)
+                #expect(pose.doneBadgePulse == 0)
             }
         }
     }
@@ -76,6 +100,10 @@ struct QuietDoneTests {
         var pose = CrabAnimator.pose(mood: .idle, t: 2)
         let bare = CrabRig.render(pose)
         pose.doneBadge = 1
+        // Pulse at full, too: the shimmer must stay inside the same corner —
+        // this is the regression net for the clipped-ring bug, where a glow
+        // ring at (25,25) painted his trailing foot and fell off the grid.
+        pose.doneBadgePulse = 1
         let badged = CrabRig.render(pose)
         for y in 0..<PixelBuffer.side {
             for x in 0..<PixelBuffer.side where bare[x, y] != badged[x, y] {
@@ -92,6 +120,26 @@ struct QuietDoneTests {
             for x in 26...31 where both[x, y] == .eye { bugOverBadge = true }
         }
         #expect(bugOverBadge, "the bug should scuttle in front of the badge")
+    }
+
+    /// The idle-chatter gate: constant company while idle is fresh, roughly
+    /// one cycle in three past the quiet horizon — and the status ticker
+    /// (chosen by `seed % 3 == 2` on the SAME seed) must stay reachable,
+    /// which is why the gate rolls split dice instead of `seed % 3`.
+    @Test func chatterGate() {
+        // Fresh idle always talks.
+        for seed in 0..<50 {
+            #expect(ActivityCoordinator.idleChatterShows(quietFor: 30, seed: seed))
+        }
+        // Past the horizon: intermittent, in the neighbourhood of a third.
+        let shown = (0..<300).filter {
+            ActivityCoordinator.idleChatterShows(quietFor: 600, seed: $0)
+        }
+        let duty = Double(shown.count) / 300
+        #expect(duty > 0.2 && duty < 0.47, "duty cycle \(duty) is not ~1/3")
+        // And some of the shown cycles are ticker cycles.
+        #expect(shown.contains { $0 % 3 == 2 },
+                "the status ticker must survive the quiet hours")
     }
 
     /// Grab rects: the halo grows the sprite square, the bubble band joins

@@ -816,33 +816,37 @@ public struct CrabView: View {
             CrabAnimator.applySnack(elapsed: time - snackSince, to: &pose)
         }
         if let completedAt, frozenTime == nil {
-            // The foot badge: the appearance latch eased both ways, times a
-            // two-second tail ending at the five-minute mark. Written into
-            // the pose here so mood-blend ghost snapshots carry it.
-            let age = time - completedAt
-            let latch = Ease.amount(now: time, since: badgeShownAt, endedAt: badgeEndedAt,
-                                    attack: 0.5, release: 0.45)
-            let tail = 1 - Ease.smoothstep((age - (ActivityCoordinator.badgeLifetime - 2)) / 2)
-            pose.doneBadge = max(0, latch * tail)
+            // The foot badge: the appearance latch eased both ways, and
+            // nothing else — the badge lives until new work consumes it, not
+            // until a clock does. Written into the pose here so mood-blend
+            // ghost snapshots carry it.
+            pose.doneBadge = Ease.amount(now: time, since: badgeShownAt, endedAt: badgeEndedAt,
+                                         attack: 0.5, release: 0.45)
 
-            // The reminder wave, on the same clock as the coordinator's
-            // banner nudge. Idle-only: a plan or a blocked session outranks
-            // a reminder, and the badge cannot outlive him into sleep.
-            if mood == .idle {
-                for start in ActivityCoordinator.nudgeWindows {
-                    let amount = Ease.window(age - start,
-                                             duration: ActivityCoordinator.nudgeDuration,
-                                             edge: 0.4)
-                    guard amount > 0.001 else { continue }
-                    pose.gazeY = -1
-                    if amount > 0.5 { pose.mouth = .open }
-                    pose.armRight = max(pose.armRight,
-                                        (0.55 + (sin((age - start) * 8) > 0 ? 0.25 : 0)) * amount)
-                }
+            // The reminder: one eased breath through the badge every three
+            // minutes — a shimmer, not a wave. Idle-only (a plan or a blocked
+            // session outranks a reminder; a sleeping crab keeps the static
+            // badge and none of the motion), and never in the first cycle.
+            if mood == .idle, pose.doneBadge > 0.5 {
+                pose.doneBadgePulse = CrabView.badgePulse(age: time - completedAt)
             }
         }
         return pose
     }
+
+    /// The pulse envelope, pure in the badge's age: zero through the first
+    /// three minutes, then one 2.4s swell at the top of every cycle.
+    static func badgePulse(age: Double) -> Double {
+        let cycle = Int(age / badgePulsePeriod)
+        guard cycle >= 1 else { return 0 }
+        return Ease.window(age - Double(cycle) * badgePulsePeriod,
+                           duration: badgePulseDuration, edge: 1.0)
+    }
+
+    /// "Every 3 mins, etc, etc" — the operator's cadence for the completion
+    /// reminder, and how long each breath takes.
+    static let badgePulsePeriod = 180.0
+    static let badgePulseDuration = 2.4
 
     /// Set when the mood changes so transient animations replay from the start.
     private var moodEpoch: Double { MoodClock.shared.epoch(for: mood) }

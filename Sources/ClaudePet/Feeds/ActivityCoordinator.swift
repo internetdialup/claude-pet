@@ -64,19 +64,33 @@ public final class ActivityCoordinator {
     /// so the decay waits for the animation plus a beat of afterglow.
     static var celebrationDecay: TimeInterval = 12
 
-    /// The completion badge's lifetime, and when inside it the reminder nudges
-    /// fire (a wave + the banner back for a few seconds, twice). The badge
-    /// itself is the view's business; these constants keep the coordinator's
-    /// bubble nudges and the view's wave on one clock.
-    nonisolated static let badgeLifetime: TimeInterval = 300
-    nonisolated static let nudgeWindows: [TimeInterval] = [90, 210]
-    nonisolated static let nudgeDuration: TimeInterval = 4
+    /// How old a replayed turn-end may be and still stamp the completion
+    /// badge. The badge now lives until new work consumes it, so without this
+    /// cap every launch would resurrect the last completion of every live
+    /// session — a badge from days ago, pulsing. Half an hour keeps "finished
+    /// while you were away" and retires the archaeology.
+    nonisolated static let completionStampMaxAge: TimeInterval = 1800
 
     /// How long the thinking dots may pulse without renewal before the bubble
     /// retires (the `.thinking` mood itself lives on until `staleAfter`).
     /// "Still thinking" is a claim; thirty quiet seconds is where it stops
     /// being one the pet can stand behind.
     static var dotsQuietAfter: TimeInterval = 30
+
+    /// How long idle chatter stays constant company before going intermittent.
+    /// Below this the bubble rotates as always; past it, each 14s cycle rolls
+    /// the dice and roughly one in three shows a line. The pet stays present;
+    /// the banner stops being furniture.
+    static var chatterQuietAfter: TimeInterval = 90
+
+    /// Whether this idle-chatter cycle shows a bubble. Split dice, not
+    /// `seed % 3`: the ticker chooser inside `idleChatter` already uses
+    /// `seed % 3 == 2` on the SAME seed, so a modular gate here would starve
+    /// the status ticker forever — and `(seed * k) % 3` degenerates straight
+    /// back to `seed % 3`. The splitmix dice decorrelate properly.
+    static func idleChatterShows(quietFor quiet: TimeInterval, seed: Int) -> Bool {
+        quiet < chatterQuietAfter || CrabAnimator.noise(seed &* 43 &+ 13) < 1.0 / 3.0
+    }
 
     /// How long a session may sit in a *working* mood, silent, before the pet
     /// stops asserting it and falls back to `idle`.
@@ -338,10 +352,12 @@ public final class ActivityCoordinator {
                 // Stop hook — so the first stamp of this turn wins; a genuine
                 // new turn always passes through thinking/working first, which
                 // clears it. On the priming replay this carries a historical
-                // timestamp: launching the pet within five minutes of an old
-                // completion shows the badge, which is the feature ("finished
-                // while you were away"), not an accident.
-                if session.mood != .done {
+                // timestamp: a RECENT completion shows the badge ("finished
+                // while you were away"); anything older than the cap does not,
+                // because the badge no longer expires on its own and a stamp
+                // from days ago would pulse forever.
+                if session.mood != .done,
+                   Date().timeIntervalSince(event.timestamp) < Self.completionStampMaxAge {
                     session.completionBadgeAt = event.timestamp
                 }
                 session.mood = .done
@@ -520,16 +536,25 @@ public final class ActivityCoordinator {
         // `task == nil` meant any titled session — which is most of them — kept
         // showing its title forever and never reached the ticker.
         case .idle where focus.activeTaskLabel == nil && focus.activity == nil:
-            // Nothing to report — encouragement, or a status ticker.
-            var snapshot = StatusTicker.Snapshot()
-            snapshot.model = focus.model
-            snapshot.branch = focus.branch
-            snapshot.project = focus.projectName
-            snapshot.sessionCount = ordered.count
-            snapshot.activeHoursToday = focus.activeHoursToday
-            let line = idleChatter(snapshot: snapshot, now: now)
-            bubble = line.text
-            style = line.isMarquee ? .marquee : .plain
+            // Nothing to report — encouragement, or a status ticker. The gate
+            // sits OUTSIDE `idleChatter` on purpose: its 14s cache would
+            // otherwise keep answering through cycles the gate meant to be
+            // quiet, and a nil cycle must leave the cache untouched so the
+            // rotation resumes where it left off.
+            if Self.idleChatterShows(quietFor: now.timeIntervalSince(focus.lastActivity),
+                                     seed: seed) {
+                var snapshot = StatusTicker.Snapshot()
+                snapshot.model = focus.model
+                snapshot.branch = focus.branch
+                snapshot.project = focus.projectName
+                snapshot.sessionCount = ordered.count
+                snapshot.activeHoursToday = focus.activeHoursToday
+                let line = idleChatter(snapshot: snapshot, now: now)
+                bubble = line.text
+                style = line.isMarquee ? .marquee : .plain
+            } else {
+                bubble = nil
+            }
 
         default:
             chatter = nil
@@ -548,24 +573,6 @@ public final class ActivityCoordinator {
         var taskFraction: Double?
         if let done = focus.tasksCompleted, let total = focus.tasksTotal, total >= 3 {
             taskFraction = (Double(done) / Double(total) / 0.05).rounded() * 0.05
-        }
-
-        // The reminder nudge: inside the badge's five minutes, twice, the
-        // banner pops back with a finished line for a few seconds (the view
-        // waves on the same clock). Idle-only, so a plan awaiting a verdict
-        // or a blocked session always outranks a reminder. Slotted after the
-        // mood switch so `idleChatter`'s cache is untouched and the ticker
-        // resumes cleanly when the window closes. The seed is derived from
-        // the completion instant, not the chatter clock — a window that
-        // straddles a chatter re-roll must not swap its sentence mid-air.
-        if mood == .idle, let completedAt = focus.completionBadgeAt {
-            let age = now.timeIntervalSince(completedAt)
-            for (index, windowStart) in Self.nudgeWindows.enumerated()
-            where age >= windowStart && age < windowStart + Self.nudgeDuration {
-                bubble = Vocab.line(for: .finished,
-                                    seed: Int(completedAt.timeIntervalSince1970) + index)
-                style = .plain
-            }
         }
 
         publish(PetState(
