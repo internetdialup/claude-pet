@@ -34,8 +34,29 @@ final class FoldStore: @unchecked Sendable {
 /// single owner removes any question about which feed won a race.
 @MainActor
 public final class ActivityCoordinator {
-    public private(set) var state: PetState = .sleeping
-    public var onChange: ((PetState) -> Void)?
+    /// One state per pet slot. `states[0]` is the original pet and always
+    /// exists; a summoned second pet appends. Each slot is equality-gated
+    /// independently.
+    public private(set) var states: [PetState] = [.sleeping]
+    /// Slot 0's state — the alias every single-pet consumer (the probe, the
+    /// preview restore, the tests) reads.
+    public var state: PetState { states[0] }
+    public var onChange: ((Int, PetState) -> Void)?
+
+    /// Grows or shrinks the derived-state table (1 or 2 pets) and publishes
+    /// the new shape immediately.
+    public func setSlots(_ count: Int) {
+        let clamped = max(1, min(2, count))
+        guard clamped != states.count else { return }
+        if clamped > states.count {
+            states.append(.sleeping)
+            chatterCache.append(SlotChatter())
+        } else {
+            states.removeLast()
+            chatterCache.removeLast()
+        }
+        recompute()
+    }
     /// Fired when a session newly needs attention or newly finishes, for sound
     /// and notifications. Not fired on every state recomputation.
     public var onAlert: ((PetMood, ClaudeSession) -> Void)?
@@ -156,8 +177,13 @@ public final class ActivityCoordinator {
 
 
     /// The idle line currently on screen, and when it was chosen.
-    private var chatter: (text: String, isMarquee: Bool)?
-    private var chatterChosenAt: Date = .distantPast
+    /// Each pet keeps his own cached sentence — two idle pets sharing one
+    /// cache would trade sentences out from under each other's readers.
+    private struct SlotChatter {
+        var line: (text: String, isMarquee: Bool)?
+        var chosenAt: Date = .distantPast
+    }
+    private var chatterCache: [SlotChatter] = [SlotChatter()]
 
     public init() {}
 
@@ -196,9 +222,18 @@ public final class ActivityCoordinator {
         queue.async { [folds] in folds.removeAll() }
     }
 
-    /// User pinned (or unpinned) a session from the roster.
+    /// User pinned (or unpinned) a session from the roster (slot 0).
     public func pin(sessionID: String?) {
-        Preferences.shared.pinnedSessionID = sessionID
+        pin(slot: 0, sessionID: sessionID)
+    }
+
+    /// Pin for a specific pet slot; slot 1 is the second pet's own choice.
+    public func pin(slot: Int, sessionID: String?) {
+        if slot == 0 {
+            Preferences.shared.pinnedSessionID = sessionID
+        } else {
+            Preferences.shared.pet2PinnedSessionID = sessionID
+        }
         recompute()
     }
 
@@ -476,14 +511,42 @@ public final class ActivityCoordinator {
             return lhs.lastActivity > rhs.lastActivity
         }
 
-        guard !ordered.isEmpty else {
-            publish(.sleeping)
-            return
+        // Slot 0 first, so slot 1 can exclude its focus; every slot is
+        // derived and gated independently.
+        var slotZeroFocus: String?
+        for slot in states.indices {
+            let new = derive(slot: slot, excluding: slotZeroFocus, ordered: ordered, now: now)
+            if slot == 0 { slotZeroFocus = new.focusedSessionID }
+            publish(new, slot: slot)
         }
+    }
 
-        // A pin wins; otherwise the most urgent-then-recent session gets the face.
-        let pinned = Preferences.shared.pinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
-        let focus = pinned ?? ordered[0]
+    /// One slot's view of the world. Slot 0 is today's rule, byte-identical
+    /// (its seed salt is zero). Slot 1 follows its own pin, else the busiest
+    /// session slot 0 is not already showing; with no second session he naps —
+    /// honestly, and still carrying the roster.
+    private func derive(slot: Int, excluding excludedID: String?,
+                        ordered: [ClaudeSession], now: Date) -> PetState {
+        guard !ordered.isEmpty else { return .sleeping }
+
+        // Salted per slot so two idle pets never speak in lockstep; additive,
+        // so the split-dice property of the chatter gate survives.
+        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval) &+ slot &* 7919
+
+        let focusOrNil: ClaudeSession?
+        if slot == 0 {
+            let pinned = Preferences.shared.pinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
+            focusOrNil = pinned ?? ordered[0]
+        } else {
+            let pinned = Preferences.shared.pet2PinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
+            focusOrNil = pinned ?? ordered.first { $0.id != excludedID }
+        }
+        guard let focus = focusOrNil else {
+            var napping = PetState.sleeping
+            napping.sessions = ordered
+            if seed % 4 == 0 { napping.bubble = Vocab.line(for: .sleeping, seed: seed) }
+            return napping
+        }
 
         var mood = focus.mood
         if mood != .needsAttention,
@@ -509,8 +572,6 @@ public final class ActivityCoordinator {
         //   3. this state's own lines
         // Point 2 is why `working` and `cooking` lines appear only in the gaps:
         // a pet that hides "Running the test suite" behind a joke is worse.
-        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval)
-
         switch mood {
         case .thinking:
             // No honest label exists for "reasoning", so show pulsing dots
@@ -524,13 +585,13 @@ public final class ActivityCoordinator {
             let fresh = now.timeIntervalSince(focus.lastActivity) < Self.dotsQuietAfter
             bubble = fresh ? "…" : nil
             style = fresh ? .dots : .plain
-            chatter = nil
+            chatterCache[slot].line = nil
 
         case .sleeping:
             // Occasionally talks in his sleep. A sleeping pet that comments on
             // every frame is not asleep.
             bubble = seed % 4 == 0 ? Vocab.line(for: .sleeping, seed: seed) : nil
-            chatter = nil
+            chatterCache[slot].line = nil
 
         // A title is what a session *is*, not what it is *doing*. Gating on
         // `task == nil` meant any titled session — which is most of them — kept
@@ -549,7 +610,7 @@ public final class ActivityCoordinator {
                 snapshot.project = focus.projectName
                 snapshot.sessionCount = ordered.count
                 snapshot.activeHoursToday = focus.activeHoursToday
-                let line = idleChatter(snapshot: snapshot, now: now)
+                let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot, now: now)
                 bubble = line.text
                 style = line.isMarquee ? .marquee : .plain
             } else {
@@ -557,7 +618,7 @@ public final class ActivityCoordinator {
             }
 
         default:
-            chatter = nil
+            chatterCache[slot].line = nil
             if let task, Vocab.rule(matching: task) != nil {
                 // A rule claimed this task.
                 bubble = Vocab.line(for: mood.shoutoutOccasion, matching: task, seed: seed)
@@ -575,7 +636,7 @@ public final class ActivityCoordinator {
             taskFraction = (Double(done) / Double(total) / 0.05).rounded() * 0.05
         }
 
-        publish(PetState(
+        return PetState(
             mood: mood,
             bubble: bubble,
             tool: focus.tool,
@@ -586,7 +647,7 @@ public final class ActivityCoordinator {
             taskFraction: taskFraction,
             celebrating: mood == .done && focus.celebrating,
             completedAt: focus.completionBadgeAt
-        ))
+        )
     }
 
     // MARK: - Idle chatter
@@ -596,14 +657,15 @@ public final class ActivityCoordinator {
     /// Held for `chatterInterval` rather than re-rolled on every `recompute()`
     /// — this runs on the 2s decay timer, so choosing per call would rewrite the
     /// sentence out from under the reader three times before they finished it.
-    private func idleChatter(snapshot: StatusTicker.Snapshot,
+    private func idleChatter(slot: Int, seed: Int,
+                             snapshot: StatusTicker.Snapshot,
                              focusTask: String? = nil,
                              now: Date) -> (text: String, isMarquee: Bool) {
-        if let current = chatter, now.timeIntervalSince(chatterChosenAt) < Self.chatterInterval {
+        if let current = chatterCache[slot].line,
+           now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterInterval {
             return current
         }
 
-        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval)
         let status = StatusTicker.lines(for: snapshot, now: now)
 
         // Roughly every third turn is a status ticker, when one is available.
@@ -617,15 +679,15 @@ public final class ActivityCoordinator {
             next = (line ?? "Ready when you are", false)
         }
 
-        chatter = next
-        chatterChosenAt = now
+        chatterCache[slot].line = next
+        chatterCache[slot].chosenAt = now
         return next
     }
 
-    private func publish(_ new: PetState) {
-        guard new != state else { return }
-        state = new
-        onChange?(new)
+    private func publish(_ new: PetState, slot: Int) {
+        guard new != states[slot] else { return }
+        states[slot] = new
+        onChange?(slot, new)
     }
 
     /// Recount in-flight subagents for every live session.

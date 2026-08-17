@@ -65,10 +65,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         pets = [pet]
         pet.rebuildWindow()
 
-        coordinator.onChange = { [weak self] state in
-            guard let self, self.debugMood == nil, !self.demoMood else { return }
-            self.primary.take(state: state)
-            self.menuBar?.update(state: state)
+        coordinator.onChange = { [weak self] slot, state in
+            guard let self else { return }
+            if slot == 0 {
+                // Preview and demo own pet 1's face; the coordinator resumes
+                // when they let go. Pet 2 is always live — freezing him was
+                // never the menu row's promise.
+                guard self.debugMood == nil, !self.demoMood else { return }
+                self.primary.take(state: state)
+                self.menuBar?.update(state: state)
+            } else if slot < self.pets.count {
+                self.pets[slot].take(state: state)
+            }
         }
         coordinator.onAlert = { [weak self] mood, session in
             self?.handleAlert(mood: mood, session: session)

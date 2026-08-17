@@ -35,6 +35,53 @@ public final class Preferences {
         static let costume = "pet.costume"
         static let stepsAsideForVideo = "pet.video.stepsAside"
         static let persistency = "pet.persistency"
+        // The second pet's own slice. Pet 1's keys stay exactly as they are —
+        // a summoned sibling must not move anyone's saved home.
+        static let pet2Enabled = "pet2.enabled"
+        static let pet2Costume = "pet2.costume"
+        static let pet2PinnedSession = "pet2.pinnedSession"
+        static let pet2PositionX = "pet2.position.v2.x"
+        static let pet2PositionY = "pet2.position.v2.y"
+        static let pet2HasPosition = "pet2.position.v2.set"
+    }
+
+    /// Whether the second pet is summoned, surviving relaunches.
+    public var pet2Enabled: Bool {
+        get { store.bool(forKey: Key.pet2Enabled) }
+        set { store.set(newValue, forKey: Key.pet2Enabled) }
+    }
+
+    /// The second pet's wardrobe, by raw value with the same unknown-string
+    /// fallback as pet 1's.
+    public var pet2Costume: Costume {
+        get { store.string(forKey: Key.pet2Costume).flatMap(Costume.init(rawValue:)) ?? .none }
+        set { store.set(newValue.rawValue, forKey: Key.pet2Costume) }
+    }
+
+    /// The session the second pet follows, or nil for "busiest that pet 1
+    /// isn't showing".
+    public var pet2PinnedSessionID: String? {
+        get { store.string(forKey: Key.pet2PinnedSession) }
+        set { store.set(newValue, forKey: Key.pet2PinnedSession) }
+    }
+
+    /// The second pet's saved home — same absolute-coordinates rationale as
+    /// pet 1's `position`.
+    public var pet2Position: CGPoint? {
+        get {
+            guard store.bool(forKey: Key.pet2HasPosition) else { return nil }
+            return CGPoint(x: store.double(forKey: Key.pet2PositionX),
+                           y: store.double(forKey: Key.pet2PositionY))
+        }
+        set {
+            guard let newValue else {
+                store.set(false, forKey: Key.pet2HasPosition)
+                return
+            }
+            store.set(newValue.x, forKey: Key.pet2PositionX)
+            store.set(newValue.y, forKey: Key.pet2PositionY)
+            store.set(true, forKey: Key.pet2HasPosition)
+        }
     }
 
     /// Whether he floats above every window (the classic desktop-pet posture)
