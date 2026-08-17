@@ -94,56 +94,57 @@ struct QuietDoneTests {
         }
     }
 
-    /// The badge paints only its footline patch, never over content, and the
-    /// body wins wherever a lean or squash pushes him over it.
+    /// The badge paints only its footline patch, wins the shell cells it
+    /// overlaps (foreground, per the operator), and never touches any other
+    /// ink.
     @Test func badgePaintsItsCornerOnly() {
         var pose = CrabAnimator.pose(mood: .idle, t: 2)
         let bare = CrabRig.render(pose)
         pose.doneBadge = 1
         // Pulse at full, too: the shimmer must stay inside the same footprint —
         // this is the regression net for the clipped-ring bug, where a glow
-        // ring one cell out painted his trailing foot and fell off the grid.
+        // ring one cell out fell off the grid.
         pose.doneBadgePulse = 1
         let badged = CrabRig.render(pose)
         for y in 0..<PixelBuffer.side {
             for x in 0..<PixelBuffer.side where bare[x, y] != badged[x, y] {
-                #expect(x >= 26 && x <= 31 && y >= 19 && y <= 24,
+                #expect(x >= 25 && x <= 30 && y >= 19 && y <= 24,
                         "badge cell outside its footline patch at (\(x),\(y))")
-                #expect(bare[x, y] == .clear, "badge overpainted content at (\(x),\(y))")
+                #expect(bare[x, y] == .clear || bare[x, y] == .body,
+                        "badge may cover shell, never \(bare[x, y]) at (\(x),\(y))")
             }
         }
-        // Bottom edge ON the footline: something of the badge paints row 24,
-        // nothing below it.
-        #expect((26...31).contains { badged[$0, 24] != bare[$0, 24] || badged[$0, 24] != .clear },
+        // Bottom edge ON the footline: something paints row 24, nothing below.
+        #expect((25...30).contains { badged[$0, 24] != .clear },
                 "the badge's bottom edge belongs on the footline")
+        for y in 25..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                #expect(badged[x, y] == bare[x, y], "below the footline changed at (\(x),\(y))")
+            }
+        }
 
-        // A lean-and-squash pose pushes his edge over column 26: the body must
-        // win those cells — the badge is a ground object he stands in front of.
+        // Foreground: at full visibility the badge wins its glyph cells even
+        // where his leg was — and its transparent cells never repaint anything.
         var leaning = CrabAnimator.pose(mood: .idle, t: 2)
         leaning.lean = 1
         leaning.squash = 1
-        let bareLean = CrabRig.render(leaning)
         leaning.doneBadge = 1
-        leaning.doneBadgePulse = 1
         let badgedLean = CrabRig.render(leaning)
-        for y in 0..<PixelBuffer.side {
-            for x in 0..<PixelBuffer.side where bareLean[x, y] != .clear {
-                #expect(badgedLean[x, y] == bareLean[x, y],
-                        "the badge overpainted him at (\(x),\(y))")
-            }
-        }
+        // The stamp's solid interior column over the leg region: (25, 21) is a
+        // glyph cell ("gggggg" row 1 starts at y 20; y 21 row "ggg.wg" col 0 = g).
+        #expect(badgedLean[25, 21] == .green || badgedLean[25, 21] == .mouth,
+                "the badge should win the leg cell it overlaps")
 
-        // The floor bug's walk (rows 28-30) no longer intersects the badge at
-        // all — pinned so the geometry claim cannot drift silently.
+        // The floor bug's walk (rows 28-30) is disjoint from the badge patch
+        // (max row 24) — pinned so the geometry claim cannot drift silently.
         var withBug = pose
         withBug.bugX = 27
         let both = CrabRig.render(withBug)
+        var bugSeen = false
         for y in 28...30 {
-            for x in 26...31 where both[x, y] == .eye {
-                #expect(bare[x, y] == .clear || badged[x, y] == bare[x, y],
-                        "bug and badge should occupy disjoint rows now")
-            }
+            for x in 0..<PixelBuffer.side where both[x, y] == .eye { bugSeen = true }
         }
+        #expect(bugSeen, "the bug still walks its rows, untouched by the badge")
     }
 
     /// The idle-chatter gate: constant company while idle is fresh, roughly

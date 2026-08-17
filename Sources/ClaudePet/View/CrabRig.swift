@@ -195,9 +195,9 @@ public enum CrabRig {
 
         // The quiet-hour extras: a scuttling bug on the floor, hearts while he
         // is petted, the snack, the telescope. Each is a world overlay that
-        // dissolves in and out like everything else. The completion badge is
-        // a GROUND object: composited preserving existing cells, so the body,
-        // costume and props drawn above all win — he stands in front of it.
+        // dissolves in and out like everything else. The completion badge
+        // rides in the FOREGROUND, tucked against his side — it wins the leg
+        // cells it overlaps, and only ever shell cells.
         if pose.doneBadge > 0.001 {
             drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
         }
@@ -213,16 +213,16 @@ public enum CrabRig {
     // MARK: - Quiet-hour extras
 
     /// The quiet completion marker: the same 8-bit checkbox the done pose
-    /// holds overhead, parked beside his right legs with its bottom edge
-    /// exactly on the footline (legs end at row 24) — beside him, not
-    /// floating in the void below him, which is where its first position
-    /// (rows 26–31) read. The signal a finished task leaves behind once the
-    /// pose has relaxed — present, not insistent.
+    /// holds overhead, tucked against his right side with its bottom edge
+    /// exactly on the footline (legs end at row 24) and one column into his
+    /// outer leg — z-ABOVE him, like a sticker in the foreground. The signal
+    /// a finished task leaves behind once the pose has relaxed — present,
+    /// not insistent.
     ///
-    /// Composited BEHIND the scene: a lean or a squash pushes his edge over
-    /// column 26, and a badge that painted over his shoulder would be a green
-    /// glitch — preserved cells make it depth instead. The character always
-    /// stands in front of the ground object.
+    /// The foreground read is the operator's call (it replaced a
+    /// ground-object version he stood in front of): where the badge and the
+    /// leg overlap, the badge wins the cell. It still only ever covers shell
+    /// ink — never a face, prop, or costume cell, which the corner test pins.
     private static func drawDoneBadge(_ b: inout PixelBuffer, visibility: Double, pulse: Double) {
         let shape = [
             ".gggg.",
@@ -233,21 +233,20 @@ public enum CrabRig {
             ".gggg.",
         ]
         var badge = PixelBuffer()
-        badge.stamp(shape, at: (x: 26, y: 19), key: ["g": .green, "w": .mouth])
+        badge.stamp(shape, at: (x: 25, y: 19), key: ["g": .green, "w": .mouth])
 
         // The reminder breath: a golden shimmer through the badge's own
         // footprint, applied to the badge's scratch buffer so the pair lands
-        // in one preserving pass. Never a ring — a ring one cell out clips
-        // off the grid and collides with his trailing foot. The house
-        // dissolve gives the swell its speckle; the envelope gives its ease.
+        // in one pass. Never a ring — a ring one cell out clips off the grid.
+        // The house dissolve gives the swell its speckle; the envelope its
+        // ease.
         if pulse > 0.001 {
             var glow = PixelBuffer()
-            glow.stamp(shape, at: (x: 26, y: 19), key: ["g": .yellow, "w": .yellow])
+            glow.stamp(shape, at: (x: 25, y: 19), key: ["g": .yellow, "w": .yellow])
             badge.composite(glow, visibility: Ease.clamp01(pulse), seed: 731)
         }
 
-        b.composite(badge, visibility: Ease.clamp01(visibility), seed: 730,
-                    preservingExisting: true)
+        b.composite(badge, visibility: Ease.clamp01(visibility), seed: 730)
     }
 
     /// A two-pixel bug on floor row 29, legs flickering, with a tiny bob.
