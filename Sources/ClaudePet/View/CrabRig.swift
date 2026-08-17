@@ -206,8 +206,8 @@ public enum CrabRig {
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
         if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
 
-        // Applied last so props shrink with him rather than floating free.
-        return pose.scale < 0.999 ? buffer.scaled(pose.scale) : buffer
+        // Applied last so props scale with him rather than floating free.
+        return abs(pose.scale - 1) > 0.001 ? buffer.scaled(pose.scale) : buffer
     }
 
     // MARK: - Quiet-hour extras

@@ -91,14 +91,16 @@ public struct PixelBuffer: Sendable {
         }
     }
 
-    /// Nearest-neighbour shrink, anchored at the feet and centred horizontally.
+    /// Nearest-neighbour scale, anchored at the feet and centred horizontally.
     ///
     /// Done here rather than with `.scaleEffect` on the view: `CrabView` ends in
     /// `.drawingGroup()`, so a view-level scale resamples a finished bitmap and
     /// softens the deliberately hard pixel edges. Resampling the grid keeps every
-    /// cell square.
+    /// cell square. Upscales (the epic finale's transform) keep the feet pinned
+    /// and crop at the grid's top edge — the buffer never grows; content that
+    /// leaves the 32 rows is simply gone for the beat it is gone.
     func scaled(_ factor: Double) -> PixelBuffer {
-        guard factor < 0.999, factor > 0.1 else { return self }
+        guard abs(factor - 1) > 0.001, factor > 0.1, factor < 2 else { return self }
         var out = PixelBuffer()
         let side = Double(Self.side)
         let inset = (side - side * factor) / 2

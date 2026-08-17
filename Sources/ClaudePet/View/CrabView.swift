@@ -469,7 +469,9 @@ public enum CrabAnimator {
         let compression = progress < 0.35
             ? Ease.smoothstep(progress / 0.35)
             : Ease.smoothstep(max(0, 1 - (progress - 0.35) / 0.65))
-        pose.scale = 1 - 0.22 * compression
+        // Multiplicative, never assignment: a click mid-transform must dent
+        // the current scale, not snap a 1.2x finale back to 1 in one frame.
+        pose.scale *= 1 - 0.22 * compression
         pose.squash = compression > 0.5 ? 1 : 0
         pose.mouth = .open
     }
