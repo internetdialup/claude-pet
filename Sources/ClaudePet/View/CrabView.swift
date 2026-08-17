@@ -590,6 +590,13 @@ public struct CrabView: View {
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
+    /// The view-state clocks. Per-model instances live — two pets must not
+    /// rebase each other's epochs or cross-trigger costume dissolves — with
+    /// `.shared` as the default so bare constructions (previews, frozen
+    /// renders that never touch a clock) need no ceremony.
+    public var moodClock: MoodClock = .shared
+    public var costumeClock: CostumeClock = .shared
+
     public init(mood: PetMood,
                 costume: Costume = .none,
                 celebrating: Bool = false,
@@ -605,7 +612,9 @@ public struct CrabView: View {
                 completedAt: Double? = nil,
                 badgeShownAt: Double? = nil,
                 badgeEndedAt: Double? = nil,
-                frozenTime: Double? = nil) {
+                frozenTime: Double? = nil,
+                moodClock: MoodClock = .shared,
+                costumeClock: CostumeClock = .shared) {
         self.mood = mood
         self.costume = costume
         self.celebrating = celebrating
@@ -622,6 +631,8 @@ public struct CrabView: View {
         self.badgeShownAt = badgeShownAt
         self.badgeEndedAt = badgeEndedAt
         self.frozenTime = frozenTime
+        self.moodClock = moodClock
+        self.costumeClock = costumeClock
     }
 
     /// How long the party lasts.
@@ -741,17 +752,17 @@ public struct CrabView: View {
             // Cross-ease mood changes from the last pose that was actually on
             // screen. Offline renderers never note a displayed pose, so the
             // blend can never engage there — parity by construction.
-            if let (from, u) = MoodClock.shared.crossfade(at: time) {
+            if let (from, u) = moodClock.crossfade(at: time) {
                 pose = CrabPose.blend(from: from, to: pose, u: u)
             }
-            MoodClock.shared.note(displayed: pose)
+            moodClock.note(displayed: pose)
             // Same contract for the wardrobe: live changes cross-dissolve,
             // frozen and offline renders wear the costume at full strength.
-            CostumeClock.shared.note(costume)
-            costumeProgress = CostumeClock.shared.progress(at: time)
-            if costumeProgress < 1 { ghostCostume = CostumeClock.shared.previous }
+            costumeClock.note(costume)
+            costumeProgress = costumeClock.progress(at: time)
+            if costumeProgress < 1 { ghostCostume = costumeClock.previous }
         }
-        let localT = frozenTime == nil ? MoodClock.shared.age(of: mood, at: time) : time
+        let localT = frozenTime == nil ? moodClock.age(of: mood, at: time) : time
         let tint = CrabView.composedTint(mood: mood,
                                          t: localT,
                                          rainbowElapsed: frozenTime == nil
@@ -770,7 +781,7 @@ public struct CrabView: View {
     }
 
     private func currentPose(at time: Double) -> CrabPose {
-        let t = frozenTime == nil ? MoodClock.shared.age(of: mood, at: time) : time
+        let t = frozenTime == nil ? moodClock.age(of: mood, at: time) : time
 
         // During the party the pose cycles too. `MoodClock` is deliberately
         // bypassed: it rebases time on every mood change, which at 0.8s per pose
@@ -856,8 +867,9 @@ public struct CrabView: View {
 /// the last displayed pose at each change, so the new mood can cross-ease in
 /// from exactly where the old one left him.
 @MainActor
-final class MoodClock {
-    static let shared = MoodClock()
+public final class MoodClock {
+    public static let shared = MoodClock()
+    public init() {}
     nonisolated static let blendDuration = 0.4
 
     private var current: PetMood = .sleeping

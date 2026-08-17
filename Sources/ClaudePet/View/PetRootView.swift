@@ -83,7 +83,9 @@ public struct PetRootView: View {
                     snackSince: model.snackStartedAt?.timeIntervalSinceReferenceDate,
                     completedAt: model.badgeCompletionAt?.timeIntervalSinceReferenceDate,
                     badgeShownAt: model.badgeShownAt?.timeIntervalSinceReferenceDate,
-                    badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate
+                    badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate,
+                    moodClock: model.moodClock,
+                    costumeClock: model.costumeClock
                 )
                 .frame(width: spriteSize, height: spriteSize)
 
@@ -138,5 +140,10 @@ public final class PetViewModel: ObservableObject {
     @Published public var badgeCompletionAt: Date?
     @Published public var badgeShownAt: Date?
     @Published public var badgeEndedAt: Date?
+    /// This pet's own view-state clocks — never the shared singletons, which
+    /// exist only as defaults for bare constructions. Two pets rebasing one
+    /// clock would restart each other's one-shot beats.
+    public let moodClock = MoodClock()
+    public let costumeClock = CostumeClock()
     public init() {}
 }

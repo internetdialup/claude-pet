@@ -165,8 +165,9 @@ enum CrabCostume {
 /// live-only: offline renderers never note a change, so they render whatever
 /// costume they are handed at full strength.
 @MainActor
-final class CostumeClock {
-    static let shared = CostumeClock()
+public final class CostumeClock {
+    public static let shared = CostumeClock()
+    public init() {}
     nonisolated static let fadeDuration = 0.35
 
     private(set) var current: Costume = .none

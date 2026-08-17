@@ -199,7 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // 🐛 A click on the visiting floor bug is a pounce, not a roster
             // request. The bug's schedule is pure, so ask it where it is.
             if self.model.state.mood == .idle,
-               let epoch = MoodClock.shared.currentEpoch(for: .idle),
+               let epoch = self.model.moodClock.currentEpoch(for: .idle),
                let bug = CrabAnimator.bugPosition(idleT: Date.timeIntervalSinceReferenceDate - epoch),
                let cell = self.gridCell(for: location),
                cell.y >= 26, cell.x >= bug - 2, cell.x <= bug + 3 {
