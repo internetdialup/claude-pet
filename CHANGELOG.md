@@ -73,9 +73,12 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
-- **He's easier to grab.** The mouse target grew a 14-point halo around the
-  sprite, and the speech bubble is now a drag handle whenever it's visible —
-  anywhere you see pixels moves him. Empty air stays click-through.
+- **He's grabbed by the stomach.** The mouse knows exactly where he is —
+  his sprite, nothing more: no invisible margin, no grabbable bubble. Only
+  the torso moves him; claws, legs and crown still poke, pet and pounce.
+  With two pets parked side by side, that's what keeps each one
+  individually grabbable — and a poke never yanks him to the dock edge
+  anymore.
 - **Idle chatter goes intermittent.** For the first minute and a half of
   quiet he keeps you company as always; past that, roughly one cycle in
   three shows a line and the rest are calm. The status ticker keeps its

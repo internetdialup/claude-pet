@@ -527,8 +527,10 @@ private final class DragHostView: NSView {
         let clicks = event.clickCount
         let location = convert(event.locationInWindow, from: nil)
         MainActor.assumeIsolated {
-            // Only an armed drag settles: pokes no longer re-run the dock
-            // snap, the position save, or the deferred step-aside.
+            // Only an armed (torso) press settles a drag: off-torso pokes
+            // never re-run the dock snap, the position save, or the deferred
+            // step-aside. A stationary torso click still settles — for a
+            // parked window the snap is a no-op.
             if dragArmed { controller?.endDrag() }
             dragArmed = false
             if isPetting {
