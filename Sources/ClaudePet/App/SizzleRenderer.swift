@@ -135,7 +135,9 @@ enum SizzleRenderer {
             let beatT = t - Double(beat)
             let env = Ease.window(beatT, duration: 0.45, edge: 0.18)
             let dir: CGFloat = beat % 2 == 0 ? 1 : -1
-            shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env * 0.6
+            // Full punch — the window's plateau then dwells at a sanctioned
+            // stop, and half-measures read as hesitation at meme speed.
+            shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env
             shot.offset.x = (dir * 10 * env).rounded()
 
         case .duet, .outro:

@@ -23,7 +23,7 @@ struct SizzleScriptTests {
 
     @Test("Every cut's segments sum to its declared duration, and resolve covers it")
     func cutSums() {
-        for cut in SizzleScript.cuts {
+        for cut in SizzleScript.cuts + SizzleScript.plates {
             let sum = cut.segments.reduce(0.0) { $0 + $1.seconds }
             #expect(abs(sum - cut.seconds) < 1e-9, "\(cut.name)")
             // The last frame must still resolve; one tick past the end must not.
@@ -40,16 +40,47 @@ struct SizzleScriptTests {
                 "the GIF cut must stay lean — \(SizzleScript.readme.frameCount) frames")
     }
 
-    @Test("The must-shows are protected in every cut that carries them")
+    @Test("The must-shows are protected, per cut")
     func mustShows() {
-        // The finale plays complete in both social cuts, and at least 8s in
-        // the README loop.
+        // The finale: whole in the social masters, most of it in the README
+        // loop, its first four seconds in the meme.
         for cut in [SizzleScript.landscape, SizzleScript.vertical] {
             let finale = cut.segments.first { $0.chapter == .finale }
             #expect(finale?.seconds == 10.0, "\(cut.name) must carry the whole finale")
         }
         let readmeFinale = SizzleScript.readme.segments.first { $0.chapter == .finale }
         #expect((readmeFinale?.seconds ?? 0) >= 8.0)
+        let memeFinale = SizzleScript.meme.segments.first { $0.chapter == .finale }
+        #expect(memeFinale?.seconds == 4.0)
+        if case .window(let offset) = memeFinale?.kind {
+            #expect(offset == 0, "the meme finale opens on the flash")
+        } else {
+            Issue.record("the meme finale must be a window slice")
+        }
+
+        // The meme respects the attention span, and carries its spine.
+        #expect(SizzleScript.meme.seconds < 20.0)
+        for chapter in [SizzleScript.Chapter.glyphs, .montage, .outro] {
+            #expect(SizzleScript.meme.segments.contains { $0.chapter == chapter },
+                    "the meme needs its \(chapter)")
+        }
+
+        // The video twin mirrors the GIF cut exactly.
+        #expect(SizzleScript.readmeVideo.segments.count == SizzleScript.readme.segments.count)
+        #expect(SizzleScript.readmeVideo.seconds == SizzleScript.readme.seconds)
+
+        // The plates mirror their masters through resolve, sweep-checked —
+        // keyed footage must stay in sync with the titled cuts.
+        for (plate, master) in [(SizzleScript.plate16x9, SizzleScript.landscape),
+                                (SizzleScript.plate9x16, SizzleScript.vertical)] {
+            #expect(plate.seconds == master.seconds, "\(plate.name)")
+            for tick in stride(from: 0.0, to: master.seconds, by: 0.25) {
+                let a = SizzleScript.resolve(plate, at: tick)
+                let b = SizzleScript.resolve(master, at: tick)
+                #expect(a?.chapter == b?.chapter && a?.localT == b?.localT,
+                        "\(plate.name) diverges at t=\(tick)")
+            }
+        }
 
         // The montage carries every look, ending on Classic for the loop seam.
         #expect(Set(SizzleScript.montageOrder) == Set(Costume.allCases))
@@ -61,7 +92,7 @@ struct SizzleScriptTests {
 
     @Test("Every canvas is H.264-even at its scale")
     func canvasEvenness() {
-        for cut in SizzleScript.cuts {
+        for cut in SizzleScript.cuts + SizzleScript.plates {
             let w = Int(cut.canvas.width * cut.scale)
             let h = Int(cut.canvas.height * cut.scale)
             #expect(w % 2 == 0 && h % 2 == 0, "\(cut.name): \(w)×\(h)")
@@ -130,7 +161,14 @@ struct SizzleFrameTests {
             let cut = SizzleScript.readme
             let a = frameData(cut: cut, t: t)
             let b = frameData(cut: cut, t: t)
-            #expect(a != nil && a == b, "frame at t=\(t) must be reproducible")
+            #expect(a != nil && a == b, "readme frame at t=\(t) must be reproducible")
+        }
+        // And with the camera live: one mid-punch, one mid-shake.
+        for t in [8.6, 17.5] {
+            let cut = SizzleScript.landscape
+            let a = frameData(cut: cut, t: t)
+            let b = frameData(cut: cut, t: t)
+            #expect(a != nil && a == b, "landscape frame at t=\(t) must be reproducible")
         }
     }
 
@@ -139,5 +177,133 @@ struct SizzleFrameTests {
         guard let image = SizzleRenderer.testFrame(cut: cut, index: index) else { return nil }
         let rep = NSBitmapImageRep(cgImage: image)
         return rep.representation(using: .png, properties: [:])
+    }
+}
+
+/// The camera's grid discipline: whole-point offsets, bounded motion,
+/// legal dwells.
+@Suite("Sizzle camera")
+@MainActor
+struct SizzleCameraTests {
+
+    @Test("Offsets are always whole points, shake included")
+    func integerOffsets() {
+        let cut = SizzleScript.landscape
+        let fmt = SizzleRenderer.format(for: cut)
+        for index in 0..<cut.frameCount {
+            let t = Double(index) / Double(cut.fps)
+            guard let cue = SizzleScript.resolve(cut, at: t) else { continue }
+            let shot = SizzleRenderer.shot(for: cue.chapter, t: cue.localT, fmt: fmt)
+            #expect(shot.offset.x == shot.offset.x.rounded(), "frame \(index)")
+            #expect(shot.offset.y == shot.offset.y.rounded(), "frame \(index)")
+        }
+    }
+
+    @Test("Motion is bounded and dwells sit on sanctioned stops")
+    func continuity() {
+        let cut = SizzleScript.landscape
+        let fmt = SizzleRenderer.format(for: cut)
+        let stops: Set<CGFloat> = [fmt.spriteSide, fmt.punchSide, fmt.faceSide]
+        var previous: SizzleRenderer.Shot?
+        var beforePrevious: SizzleRenderer.Shot?
+        var lastChapter: SizzleScript.Chapter?
+        for index in 0..<cut.frameCount {
+            let t = Double(index) / Double(cut.fps)
+            guard let cue = SizzleScript.resolve(cut, at: t) else { continue }
+            let shot = SizzleRenderer.shot(for: cue.chapter, t: cue.localT, fmt: fmt)
+            if let previous, lastChapter == cue.chapter {
+                // The fastest sanctioned move is the face punch: 96pt over
+                // 0.4s, smoothstepped — mid-slope ≈ 12pt/frame at 30fps.
+                // A snap would be 30-100pt; 13 catches it with margin.
+                #expect(abs(shot.side - previous.side) <= 13.0,
+                        "side jumped \(abs(shot.side - previous.side)) at frame \(index)")
+                #expect(abs(shot.offset.x - previous.offset.x) <= 4.0, "frame \(index)")
+                #expect(abs(shot.offset.y - previous.offset.y) <= 4.0, "frame \(index)")
+                // A three-frame-flat side is a dwell; dwells sit on stops.
+                if let beforePrevious, beforePrevious.side == previous.side,
+                   previous.side == shot.side {
+                    #expect(stops.contains(shot.side),
+                            "dwelling at unsanctioned \(shot.side), frame \(index)")
+                }
+            }
+            beforePrevious = previous
+            previous = shot
+            lastChapter = cue.chapter
+        }
+    }
+}
+
+/// The plates: pure fields, lossless sequences.
+@Suite("Sizzle plates", .serialized)
+@MainActor
+struct SizzlePlateTests {
+
+    @Test("A plate frame keys clean: exact green corners, a bounded palette")
+    func platePurity() throws {
+        // Mid-cook: shake, disco tint, suppressed shadow and bubble in play.
+        let cut = SizzleScript.plate16x9
+        let index = Int((17.5 * Double(cut.fps)).rounded())
+        let frame = try #require(SizzleRenderer.testFrame(cut: cut, index: index))
+        let data = try #require(frame.dataProvider?.data as Data?)
+
+        // The self-calibrating reference: the same green through the same
+        // pipeline, so colour management cannot fake a failure.
+        let reference = try #require(SpriteImage.cgImage(
+            of: Rectangle().fill(Palette.broadcastGreen).frame(width: 4, height: 4),
+            scale: 1, isOpaque: true))
+        let refData = try #require(reference.dataProvider?.data as Data?)
+        let refPixel = [refData[0], refData[1], refData[2], refData[3]]
+
+        let bytesPerRow = frame.bytesPerRow
+        func pixel(_ x: Int, _ y: Int) -> [UInt8] {
+            let base = y * bytesPerRow + x * 4
+            return [data[base], data[base + 1], data[base + 2], data[base + 3]]
+        }
+        for (x, y) in [(0, 0), (frame.width - 1, 0), (0, frame.height - 1),
+                       (frame.width - 1, frame.height - 1)] {
+            #expect(pixel(x, y) == refPixel, "corner (\(x),\(y)) is not the key green")
+        }
+
+        // Distinct colours stay bounded — AA text, a translucent shadow or
+        // the glow would blow straight past this.
+        var colours = Set<UInt32>()
+        for y in stride(from: 0, to: frame.height, by: 4) {
+            for x in stride(from: 0, to: frame.width, by: 4) {
+                let p = pixel(x, y)
+                colours.insert(UInt32(p[0]) << 24 | UInt32(p[1]) << 16
+                    | UInt32(p[2]) << 8 | UInt32(p[3]))
+            }
+        }
+        #expect(colours.count <= 48, "plate palette exploded: \(colours.count) colours")
+    }
+
+    @Test("The sequence writer names, counts and orders its frames")
+    func sequenceWriter() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-pet-plates-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        #expect(String(format: "frame-%04d.png", 1349) == "frame-1349.png")
+
+        // A stub plate: tiny canvas, three frames, real pipeline.
+        let stub = SizzleScript.Cut(
+            name: "plate-stub", canvas: CGSize(width: 64, height: 36), scale: 1,
+            fps: 10, family: .plate,
+            segments: [SizzleScript.Segment(chapter: .wake, kind: .window(offset: 0),
+                                            seconds: 0.3)])
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let seqDir = dir.appendingPathComponent(stub.name)
+        try FileManager.default.createDirectory(at: seqDir, withIntermediateDirectories: true)
+        for index in 0..<stub.frameCount {
+            let frame = try #require(SizzleRenderer.testFrame(cut: stub, index: index))
+            let rep = NSBitmapImageRep(cgImage: frame)
+            let png = try #require(rep.representation(using: .png, properties: [:]))
+            #expect(SpriteImage.write(png, to: seqDir.appendingPathComponent(
+                String(format: "frame-%04d.png", index))))
+        }
+        let files = try FileManager.default.contentsOfDirectory(atPath: seqDir.path).sorted()
+        #expect(files.count == stub.frameCount)
+        #expect(files == (0..<stub.frameCount).map { String(format: "frame-%04d.png", $0) },
+                "lexicographic order must equal frame order")
     }
 }
