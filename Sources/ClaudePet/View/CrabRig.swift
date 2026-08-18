@@ -686,8 +686,16 @@ public enum CrabRig {
             ], at: (x: 0, y: 1), key: key)
 
         case .bang:
-            b.rect(15, 1, 2, 5, .pink)
-            b.rect(15, 7, 2, 2, .pink)
+            // A proper 8-bit exclamation: three wide with an ember outline
+            // and a paper highlight, bouncing a single pixel on the phase —
+            // the sanctioned snap, and the urgency the two plain rects of
+            // the first draft never had.
+            let hop = sin(phase * 4) > 0.3 ? -1 : 0
+            b.rect(14, 1 + hop, 4, 6, .ember)
+            b.rect(15, 1 + hop, 2, 5, .pink)
+            b.pixel(15, 1 + hop, .paper)
+            b.rect(14, 8 + hop, 4, 2, .ember)
+            b.rect(15, 8 + hop, 2, 1, .pink)
 
         case .zzz:
             let key: [Character: PixelBuffer.Ink] = ["z": .screenLight]
@@ -751,12 +759,17 @@ public enum CrabRig {
             ], at: (x: 25, y: 4), key: key)
 
         case .phone:
-            // Held at his side, screen facing out, content flickering.
-            let x = 27 + dx
-            let y = 11 + dy
-            b.rect(x, y, 4, 7, .screenDark)
-            b.rect(x + 1, y + 1, 2, 4, sin(phase * 3) > 0 ? .green : .screenLight)
-            b.pixel(x + 2, y + 6, .steel)
+            // Held at his side, screen facing out. The first draft read as
+            // a smudge at desk size: now a wider slab with a lit screen, a
+            // glow row, a notification dot pulsing in alert red, and a home
+            // button — a phone, not a domino.
+            let x = 26 + dx
+            let y = 10 + dy
+            b.rect(x, y, 5, 8, .screenDark)
+            b.rect(x + 1, y + 1, 3, 5, sin(phase * 3) > 0 ? .screenLight : .screenDark)
+            b.rect(x + 1, y + 1, 3, 1, .paper)
+            if sin(phase * 2.2) > -0.2 { b.pixel(x + 3, y + 2, .alert) }
+            b.pixel(x + 2, y + 7, .steel)
         }
     }
 
