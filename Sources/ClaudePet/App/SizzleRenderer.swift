@@ -459,6 +459,7 @@ enum SizzleRenderer {
                                  CrabAnimator.applyPropDissolve(at: workT, to: &pose)
                                  pose.serviceGlyph = entry.glyph
                                  pose.serviceGlyphVisibility = Ease.window(beatT, duration: 1.5, edge: 0.3)
+                                 applyGlyphReaction(beat: beat, beatT: beatT, to: &pose)
                                  let bubble = AnyView(ThoughtBubble(text: entry.bubble, tool: "Bash",
                                                                     mood: .working, style: .plain,
                                                                     service: entry.glyph, frozenTime: t))
@@ -649,6 +650,28 @@ enum SizzleRenderer {
                         .background(Rectangle().fill(Palette.green))
                 }
             }
+        }
+    }
+
+    /// He reacts to what he ships — a distinct beat-sized gesture per
+    /// service, all integer channels, all eased inside the beat so
+    /// `.scaled` compresses them with everything else. npm: a nod with the
+    /// eyes down. The merged PR: the right arm goes up with the card.
+    /// Linear: a one-pixel head tilt. Deploy: a lean back, eyes wide.
+    static func applyGlyphReaction(beat: Int, beatT: Double, to pose: inout CrabPose) {
+        let u = Ease.window(beatT - 0.25, duration: 0.9, edge: 0.3)
+        guard u > 0.001 else { return }
+        switch beat {
+        case 0:
+            pose.bob += u > 0.5 ? 1 : 0
+            pose.gazeY += u > 0.5 ? 1 : 0
+        case 1:
+            pose.armRight = max(pose.armRight, u)
+        case 2:
+            pose.tilt = u > 0.5 ? 1 : 0
+        default:
+            pose.lean += u > 0.5 ? -1 : 0
+            pose.eyes = u > 0.4 ? .wide : pose.eyes
         }
     }
 

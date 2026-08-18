@@ -590,3 +590,26 @@ struct MatchCutTests {
         }
     }
 }
+
+/// The glyph reactions: distinct per beat, gone at rest.
+@Suite("Glyph reactions")
+@MainActor
+struct GlyphReactionTests {
+
+    @Test("Each beat gestures differently, and all return to rest")
+    func distinctAndTransient() {
+        var poses: [CrabPose] = []
+        for beat in 0...3 {
+            var pose = CrabPose()
+            SizzleRenderer.applyGlyphReaction(beat: beat, beatT: 0.7, to: &pose)
+            poses.append(pose)
+            var rest = CrabPose()
+            SizzleRenderer.applyGlyphReaction(beat: beat, beatT: 1.45, to: &rest)
+            #expect(rest == CrabPose(), "beat \(beat) must return to rest")
+        }
+        #expect(poses[0].bob == 1 && poses[0].gazeY == 1)
+        #expect(poses[1].armRight > 0.9)
+        #expect(poses[2].tilt == 1)
+        #expect(poses[3].lean == -1 && poses[3].eyes == .wide)
+    }
+}
