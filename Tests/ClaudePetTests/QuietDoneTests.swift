@@ -167,21 +167,22 @@ struct QuietDoneTests {
                 "the status ticker must survive the quiet hours")
     }
 
-    /// Grab rects: the halo grows the sprite square, the bubble band joins
-    /// only while a bubble shows, and everything clamps to the window.
-    @Test func grabRectsShape() {
-        let sprite = CGRect(x: 102, y: 0, width: 96, height: 96)
-        let window = CGSize(width: 300, height: 174)
+    /// The mouse territory is exactly the sprite square — no halo, no bubble
+    /// band. With two pets side by side, any invisible margin on one sat over
+    /// the other's body and stole the pointer.
+    @Test func mouseRegionIsExactlyTheSprite() {
+        // The common case: the square fits and comes back untouched.
+        let sprite = PetRootView.spriteFrame(pixelSize: 3)
+        let window = PetRootView.windowSize(pixelSize: 3)
+        #expect(PetWindowController.grabRect(sprite: sprite, window: window) == sprite)
 
-        let quiet = PetWindowController.grabRects(sprite: sprite, window: window, bubbleVisible: false)
-        #expect(quiet.count == 1)
-        #expect(quiet[0].minX == 88 && quiet[0].minY == 0, "halo clamps to the window floor")
-        #expect(quiet[0].maxY == 110)
-
-        let talking = PetWindowController.grabRects(sprite: sprite, window: window, bubbleVisible: true)
-        #expect(talking.count == 2)
-        #expect(talking[1].minY == sprite.maxY)
-        #expect(talking[1].maxY == 174)
-        #expect(talking[1].width == 300, "the band spans the window")
+        // At pixel size 8 the 256pt square overhangs the 252pt window top by
+        // 4pt; the clamp keeps the region honest about what is reachable.
+        let big = PetRootView.spriteFrame(pixelSize: 8)
+        let bigWindow = PetRootView.windowSize(pixelSize: 8)
+        let clamped = PetWindowController.grabRect(sprite: big, window: bigWindow)
+        #expect(bigWindow.height < big.height, "the overhang this clamp exists for")
+        #expect(clamped.maxY == bigWindow.height)
+        #expect(clamped.minX == big.minX && clamped.width == big.width)
     }
 }

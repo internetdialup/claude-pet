@@ -58,36 +58,19 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// have landed on another display, and a deferred step-aside gets its turn.
     var onDragEnded: (() -> Void)?
 
-    /// The sprite square — hover tracking and pet eligibility never widen
-    /// beyond it, because greeting and petting mean "the pointer is on HIM".
+    /// The sprite square — the whole mouse territory, and the scope of hover
+    /// tracking and pet eligibility, because every interaction means "the
+    /// pointer is on HIM".
     private let spriteRect: CGRect
-    /// Whether the bubble band is currently a grab handle (only while a bubble
-    /// is actually on screen — an always-on invisible strip would swallow
-    /// clicks meant for the desktop).
-    private var bubbleGrabbable = false
 
-    /// The rects that accept the mouse: the sprite square grown by a 14pt halo
-    /// (clamped to the window), plus the bubble band while a bubble shows.
-    /// Everything outside stays click-through.
-    static func grabRects(sprite: CGRect, window: CGSize, bubbleVisible: Bool) -> [CGRect] {
-        let bounds = CGRect(origin: .zero, size: window)
-        var rects = [sprite.insetBy(dx: -14, dy: -14).intersection(bounds)]
-        if bubbleVisible {
-            let band = CGRect(x: 0, y: sprite.maxY,
-                              width: window.width,
-                              height: max(0, window.height - sprite.maxY))
-            if !band.isEmpty { rects.append(band) }
-        }
-        return rects
-    }
-
-    /// Called when the bubble appears or disappears, so the band above his
-    /// head is draggable exactly while there is something visible to grab.
-    func setBubbleGrabbable(_ visible: Bool) {
-        guard visible != bubbleGrabbable else { return }
-        bubbleGrabbable = visible
-        (window.contentView as? DragHostView)?.grabRects =
-            Self.grabRects(sprite: spriteRect, window: contentSize, bubbleVisible: visible)
+    /// The one rect that accepts the mouse: exactly the sprite square, clamped
+    /// to the window (at pixel size 8 the square overhangs the window top by
+    /// 4pt). Everything else — the margins, the bubble — stays click-through.
+    /// The old 14pt halo and talking-bubble band are gone on purpose: with two
+    /// pets parked side by side, one pet's invisible grab zone sat over the
+    /// other's body and stole the pointer.
+    static func grabRect(sprite: CGRect, window: CGSize) -> CGRect {
+        sprite.intersection(CGRect(origin: .zero, size: window))
     }
 
     /// Where this pet's position persists. Injected because pet 2 keeps his
@@ -102,8 +85,7 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     var avoidingFrame: () -> CGRect? = { nil }
 
     /// - Parameter interactiveRect: the sprite square, in view coordinates —
-    ///   the seed for the grab area. Hover and petting stay scoped to it; the
-    ///   mouse target itself is widened by `grabRects`.
+    ///   the mouse territory. Hover, petting and clicks are all scoped to it.
     init(contentSize: CGSize, interactiveRect: CGRect, rootView: some View,
          loadPosition: @escaping () -> CGPoint? = { Preferences.shared.position },
          storePosition: @escaping (CGPoint) -> Void = { Preferences.shared.position = $0 },
@@ -120,8 +102,7 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         hosting.frame = CGRect(origin: .zero, size: contentSize)
         let host = DragHostView(hosting: hosting, controller: self)
         host.spriteRect = interactiveRect
-        host.grabRects = Self.grabRects(sprite: interactiveRect,
-                                        window: contentSize, bubbleVisible: false)
+        host.grabRect = Self.grabRect(sprite: interactiveRect, window: contentSize)
         host.updateTrackingAreas()
         window.contentView = host
         window.delegate = self
@@ -433,13 +414,12 @@ private final class DragHostView: NSView {
     private var petTimer: Timer?
     private var petEligible = false
 
-    /// The sprite square: hover tracking and pet eligibility. Touching the
-    /// halo or the bubble grabs him; only touching HIM greets or pets him.
+    /// The sprite square: hover tracking and pet eligibility.
     var spriteRect: CGRect = .infinite
 
-    /// The rects that accept the mouse. Outside all of them `hitTest` returns
-    /// nil and the click passes through to whatever is behind the window.
-    var grabRects: [CGRect] = []
+    /// The rect that accepts the mouse. Outside it `hitTest` returns nil and
+    /// the click passes through to whatever is behind the window.
+    var grabRect: CGRect = .zero
 
     init(hosting: NSView, controller: PetWindowController) {
         self.controller = controller
@@ -454,7 +434,7 @@ private final class DragHostView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         // `point` arrives in the superview's coordinate space.
         let local = convert(point, from: superview)
-        return grabRects.contains(where: { $0.contains(local) }) ? self : nil
+        return grabRect.contains(local) ? self : nil
     }
 
     /// The app is an accessory and the window never takes key focus, so without
@@ -462,9 +442,9 @@ private final class DragHostView: NSView {
     /// activation click and swallowed — you had to click him twice to drag.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    /// Tracking is scoped to the sprite square, so hovering the halo, the
-    /// transparent margin, or the bubble does not make him react — the wider
-    /// area is for grabbing, not for greeting.
+    /// Tracking is scoped to the sprite square, same as the mouse territory,
+    /// so hovering the transparent margin or the bubble does not make him
+    /// react.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
@@ -489,8 +469,7 @@ private final class DragHostView: NSView {
         maxMovement = 0
         pressOrigin = NSEvent.mouseLocation
         pressStartedAt = Date()
-        // Petting means touching HIM — a hold on the halo or the bubble is
-        // just a grip, so only a press inside the sprite square can mature.
+        // Petting means touching HIM — a press inside the sprite square.
         petEligible = spriteRect.contains(convert(event.locationInWindow, from: nil))
         MainActor.assumeIsolated {
             controller?.beginDrag(at: NSEvent.mouseLocation)

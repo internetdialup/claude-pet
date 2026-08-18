@@ -195,7 +195,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 let state = DemoMode.state(at: elapsed)
                 self.primary.model.state = state
                 self.menuBar?.update(state: state)
-                self.primary.refreshBubbleGrab()
 
                 // Hold the rainbow for exactly the beat that asks for it. Its
                 // start is pinned to the beat's own start so the hue cycle
@@ -215,7 +214,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// "Live" hands control back to the coordinator.
     private func previewMood(_ mood: PetMood?) {
         debugMood = mood
-        defer { primary.refreshBubbleGrab() }
         guard let mood else {
             primary.model.state = coordinator.state
             return

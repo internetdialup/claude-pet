@@ -73,7 +73,7 @@ final class PetInstance {
 
         let pixelSize = Preferences.shared.pixelSize
         let size = PetRootView.windowSize(pixelSize: pixelSize)
-        // Only the sprite band accepts clicks; the rest of the window is
+        // Only the sprite square accepts clicks; the rest of the window is
         // transparent and click-through. `PetRootView` owns the layout maths
         // so the grab area cannot drift away from the character.
         let interactive = PetRootView.spriteFrame(pixelSize: pixelSize)
@@ -129,20 +129,16 @@ final class PetInstance {
                 let seed = Int(Date().timeIntervalSince1970)
                 self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
                                               Date().addingTimeInterval(2.4))
-                self.refreshBubbleGrab()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                     self.model.pouncedAt = nil
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    self.refreshBubbleGrab()
                 }
                 return
             }
 
             // 🍤 A click on a sleeping crab is a snack, not a roster request —
-            // the roster stays a menu-bar away. Gated on the sprite itself:
-            // with the grab halo, a click on the bubble band above a sleeping
-            // crab is a grip, not a feeding.
+            // the roster stays a menu-bar away. The `gridCell` gate stays even
+            // with the mouse territory now sprite-only: the click location is
+            // sampled at mouseUp and can drift a few points off the sprite.
             if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil,
                self.gridCell(for: location) != nil {
                 self.model.snackStartedAt = Date()
@@ -216,7 +212,6 @@ final class PetInstance {
             model.celebrationStartedAt = nil
         }
         model.state = state
-        refreshBubbleGrab()
         updateBadgeLatches()
     }
 
@@ -324,15 +319,6 @@ final class PetInstance {
                 self.model.badgeEndedAt = nil
             }
         }
-    }
-
-    /// The bubble band is a grab handle exactly while a bubble is visible —
-    /// mirrors `PetRootView`'s display condition, so what you can see is what
-    /// you can grab.
-    func refreshBubbleGrab() {
-        let transient = model.transientBubble.map { $0.until > Date() } ?? false
-        let stateBubble = !(model.state.bubble ?? "").isEmpty && model.state.mood != .sleeping
-        controller?.setBubbleGrabbable(transient || stateBubble)
     }
 
     /// Maps a click in view coordinates to a sprite-grid cell. View y runs
