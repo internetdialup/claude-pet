@@ -86,6 +86,17 @@ struct SizzleScriptTests {
             }
         }
 
+        // The hook: the finale's flash as a cold open, then landscape
+        // verbatim, still inside the law.
+        let opener = SizzleScript.hook.segments.first
+        #expect(opener?.chapter == .finale && opener?.seconds == 0.6)
+        if case .window(let offset) = opener?.kind { #expect(offset == 1.0) }
+        else { Issue.record("the hook must open on a window slice") }
+        #expect(Array(SizzleScript.hook.segments.dropFirst()).count
+                == SizzleScript.landscape.segments.count)
+        #expect(abs(SizzleScript.hook.seconds - 24.8) < 1e-9)
+        #expect(SizzleScript.hook.frameCount == 744)
+
         // The montage carries every look, ending on Classic for the loop seam.
         #expect(Set(SizzleScript.montageOrder) == Set(Costume.allCases))
         #expect(SizzleScript.montageOrder.last == Costume.none)

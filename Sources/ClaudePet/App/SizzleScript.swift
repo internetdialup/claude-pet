@@ -1,6 +1,6 @@
 import Foundation
 
-/// The sizzle reel's master script: eight chapters, three cuts.
+/// The sizzle reel's master script: eight chapters, six cuts, two plates.
 ///
 /// Everything here is data — the renderer walks it with a frame clock and
 /// pure pose functions, so the same chapter renders byte-identically at any
@@ -172,7 +172,17 @@ enum SizzleScript {
             Segment(chapter: .outro, kind: .scaled, seconds: 0.8),
         ])
 
-    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme]
+    /// The hook cut: 0.6s of the finale's flash as a cold open — the
+    /// retention pattern socials reward — then the landscape master
+    /// verbatim. 24.8s, still inside the law.
+    static let hook = Cut(
+        name: "sizzle-hook.mp4",
+        canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
+        family: .master,
+        segments: [Segment(chapter: .finale, kind: .window(offset: 1.0), seconds: 0.6)]
+            + landscape.segments)
+
+    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme, hook]
 
     /// The green-screen plates: the master cuts' segments VERBATIM — the
     /// camera is pure in (chapter, localT, format), so every plate frame's
