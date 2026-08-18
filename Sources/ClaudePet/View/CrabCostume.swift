@@ -117,9 +117,11 @@ struct CostumeStyle {
 enum CrabCostume {
     enum Layer { case behind, onBody, front }
 
-    /// Body geometry mirrored from `CrabRig` — the accessories are tailored to
-    /// the same measurements the shell is drawn with.
-    private static let bodyX = 6, bodyW = 20, bodyY = 10, bodyH = 11
+    /// Body geometry from `CrabRig` — the accessories are tailored to the
+    /// same measurements the shell is drawn with. Aliases, not copies, so the
+    /// mirror cannot drift.
+    private static let bodyX = CrabRig.bodyX, bodyW = CrabRig.bodyW,
+                       bodyY = CrabRig.bodyY, bodyH = CrabRig.bodyH
 
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
                      dx: Int, dy: Int, squash: Int, pose: CrabPose) {

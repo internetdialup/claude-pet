@@ -223,3 +223,78 @@ struct CondenseTests {
         #expect(ActivityCoordinator.condense("git add .\ngit commit") == "git add . git commit")
     }
 }
+
+/// The torso drag handle: only the stomach block moves the window, so two
+/// pets on one desk stay individually grabbable.
+@Suite("Torso drag handle")
+@MainActor
+struct TorsoDragHandleTests {
+
+    /// The formula `PetInstance.gridCell(for:)` applies (it is private there);
+    /// three lines, restated so the tests can round-trip view points to cells.
+    private func cell(_ point: CGPoint, pixelSize: Double) -> (x: Int, y: Int)? {
+        let frame = PetRootView.spriteFrame(pixelSize: pixelSize)
+        guard frame.contains(point) else { return nil }
+        return (Int((point.x - frame.minX) / pixelSize),
+                PixelBuffer.side - 1 - Int((point.y - frame.minY) / pixelSize))
+    }
+
+    /// The view point at the centre of a grid cell.
+    private func point(col: Int, row: Int, pixelSize: Double) -> CGPoint {
+        let frame = PetRootView.spriteFrame(pixelSize: pixelSize)
+        return CGPoint(
+            x: frame.minX + (Double(col) + 0.5) * pixelSize,
+            y: frame.minY + (Double(PixelBuffer.side - 1 - row) + 0.5) * pixelSize)
+    }
+
+    @Test("The handle is the rig's body block at every pixel size")
+    func geometryTable() {
+        for px in Preferences.pixelSizes {
+            let sprite = PetRootView.spriteFrame(pixelSize: px)
+            let torso = PetRootView.torsoFrame(pixelSize: px)
+            #expect(torso == CGRect(x: sprite.minX + 6 * px, y: 11 * px,
+                                    width: 20 * px, height: 11 * px),
+                    "torso drifted from the body block at pixel size \(px)")
+            #expect(sprite.contains(torso), "the handle must live on him")
+            let window = PetRootView.windowSize(pixelSize: px)
+            #expect(CGRect(origin: .zero, size: window).contains(torso),
+                    "the handle must be reachable — true even where the sprite overhangs")
+        }
+    }
+
+    @Test("The handle round-trips to body cells through the click grid")
+    func roundTripsToBodyCells() throws {
+        for px in Preferences.pixelSizes {
+            let torso = PetRootView.torsoFrame(pixelSize: px)
+            // Inset corners: the extreme points that are still inside.
+            for point in [CGPoint(x: torso.minX + 0.1, y: torso.minY + 0.1),
+                          CGPoint(x: torso.maxX - 0.1, y: torso.maxY - 0.1)] {
+                let landed = try #require(cell(point, pixelSize: px))
+                #expect(landed.x >= 6 && landed.x <= 25, "col \(landed.x) off the body at \(px)")
+                #expect(landed.y >= 10 && landed.y <= 20, "row \(landed.y) off the body at \(px)")
+            }
+        }
+    }
+
+    @Test("Eligibility: the stomach drags; claws, crown and the bug floor never do")
+    func eligibilitySamples() {
+        for px in Preferences.pixelSizes {
+            let sprite = PetRootView.spriteFrame(pixelSize: px)
+            let torso = PetRootView.torsoFrame(pixelSize: px)
+
+            #expect(torso.contains(point(col: 15, row: 15, pixelSize: px)),
+                    "the body centre is the handle")
+
+            let leg = point(col: 8, row: 23, pixelSize: px)
+            #expect(!torso.contains(leg) && sprite.contains(leg),
+                    "a leg clicks but never drags")
+
+            #expect(!torso.contains(point(col: 15, row: 5, pixelSize: px)),
+                    "the crown rows are props' airspace, not a handle")
+
+            let bugRow = point(col: 15, row: 29, pixelSize: px)
+            #expect(!torso.contains(bugRow) && sprite.contains(bugRow),
+                    "a pounce click can never be mistaken for a drag")
+        }
+    }
+}

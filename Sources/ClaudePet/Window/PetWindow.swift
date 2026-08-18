@@ -86,7 +86,10 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 
     /// - Parameter interactiveRect: the sprite square, in view coordinates —
     ///   the mouse territory. Hover, petting and clicks are all scoped to it.
-    init(contentSize: CGSize, interactiveRect: CGRect, rootView: some View,
+    /// - Parameter dragRect: the torso, in view coordinates — the only place
+    ///   a press moves the window. Pass-through to the host view, never
+    ///   re-read here.
+    init(contentSize: CGSize, interactiveRect: CGRect, dragRect: CGRect, rootView: some View,
          loadPosition: @escaping () -> CGPoint? = { Preferences.shared.position },
          storePosition: @escaping (CGPoint) -> Void = { Preferences.shared.position = $0 },
          parkOffset: CGFloat = 0) {
@@ -103,6 +106,7 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         let host = DragHostView(hosting: hosting, controller: self)
         host.spriteRect = interactiveRect
         host.grabRect = Self.grabRect(sprite: interactiveRect, window: contentSize)
+        host.dragRect = dragRect
         host.updateTrackingAreas()
         window.contentView = host
         window.delegate = self
@@ -413,6 +417,7 @@ private final class DragHostView: NSView {
     private var isPetting = false
     private var petTimer: Timer?
     private var petEligible = false
+    private var dragArmed = false
 
     /// The sprite square: hover tracking and pet eligibility.
     var spriteRect: CGRect = .infinite
@@ -420,6 +425,11 @@ private final class DragHostView: NSView {
     /// The rect that accepts the mouse. Outside it `hitTest` returns nil and
     /// the click passes through to whatever is behind the window.
     var grabRect: CGRect = .zero
+
+    /// The torso — the only place a press moves the window. Claws, legs and
+    /// crown still click, pet and pounce; with two pets on one desk, a
+    /// smaller handle is what makes each pet grabbable next to the other.
+    var dragRect: CGRect = .zero
 
     init(hosting: NSView, controller: PetWindowController) {
         self.controller = controller
@@ -469,10 +479,16 @@ private final class DragHostView: NSView {
         maxMovement = 0
         pressOrigin = NSEvent.mouseLocation
         pressStartedAt = Date()
+        let local = convert(event.locationInWindow, from: nil)
         // Petting means touching HIM — a press inside the sprite square.
-        petEligible = spriteRect.contains(convert(event.locationInWindow, from: nil))
-        MainActor.assumeIsolated {
-            controller?.beginDrag(at: NSEvent.mouseLocation)
+        petEligible = spriteRect.contains(local)
+        // Only a torso press arms the drag; a press on a claw or a leg is a
+        // poke or a pet, never a move.
+        dragArmed = dragRect.contains(local)
+        if dragArmed {
+            MainActor.assumeIsolated {
+                controller?.beginDrag(at: NSEvent.mouseLocation)
+            }
         }
         // A press that stays put matures into petting. The timer dies on the
         // first real movement, so drag always wins.
@@ -493,6 +509,8 @@ private final class DragHostView: NSView {
         maxMovement = max(maxMovement, hypot(location.x - pressOrigin.x, location.y - pressOrigin.y))
         guard maxMovement > PressGesture.movementThreshold else { return }
         petTimer?.invalidate()
+        // Unconditional on purpose: a swipe across a claw must not fall
+        // through to onClick at release — it is neither a click nor a drag.
         didDrag = true
         MainActor.assumeIsolated {
             // Movement cancels an engaged petting into a normal drag.
@@ -500,7 +518,7 @@ private final class DragHostView: NSView {
                 isPetting = false
                 controller?.onPetEnd?()
             }
-            controller?.continueDrag(to: location)
+            if dragArmed { controller?.continueDrag(to: location) }
         }
     }
 
@@ -509,7 +527,10 @@ private final class DragHostView: NSView {
         let clicks = event.clickCount
         let location = convert(event.locationInWindow, from: nil)
         MainActor.assumeIsolated {
-            controller?.endDrag()
+            // Only an armed drag settles: pokes no longer re-run the dock
+            // snap, the position save, or the deferred step-aside.
+            if dragArmed { controller?.endDrag() }
+            dragArmed = false
             if isPetting {
                 isPetting = false
                 controller?.onPetEnd?()

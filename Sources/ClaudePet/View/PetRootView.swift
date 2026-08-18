@@ -43,6 +43,19 @@ public struct PetRootView: View {
         return CGRect(x: (window.width - sprite) / 2, y: 0, width: sprite, height: sprite)
     }
 
+    /// The rest-pose torso in view coordinates — the window-drag handle.
+    /// `CrabRig`'s body block (cols 6–25, rows 10–20) through the same y-flip
+    /// the click-to-cell mapping uses. Rest pose on purpose: drags start on a
+    /// calm pet, and a handle that bobbed with him would be unlearnable.
+    public static func torsoFrame(pixelSize: Double) -> CGRect {
+        let sprite = spriteFrame(pixelSize: pixelSize)
+        return CGRect(
+            x: sprite.minX + CGFloat(CrabRig.bodyX) * pixelSize,
+            y: sprite.minY + CGFloat(PixelBuffer.side - CrabRig.bodyY - CrabRig.bodyH) * pixelSize,
+            width: CGFloat(CrabRig.bodyW) * pixelSize,
+            height: CGFloat(CrabRig.bodyH) * pixelSize)
+    }
+
     public var body: some View {
         VStack(spacing: -overlap) {
             ZStack {

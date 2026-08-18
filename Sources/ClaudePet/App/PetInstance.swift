@@ -82,6 +82,10 @@ final class PetInstance {
         let controller = PetWindowController(
             contentSize: size,
             interactiveRect: interactive,
+            // The torso is the drag handle; the rest of him pokes, pets and
+            // pounces. Both rects come from the same pixelSize in the same
+            // call, so they can never go stale against each other.
+            dragRect: PetRootView.torsoFrame(pixelSize: pixelSize),
             rootView: PetRootView(model: model, pixelSize: pixelSize),
             loadPosition: { slot == 0 ? Preferences.shared.position : Preferences.shared.pet2Position },
             storePosition: { origin in

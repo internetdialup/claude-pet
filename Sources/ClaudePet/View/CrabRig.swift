@@ -121,10 +121,13 @@ public enum CrabRig {
     // Wider than tall, with a wide gap between the inner pair of legs and thin
     // nubs for arms. Getting this ratio wrong is what made the first attempt
     // read as a cat rather than as Claw'd.
-    private static let bodyX = 6
-    private static let bodyW = 20
-    private static let bodyY = 10
-    private static let bodyH = 11
+    // The body block is internal, not private: the costume tailoring and the
+    // window's torso drag handle measure the same torso the shell is drawn
+    // with, so the measurement lives once, here, at its origin.
+    static let bodyX = 6
+    static let bodyW = 20
+    static let bodyY = 10
+    static let bodyH = 11
 
     private static let legTop = 21
     private static let legH = 4
