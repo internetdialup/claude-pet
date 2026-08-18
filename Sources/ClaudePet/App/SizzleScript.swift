@@ -35,12 +35,18 @@ enum SizzleScript {
         let seconds: Double
     }
 
+    /// What kind of output a cut is — the renderer's Format dispatches on
+    /// this, never on canvas/fps heuristics (the meme cut is heuristically
+    /// identical to the landscape master).
+    enum Family { case master, readme, meme, plate }
+
     struct Cut {
         let name: String
         /// Canvas in points; frames render at `canvas × scale` pixels.
         let canvas: CGSize
         let scale: CGFloat
         let fps: Int32
+        let family: Family
         let segments: [Segment]
         var seconds: Double { segments.reduce(0) { $0 + $1.seconds } }
         var frameCount: Int { Int((seconds * Double(fps)).rounded()) }
@@ -93,6 +99,7 @@ enum SizzleScript {
     static let landscape = Cut(
         name: "sizzle-16x9.mp4",
         canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
+        family: .master,
         segments: Chapter.allCases.map {
             Segment(chapter: $0, kind: .scaled, seconds: masterSeconds[$0] ?? 0)
         })
@@ -100,6 +107,7 @@ enum SizzleScript {
     static let vertical = Cut(
         name: "sizzle-9x16.mp4",
         canvas: CGSize(width: 360, height: 640), scale: 3, fps: 30,
+        family: .master,
         segments: [
             Segment(chapter: .wake, kind: .scaled, seconds: 2.0),
             Segment(chapter: .glyphs, kind: .scaled, seconds: 4.0),
@@ -113,6 +121,7 @@ enum SizzleScript {
     static let readme = Cut(
         name: "sizzle-readme.gif",
         canvas: CGSize(width: 320, height: 180), scale: 2, fps: 10,
+        family: .readme,
         segments: [
             Segment(chapter: .mirror, kind: .window(offset: 1.6), seconds: 3.0),
             Segment(chapter: .cook, kind: .window(offset: 1.2), seconds: 3.0),
@@ -124,6 +133,7 @@ enum SizzleScript {
     static let readmeVideo = Cut(
         name: "sizzle-readme.mp4",
         canvas: readme.canvas, scale: readme.scale, fps: 30,
+        family: .readme,
         segments: readme.segments)
 
     static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo]

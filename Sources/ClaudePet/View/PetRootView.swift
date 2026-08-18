@@ -172,7 +172,12 @@ struct CelebrationGlow: View {
         let envelope = Ease.window(t, duration: 10, edge: 0.9)
         guard envelope > 0.001 else { return }
         let px = size.width / Double(PixelBuffer.side)
-        let centre = CGPoint(x: size.width / 2, y: size.height * 0.55)
+        // Whole-point centre: the rings' whole read is "pixel-snapped", and a
+        // fractional centre betrayed it — antialiased stroke edges that also
+        // rasterise with run-to-run LSB noise under load, which broke the
+        // sizzle's byte-determinism guarantee.
+        let centre = CGPoint(x: (size.width / 2).rounded(),
+                             y: (size.height * 0.55).rounded())
 
         // The bloom: warm light swelling with the envelope.
         if drawsBloom {
