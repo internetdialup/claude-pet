@@ -169,6 +169,8 @@ final class PetInstance {
         controller.onPetEnd = { [weak self] in
             guard let self else { return }
             self.model.pettingEndedAt = Date()
+            // A step-aside deferred to the hold gets its turn on release.
+            self.stepAsideIfWanted()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
                 guard let self, let ended = self.model.pettingEndedAt,
                       Date().timeIntervalSince(ended) >= 0.55 else { return }
@@ -260,9 +262,14 @@ final class PetInstance {
     }
 
     func stepAsideIfWanted() {
+        // A held crab is in the operator's hand twice over: mid-drag and
+        // mid-pet both defer the fade, and the release re-runs this. Before
+        // the torso-only handle, every press armed the drag and isDragging
+        // covered a pet-hold for free; now the hold speaks for itself.
         guard filmPlaying, Preferences.shared.stepsAsideForVideo,
               !petHiddenByUser, !filmOverride, !steppedAside,
-              controller?.isDragging != true else { return }
+              controller?.isDragging != true,
+              model.pettingStartedAt == nil || model.pettingEndedAt != nil else { return }
         steppedAside = true
         controller?.fadeOut()
     }
