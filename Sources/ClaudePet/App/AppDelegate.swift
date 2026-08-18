@@ -84,6 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         coordinator.onCookingProgress = { [weak self] milestone, session in
             self?.postCookProgress(milestone, session: session)
         }
+        // The film hush lives inside SoundBank so every cue from every seam
+        // honors it; injected before the coordinator can fire a first alert.
+        SoundBank.isHushed = { [weak self] in
+            self?.pets.contains { $0.filmPlaying } ?? false
+        }
         coordinator.start()
 
         menuBar = MenuBarController(

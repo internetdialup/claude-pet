@@ -1,59 +1,142 @@
 import AppKit
 
-/// Short synthesised cues. No audio assets ship with the app — the tones are
-/// generated once at first use, which keeps `Package.swift` resource-free and the
-/// bundle honest about having no binary blobs.
+/// Short synthesised cues. No audio assets ship with the app — samples are
+/// generated in memory at first use and handed to `NSSound(data:)`, which
+/// keeps `Package.swift` resource-free, the bundle honest about having no
+/// binary blobs, and the disk untouched.
+///
+/// The synthesis is pure and testable: `samples(for:)` → `wavData(_:)` are
+/// nonisolated static functions of the cue tables alone — same input, same
+/// bytes, no clocks, no randomness (the noise wave is a splitmix64 hash of
+/// the sample index).
 @MainActor
 public enum SoundBank {
-    public enum Cue { case chirp, chime, blip }
 
-    private static var cache: [String: NSSound] = [:]
+    // MARK: - The vocabulary
+
+    public enum Wave: Sendable { case sine, square, triangle, noise }
+
+    /// One note of a cue. `frequency` 0 is a rest; `slideTo` glides the
+    /// pitch exponentially across the note — the squeal's whole trick.
+    public struct Note: Sendable {
+        var frequency: Double
+        var duration: Double
+        var wave: Wave = .sine
+        var level: Double = 1.0
+        var slideTo: Double? = nil
+    }
+
+    public enum Cue: Hashable {
+        case chirp, chime, blip
+    }
+
+    // MARK: - The gates
+
+    /// The film hush, injected by AppDelegate at launch: sound cues hush
+    /// during films whether or not he steps aside for them — the CHANGELOG's
+    /// standing promise, enforced HERE so every cue from every seam honors
+    /// it without threading pet state around.
+    ///
+    /// (An older gate checked `frontmostApplication?.activationPolicy ==
+    /// .prohibited` claiming fullscreen/DND detection — it detected neither;
+    /// a prohibited frontmost app is a background agent, near-impossible in
+    /// practice. The film watch is the real mechanism, so that gate is gone.)
+    public static var isHushed: () -> Bool = { false }
+
+    /// Pure decision: which cues play under which switches.
+    static func shouldPlay(_ cue: Cue, soundsEnabled: Bool,
+                           blipsEnabled: Bool, hushed: Bool) -> Bool {
+        guard soundsEnabled, !hushed else { return false }
+        if case .blip = cue { return blipsEnabled }
+        return true
+    }
+
+    // MARK: - Playback
+
+    private static var cache: [Cue: NSSound] = [:]
 
     public static func play(_ cue: Cue) {
-        guard Preferences.shared.soundsEnabled else { return }
-        if cue == .blip && !Preferences.shared.toolBlipEnabled { return }
+        guard shouldPlay(cue,
+                         soundsEnabled: Preferences.shared.soundsEnabled,
+                         blipsEnabled: Preferences.shared.toolBlipEnabled,
+                         hushed: isHushed()) else { return }
 
-        // Don't chirp over a fullscreen presentation or Do Not Disturb.
-        if NSWorkspace.shared.frontmostApplication?.activationPolicy == .prohibited { return }
-
-        let key: String
-        let tones: [(frequency: Double, duration: Double)]
-        switch cue {
-        case .chirp:  key = "chirp";  tones = [(880, 0.07), (1174, 0.09)]
-        case .chime:  key = "chime";  tones = [(659, 0.09), (988, 0.14)]
-        case .blip:   key = "blip";   tones = [(523, 0.04)]
-        }
-
-        if let cached = cache[key] {
+        if let cached = cache[cue] {
             cached.stop()
             cached.play()
             return
         }
-        guard let url = synthesize(tones: tones, name: key),
-              let sound = NSSound(contentsOf: url, byReference: true) else { return }
+        guard let sound = NSSound(data: wavData(samples(for: cue))) else { return }
         sound.volume = 0.35
-        cache[key] = sound
+        cache[cue] = sound
         sound.play()
     }
 
-    /// Writes a small mono 16-bit WAV into the app's caches directory.
-    /// Path: `~/Library/Caches/com.internetdialup.claude-pet/<name>.wav`.
-    private static func synthesize(tones: [(frequency: Double, duration: Double)], name: String) -> URL? {
-        let sampleRate = 44_100.0
-        var samples: [Int16] = []
+    // MARK: - The cue tables
 
-        for tone in tones {
-            let count = Int(sampleRate * tone.duration)
+    /// The notes and the envelope's decay rate. The envelope resets per
+    /// note but decays at the CUE's rate, so a slow-decay finale can ring
+    /// while a blip stays a blip. Nonisolated: a pure table.
+    nonisolated static func spec(for cue: Cue) -> (notes: [Note], decay: Double) {
+        switch cue {
+        case .chirp:
+            return ([Note(frequency: 880, duration: 0.07),
+                     Note(frequency: 1174, duration: 0.09)], 18)
+        case .chime:
+            return ([Note(frequency: 659, duration: 0.09),
+                     Note(frequency: 988, duration: 0.14)], 18)
+        case .blip:
+            return ([Note(frequency: 523, duration: 0.04)], 18)
+        }
+    }
+
+    // MARK: - Synthesis (pure)
+
+    nonisolated static func samples(for cue: Cue, sampleRate: Double = 44_100) -> [Int16] {
+        let (notes, decay) = spec(for: cue)
+        var out: [Int16] = []
+        for note in notes {
+            let count = Int(sampleRate * note.duration)
+            guard note.frequency > 0 else {
+                out.append(contentsOf: repeatElement(0, count: count))
+                continue
+            }
+            var phase = 0.0
             for index in 0..<count {
                 let t = Double(index) / sampleRate
-                // Percussive envelope: instant attack, exponential decay. A raw
-                // sine with hard edges clicks.
-                let envelope = exp(-t * 18)
-                let value = sin(2 * .pi * tone.frequency * t) * envelope * 0.6
-                samples.append(Int16(max(-1, min(1, value)) * 32_000))
+                // Exponential pitch glide: f(t) = f0 · (f1/f0)^(t/dur).
+                let frequency: Double
+                if let target = note.slideTo {
+                    frequency = note.frequency * pow(target / note.frequency, t / note.duration)
+                } else {
+                    frequency = note.frequency
+                }
+                phase += frequency / sampleRate
+                let cycle = phase.truncatingRemainder(dividingBy: 1)
+                let raw: Double
+                switch note.wave {
+                case .sine: raw = sin(2 * .pi * cycle)
+                case .square: raw = cycle < 0.5 ? 1 : -1
+                case .triangle: raw = 4 * abs(cycle - 0.5) - 1
+                case .noise:
+                    // splitmix64 over the sample index — deterministic hiss.
+                    var v = UInt64(index) &* 0x9E37_79B9_7F4A_7C15
+                    v = (v ^ (v >> 30)) &* 0xBF58_476D_1CE4_E5B9
+                    v = (v ^ (v >> 27)) &* 0x94D0_49BB_1331_11EB
+                    raw = Double(v >> 11) / Double(1 << 53) * 2 - 1
+                }
+                // Percussive envelope: instant attack, per-note reset, the
+                // cue's own decay. A raw wave with hard edges clicks.
+                let envelope = exp(-t * decay)
+                let value = raw * envelope * 0.6 * note.level
+                out.append(Int16(max(-1, min(1, value)) * 32_000))
             }
         }
+        return out
+    }
 
+    /// A minimal mono 16-bit WAV wrapper around the samples.
+    nonisolated static func wavData(_ samples: [Int16], sampleRate: Double = 44_100) -> Data {
         var data = Data()
         let byteCount = samples.count * 2
         func append<T>(_ value: T) { withUnsafeBytes(of: value) { data.append(contentsOf: $0) } }
@@ -66,12 +149,7 @@ public enum SoundBank {
         append(UInt16(2)); append(UInt16(16))
         data.append(contentsOf: Array("data".utf8)); append(UInt32(byteCount))
         for sample in samples { append(sample) }
-
-        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(Preferences.suiteName)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent("\(name).wav")
-        do { try data.write(to: url) } catch { return nil }
-        return url
+        return data
     }
+
 }
