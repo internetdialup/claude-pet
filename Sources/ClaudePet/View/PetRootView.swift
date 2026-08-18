@@ -148,40 +148,52 @@ public struct PetRootView: View {
 }
 
 /// The epic finale's backdrop: a soft radial bloom under three expanding
-/// 8-bit square rings, all inside one 10s eased envelope. Live-only by
-/// construction — offline renderers never compose PetRootView.
-private struct CelebrationGlow: View {
+/// 8-bit square rings, all inside one 10s eased envelope. The drawing is
+/// `draw(in:size:t:)` — pure in `t` — so the live TimelineView here and the
+/// offline sizzle renderer share one implementation and cannot drift.
+struct CelebrationGlow: View {
     let since: Double
 
     var body: some View {
         TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate - since
-            let envelope = Ease.window(t, duration: 10, edge: 0.9)
             Canvas { context, size in
-                guard envelope > 0.001 else { return }
-                let px = size.width / Double(PixelBuffer.side)
-                let centre = CGPoint(x: size.width / 2, y: size.height * 0.55)
-
-                // The bloom: warm light swelling with the envelope.
-                let radius = size.width * (0.30 + 0.18 * envelope)
-                let bloom = Gradient(colors: [Palette.flameCore.opacity(0.35 * envelope), .clear])
-                context.fill(
-                    Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius,
-                                           width: radius * 2, height: radius * 2)),
-                    with: .radialGradient(bloom, center: centre, startRadius: 0, endRadius: radius))
-
-                // The burst: three pixel-snapped square rings expanding on a
-                // staggered loop, fading as they grow.
-                for ring in 0..<3 {
-                    let phase = (t * 0.5 + Double(ring) / 3).truncatingRemainder(dividingBy: 1)
-                    let cells = (6 + phase * 10).rounded()
-                    let half = cells * px
-                    let alpha = (1 - phase) * 0.30 * envelope
-                    let rect = CGRect(x: centre.x - half, y: centre.y - half,
-                                      width: half * 2, height: half * 2)
-                    context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
-                }
+                Self.draw(in: &context, size: size,
+                          t: timeline.date.timeIntervalSinceReferenceDate - since)
             }
+        }
+    }
+
+    /// The whole performance, pure in `t`: nothing before 0, nothing after
+    /// the 10s envelope closes.
+    /// - Parameter bloom: the radial gradient is a smooth ramp — poison for
+    ///   a GIF's global palette — so the GIF cut renders rings only.
+    static func draw(in context: inout GraphicsContext, size: CGSize, t: Double,
+                     bloom drawsBloom: Bool = true) {
+        let envelope = Ease.window(t, duration: 10, edge: 0.9)
+        guard envelope > 0.001 else { return }
+        let px = size.width / Double(PixelBuffer.side)
+        let centre = CGPoint(x: size.width / 2, y: size.height * 0.55)
+
+        // The bloom: warm light swelling with the envelope.
+        if drawsBloom {
+            let radius = size.width * (0.30 + 0.18 * envelope)
+            let bloom = Gradient(colors: [Palette.flameCore.opacity(0.35 * envelope), .clear])
+            context.fill(
+                Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius,
+                                       width: radius * 2, height: radius * 2)),
+                with: .radialGradient(bloom, center: centre, startRadius: 0, endRadius: radius))
+        }
+
+        // The burst: three pixel-snapped square rings expanding on a
+        // staggered loop, fading as they grow.
+        for ring in 0..<3 {
+            let phase = (t * 0.5 + Double(ring) / 3).truncatingRemainder(dividingBy: 1)
+            let cells = (6 + phase * 10).rounded()
+            let half = cells * px
+            let alpha = (1 - phase) * 0.30 * envelope
+            let rect = CGRect(x: centre.x - half, y: centre.y - half,
+                              width: half * 2, height: half * 2)
+            context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
         }
     }
 }
