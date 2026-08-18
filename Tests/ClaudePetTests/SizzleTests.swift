@@ -555,3 +555,38 @@ struct IdleBalloonTests {
         #expect(mid > 0.9, "the middle must be full")
     }
 }
+
+/// The fire→finale bridge: continuous at the cut, absent everywhere else.
+@Suite("The match cut")
+@MainActor
+struct MatchCutTests {
+
+    @Test("The bridge is continuous across the boundary")
+    func continuity() {
+        let cut = SizzleScript.landscape
+        let fmt = SizzleRenderer.format(for: cut)
+        // Landscape: cook ends at 8.8, finale begins there.
+        let exitFlash = SizzleRenderer.matchCutFlash(cut: cut, at: 8.799, fmt: fmt)
+        let entryFlash = SizzleRenderer.matchCutFlash(cut: cut, at: 8.801, fmt: fmt)
+        #expect(abs(exitFlash - 0.9) < 0.02, "the cook must exit at full white")
+        #expect(abs(entryFlash - 0.9) < 0.02, "the finale must open at the same white")
+        // And it dies quickly on both sides.
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: 8.0, fmt: fmt) < 0.01)
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: 9.4, fmt: fmt) < 0.01)
+    }
+
+    @Test("The hook's cold-open finale has no bridge, and readme never flashes")
+    func gates() {
+        let hook = SizzleScript.hook
+        let hookFmt = SizzleRenderer.format(for: hook)
+        // The cold open (t=0.1, finale with no previous segment).
+        #expect(SizzleRenderer.matchCutFlash(cut: hook, at: 0.1, fmt: hookFmt) == 0)
+
+        let readme = SizzleScript.readme
+        let readmeFmt = SizzleRenderer.format(for: readme)
+        for t in stride(from: 0.0, to: readme.seconds, by: 0.25) {
+            #expect(SizzleRenderer.matchCutFlash(cut: readme, at: t, fmt: readmeFmt) == 0,
+                    "the readme twins must never flash")
+        }
+    }
+}

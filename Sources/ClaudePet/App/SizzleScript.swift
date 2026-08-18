@@ -279,6 +279,24 @@ enum SizzleScript {
         return lines.joined(separator: "\n") + "\n"
     }
 
+    /// The segment neighbourhood at a cut-time: who came before, who comes
+    /// next, and how much of the current segment remains — the match cut's
+    /// ingredients.
+    static func neighbors(in cut: Cut, at t: Double)
+        -> (previous: Chapter?, next: Chapter?, into: Double, remaining: Double)? {
+        var cursor = 0.0
+        for (index, segment) in cut.segments.enumerated() {
+            if t < cursor + segment.seconds {
+                return (index > 0 ? cut.segments[index - 1].chapter : nil,
+                        index + 1 < cut.segments.count ? cut.segments[index + 1].chapter : nil,
+                        t - cursor,
+                        cursor + segment.seconds - t)
+            }
+            cursor += segment.seconds
+        }
+        return nil
+    }
+
     // MARK: - The clock walk
 
     /// Maps a cut-time to (chapter, chapter-local t, segment progress 0…1).

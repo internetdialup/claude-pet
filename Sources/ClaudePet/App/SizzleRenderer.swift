@@ -238,9 +238,13 @@ enum SizzleRenderer {
         let t = Double(index) / Double(cut.fps)
         guard let cue = SizzleScript.resolve(cut, at: t) else { return nil }
         let fmt = format(for: cut)
+        let flash = matchCutFlash(cut: cut, at: t, fmt: fmt)
         let scene = ZStack {
             scenery(for: cut, t: t, fmt: fmt)
             chapterScene(cue.chapter, t: cue.localT, fmt: fmt)
+            if flash > 0.001 {
+                Color.white.opacity(flash)
+            }
         }
         .frame(width: cut.canvas.width, height: cut.canvas.height)
         return SpriteImage.cgImage(of: scene, scale: cut.scale, isOpaque: true)
@@ -345,6 +349,26 @@ enum SizzleRenderer {
                 }
             }
         }
+    }
+
+    /// The one motivated transition: the cook IS the finale's cause, so its
+    /// exit whites out over 0.4s and the finale opens at the same white,
+    /// decaying over 0.3s — a continuous luminance bridge where every other
+    /// chapter boundary stays a hard cut. Rich MP4 cuts only: a full-frame
+    /// translucent white would fringe a key and explode a GIF's palette,
+    /// and the readme twins must not diverge from each other.
+    static func matchCutFlash(cut: SizzleScript.Cut, at t: Double,
+                              fmt: Format) -> Double {
+        guard !fmt.plate, cut.family != .readme,
+              let cue = SizzleScript.resolve(cut, at: t),
+              let hood = SizzleScript.neighbors(in: cut, at: t) else { return 0 }
+        if cue.chapter == .cook, hood.next == .finale {
+            return 0.9 * Ease.smoothstep(max(0, min(1, (0.4 - hood.remaining) / 0.4)))
+        }
+        if cue.chapter == .finale, hood.previous == .cook {
+            return 0.9 * (1 - Ease.smoothstep(min(1, hood.into / 0.3)))
+        }
+        return 0
     }
 
     // MARK: - Chapters
