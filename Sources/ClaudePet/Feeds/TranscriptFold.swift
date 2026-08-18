@@ -169,7 +169,8 @@ public final class TranscriptFold {
                 pendingTools.append(name)
                 if pendingTools.count > Self.maxPendingTools { pendingTools.removeFirst() }
                 events.append(ActivityEvent(sessionID: sessionID,
-                                            kind: .toolStarted(name: name, detail: detail),
+                                            kind: .toolStarted(name: name, detail: detail,
+                                                               command: input["command"] as? String),
                                             timestamp: timestamp))
             default:
                 break

@@ -15,6 +15,9 @@ public struct ThoughtBubble: View {
     public var tool: String?
     public var mood: PetMood
     public var style: PetState.BubbleStyle = .plain
+    /// The service the sprint is talking to — when set, the leading glyph
+    /// slot renders the 8-bit badge instead of the ASCII tool glyph.
+    public var service: ServiceGlyph? = nil
 
     /// Renders against a fixed instant instead of the display link.
     ///
@@ -59,7 +62,11 @@ public struct ThoughtBubble: View {
     public var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
-                if !glyph.isEmpty {
+                if let service, style != .dots {
+                    // The dots stay wordless AND badgeless — reasoning is
+                    // reasoning, whoever it is about.
+                    ServiceBadge(kind: service)
+                } else if !glyph.isEmpty {
                     Text(glyph)
                         .font(.system(size: 10, weight: .black, design: .monospaced))
                 }
@@ -74,12 +81,30 @@ public struct ThoughtBubble: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
+                if mood == .nudging, style == .plain {
+                    // The plan is ready and he wants a verdict: a slow, eased
+                    // pulse on the check, always present so the bubble never
+                    // changes width, never brighter than the text it trails.
+                    Clocked(frozenTime: frozenTime) { t in
+                        Text("✓")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(Palette.green)
+                            .opacity(0.25 + 0.75 * Ease.smoothstep(0.5 + 0.5 * sin(t * .pi)))
+                    }
+                }
             }
             .foregroundStyle(foreground)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(maxWidth: 210, alignment: .leading)
             .background(Rectangle().fill(fill))
+            .overlay {
+                // An occasional light sweep across the bubble when he is asking
+                // for something — attention drawn by motion, not by colour.
+                if mood == .needsAttention || mood == .nudging {
+                    BubbleShimmer(frozenTime: frozenTime)
+                }
+            }
             .fixedSize(horizontal: true, vertical: false)
 
             // Stepped tail, centred. Built from two squares rather than a
@@ -89,6 +114,78 @@ public struct ThoughtBubble: View {
                 Rectangle().fill(fill).frame(width: 4, height: 4)
             }
         }
+    }
+
+    /// The 8-bit service badge in the bubble's glyph slot: the sprite's own
+    /// bitmap (`ServiceGlyph.art`) at two points a cell, in brand-evocative
+    /// colours on a kraft backing square so it survives every bubble fill.
+    /// Static — no clock, so offline renders are deterministic for free.
+    private struct ServiceBadge: View {
+        let kind: ServiceGlyph
+
+        private static let colors: [ServiceGlyph: [Character: Color]] = [
+            .npm: ["r": Color(red: 0.796, green: 0.220, blue: 0.216),   // npm red
+                   "p": .white],
+            .github: ["p": Palette.kraft,
+                      "k": Color(red: 0.141, green: 0.161, blue: 0.184)], // github ink
+            .linear: ["l": Color(red: 0.369, green: 0.416, blue: 0.824), // linear violet
+                      "s": .white],
+            .deploy: ["s": Palette.steel, "l": Palette.screenLight,
+                      "f": Palette.flame, "e": Palette.ember],
+        ]
+
+        var body: some View {
+            let art = kind.art
+            let cell: CGFloat = 2
+            let side = CGFloat(art.rows.map(\.count).max() ?? 0) * cell
+            Canvas { context, _ in
+                context.fill(Path(CGRect(x: 0, y: 0, width: side, height: side)),
+                             with: .color(Palette.kraft.opacity(0.35)))
+                for (rowIndex, row) in art.rows.enumerated() {
+                    for (colIndex, char) in row.enumerated() where char != "." {
+                        guard let color = Self.colors[kind]?[char] else { continue }
+                        context.fill(
+                            Path(CGRect(x: CGFloat(colIndex) * cell,
+                                        y: CGFloat(rowIndex) * cell,
+                                        width: cell, height: cell)),
+                            with: .color(color))
+                    }
+                }
+            }
+            .frame(width: side, height: CGFloat(art.rows.count) * cell)
+        }
+    }
+}
+
+/// A flat white band sweeping the bubble once in a while. Scheduled with the
+/// animator's dice so it fires on some cycles and rests on others, and shaped
+/// by `sin(π·u)` so it fades in and out inside its own traverse — the sweep
+/// obeys the same no-snap rule as the sprite. Never fires in cycle zero, so a
+/// frozen render at t=0 shows a clean bubble.
+private struct BubbleShimmer: View {
+    let frozenTime: Double?
+
+    private static let cycle = 7.0
+    private static let traverse = 0.6
+
+    var body: some View {
+        Clocked(frozenTime: frozenTime) { t in
+            GeometryReader { geo in
+                let cycle = Int(floor(t / Self.cycle))
+                let since = t - Double(cycle) * Self.cycle
+                let fires = cycle > 0 && CrabAnimator.noise(cycle &* 19 &+ 13) < 0.5
+                if fires, since < Self.traverse {
+                    let u = since / Self.traverse
+                    Rectangle()
+                        .fill(Palette.white)
+                        .frame(width: 8)
+                        .opacity(0.28 * sin(.pi * u))
+                        .offset(x: (geo.size.width + 16) * u - 8)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .clipped()
     }
 }
 

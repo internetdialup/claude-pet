@@ -1,0 +1,188 @@
+import Testing
+import Foundation
+@testable import ClaudePet
+
+/// The quiet completion marker: stamped once per turn, consumed by new work,
+/// outliving the done pose, and drawn only where and when it should be.
+@Suite("Quiet done")
+@MainActor
+struct QuietDoneTests {
+
+    /// A double turn end — transcript fold plus Stop hook — must keep the
+    /// first stamp: the second event arrives with the session already done.
+    @Test func doubleTurnEndKeepsTheFirstStamp() {
+        var session = ClaudeSession(id: "s", pid: 1, name: "s", cwd: "/", procStart: "",
+                                    startedAt: Date())
+        // Mirror the reducer's logic directly on the struct (the reducer is
+        // exercised end-to-end in MoodDecayTests; this pins the stamp rule).
+        let first = Date(timeIntervalSinceReferenceDate: 1000)
+        let second = Date(timeIntervalSinceReferenceDate: 1000.4)
+
+        if session.mood != .done { session.completionBadgeAt = first }
+        session.mood = .done
+        if session.mood != .done { session.completionBadgeAt = second }
+
+        #expect(session.completionBadgeAt == first)
+    }
+
+    /// The badge envelope: zero before it is shown, eased while live, and —
+    /// this is the point — NOT expired by any clock. Only the latch ends it.
+    @Test func badgeEnvelopeEndpoints() {
+        let shown = 100.0
+        func visibility(at now: Double, endedAt: Double? = nil) -> Double {
+            Ease.amount(now: now, since: shown, endedAt: endedAt,
+                        attack: 0.5, release: 0.45)
+        }
+        #expect(visibility(at: 99.9) == 0)
+        #expect(visibility(at: shown + 0.5) == 1)
+        #expect(visibility(at: shown + 301) == 1,
+                "the badge outlives the old five-minute cap — consumed, not expired")
+        #expect(visibility(at: shown + 7200) == 1)
+        // Early clear eases out through the release.
+        let releasing = visibility(at: shown + 10.2, endedAt: shown + 10)
+        #expect(releasing > 0 && releasing < 1)
+        #expect(visibility(at: shown + 10.5, endedAt: shown + 10) == 0)
+    }
+
+    /// The reminder pulse: silent through the first cycle, one bounded eased
+    /// breath at the top of every later one.
+    @Test func pulseCycleMath() {
+        for age in stride(from: 0.0, through: 179.9, by: 2.3) {
+            #expect(CrabView.badgePulse(age: age) == 0, "no pulse in the first cycle (age \(age))")
+        }
+        #expect(CrabView.badgePulse(age: 181.2) > 0.5, "mid-breath at the top of cycle two")
+        #expect(CrabView.badgePulse(age: 183.5) == 0, "the breath is over")
+        #expect(CrabView.badgePulse(age: 250) == 0, "quiet between cycles")
+        #expect(CrabView.badgePulse(age: 361.2) > 0.5, "and it comes back next cycle")
+        // Every value inside a breath is eased and bounded.
+        for phase in stride(from: 180.0, through: 182.4, by: 0.1) {
+            let value = CrabView.badgePulse(age: phase)
+            #expect(value >= 0 && value <= 1)
+        }
+    }
+
+    /// The stale-stamp cap: a replayed completion older than the cap must not
+    /// stamp — the badge no longer expires, so archaeology would pulse forever.
+    @Test func staleReplayDoesNotStamp() {
+        var session = ClaudeSession(id: "s", pid: 1, name: "s", cwd: "/", procStart: "",
+                                    startedAt: Date())
+        let stale = Date().addingTimeInterval(-ActivityCoordinator.completionStampMaxAge - 60)
+        let fresh = Date().addingTimeInterval(-120)
+
+        if session.mood != .done,
+           Date().timeIntervalSince(stale) < ActivityCoordinator.completionStampMaxAge {
+            session.completionBadgeAt = stale
+        }
+        #expect(session.completionBadgeAt == nil, "a completion from beyond the cap stays quiet")
+
+        if session.mood != .done,
+           Date().timeIntervalSince(fresh) < ActivityCoordinator.completionStampMaxAge {
+            session.completionBadgeAt = fresh
+        }
+        #expect(session.completionBadgeAt == fresh, "a recent one still greets you")
+    }
+
+    /// The frozen sentinel: no animator-built pose carries a badge; only the
+    /// live view's envelope writes it.
+    @Test func noPoseCarriesABadgeByItself() {
+        for mood in PetMood.allCases {
+            for t in stride(from: 0.0, through: 30.0, by: 1.7) {
+                let pose = CrabAnimator.pose(mood: mood, t: t)
+                #expect(pose.doneBadge == 0)
+                #expect(pose.doneBadgePulse == 0)
+            }
+        }
+    }
+
+    /// The badge paints only its footline patch, wins the shell cells it
+    /// overlaps (foreground, per the operator), and never touches any other
+    /// ink.
+    @Test func badgePaintsItsCornerOnly() {
+        var pose = CrabAnimator.pose(mood: .idle, t: 2)
+        let bare = CrabRig.render(pose)
+        pose.doneBadge = 1
+        // Pulse at full, too: the shimmer must stay inside the same footprint —
+        // this is the regression net for the clipped-ring bug, where a glow
+        // ring one cell out fell off the grid.
+        pose.doneBadgePulse = 1
+        let badged = CrabRig.render(pose)
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where bare[x, y] != badged[x, y] {
+                #expect(x >= 25 && x <= 30 && y >= 19 && y <= 24,
+                        "badge cell outside its footline patch at (\(x),\(y))")
+                #expect(bare[x, y] == .clear || bare[x, y] == .body,
+                        "badge may cover shell, never \(bare[x, y]) at (\(x),\(y))")
+            }
+        }
+        // Bottom edge ON the footline: something paints row 24, nothing below.
+        #expect((25...30).contains { badged[$0, 24] != .clear },
+                "the badge's bottom edge belongs on the footline")
+        for y in 25..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                #expect(badged[x, y] == bare[x, y], "below the footline changed at (\(x),\(y))")
+            }
+        }
+
+        // Foreground: at full visibility the badge wins its glyph cells even
+        // where his leg was — and its transparent cells never repaint anything.
+        var leaning = CrabAnimator.pose(mood: .idle, t: 2)
+        leaning.lean = 1
+        leaning.squash = 1
+        leaning.doneBadge = 1
+        let badgedLean = CrabRig.render(leaning)
+        // The stamp's solid interior column over the leg region: (25, 21) is a
+        // glyph cell ("gggggg" row 1 starts at y 20; y 21 row "ggg.wg" col 0 = g).
+        #expect(badgedLean[25, 21] == .green || badgedLean[25, 21] == .mouth,
+                "the badge should win the leg cell it overlaps")
+
+        // The floor bug's walk (rows 28-30) is disjoint from the badge patch
+        // (max row 24) — pinned so the geometry claim cannot drift silently.
+        var withBug = pose
+        withBug.bugX = 27
+        let both = CrabRig.render(withBug)
+        var bugSeen = false
+        for y in 28...30 {
+            for x in 0..<PixelBuffer.side where both[x, y] == .eye { bugSeen = true }
+        }
+        #expect(bugSeen, "the bug still walks its rows, untouched by the badge")
+    }
+
+    /// The idle-chatter gate: constant company while idle is fresh, roughly
+    /// one cycle in three past the quiet horizon — and the status ticker
+    /// (chosen by `seed % 3 == 2` on the SAME seed) must stay reachable,
+    /// which is why the gate rolls split dice instead of `seed % 3`.
+    @Test func chatterGate() {
+        // Fresh idle always talks.
+        for seed in 0..<50 {
+            #expect(ActivityCoordinator.idleChatterShows(quietFor: 30, seed: seed))
+        }
+        // Past the horizon: intermittent, in the neighbourhood of a third.
+        let shown = (0..<300).filter {
+            ActivityCoordinator.idleChatterShows(quietFor: 600, seed: $0)
+        }
+        let duty = Double(shown.count) / 300
+        #expect(duty > 0.2 && duty < 0.47, "duty cycle \(duty) is not ~1/3")
+        // And some of the shown cycles are ticker cycles.
+        #expect(shown.contains { $0 % 3 == 2 },
+                "the status ticker must survive the quiet hours")
+    }
+
+    /// The mouse territory is exactly the sprite square — no halo, no bubble
+    /// band. With two pets side by side, any invisible margin on one sat over
+    /// the other's body and stole the pointer.
+    @Test func mouseRegionIsExactlyTheSprite() {
+        // The common case: the square fits and comes back untouched.
+        let sprite = PetRootView.spriteFrame(pixelSize: 3)
+        let window = PetRootView.windowSize(pixelSize: 3)
+        #expect(PetWindowController.grabRect(sprite: sprite, window: window) == sprite)
+
+        // At pixel size 8 the 256pt square overhangs the 252pt window top by
+        // 4pt; the clamp keeps the region honest about what is reachable.
+        let big = PetRootView.spriteFrame(pixelSize: 8)
+        let bigWindow = PetRootView.windowSize(pixelSize: 8)
+        let clamped = PetWindowController.grabRect(sprite: big, window: bigWindow)
+        #expect(bigWindow.height < big.height, "the overhang this clamp exists for")
+        #expect(clamped.maxY == bigWindow.height)
+        #expect(clamped.minX == big.minX && clamped.width == big.width)
+    }
+}

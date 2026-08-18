@@ -44,6 +44,35 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     public var awaitingApproval: Bool = false
     /// Timestamps of recent tool calls, used to measure how hard Claude is going.
     public var recentToolCalls: [Date] = []
+    /// The todo list's tally, from `TaskWatcher.progress` — nil when the
+    /// session has no task files.
+    public var tasksCompleted: Int?
+    public var tasksTotal: Int?
+    /// Set when a `.cooking` sprint lands on `.done`: the payoff animation
+    /// runs longer than a plain done, and the decay window stretches with it.
+    public var celebrating: Bool = false
+    /// When this sprint's cooking pace first appeared — the cook stopwatch.
+    /// Survives the `.thinking` beats between tools; cleared when the turn
+    /// lands or the session goes fully cold.
+    public var cookingSince: Date?
+    /// The landing sprint had been cooking a while: the done state plays the
+    /// FULL finale — flash, glow, transform, rainbow.
+    public var epicCelebrating: Bool = false
+    /// The highest cook-progress milestone already notified (25/50/75), so a
+    /// crossing fires exactly once. Dies with the session; reset per turn.
+    public var notifiedMilestone: Int?
+    /// When the last turn finished — the quiet completion marker. Outlives the
+    /// done pose (mood decay does not clear it); consumed by new work or by
+    /// its own five-minute clock.
+    public var completionBadgeAt: Date?
+    /// The recognisable service the current sprint is talking to, and when it
+    /// was last observed. Stamped by ingest on a classify hit (single writer,
+    /// like `cookingSince`), renewed on every matching tool call, and
+    /// deliberately NOT cleared on toolFinished — the linger bridges the gaps
+    /// between npm commands. Cleared when the turn lands or the linger
+    /// expires.
+    public var serviceGlyph: ServiceGlyph?
+    public var serviceGlyphAt: Date?
     /// Last time anything at all changed for this session.
     public var lastActivity: Date = .distantPast
 

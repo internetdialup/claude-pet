@@ -22,6 +22,12 @@ public enum Palette {
     public static let flameCore = Color(hex: 0xF7D046)   // hottest part of the burst
     public static let ember = Color(hex: 0xC4451F)       // deep outer licks
 
+    /// The cooking heat bands: two flat stops between the terracotta shell and
+    /// the flame, so the cascade is quantised bands — never a gradient, which
+    /// the rule at the top of this file bans.
+    public static let bodyHot = Color(hex: 0xDE8A45)
+    public static let bodyEmber = Color(hex: 0xD65B31)
+
     /// Chrome colours for the bubble and roster (not part of the sprite).
     public static let slate = Color(hex: 0x141413)
     public static let slateSoft = Color(hex: 0x3D3D3A)

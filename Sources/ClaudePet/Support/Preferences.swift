@@ -32,6 +32,97 @@ public final class Preferences {
         /// 3.0. Bumped so stored values do not pin existing installs to the old
         /// default.
         static let scale = "pet.pixelSize.v3"
+        static let costume = "pet.costume"
+        static let stepsAsideForVideo = "pet.video.stepsAside"
+        static let persistency = "pet.persistency"
+        // The second pet's own slice. Pet 1's keys stay exactly as they are —
+        // a summoned sibling must not move anyone's saved home.
+        static let pet2Enabled = "pet2.enabled"
+        static let pet2Costume = "pet2.costume"
+        static let pet2PinnedSession = "pet2.pinnedSession"
+        static let pet2PositionX = "pet2.position.v2.x"
+        static let pet2PositionY = "pet2.position.v2.y"
+        static let pet2HasPosition = "pet2.position.v2.set"
+    }
+
+    /// Whether the second pet is summoned, surviving relaunches.
+    public var pet2Enabled: Bool {
+        get { store.bool(forKey: Key.pet2Enabled) }
+        set { store.set(newValue, forKey: Key.pet2Enabled) }
+    }
+
+    /// The second pet's wardrobe, by raw value with the same unknown-string
+    /// fallback as pet 1's.
+    public var pet2Costume: Costume {
+        get { store.string(forKey: Key.pet2Costume).flatMap(Costume.init(rawValue:)) ?? .none }
+        set { store.set(newValue.rawValue, forKey: Key.pet2Costume) }
+    }
+
+    /// The session the second pet follows, or nil for "busiest that pet 1
+    /// isn't showing".
+    public var pet2PinnedSessionID: String? {
+        get { store.string(forKey: Key.pet2PinnedSession) }
+        set { store.set(newValue, forKey: Key.pet2PinnedSession) }
+    }
+
+    /// The second pet's saved home — same absolute-coordinates rationale as
+    /// pet 1's `position`.
+    public var pet2Position: CGPoint? {
+        get {
+            guard store.bool(forKey: Key.pet2HasPosition) else { return nil }
+            return CGPoint(x: store.double(forKey: Key.pet2PositionX),
+                           y: store.double(forKey: Key.pet2PositionY))
+        }
+        set {
+            guard let newValue else {
+                store.set(false, forKey: Key.pet2HasPosition)
+                return
+            }
+            store.set(newValue.x, forKey: Key.pet2PositionX)
+            store.set(newValue.y, forKey: Key.pet2PositionY)
+            store.set(true, forKey: Key.pet2HasPosition)
+        }
+    }
+
+    /// Whether he floats above every window (the classic desktop-pet posture)
+    /// or sits at normal window level, where opening Finder or a browser
+    /// covers him and nothing ever shuffles him forward.
+    ///
+    /// ON by default — floating is what the pet has always done, and the
+    /// toggle exists for the operator who wants him ambient rather than
+    /// omnipresent. Independent of the film step-aside: that gates an alpha
+    /// fade, this gates a window level, and they never touch each other's
+    /// property.
+    public var persistent: Bool {
+        get { store.object(forKey: Key.persistency) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.persistency) }
+    }
+
+    /// Whether he gets out of the way of a fullscreen film on his own display.
+    ///
+    /// **ON by default**, because the asymmetry runs one way: wrongly absent is
+    /// a politely missing pet you can bring back with one menu row; wrongly
+    /// present is a crab sitting on top of something you may be presenting
+    /// from, in front of people. A default that ships off is a feature nobody
+    /// discovers until after the meeting it would have helped.
+    ///
+    /// This gates what is DONE with the film answer, never whether the
+    /// question is asked — `FilmWatch` runs regardless, because sound cues are
+    /// suppressed during films whether or not he steps aside for them.
+    public var stepsAsideForVideo: Bool {
+        get { store.object(forKey: Key.stepsAsideForVideo) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.stepsAsideForVideo) }
+    }
+
+    /// The costume he is wearing.
+    ///
+    /// Stored by `rawValue` rather than by ordinal, so reordering the enum or
+    /// removing a case cannot silently dress him as something else. An unknown
+    /// string — a costume that existed in a newer build — falls back to `.none`
+    /// rather than trapping.
+    public var costume: Costume {
+        get { store.string(forKey: Key.costume).flatMap(Costume.init(rawValue:)) ?? .none }
+        set { store.set(newValue.rawValue, forKey: Key.costume) }
     }
 
     /// The window's bottom-left origin in global screen coordinates.

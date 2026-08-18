@@ -96,7 +96,9 @@ public final class HookServer: @unchecked Sendable {
                 ?? (input["file_path"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
                 ?? (input["pattern"] as? String)
                 ?? (input["command"] as? String)
-            return ActivityEvent(sessionID: sessionID, kind: .toolStarted(name: tool, detail: detail))
+            return ActivityEvent(sessionID: sessionID,
+                                 kind: .toolStarted(name: tool, detail: detail,
+                                                    command: input["command"] as? String))
         case "PostToolUse":
             return ActivityEvent(sessionID: sessionID,
                                  kind: .toolFinished(name: object["tool_name"] as? String ?? "tool"))

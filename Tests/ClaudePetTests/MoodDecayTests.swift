@@ -283,4 +283,74 @@ struct MoodDecayTests {
         #expect(ActivityCoordinator.attentionStaleAfter > ActivityCoordinator.sleepAfter)
         #expect(ActivityCoordinator.attentionStaleAfter >= 1800)
     }
+
+    @Test("The second slot follows the busiest session the first is not showing")
+    func slotOneFollowsTheOtherSession() async throws {
+        let (loud, quiet) = ("s-loud", "s-quiet")
+        let coordinator = try quietCoordinator([loud, quiet])
+        coordinator.setSlots(2)
+        #expect(coordinator.states.count == 2)
+
+        // One session works hard; the other idles. Slot 0 takes the worker,
+        // slot 1 takes the one slot 0 is not showing.
+        coordinator.ingest([
+            ActivityEvent(sessionID: loud, kind: .toolStarted(name: "Bash", detail: "make")),
+            ActivityEvent(sessionID: quiet, kind: .turnEnded),
+        ])
+        #expect(coordinator.states[0].focusedSessionID == loud)
+        #expect(coordinator.states[1].focusedSessionID == quiet)
+
+        // Pinning slot 1 to the same session slot 0 shows is allowed — an
+        // explicit choice — and unpinning restores the exclusion rule.
+        coordinator.pin(slot: 1, sessionID: loud)
+        #expect(coordinator.states[1].focusedSessionID == loud)
+        coordinator.pin(slot: 1, sessionID: nil)
+        #expect(coordinator.states[1].focusedSessionID == quiet)
+
+        // Slot 0's own rule is untouched by any of this.
+        #expect(coordinator.states[0].focusedSessionID == loud)
+    }
+
+    @Test("With one live session the second slot naps, roster intact")
+    func slotOneNapsWhenAlone() async throws {
+        let id = "s-solo"
+        let coordinator = try quietCoordinator([id])
+        coordinator.setSlots(2)
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .toolStarted(name: "Read", detail: nil))])
+
+        #expect(coordinator.states[0].focusedSessionID == id)
+        #expect(coordinator.states[1].mood == .sleeping)
+        #expect(!coordinator.states[1].sessions.isEmpty,
+                "a napping slot 1 still carries the live roster — 'nothing running' would be a lie")
+
+        // Dropping back to one slot forgets the second state entirely.
+        coordinator.setSlots(1)
+        #expect(coordinator.states.count == 1)
+    }
+
+    @Test("Stale thinking dots retire long before the mood does")
+    func staleDotsRetire() async throws {
+        let stored = ActivityCoordinator.dotsQuietAfter
+        ActivityCoordinator.dotsQuietAfter = 0.15
+        defer { ActivityCoordinator.dotsQuietAfter = stored }
+
+        let id = "s-dots"
+        let coordinator = try quietCoordinator([id])
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
+        #expect(coordinator.state.bubble == "…")
+        #expect(coordinator.state.bubbleStyle == .dots)
+
+        try await Task.sleep(for: .milliseconds(300))
+        tick(coordinator)
+
+        // The bubble is gone; the pose still thinks (the 300s decay is a
+        // separate, much later question).
+        #expect(coordinator.state.mood == .thinking)
+        #expect(coordinator.state.bubble == nil,
+                "dots pulsing over a quiet session are a stale claim")
+
+        // Fresh reasoning brings them straight back.
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
+        #expect(coordinator.state.bubble == "…")
+    }
 }

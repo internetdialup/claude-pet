@@ -75,6 +75,108 @@ public struct CrabPose: Sendable, Equatable {
     /// Drives the prop's own animation (scrolling code, blinking cursor,
     /// drifting z's, flickering flame).
     public var propPhase: Double = 0
+
+    /// How much of the prop is present, 0…1. Below 1 the prop renders as a
+    /// deterministic pixel dissolve — an indexed grid has no alpha to fade.
+    public var propVisibility: Double = 1
+    /// The outgoing prop during a swap or a mood blend, dissolving away.
+    public var ghostProp: Prop = .none
+    public var ghostPropPhase: Double = 0
+    public var ghostPropVisibility: Double = 0
+
+    /// Fire-state body heat, 0…1, and the cascade's own clock. Inert until a
+    /// pose sets them; the rig repaints body rows in banded heat inks.
+    public var heat: Double = 0
+    public var heatPhase: Double = 0
+
+    /// A pixel bug scuttling across the floor rows, or nil. The column is the
+    /// bug's centre; the animator owns its schedule.
+    public var bugX: Int?
+    /// Seconds into a petting session, for the floating hearts. nil = no hearts.
+    public var heartsElapsed: Double?
+    /// Seconds into the shrimp snack, for the shrinking 🍤. nil = no snack.
+    public var snackElapsed: Double?
+    /// The midnight telescope: envelope 0…1 and its own clock for twinkles.
+    public var stargaze: Double = 0
+    public var stargazePhase: Double = 0
+
+    /// The quiet completion badge at his bottom-right foot, 0…1. Written each
+    /// frame by the live view from timestamps (like `heartsElapsed`), so the
+    /// mood blend deliberately does not lerp it — the envelope owns it.
+    public var doneBadge: Double = 0
+    /// The badge's three-minute reminder breath, 0…1. Same contract.
+    public var doneBadgePulse: Double = 0
+
+    /// The service glyph floating in his top-left airspace, or nil, and its
+    /// presence 0…1. Written each frame by the live view from latch
+    /// timestamps (like `doneBadge`), so the mood blend deliberately does
+    /// not lerp them — the envelope owns the entrance and the exit.
+    public var serviceGlyph: ServiceGlyph? = nil
+    public var serviceGlyphVisibility: Double = 0
+}
+
+extension CrabPose.Prop {
+    /// A dissolve seed that is stable across runs — `String.hashValue` is
+    /// per-process randomised, which would re-deal the dissolve every launch.
+    var stableSeed: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+}
+
+extension ServiceGlyph {
+    /// Dissolve seeds well clear of every other seed space (props are their
+    /// allCases indices, the easter eggs sit at 700-731, costumes at 900+).
+    var stableSeed: Int { 760 + (Self.allCases.firstIndex(of: self) ?? 0) }
+
+    /// The mark's bitmap and ink key — the single source both the sprite
+    /// stamp and the bubble badge draw from. Original 8-bit takes, all of
+    /// them: evocative, never copied.
+    var art: (rows: [String], key: [Character: PixelBuffer.Ink]) {
+        switch self {
+        case .npm:
+            // The red cube with the lowercase n carved in paper.
+            return ([
+                "rrrrrrr",
+                "rrrrrrr",
+                "rpppppr",
+                "rpprppr",
+                "rpprppr",
+                "rpprppr",
+                "rrrrrrr",
+            ], ["r": .alert, "p": .paper])
+        case .github:
+            // A round-eared silhouette on a paper disc.
+            return ([
+                ".pppppp.",
+                "pkpppkpp",
+                "pkkkkkpp",
+                "pkpkpkpp",
+                "pkkkkkpp",
+                "ppkkkppp",
+                ".pppppp.",
+            ], ["p": .paper, "k": .eye])
+        case .linear:
+            // The ascending diamond, one notch of steel through it.
+            return ([
+                "...ll...",
+                "..llll..",
+                ".llssll.",
+                "llssssll",
+                ".llssll.",
+                "..llll..",
+                "...ll...",
+            ], ["l": .screenLight, "s": .steel])
+        case .deploy:
+            // The rocket, exhaust in flame and ember.
+            return ([
+                "...ss...",
+                "..ssss..",
+                "..slls..",
+                "..ssss..",
+                ".ssssss.",
+                "..f..f..",
+                "..ee.ee.",
+            ], ["s": .steel, "l": .screenLight, "f": .flame, "e": .ember])
+        }
+    }
 }
 
 /// Rasterises a `CrabPose` into a `PixelBuffer`.
@@ -84,10 +186,13 @@ public enum CrabRig {
     // Wider than tall, with a wide gap between the inner pair of legs and thin
     // nubs for arms. Getting this ratio wrong is what made the first attempt
     // read as a cat rather than as Claw'd.
-    private static let bodyX = 6
-    private static let bodyW = 20
-    private static let bodyY = 10
-    private static let bodyH = 11
+    // The body block is internal, not private: the costume tailoring and the
+    // window's torso drag handle measure the same torso the shell is drawn
+    // with, so the measurement lives once, here, at its origin.
+    static let bodyX = 6
+    static let bodyW = 20
+    static let bodyY = 10
+    static let bodyH = 11
 
     private static let legTop = 21
     private static let legH = 4
@@ -103,28 +208,308 @@ public enum CrabRig {
     private static let eyeLeftX = 10
     private static let eyeRightX = 19
 
-    public static func render(_ pose: CrabPose) -> PixelBuffer {
+    /// - Parameters:
+    ///   - costume: the wardrobe drawn into the sprite. Defaults to `.none`, so
+    ///     every pre-costume call site renders byte-identically.
+    ///   - ghostCostume: the outgoing wardrobe during a change, dissolving away.
+    ///   - costumeVisibility: eased progress of a costume change, 1 when settled.
+    public static func render(_ pose: CrabPose,
+                              costume: Costume = .none,
+                              ghostCostume: Costume = .none,
+                              costumeVisibility: Double = 1) -> PixelBuffer {
         var buffer = PixelBuffer()
 
         let dx = pose.lean
         let dy = pose.bob
+        let squash = max(0, pose.squash)
 
-        // Behind the body.
-        if pose.prop == .fire { drawFire(&buffer, dx: dx, dy: dy, phase: pose.propPhase) }
+        // A crown accessory steps aside while a crown prop is worn — the prop
+        // is a status signal, and status outranks wardrobe.
+        let crownProp = pose.prop == .hardHat && pose.propVisibility > 0.5
+        func costumeLayer(_ layer: CrabCostume.Layer) {
+            costumePass(&buffer, pose: pose, costume: ghostCostume, layer: layer,
+                        visibility: 1 - costumeVisibility, crownProp: crownProp,
+                        dx: dx, dy: dy, squash: squash)
+            costumePass(&buffer, pose: pose, costume: costume, layer: layer,
+                        visibility: costumeVisibility, crownProp: crownProp,
+                        dx: dx, dy: dy, squash: squash)
+        }
+
+        // Behind the body. The flame dissolves with its prop's visibility, so a
+        // prop swap away from fire cannot vanish the burst in one frame.
+        firePass(&buffer, pose: pose, dx: dx, dy: dy)
+        costumeLayer(.behind)
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
         drawArms(&buffer, dx: dx, dy: dy, pose: pose)
 
         // Squash widens and shortens the body, keeping its feet on the ground.
-        let squash = max(0, pose.squash)
         buffer.rect(bodyX + dx - squash, bodyY + dy + squash,
                     bodyW + squash * 2, bodyH - squash, .body)
 
+        costumeLayer(.onBody)
+        if pose.heat > 0.001 { heatPass(&buffer, pose: pose, dy: dy, squash: squash) }
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
-        drawProp(&buffer, dx: dx, dy: dy, pose: pose)
+        costumeLayer(.front)
 
-        // Applied last so props shrink with him rather than floating free.
-        return pose.scale < 0.999 ? buffer.scaled(pose.scale) : buffer
+        // Ghost first, so an incoming prop paints over an outgoing one where
+        // they overlap.
+        propPass(&buffer, pose: pose, prop: pose.ghostProp,
+                 phase: pose.ghostPropPhase, visibility: pose.ghostPropVisibility,
+                 dx: dx, dy: dy)
+        propPass(&buffer, pose: pose, prop: pose.prop,
+                 phase: pose.propPhase, visibility: pose.propVisibility,
+                 dx: dx, dy: dy)
+
+        // The service glyph, after the props so it wins its own cells where a
+        // sparkle wanders in — its own channel, like the fire layer, so it
+        // never fights the rolled prop, the ghost slot, or the crown yield.
+        servicePass(&buffer, pose: pose)
+
+        // The quiet-hour extras: a scuttling bug on the floor, hearts while he
+        // is petted, the snack, the telescope. Each is a world overlay that
+        // dissolves in and out like everything else. The completion badge
+        // rides in the FOREGROUND, tucked against his side — it wins the leg
+        // cells it overlaps, and only ever shell cells.
+        if pose.doneBadge > 0.001 {
+            drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
+        }
+        if let bugX = pose.bugX { drawBug(&buffer, x: bugX, phase: pose.propPhase) }
+        if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts, dx: dx, dy: dy) }
+        if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
+        if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
+
+        // Applied last so props scale with him rather than floating free.
+        return abs(pose.scale - 1) > 0.001 ? buffer.scaled(pose.scale) : buffer
+    }
+
+    // MARK: - Quiet-hour extras
+
+    /// The quiet completion marker: the same 8-bit checkbox the done pose
+    /// holds overhead, tucked against his right side with its bottom edge
+    /// exactly on the footline (legs end at row 24) and one column into his
+    /// outer leg — z-ABOVE him, like a sticker in the foreground. The signal
+    /// a finished task leaves behind once the pose has relaxed — present,
+    /// not insistent.
+    ///
+    /// The foreground read is the operator's call (it replaced a
+    /// ground-object version he stood in front of): where the badge and the
+    /// leg overlap, the badge wins the cell. It still only ever covers shell
+    /// ink — never a face, prop, or costume cell, which the corner test pins.
+    private static func drawDoneBadge(_ b: inout PixelBuffer, visibility: Double, pulse: Double) {
+        let shape = [
+            ".gggg.",
+            "gggggg",
+            "ggg.wg",
+            "gw.wgg",
+            "g.wggg",
+            ".gggg.",
+        ]
+        var badge = PixelBuffer()
+        badge.stamp(shape, at: (x: 25, y: 19), key: ["g": .green, "w": .mouth])
+
+        // The reminder breath: a golden shimmer through the badge's own
+        // footprint, applied to the badge's scratch buffer so the pair lands
+        // in one pass. Never a ring — a ring one cell out clips off the grid.
+        // The house dissolve gives the swell its speckle; the envelope its
+        // ease.
+        if pulse > 0.001 {
+            var glow = PixelBuffer()
+            glow.stamp(shape, at: (x: 25, y: 19), key: ["g": .yellow, "w": .yellow])
+            badge.composite(glow, visibility: Ease.clamp01(pulse), seed: 731)
+        }
+
+        b.composite(badge, visibility: Ease.clamp01(visibility), seed: 730)
+    }
+
+    /// A two-pixel bug on floor row 29, legs flickering, with a tiny bob.
+    private static func drawBug(_ b: inout PixelBuffer, x: Int, phase: Double) {
+        let bob = sin(phase * 9) > 0.6 ? -1 : 0
+        b.rect(x, 29 + bob, 2, 1, .eye)
+        // Leg flicker: alternate single pixels under the body.
+        if sin(phase * 12) > 0 {
+            b.pixel(x - 1, 30 + bob, .eye)
+            b.pixel(x + 2, 30 + bob, .eye)
+        } else {
+            b.pixel(x, 30 + bob, .eye)
+            b.pixel(x + 1, 30 + bob, .eye)
+        }
+    }
+
+    /// Up to three pink hearts spawning at the crown every 0.8s, each rising a
+    /// pixel every 0.15s and dissolving as it climbs.
+    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
+        let spawns = [0.3, 1.1, 1.9]
+        for (index, born) in spawns.enumerated() {
+            let age = (elapsed - born).truncatingRemainder(dividingBy: 2.4)
+            guard elapsed > born, age >= 0 else { continue }
+            let rise = Int(age / 0.15)
+            let y = 8 + dy - rise
+            guard y > 0 else { continue }
+            let x = 10 + index * 5 + dx
+            var heart = PixelBuffer()
+            heart.stamp([
+                "p.p",
+                "ppp",
+                ".p.",
+            ], at: (x: x, y: y), key: ["p": .pink])
+            let fade = max(0, 1 - age / 1.6)
+            b.composite(heart, visibility: fade, seed: 700 + index)
+        }
+    }
+
+    /// The 🍤: a small pink shrimp beside his mouth that loses a column per
+    /// munch beat, easing in at the start and gone by the last bite.
+    private static func drawSnack(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
+        // Three munch beats at 0.9, 1.5, 2.1s; a column disappears at each.
+        let bites = [0.9, 1.5, 2.1].filter { elapsed >= $0 }.count
+        let width = 4 - bites
+        guard width > 0 else { return }
+        var shrimp = PixelBuffer()
+        shrimp.stamp([
+            ".ppp",
+            "pppk",
+            ".pp.",
+        ], at: (x: 3 + dx, y: 15 + dy), key: ["p": .pink, "k": .paper])
+        // Eat right-to-left: clear the consumed columns.
+        for eaten in 0..<bites {
+            for row in 15...17 { shrimp.pixel(3 + dx + 3 - eaten, row + dy, .clear) }
+        }
+        let entry = Ease.smoothstep(elapsed / 0.4)
+        b.composite(shrimp, visibility: entry, seed: 710)
+    }
+
+    /// The midnight telescope: a steel tube angled at the sky, twinkling stars
+    /// in the top rows, and one shooting-star streak per session.
+    private static func drawStargaze(_ b: inout PixelBuffer, pose: CrabPose, dx: Int, dy: Int) {
+        var scene = PixelBuffer()
+        let phase = pose.stargazePhase
+
+        // Tube: a 5-pixel diagonal from his right claw toward the sky.
+        for step in 0..<5 {
+            scene.pixel(24 + step + dx, 14 - step + dy, .steel)
+        }
+        scene.pixel(24 + dx, 15 + dy, .steel)   // tripod hint
+
+        // Four stars on offset twinkle phases — a twinkle snaps like a blink.
+        let stars = [(4, 2), (9, 5), (17, 1), (27, 3)]
+        for (index, star) in stars.enumerated() {
+            if sin(phase * (1.1 + Double(index) * 0.4) + Double(index) * 2.3) > 0.1 {
+                scene.pixel(star.0, star.1, index % 2 == 0 ? .yellow : .mouth)
+            }
+        }
+
+        // One shooting star early in the session: a three-pixel diagonal streak.
+        if phase > 2, phase < 2.5 {
+            let head = Int((phase - 2) * 20)
+            for trail in 0..<3 {
+                scene.pixel(6 + head - trail, 3 + (head - trail) / 3, .mouth)
+            }
+        }
+
+        b.composite(scene, visibility: Ease.clamp01(pose.stargaze), seed: 720)
+    }
+
+    /// One costume layer at a given visibility, dissolving like a prop does.
+    private static func costumePass(_ b: inout PixelBuffer, pose: CrabPose, costume: Costume,
+                                    layer: CrabCostume.Layer, visibility: Double,
+                                    crownProp: Bool, dx: Int, dy: Int, squash: Int) {
+        guard costume != .none, visibility > 0.001 else { return }
+        if layer == .front, crownProp, CostumeStyle.of(costume).yieldsCrownToProps { return }
+        if visibility > 0.999 {
+            CrabCostume.draw(&b, costume: costume, layer: layer,
+                             dx: dx, dy: dy, squash: squash, pose: pose)
+        } else {
+            var scratch = PixelBuffer()
+            CrabCostume.draw(&scratch, costume: costume, layer: layer,
+                             dx: dx, dy: dy, squash: squash, pose: pose)
+            b.composite(scratch, visibility: visibility,
+                        seed: 900 + (Costume.allCases.firstIndex(of: costume) ?? 0))
+        }
+    }
+
+    /// The service glyph at its own visibility — the fire layer's shape, one
+    /// glyph at a time. World-anchored in the top-left airspace (cols 1-8,
+    /// rows 0-7), which every scheduled occupant verifiably avoids.
+    private static func servicePass(_ b: inout PixelBuffer, pose: CrabPose) {
+        guard let glyph = pose.serviceGlyph, pose.serviceGlyphVisibility > 0.001 else { return }
+        if pose.serviceGlyphVisibility > 0.999 {
+            drawServiceGlyph(&b, glyph)
+        } else {
+            var scratch = PixelBuffer()
+            drawServiceGlyph(&scratch, glyph)
+            b.composite(scratch, visibility: pose.serviceGlyphVisibility, seed: glyph.stableSeed)
+        }
+    }
+
+    /// One original 8-bit mark, centred in the (1,0) 8×8 box. The bitmap and
+    /// key come from `ServiceGlyph.art` — the same rows the bubble badge
+    /// draws, so the two renditions cannot drift.
+    private static func drawServiceGlyph(_ b: inout PixelBuffer, _ glyph: ServiceGlyph) {
+        let art = glyph.art
+        b.stamp(art.rows, at: (x: 1, y: 0), key: art.key)
+    }
+
+    /// The behind-the-body flame layer for whichever of the live and ghost
+    /// props is `.fire`, at its own visibility.
+    private static func firePass(_ b: inout PixelBuffer, pose: CrabPose, dx: Int, dy: Int) {
+        func layer(phase: Double, visibility: Double) {
+            guard visibility > 0.001 else { return }
+            if visibility > 0.999 {
+                drawFire(&b, dx: dx, dy: dy, phase: phase)
+            } else {
+                var scratch = PixelBuffer()
+                drawFire(&scratch, dx: dx, dy: dy, phase: phase)
+                b.composite(scratch, visibility: visibility, seed: CrabPose.Prop.fire.stableSeed)
+            }
+        }
+        if pose.ghostProp == .fire { layer(phase: pose.ghostPropPhase, visibility: pose.ghostPropVisibility) }
+        if pose.prop == .fire { layer(phase: pose.propPhase, visibility: pose.propVisibility) }
+    }
+
+    /// The cooking heat: a three-row band of quantised heat inks sweeping up
+    /// through the shell. Only cells that are currently `.body` repaint — the
+    /// face, the costume pixels and the props sit above the heat, and the
+    /// arms and legs staying terracotta is what makes it read as heat rising
+    /// through the shell rather than a whole-sprite recolour. Banded, never a
+    /// gradient: the band's width is itself quantised by the heat envelope, so
+    /// the cascade eases in as a growing band and out as a shrinking one.
+    private static func heatPass(_ b: inout PixelBuffer, pose: CrabPose, dy: Int, squash: Int) {
+        let top = bodyY + dy + squash
+        let height = bodyH - squash
+        let bottom = top + height - 1
+        guard height > 0 else { return }
+
+        let sweep = pose.heatPhase - floor(pose.heatPhase)
+        let center = Double(bottom) - sweep * Double(height + 3)
+        let halfWidth = Int((Ease.clamp01(pose.heat) * 2).rounded())
+
+        for y in max(0, top)...min(PixelBuffer.side - 1, bottom) {
+            let distance = abs(Double(y) - center)
+            guard distance <= Double(halfWidth) + 0.001 else { continue }
+            let ink: PixelBuffer.Ink = distance <= Double(max(0, halfWidth - 1)) ? .bodyEmber : .bodyHot
+            for x in 0..<PixelBuffer.side where b[x, y] == .body {
+                b[x, y] = ink
+            }
+        }
+    }
+
+    /// One prop at a given visibility. Full visibility draws straight into the
+    /// buffer — byte-identical to the pre-dissolve renderer; anything less
+    /// renders to a scratch buffer and composites as a stable pixel dissolve.
+    private static func propPass(_ b: inout PixelBuffer, pose: CrabPose, prop: CrabPose.Prop,
+                                 phase: Double, visibility: Double, dx: Int, dy: Int) {
+        guard prop != .none, visibility > 0.001 else { return }
+        var proxy = pose
+        proxy.prop = prop
+        proxy.propPhase = phase
+        if visibility > 0.999 {
+            drawProp(&b, dx: dx, dy: dy, pose: proxy)
+        } else {
+            var scratch = PixelBuffer()
+            drawProp(&scratch, dx: dx, dy: dy, pose: proxy)
+            b.composite(scratch, visibility: visibility, seed: prop.stableSeed)
+        }
     }
 
     // MARK: - Legs
@@ -253,7 +638,7 @@ public enum CrabRig {
             }
 
         case .terminal:
-            drawTerminal(&b, phase: phase)
+            drawTerminal(&b, dx: dx, dy: dy, phase: phase)
 
         case .check:
             let key: [Character: PixelBuffer.Ink] = ["g": .green, "w": .mouth]
@@ -338,14 +723,16 @@ public enum CrabRig {
 
     /// The little code window, with output scrolling up through it.
     ///
-    /// The frame is stamped once and the code lines are drawn per frame at a
-    /// shifting offset, which is what makes it read as a live terminal rather
-    /// than a decal.
-    private static func drawTerminal(_ b: inout PixelBuffer, phase: Double) {
-        let originX = 22
-        let originY = 1
-        let width = 10
-        let height = 9
+    /// Held in front of him like a laptop: the frame overlaps the lower body
+    /// and the inner legs, his claws grip the top corners, and his eyes peer
+    /// over the lid — so it reads as something he is using, not backdrop
+    /// furniture. It tracks `dx`/`dy` for the same reason: a console that
+    /// ignores his bob reads as painted onto the wall behind him.
+    private static func drawTerminal(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
+        let originX = 10 + dx
+        let originY = 17 + dy
+        let width = 12
+        let height = 7
 
         b.rect(originX, originY, width, height, .screenDark)
         b.rect(originX, originY, width, 2, .screenLight)
@@ -373,6 +760,10 @@ public enum CrabRig {
         if sin(phase * 4) > 0 {
             b.rect(originX + 1, interiorTop + interiorHeight, 2, 1, .green)
         }
+
+        // Claw tips over the top corners: the grip is what sells "held".
+        b.rect(originX, originY, 2, 1, .body)
+        b.rect(originX + width - 2, originY, 2, 1, .body)
     }
 
     /// Yellow hat on his crown, wrench and screwdriver at his sides.

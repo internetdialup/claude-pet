@@ -1,0 +1,158 @@
+import Foundation
+
+/// The sizzle reel's master script: eight chapters, three cuts.
+///
+/// Everything here is data — the renderer walks it with a frame clock and
+/// pure pose functions, so the same chapter renders byte-identically at any
+/// canvas. Every string is fabricated (the anonymity rule for recordings:
+/// nothing real ever enters a committed asset). Chapter clocks are LOCAL;
+/// the dice-locked chapters carry base offsets chosen so the deterministic
+/// schedules actually fire on camera:
+/// - `cookBase = 269.0`: the cooking beat lands the fire prop, the heat
+///   cascade window [272.0, 274.4) and a full eased disco ([270, 275)) in
+///   one six-second shot.
+/// - `workBase = 20.0`: working spell cycle 1 rolls the terminal, with the
+///   0.35s eased prop pick-up at the spell seam for free.
+@MainActor
+enum SizzleScript {
+
+    enum Chapter: CaseIterable {
+        case wake, mirror, glyphs, cook, finale, montage, duet, outro
+    }
+
+    /// One entry of a cut: play `seconds` of `chapter`.
+    struct Segment {
+        enum Kind {
+            /// Enter the chapter's fixed local clock at `offset` — for the
+            /// dice-locked chapters, where mid-effect entry is a cut, not a
+            /// snap.
+            case window(offset: Double)
+            /// Re-lay the chapter's beats proportionally into `seconds`.
+            case scaled
+        }
+        let chapter: Chapter
+        let kind: Kind
+        let seconds: Double
+    }
+
+    struct Cut {
+        let name: String
+        /// Canvas in points; frames render at `canvas × scale` pixels.
+        let canvas: CGSize
+        let scale: CGFloat
+        let fps: Int32
+        let segments: [Segment]
+        var seconds: Double { segments.reduce(0) { $0 + $1.seconds } }
+        var frameCount: Int { Int((seconds * Double(fps)).rounded()) }
+    }
+
+    // MARK: - The clocks
+
+    static let cookBase = 269.0
+    static let workBase = 20.0
+
+    /// Master chapter durations, in play order. Sum: exactly 45.0.
+    static let masterSeconds: [Chapter: Double] = [
+        .wake: 2.5, .mirror: 5.5, .glyphs: 6.0, .cook: 6.0,
+        .finale: 10.0, .montage: 8.0, .duet: 4.0, .outro: 3.0,
+    ]
+
+    /// The montage's running order — ends on Classic so the README GIF's
+    /// loop seam is a mood-only cut.
+    static let montageOrder: [Costume] =
+        [.ninja, .retroBlack, .matrix, .tiger, .white, .gundam, .sonic, .none]
+
+    /// The glyph chapter shows every service, one eased beat each.
+    static let glyphBeats: [(glyph: ServiceGlyph, bubble: String)] = [
+        (.npm, "npm install"),
+        (.github, "git push --force"),
+        (.linear, "LIN-407 in review"),
+        (.deploy, "vercel deploy --prod"),
+    ]
+
+    // MARK: - The words (all fabricated)
+
+    static let wordmark = "CLAUDE PET"
+    static let tagline = "what Claude Code is doing,\non your desktop"
+    static let url = "github.com/internetdialup/claude-pet"
+
+    static let captions: [Chapter: String] = [
+        .mirror: "he mirrors your Claude Code sessions",
+        .glyphs: "he knows what you're shipping",
+        .cook: "when it cooks, he cooks",
+        .finale: "and when a big one lands…",
+        .montage: "8 LOOKS",
+        .duet: "summon a second",
+    ]
+
+    static let mirrorBubble = "Wiring the pipeline"
+    static let cookBubble = "Absolutely cooking 🔥"
+
+    // MARK: - The cuts
+
+    static let landscape = Cut(
+        name: "sizzle-16x9.mp4",
+        canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
+        segments: Chapter.allCases.map {
+            Segment(chapter: $0, kind: .scaled, seconds: masterSeconds[$0] ?? 0)
+        })
+
+    static let vertical = Cut(
+        name: "sizzle-9x16.mp4",
+        canvas: CGSize(width: 360, height: 640), scale: 3, fps: 30,
+        segments: [
+            Segment(chapter: .wake, kind: .scaled, seconds: 2.0),
+            Segment(chapter: .glyphs, kind: .scaled, seconds: 4.0),
+            Segment(chapter: .cook, kind: .window(offset: 1.5), seconds: 3.5),
+            Segment(chapter: .finale, kind: .window(offset: 0), seconds: 10.0),
+            Segment(chapter: .montage, kind: .scaled, seconds: 8.0),
+            Segment(chapter: .duet, kind: .scaled, seconds: 2.5),
+            Segment(chapter: .outro, kind: .scaled, seconds: 2.0),
+        ])
+
+    static let readme = Cut(
+        name: "sizzle-readme.gif",
+        canvas: CGSize(width: 320, height: 180), scale: 2, fps: 10,
+        segments: [
+            Segment(chapter: .mirror, kind: .window(offset: 1.6), seconds: 3.0),
+            Segment(chapter: .cook, kind: .window(offset: 1.2), seconds: 3.0),
+            Segment(chapter: .finale, kind: .window(offset: 0), seconds: 8.0),
+            Segment(chapter: .montage, kind: .scaled, seconds: 5.5),
+        ])
+
+    /// The README cut again at 30fps, for socials that reject GIFs.
+    static let readmeVideo = Cut(
+        name: "sizzle-readme.mp4",
+        canvas: readme.canvas, scale: readme.scale, fps: 30,
+        segments: readme.segments)
+
+    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo]
+
+    // MARK: - The clock walk
+
+    /// Maps a cut-time to (chapter, chapter-local t, segment progress 0…1).
+    ///
+    /// `.window` enters the chapter's own clock at the offset; `.scaled`
+    /// plays the chapter from zero, compressed or trimmed to the segment
+    /// (the scene functions treat local t proportionally where beats allow).
+    /// `scaleFactor` is how much faster than master the segment plays.
+    static func resolve(_ cut: Cut, at t: Double)
+        -> (chapter: Chapter, localT: Double, scaleFactor: Double)? {
+        var cursor = 0.0
+        for segment in cut.segments {
+            if t < cursor + segment.seconds {
+                let within = t - cursor
+                switch segment.kind {
+                case .window(let offset):
+                    return (segment.chapter, offset + within, 1)
+                case .scaled:
+                    let master = masterSeconds[segment.chapter] ?? segment.seconds
+                    let factor = master / segment.seconds
+                    return (segment.chapter, within * factor, factor)
+                }
+            }
+            cursor += segment.seconds
+        }
+        return nil
+    }
+}

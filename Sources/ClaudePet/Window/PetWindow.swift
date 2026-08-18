@@ -44,25 +44,69 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     private var dragOffset: CGSize?
     private let contentSize: CGSize
 
-    /// Called when the crab is clicked without being dragged. The argument is
-    /// the click count, so a triple-click can mean something extra.
-    var onClick: ((Int) -> Void)?
+    /// Called when the crab is clicked without being dragged or petted. The
+    /// arguments are the click count (a triple-click means something extra)
+    /// and the click's location in view coordinates, so a click can hit a
+    /// specific sprite cell — the floor bug earns a pounce.
+    var onClick: ((Int, CGPoint) -> Void)?
     /// Called when the pointer enters or leaves the crab itself.
     var onHover: ((Bool) -> Void)?
+    /// A press held still for 0.35s is petting, ended by release or movement.
+    var onPetStart: (() -> Void)?
+    var onPetEnd: (() -> Void)?
+    /// Fired after a drag settles — the film watch re-reads a window that may
+    /// have landed on another display, and a deferred step-aside gets its turn.
+    var onDragEnded: (() -> Void)?
 
-    /// - Parameter interactiveRect: the part of the window that actually
-    ///   responds to the mouse, in view coordinates. Everything outside it is
-    ///   click-through, so the transparent margin around a large sprite does not
-    ///   swallow clicks meant for the desktop.
-    init(contentSize: CGSize, interactiveRect: CGRect, rootView: some View) {
+    /// The sprite square — the whole mouse territory, and the scope of hover
+    /// tracking and pet eligibility, because every interaction means "the
+    /// pointer is on HIM".
+    private let spriteRect: CGRect
+
+    /// The one rect that accepts the mouse: exactly the sprite square, clamped
+    /// to the window (at pixel size 8 the square overhangs the window top by
+    /// 4pt). Everything else — the margins, the bubble — stays click-through.
+    /// The old 14pt halo and talking-bubble band are gone on purpose: with two
+    /// pets parked side by side, one pet's invisible grab zone sat over the
+    /// other's body and stole the pointer.
+    static func grabRect(sprite: CGRect, window: CGSize) -> CGRect {
+        sprite.intersection(CGRect(origin: .zero, size: window))
+    }
+
+    /// Where this pet's position persists. Injected because pet 2 keeps his
+    /// own home — the controller must not hardcode pet 1's keys.
+    private let loadPosition: () -> CGPoint?
+    private let storePosition: (CGPoint) -> Void
+    /// Shifts the first-launch dock park along the edge, so a summoned second
+    /// pet does not land exactly under the first and look like a no-op.
+    private let parkOffset: CGFloat
+    /// The other pet's frame, for snap de-stacking. Nil when there is no
+    /// other pet.
+    var avoidingFrame: () -> CGRect? = { nil }
+
+    /// - Parameter interactiveRect: the sprite square, in view coordinates —
+    ///   the mouse territory. Hover, petting and clicks are all scoped to it.
+    /// - Parameter dragRect: the torso, in view coordinates — the only place
+    ///   a press moves the window. Pass-through to the host view, never
+    ///   re-read here.
+    init(contentSize: CGSize, interactiveRect: CGRect, dragRect: CGRect, rootView: some View,
+         loadPosition: @escaping () -> CGPoint? = { Preferences.shared.position },
+         storePosition: @escaping (CGPoint) -> Void = { Preferences.shared.position = $0 },
+         parkOffset: CGFloat = 0) {
         self.contentSize = contentSize
+        self.spriteRect = interactiveRect
+        self.loadPosition = loadPosition
+        self.storePosition = storePosition
+        self.parkOffset = parkOffset
         window = PetWindow(contentSize: contentSize)
         super.init()
 
         let hosting = NSHostingView(rootView: AnyView(rootView))
         hosting.frame = CGRect(origin: .zero, size: contentSize)
         let host = DragHostView(hosting: hosting, controller: self)
-        host.interactiveRect = interactiveRect
+        host.spriteRect = interactiveRect
+        host.grabRect = Self.grabRect(sprite: interactiveRect, window: contentSize)
+        host.dragRect = dragRect
         host.updateTrackingAreas()
         window.contentView = host
         window.delegate = self
@@ -82,10 +126,78 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        // A deliberate show cancels any fade in flight and clears its alpha —
+        // without this, "show" after an interrupted step-aside orders front an
+        // invisible window with no path back (the alpha-0 trap).
+        fadeSeq += 1
+        window.alphaValue = 1
         window.orderFrontRegardless()
     }
 
     func hide() {
+        fadeSeq += 1
+        window.orderOut(nil)
+    }
+
+    // MARK: - Step-aside fades
+
+    /// Bumped by every deliberate show/hide and every new fade, so a deadline
+    /// belonging to an abandoned fade lands on nothing — an interrupted
+    /// step-aside must not order the window out half a second after he came
+    /// back.
+    private var fadeSeq = 0
+
+    /// Whether a drag is in flight — the step-aside defers to a held crab.
+    var isDragging: Bool { dragOffset != nil }
+
+    /// Floating (above every window) or normal (apps cover him) — the
+    /// Persistency toggle. A level change is live; no rebuild involved. At
+    /// `.normal` the pet still never raises himself on app switches: the app
+    /// is an accessory and nothing here calls order-front except deliberate
+    /// shows, so "not shuffled" holds by omission.
+    func setPersistent(_ on: Bool) {
+        window.level = on ? .floating : .normal
+    }
+
+    /// Eases the window out over `duration`, ordering it out only when the
+    /// fade actually finishes. Retargeting an NSWindow animator's `alphaValue`
+    /// continues from its current value, so an interrupted fade never snaps.
+    func fadeOut(over duration: TimeInterval = 0.45) {
+        fadeSeq += 1
+        let seq = fadeSeq
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            window.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            // AppKit delivers animation completions on the main thread; the
+            // closure is typed Sendable, so re-assert the isolation the same
+            // way the mouse handlers below do.
+            MainActor.assumeIsolated {
+                guard let self, self.fadeSeq == seq else { return }
+                self.window.orderOut(nil)
+            }
+        })
+    }
+
+    /// Orders the window front at its CURRENT alpha first, then eases it up —
+    /// in at zero, then rise. Committing the frame before the animation is
+    /// what keeps a return from a film from flashing.
+    func fadeIn(over duration: TimeInterval = 0.5) {
+        fadeSeq += 1
+        window.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().alphaValue = 1
+        }
+    }
+
+    /// Builds the window already faded out, for a rebuild that happens while
+    /// he is stepped aside — the new window must not flash over the film.
+    func prepareSteppedAside() {
+        fadeSeq += 1
+        window.alphaValue = 0
         window.orderOut(nil)
     }
 
@@ -121,30 +233,58 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 
     fileprivate func endDrag() {
         dragOffset = nil
-        // Resolve against whichever display he actually landed on.
-        let target = Self.screen(for: window.frame).visibleFrame
-        let snapped = DockMagnet.snap(origin: window.frame.origin, size: contentSize, visibleFrame: target)
+        // Resolve against whichever display he actually landed on. With no
+        // display at all, defer: leave the window where the hand let go, and
+        // do not persist an origin resolved against nothing.
+        guard let target = Self.screen(for: window.frame)?.visibleFrame else {
+            onDragEnded?()
+            return
+        }
+        let snapped = DockMagnet.snap(origin: window.frame.origin, size: contentSize,
+                                      visibleFrame: target, avoiding: avoidingFrame())
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.16
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             window.animator().setFrameOrigin(snapped)
         }
         savePosition(origin: snapped)
+        onDragEnded?()
     }
 
     // MARK: - Screens
 
-    /// The screen containing `rect`'s centre, else the one whose centre is
-    /// nearest. Never returns nil: a window dropped in the gap between two
-    /// non-aligned displays still has to land somewhere.
-    static func screen(for rect: CGRect) -> NSScreen {
+    /// The rule, pure over plain geometry: the frame containing `rect`'s
+    /// centre, else the nearest by centre distance — as an INDEX into the
+    /// array it was asked about, so "no displays" is `[]` in a unit test
+    /// instead of hardware nobody owns. Ties go to the earliest index, which
+    /// is `NSScreen.screens` order; without that rule a window on a seam
+    /// resolves to a different monitor per call.
+    static func nearestScreenIndex(to rect: CGRect, among frames: [CGRect]) -> Int? {
+        guard !frames.isEmpty else { return nil }
         let centre = CGPoint(x: rect.midX, y: rect.midY)
-        if let hit = NSScreen.screens.first(where: { $0.frame.contains(centre) }) { return hit }
-        let nearest = NSScreen.screens.min { lhs, rhs in
-            Self.distanceSquared(centre, CGPoint(x: lhs.frame.midX, y: lhs.frame.midY))
-                < Self.distanceSquared(centre, CGPoint(x: rhs.frame.midX, y: rhs.frame.midY))
+        if let hit = frames.firstIndex(where: { $0.contains(centre) }) { return hit }
+        return frames.enumerated().min { lhs, rhs in
+            Self.distanceSquared(centre, CGPoint(x: lhs.element.midX, y: lhs.element.midY))
+                < Self.distanceSquared(centre, CGPoint(x: rhs.element.midX, y: rhs.element.midY))
+        }?.offset
+    }
+
+    /// The screen for `rect`, or nil when no display is attached.
+    ///
+    /// nil is an honest answer, not a defect to paper over: `NSScreen.main` is
+    /// documented to return nil and `NSScreen.screens` documented to be empty
+    /// exactly then (clamshell with the external unplugged, mid-
+    /// reconfiguration, wake). The old chain ended in `NSScreen.screens[0]`,
+    /// which subscripts the exact array whose emptiness got it there — a
+    /// launch or an unplug became an abort. Callers defer rather than guess:
+    /// there is no right position when there is nowhere to put it, and the
+    /// display-change notification is the same one that will ask again.
+    static func screen(for rect: CGRect) -> NSScreen? {
+        let screens = NSScreen.screens   // one read; the index resolves against this local
+        guard let index = nearestScreenIndex(to: rect, among: screens.map(\.frame)) else {
+            return nil
         }
-        return nearest ?? NSScreen.main ?? NSScreen.screens[0]
+        return screens[index]
     }
 
     private static func distanceSquared(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
@@ -152,42 +292,74 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         return dx * dx + dy * dy
     }
 
-    private var currentVisibleFrame: CGRect {
-        Self.screen(for: window.frame).visibleFrame
-    }
-
     // MARK: - Position persistence
 
     /// Persists to the `com.internetdialup.claude-pet` UserDefaults suite,
     /// backed by `~/Library/Preferences/com.internetdialup.claude-pet.plist`.
     private func savePosition(origin: CGPoint) {
-        Preferences.shared.position = origin
+        storePosition(origin)
     }
 
+    /// Whether the launch placement is still owed. An `LSUIElement` app that
+    /// launched with no display attached has an unplaced, invisible window, no
+    /// Dock icon to click, and no way to be asked back short of relaunching —
+    /// so that path must remember the debt and settle it when a display
+    /// arrives. Cleared only when a placement actually lands, never by being
+    /// read: the display change that still has no display must not discharge
+    /// it.
+    struct PlacementDebt: Equatable, Sendable {
+        private(set) var isOwed = false
+        mutating func attempted(placed: Bool) { isOwed = !placed }
+    }
+
+    private var placementDebt = PlacementDebt()
+
     private func restorePosition() {
+        placementDebt.attempted(placed: attemptRestorePosition())
+    }
+
+    /// One placement attempt. Returns whether it landed — false means no
+    /// display was attached and the window is exactly where it was.
+    private func attemptRestorePosition() -> Bool {
         let origin: CGPoint
-        if let saved = Preferences.shared.position,
+        if let saved = loadPosition(),
            Self.isUsable(origin: saved, size: contentSize) {
             origin = saved
         } else {
-            let frame = currentVisibleFrame
             // First launch: park next to the dock, which is where the operator
-            // asked for it to live.
-            let (edge, thickness) = DockMagnet.dockEdge(frame: (window.screen ?? NSScreen.main!).frame,
+            // asked for it to live. The screen comes from the optional lookup —
+            // the old `window.screen ?? NSScreen.main!` spent its optional
+            // chain on the wrong operand: both nils fire for the same reason
+            // (nothing attached), so the force unwrap aborted first launches
+            // in clamshell.
+            guard let screen = window.screen ?? Self.screen(for: window.frame) else {
+                return false
+            }
+            let frame = screen.visibleFrame
+            let (edge, thickness) = DockMagnet.dockEdge(frame: screen.frame,
                                                         visibleFrame: frame)
             switch edge {
-            case .left:  origin = CGPoint(x: frame.minX, y: frame.minY + thickness + 8)
-            case .right: origin = CGPoint(x: frame.maxX - contentSize.width, y: frame.minY + thickness + 8)
-            default:     origin = CGPoint(x: frame.maxX - contentSize.width - 24, y: frame.minY)
+            case .left:  origin = CGPoint(x: frame.minX + parkOffset, y: frame.minY + thickness + 8)
+            case .right: origin = CGPoint(x: frame.maxX - contentSize.width - parkOffset,
+                                          y: frame.minY + thickness + 8)
+            default:     origin = CGPoint(x: frame.maxX - contentSize.width - 24 - parkOffset,
+                                          y: frame.minY)
             }
         }
-        let target = Self.screen(for: CGRect(origin: origin, size: contentSize)).visibleFrame
+        guard let target = Self.screen(for: CGRect(origin: origin, size: contentSize))?.visibleFrame
+        else { return false }
         window.setFrameOrigin(DockMagnet.clamp(origin: origin, size: contentSize, visibleFrame: target))
+        return true
     }
 
     /// A saved position is usable if a decent chunk of the window would still be
     /// on some display. Guards against restoring onto a monitor that has since
     /// been unplugged.
+    ///
+    /// `contains` on the empty array is false, so "no displays" reads as "not
+    /// usable" — safe, and correctly so. That is the load-bearing difference
+    /// from the subscript this file used to end its screen lookup with: this
+    /// read degrades to the parking path, that one took the process.
     static func isUsable(origin: CGPoint, size: CGSize) -> Bool {
         let rect = CGRect(origin: origin, size: size)
         let needed = size.width * size.height * 0.5
@@ -197,13 +369,37 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Displays were added, removed, or rearranged. Only intervene if he is now
-    /// stranded — otherwise leave him exactly where the operator put him.
+    /// Displays were added, removed, or rearranged. The launch debt settles
+    /// first — "was he ever placed" and "did he drift off screen" are
+    /// different questions and the first one comes first. Otherwise intervene
+    /// only if he is stranded, and defer when there is currently no display
+    /// to resolve against: the frame is still the best record of where he was.
     @objc private func screenParametersChanged() {
+        if placementDebt.isOwed {
+            placementDebt.attempted(placed: attemptRestorePosition())
+            return
+        }
         guard !Self.isUsable(origin: window.frame.origin, size: contentSize) else { return }
-        let target = currentVisibleFrame
+        guard let target = Self.screen(for: window.frame)?.visibleFrame else { return }
         window.setFrameOrigin(DockMagnet.clamp(origin: window.frame.origin, size: contentSize, visibleFrame: target))
         savePosition(origin: window.frame.origin)
+    }
+}
+
+/// What a press turned out to be. Pure so the thresholds are testable without
+/// synthesising AppKit events: movement always wins (drag), a still press
+/// matures into petting at 0.35s, anything shorter is a click.
+enum PressGesture {
+    case click
+    case drag
+    case pet
+
+    static let movementThreshold: CGFloat = 3
+    static let petDelay: TimeInterval = 0.35
+
+    static func classify(elapsed: TimeInterval, movement: CGFloat) -> PressGesture {
+        if movement > movementThreshold { return .drag }
+        return elapsed >= petDelay ? .pet : .click
     }
 }
 
@@ -215,10 +411,25 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 private final class DragHostView: NSView {
     private weak var controller: PetWindowController?
     private var didDrag = false
+    private var pressStartedAt: Date?
+    private var pressOrigin: NSPoint = .zero
+    private var maxMovement: CGFloat = 0
+    private var isPetting = false
+    private var petTimer: Timer?
+    private var petEligible = false
+    private var dragArmed = false
 
-    /// Only this rect accepts the mouse. Outside it, `hitTest` returns nil and
+    /// The sprite square: hover tracking and pet eligibility.
+    var spriteRect: CGRect = .infinite
+
+    /// The rect that accepts the mouse. Outside it `hitTest` returns nil and
     /// the click passes through to whatever is behind the window.
-    var interactiveRect: CGRect = .infinite
+    var grabRect: CGRect = .zero
+
+    /// The torso — the only place a press moves the window. Claws, legs and
+    /// crown still click, pet and pounce; with two pets on one desk, a
+    /// smaller handle is what makes each pet grabbable next to the other.
+    var dragRect: CGRect = .zero
 
     init(hosting: NSView, controller: PetWindowController) {
         self.controller = controller
@@ -233,16 +444,22 @@ private final class DragHostView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         // `point` arrives in the superview's coordinate space.
         let local = convert(point, from: superview)
-        return interactiveRect.contains(local) ? self : nil
+        return grabRect.contains(local) ? self : nil
     }
 
-    /// Tracking is scoped to `interactiveRect`, so hovering the transparent
-    /// margin — or the bubble — does not make him react.
+    /// The app is an accessory and the window never takes key focus, so without
+    /// this the first press while another app is frontmost is treated as an
+    /// activation click and swallowed — you had to click him twice to drag.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// Tracking is scoped to the sprite square, same as the mouse territory,
+    /// so hovering the transparent margin or the bubble does not make him
+    /// react.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
         addTrackingArea(NSTrackingArea(
-            rect: interactiveRect,
+            rect: spriteRect,
             options: [.mouseEnteredAndExited, .activeAlways],
             owner: self
         ))
@@ -258,24 +475,71 @@ private final class DragHostView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         didDrag = false
-        MainActor.assumeIsolated {
-            controller?.beginDrag(at: NSEvent.mouseLocation)
+        isPetting = false
+        maxMovement = 0
+        pressOrigin = NSEvent.mouseLocation
+        pressStartedAt = Date()
+        let local = convert(event.locationInWindow, from: nil)
+        // Petting means touching HIM — a press inside the sprite square.
+        petEligible = spriteRect.contains(local)
+        // Only a torso press arms the drag; a press on a claw or a leg is a
+        // poke or a pet, never a move.
+        dragArmed = dragRect.contains(local)
+        if dragArmed {
+            MainActor.assumeIsolated {
+                controller?.beginDrag(at: NSEvent.mouseLocation)
+            }
+        }
+        // A press that stays put matures into petting. The timer dies on the
+        // first real movement, so drag always wins.
+        petTimer?.invalidate()
+        guard petEligible else { return }
+        petTimer = Timer.scheduledTimer(withTimeInterval: PressGesture.petDelay,
+                                        repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.maxMovement <= PressGesture.movementThreshold else { return }
+                self.isPetting = true
+                self.controller?.onPetStart?()
+            }
         }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let location = NSEvent.mouseLocation
+        maxMovement = max(maxMovement, hypot(location.x - pressOrigin.x, location.y - pressOrigin.y))
+        guard maxMovement > PressGesture.movementThreshold else { return }
+        petTimer?.invalidate()
+        // Unconditional on purpose: a swipe across a claw must not fall
+        // through to onClick at release — it is neither a click nor a drag.
         didDrag = true
         MainActor.assumeIsolated {
-            controller?.continueDrag(to: NSEvent.mouseLocation)
+            // Movement cancels an engaged petting into a normal drag.
+            if isPetting {
+                isPetting = false
+                controller?.onPetEnd?()
+            }
+            if dragArmed { controller?.continueDrag(to: location) }
         }
     }
 
     override func mouseUp(with event: NSEvent) {
+        petTimer?.invalidate()
         let clicks = event.clickCount
+        let location = convert(event.locationInWindow, from: nil)
         MainActor.assumeIsolated {
-            controller?.endDrag()
-            // Still suppressed by a drag: a click that moved him is a move.
-            if !didDrag { controller?.onClick?(clicks) }
+            // Only an armed (torso) press settles a drag: off-torso pokes
+            // never re-run the dock snap, the position save, or the deferred
+            // step-aside. A stationary torso click still settles — for a
+            // parked window the snap is a no-op.
+            if dragArmed { controller?.endDrag() }
+            dragArmed = false
+            if isPetting {
+                isPetting = false
+                controller?.onPetEnd?()
+            } else if !didDrag {
+                // Still suppressed by a drag: a click that moved him is a move.
+                controller?.onClick?(clicks, location)
+            }
         }
     }
 }

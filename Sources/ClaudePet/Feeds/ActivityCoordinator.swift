@@ -34,11 +34,42 @@ final class FoldStore: @unchecked Sendable {
 /// single owner removes any question about which feed won a race.
 @MainActor
 public final class ActivityCoordinator {
-    public private(set) var state: PetState = .sleeping
-    public var onChange: ((PetState) -> Void)?
+    /// One state per pet slot. `states[0]` is the original pet and always
+    /// exists; a summoned second pet appends. Each slot is equality-gated
+    /// independently.
+    public private(set) var states: [PetState] = [.sleeping]
+    /// Slot 0's state — the alias every single-pet consumer (the probe, the
+    /// preview restore, the tests) reads.
+    public var state: PetState { states[0] }
+    public var onChange: ((Int, PetState) -> Void)?
+
+    /// Grows or shrinks the derived-state table (1 or 2 pets) and publishes
+    /// the new shape immediately.
+    public func setSlots(_ count: Int) {
+        let clamped = max(1, min(2, count))
+        guard clamped != states.count else { return }
+        if clamped > states.count {
+            states.append(.sleeping)
+            chatterCache.append(SlotChatter())
+        } else {
+            states.removeLast()
+            chatterCache.removeLast()
+        }
+        recompute()
+    }
     /// Fired when a session newly needs attention or newly finishes, for sound
     /// and notifications. Not fired on every state recomputation.
     public var onAlert: ((PetMood, ClaudeSession) -> Void)?
+
+    /// A cook began, or crossed a quarter of its todo list. The OLD cooking
+    /// notification path was dead code — `.cooking` is a display promotion
+    /// the session record never holds, so its mood-transition alert had
+    /// never once fired. This is the living replacement.
+    public enum CookMilestone: Equatable, Sendable {
+        case started
+        case fraction(Int)   // 25, 50, 75
+    }
+    public var onCookingProgress: ((CookMilestone, ClaudeSession) -> Void)?
 
     private var sessions: [String: ClaudeSession] = [:]
     private var transcriptWatchers: [String: FileWatcher] = [:]
@@ -58,6 +89,48 @@ public final class ActivityCoordinator {
     /// A deliberate celebration beat. It is not new — it simply never ran,
     /// because the 2s workload poll kept `lastActivity` fresher than 6s.
     static var doneDecay: TimeInterval = 6
+    /// How long a service glyph outlives its last matching tool call — long
+    /// enough to bridge the thinking beat between two npm commands, short
+    /// enough that the mark never outlives the story it tells. A `var` so
+    /// tests can shrink it.
+    static var serviceGlyphLinger: TimeInterval = 6
+
+    /// The celebrated done: a cooking sprint that lands plays a ~10s payoff
+    /// (the game-design trick — the work is finished, the reward runs longer),
+    /// so the decay waits for the animation plus a beat of afterglow.
+    static var celebrationDecay: TimeInterval = 12
+
+    /// A sprint this long earns the FULL finale — flash, dual glow, the
+    /// transform, the rainbow burst. Shorter sprints keep the standard bow.
+    static var epicCookThreshold: TimeInterval = 60
+
+    /// How old a replayed turn-end may be and still stamp the completion
+    /// badge. The badge now lives until new work consumes it, so without this
+    /// cap every launch would resurrect the last completion of every live
+    /// session — a badge from days ago, pulsing. Half an hour keeps "finished
+    /// while you were away" and retires the archaeology.
+    nonisolated static let completionStampMaxAge: TimeInterval = 1800
+
+    /// How long the thinking dots may pulse without renewal before the bubble
+    /// retires (the `.thinking` mood itself lives on until `staleAfter`).
+    /// "Still thinking" is a claim; thirty quiet seconds is where it stops
+    /// being one the pet can stand behind.
+    static var dotsQuietAfter: TimeInterval = 30
+
+    /// How long idle chatter stays constant company before going intermittent.
+    /// Below this the bubble rotates as always; past it, each 14s cycle rolls
+    /// the dice and roughly one in three shows a line. The pet stays present;
+    /// the banner stops being furniture.
+    static var chatterQuietAfter: TimeInterval = 90
+
+    /// Whether this idle-chatter cycle shows a bubble. Split dice, not
+    /// `seed % 3`: the ticker chooser inside `idleChatter` already uses
+    /// `seed % 3 == 2` on the SAME seed, so a modular gate here would starve
+    /// the status ticker forever — and `(seed * k) % 3` degenerates straight
+    /// back to `seed % 3`. The splitmix dice decorrelate properly.
+    static func idleChatterShows(quietFor quiet: TimeInterval, seed: Int) -> Bool {
+        quiet < chatterQuietAfter || CrabAnimator.noise(seed &* 43 &+ 13) < 1.0 / 3.0
+    }
 
     /// How long a session may sit in a *working* mood, silent, before the pet
     /// stops asserting it and falls back to `idle`.
@@ -123,8 +196,13 @@ public final class ActivityCoordinator {
 
 
     /// The idle line currently on screen, and when it was chosen.
-    private var chatter: (text: String, isMarquee: Bool)?
-    private var chatterChosenAt: Date = .distantPast
+    /// Each pet keeps his own cached sentence — two idle pets sharing one
+    /// cache would trade sentences out from under each other's readers.
+    private struct SlotChatter {
+        var line: (text: String, isMarquee: Bool)?
+        var chosenAt: Date = .distantPast
+    }
+    private var chatterCache: [SlotChatter] = [SlotChatter()]
 
     public init() {}
 
@@ -163,9 +241,18 @@ public final class ActivityCoordinator {
         queue.async { [folds] in folds.removeAll() }
     }
 
-    /// User pinned (or unpinned) a session from the roster.
+    /// User pinned (or unpinned) a session from the roster (slot 0).
     public func pin(sessionID: String?) {
-        Preferences.shared.pinnedSessionID = sessionID
+        pin(slot: 0, sessionID: sessionID)
+    }
+
+    /// Pin for a specific pet slot; slot 1 is the second pet's own choice.
+    public func pin(slot: Int, sessionID: String?) {
+        if slot == 0 {
+            Preferences.shared.pinnedSessionID = sessionID
+        } else {
+            Preferences.shared.pet2PinnedSessionID = sessionID
+        }
         recompute()
     }
 
@@ -219,6 +306,11 @@ public final class ActivityCoordinator {
             if let active = TaskWatcher.activeTask(in: tasksDirectory) {
                 events.append(ActivityEvent(sessionID: id, kind: .activeTask(active)))
             }
+            if let progress = TaskWatcher.progress(in: tasksDirectory) {
+                events.append(ActivityEvent(sessionID: id,
+                                            kind: .taskProgress(completed: progress.completed,
+                                                                total: progress.total)))
+            }
             guard !events.isEmpty else { return }
             Task { @MainActor in self.ingest(events, suppressAlerts: true) }
         }
@@ -245,8 +337,15 @@ public final class ActivityCoordinator {
         taskWatchers[id] = FileWatcher(url: watchURL, queue: queue, coalesce: 0.2) { [weak self] in
             guard let self else { return }
             let label = TaskWatcher.activeTask(in: tasksURL)
+            let progress = TaskWatcher.progress(in: tasksURL)
             Task { @MainActor in
-                self.ingest([ActivityEvent(sessionID: id, kind: .activeTask(label))])
+                var events = [ActivityEvent(sessionID: id, kind: .activeTask(label))]
+                if let progress {
+                    events.append(ActivityEvent(sessionID: id,
+                                                kind: .taskProgress(completed: progress.completed,
+                                                                    total: progress.total)))
+                }
+                self.ingest(events)
             }
         }
     }
@@ -262,6 +361,7 @@ public final class ActivityCoordinator {
     public func ingest(_ events: [ActivityEvent], suppressAlerts: Bool = false) {
         guard !events.isEmpty else { return }
         var alerts: [(PetMood, ClaudeSession)] = []
+        var milestones: [(CookMilestone, ClaudeSession)] = []
 
         for event in events {
             guard var session = sessions[event.sessionID] else { continue }
@@ -278,9 +378,11 @@ public final class ActivityCoordinator {
             case .thinking:
                 session.mood = .thinking
                 session.tool = nil
-            case .toolStarted(let name, let detail):
+                session.completionBadgeAt = nil     // new work consumes the marker
+            case .toolStarted(let name, let detail, let command):
                 session.mood = .working
                 session.tool = name
+                session.completionBadgeAt = nil     // new work consumes the marker
                 // A rolling window of recent calls — how *hard* he is going.
                 session.recentToolCalls.append(event.timestamp)
                 let cutoff = event.timestamp.addingTimeInterval(-Self.toolRateWindow)
@@ -288,23 +390,74 @@ public final class ActivityCoordinator {
                 if session.activeTaskLabel == nil {
                     session.activity = detail.map { Self.condense($0) } ?? name
                 }
+                // The service glyph: latest hit wins; stamped with the EVENT
+                // time, not Date(), so the priming replay's historical stamps
+                // age out in the same recompute that would have shown them.
+                if let glyph = ServiceGlyph.classify(tool: name, command: command) {
+                    session.serviceGlyph = glyph
+                    session.serviceGlyphAt = event.timestamp
+                }
             case .toolFinished:
                 // Between tools Claude is reasoning about the result.
                 if session.mood == .working { session.mood = .thinking }
                 session.tool = nil
             case .turnEnded:
+                // A sprint that lands earns a longer bow: the celebration flag
+                // stretches the done pose's decay and unlocks its payoff
+                // animation. `.cooking` is a display-time promotion — the
+                // session record itself never stores it — so the edge is
+                // detected the same way the promotion is: was he working at a
+                // cooking pace when the turn ended?
+                session.celebrating = session.mood == .working
+                    && Self.isCooking(session, now: event.timestamp)
+                // The stopwatch decides the tier, then resets for the next
+                // sprint.
+                session.epicCelebrating = session.celebrating
+                    && session.cookingSince.map {
+                        event.timestamp.timeIntervalSince($0) >= Self.epicCookThreshold
+                    } ?? false
+                session.cookingSince = nil
+                session.notifiedMilestone = nil
+                // A turn end can arrive twice — the transcript fold and the
+                // Stop hook — so the first stamp of this turn wins; a genuine
+                // new turn always passes through thinking/working first, which
+                // clears it. On the priming replay this carries a historical
+                // timestamp: a RECENT completion shows the badge ("finished
+                // while you were away"); anything older than the cap does not,
+                // because the badge no longer expires on its own and a stamp
+                // from days ago would pulse forever.
+                if session.mood != .done,
+                   Date().timeIntervalSince(event.timestamp) < Self.completionStampMaxAge {
+                    session.completionBadgeAt = event.timestamp
+                }
                 session.mood = .done
                 session.tool = nil
                 // Clear the last tool's description too. Leaving it set meant an
                 // idle session displayed "List worktree contents…" indefinitely,
                 // and there was never a "no task" moment for a shout-out to fill.
                 session.activity = nil
+                // The landing retires the service glyph with the sprint.
+                session.serviceGlyph = nil
+                session.serviceGlyphAt = nil
             case .needsAttention(let reason):
                 session.mood = .needsAttention
                 session.activity = Self.condense(reason)
             case .activeTask(let label):
                 session.activeTaskLabel = label
                 if let label { session.activity = label }
+            case .taskProgress(let completed, let total):
+                session.tasksCompleted = completed
+                session.tasksTotal = total
+                // Quarter-crossings while cooking, each fired exactly once —
+                // the same 3+-task gate the near-done glow uses.
+                if session.cookingSince != nil, total >= 3 {
+                    let pct = completed * 100 / total
+                    if let crossed = [75, 50, 25].first(where: { pct >= $0 }),
+                       crossed > (session.notifiedMilestone ?? 0) {
+                        session.notifiedMilestone = crossed
+                        milestones.append((.fraction(crossed), session))
+                    }
+                }
             case .title(let title):
                 session.title = title
             case .subagents(let count):
@@ -331,6 +484,28 @@ public final class ActivityCoordinator {
                 continue
             }
 
+            // The cook stopwatch: stamped when the cooking pace first appears
+            // on a real tool or subagent observation — event-side, the single
+            // writer, so the per-slot derives can never double-stamp. Never
+            // cleared on the thinking beat between tools; that would reset
+            // the stopwatch mid-sprint.
+            switch event.kind {
+            case .toolStarted, .subagents:
+                if session.cookingSince == nil, Self.isCooking(session, now: event.timestamp) {
+                    session.cookingSince = event.timestamp
+                    milestones.append((.started, session))
+                }
+            default:
+                break
+            }
+
+            // The celebration belongs to the done pose alone; any move off it
+            // takes the flag along.
+            if session.mood != .done {
+                session.celebrating = false
+                session.epicCelebrating = false
+            }
+
             sessions[session.id] = session
             // Only moods that `NotificationNudge` knows how to announce, and
             // only on a real transition — not on every recomputation.
@@ -347,6 +522,12 @@ public final class ActivityCoordinator {
         for alert in alerts where sessions[alert.1.id] != nil {
             onAlert?(alert.0, alert.1)
         }
+        // Same discipline as alerts: suppressed during the priming replay —
+        // a stale 75% banner from history is exactly the disease the replay
+        // suppression exists to prevent.
+        for milestone in milestones where sessions[milestone.1.id] != nil {
+            onCookingProgress?(milestone.0, milestone.1)
+        }
     }
 
     /// How long `mood` may go unrenewed before the pet stops asserting it.
@@ -356,9 +537,11 @@ public final class ActivityCoordinator {
     /// - `.sleeping` is derived at display time from `lastActivity`, not stored.
     /// - `.nudging` is likewise derived, from `awaitingApproval`; it clears when
     ///   the mood underneath it decays and takes the flag with it.
-    static func quietLimit(for mood: PetMood) -> TimeInterval? {
+    static func quietLimit(for mood: PetMood, celebrating: Bool = false) -> TimeInterval? {
         switch mood {
-        case .done: doneDecay
+        // A celebrated done holds for the whole payoff animation (~10s) plus a
+        // beat of afterglow; a plain done keeps its quick exit.
+        case .done: celebrating ? celebrationDecay : doneDecay
         case .working: workingStaleAfter
         case .needsAttention: attentionStaleAfter
         case .thinking, .cooking: staleAfter
@@ -378,10 +561,33 @@ public final class ActivityCoordinator {
         // adopted mid-turn at launch — all leave a mood nothing will ever
         // clear, and the list is certainly incomplete. A timeout recovers from
         // the ones nobody has found yet.
+        // The stopwatch clears only when a session is fully cold — no tool
+        // calls left in the rate window and no subagents in flight. A sprint
+        // that pauses to think keeps its clock.
+        for (id, var session) in sessions where session.cookingSince != nil {
+            let cutoff = now.addingTimeInterval(-Self.toolRateWindow)
+            if session.recentToolCalls.filter({ $0 >= cutoff }).isEmpty, session.subagentCount == 0 {
+                session.cookingSince = nil
+                sessions[id] = session
+            }
+        }
+
+        // A service glyph nothing has renewed expires on the linger. Runs on
+        // every ingest and the 2s tick, so the worst-case overshoot hides
+        // inside the ease-out.
         for (id, var session) in sessions {
-            guard let limit = Self.quietLimit(for: session.mood),
+            guard let stamped = session.serviceGlyphAt,
+                  now.timeIntervalSince(stamped) > Self.serviceGlyphLinger else { continue }
+            session.serviceGlyph = nil
+            session.serviceGlyphAt = nil
+            sessions[id] = session
+        }
+
+        for (id, var session) in sessions {
+            guard let limit = Self.quietLimit(for: session.mood, celebrating: session.celebrating),
                   now.timeIntervalSince(session.lastActivity) > limit else { continue }
             session.mood = .idle
+            session.celebrating = false
             // The mood alone is not the assertion — the bubble is. Leaving any
             // of these set keeps stale text on screen after the pose relaxes:
             // `activeTaskLabel` outranks everything when the bubble is chosen,
@@ -399,14 +605,42 @@ public final class ActivityCoordinator {
             return lhs.lastActivity > rhs.lastActivity
         }
 
-        guard !ordered.isEmpty else {
-            publish(.sleeping)
-            return
+        // Slot 0 first, so slot 1 can exclude its focus; every slot is
+        // derived and gated independently.
+        var slotZeroFocus: String?
+        for slot in states.indices {
+            let new = derive(slot: slot, excluding: slotZeroFocus, ordered: ordered, now: now)
+            if slot == 0 { slotZeroFocus = new.focusedSessionID }
+            publish(new, slot: slot)
         }
+    }
 
-        // A pin wins; otherwise the most urgent-then-recent session gets the face.
-        let pinned = Preferences.shared.pinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
-        let focus = pinned ?? ordered[0]
+    /// One slot's view of the world. Slot 0 is today's rule, byte-identical
+    /// (its seed salt is zero). Slot 1 follows its own pin, else the busiest
+    /// session slot 0 is not already showing; with no second session he naps —
+    /// honestly, and still carrying the roster.
+    private func derive(slot: Int, excluding excludedID: String?,
+                        ordered: [ClaudeSession], now: Date) -> PetState {
+        guard !ordered.isEmpty else { return .sleeping }
+
+        // Salted per slot so two idle pets never speak in lockstep; additive,
+        // so the split-dice property of the chatter gate survives.
+        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval) &+ slot &* 7919
+
+        let focusOrNil: ClaudeSession?
+        if slot == 0 {
+            let pinned = Preferences.shared.pinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
+            focusOrNil = pinned ?? ordered[0]
+        } else {
+            let pinned = Preferences.shared.pet2PinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
+            focusOrNil = pinned ?? ordered.first { $0.id != excludedID }
+        }
+        guard let focus = focusOrNil else {
+            var napping = PetState.sleeping
+            napping.sessions = ordered
+            if seed % 4 == 0 { napping.bubble = Vocab.line(for: .sleeping, seed: seed) }
+            return napping
+        }
 
         var mood = focus.mood
         if mood != .needsAttention,
@@ -432,39 +666,53 @@ public final class ActivityCoordinator {
         //   3. this state's own lines
         // Point 2 is why `working` and `cooking` lines appear only in the gaps:
         // a pet that hides "Running the test suite" behind a joke is worse.
-        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval)
-
         switch mood {
         case .thinking:
             // No honest label exists for "reasoning", so show pulsing dots
-            // rather than repeating the last thing he did.
-            bubble = "…"
-            style = .dots
-            chatter = nil
+            // rather than repeating the last thing he did — but only while
+            // the claim is fresh. The mood itself decays on `staleAfter`
+            // (300s), and dots pulsing over a quiet session for minutes are
+            // exactly the lingering banner the quiet-done round removed:
+            // after 30 unrenewed seconds the bubble retires and the pose
+            // (sparkles, scanning eyes) carries the state; the next
+            // transcript write brings the dots straight back.
+            let fresh = now.timeIntervalSince(focus.lastActivity) < Self.dotsQuietAfter
+            bubble = fresh ? "…" : nil
+            style = fresh ? .dots : .plain
+            chatterCache[slot].line = nil
 
         case .sleeping:
             // Occasionally talks in his sleep. A sleeping pet that comments on
             // every frame is not asleep.
             bubble = seed % 4 == 0 ? Vocab.line(for: .sleeping, seed: seed) : nil
-            chatter = nil
+            chatterCache[slot].line = nil
 
         // A title is what a session *is*, not what it is *doing*. Gating on
         // `task == nil` meant any titled session — which is most of them — kept
         // showing its title forever and never reached the ticker.
         case .idle where focus.activeTaskLabel == nil && focus.activity == nil:
-            // Nothing to report — encouragement, or a status ticker.
-            var snapshot = StatusTicker.Snapshot()
-            snapshot.model = focus.model
-            snapshot.branch = focus.branch
-            snapshot.project = focus.projectName
-            snapshot.sessionCount = ordered.count
-            snapshot.activeHoursToday = focus.activeHoursToday
-            let line = idleChatter(snapshot: snapshot, now: now)
-            bubble = line.text
-            style = line.isMarquee ? .marquee : .plain
+            // Nothing to report — encouragement, or a status ticker. The gate
+            // sits OUTSIDE `idleChatter` on purpose: its 14s cache would
+            // otherwise keep answering through cycles the gate meant to be
+            // quiet, and a nil cycle must leave the cache untouched so the
+            // rotation resumes where it left off.
+            if Self.idleChatterShows(quietFor: now.timeIntervalSince(focus.lastActivity),
+                                     seed: seed) {
+                var snapshot = StatusTicker.Snapshot()
+                snapshot.model = focus.model
+                snapshot.branch = focus.branch
+                snapshot.project = focus.projectName
+                snapshot.sessionCount = ordered.count
+                snapshot.activeHoursToday = focus.activeHoursToday
+                let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot, now: now)
+                bubble = line.text
+                style = line.isMarquee ? .marquee : .plain
+            } else {
+                bubble = nil
+            }
 
         default:
-            chatter = nil
+            chatterCache[slot].line = nil
             if let task, Vocab.rule(matching: task) != nil {
                 // A rule claimed this task.
                 bubble = Vocab.line(for: mood.shoutoutOccasion, matching: task, seed: seed)
@@ -475,15 +723,27 @@ public final class ActivityCoordinator {
             }
         }
 
-        publish(PetState(
+        // The near-done glow needs a real list behind it: three or more tasks,
+        // quantised so the equality-gated publish does not churn on re-reads.
+        var taskFraction: Double?
+        if let done = focus.tasksCompleted, let total = focus.tasksTotal, total >= 3 {
+            taskFraction = (Double(done) / Double(total) / 0.05).rounded() * 0.05
+        }
+
+        return PetState(
             mood: mood,
             bubble: bubble,
             tool: focus.tool,
             sessions: ordered,
             focusedSessionID: focus.id,
             attentionCount: ordered.filter { $0.mood == .needsAttention && $0.id != focus.id }.count,
-            bubbleStyle: style
-        ))
+            bubbleStyle: style,
+            taskFraction: taskFraction,
+            celebrating: mood == .done && focus.celebrating,
+            epicCelebration: mood == .done && focus.epicCelebrating,
+            completedAt: focus.completionBadgeAt,
+            serviceGlyph: focus.serviceGlyph
+        )
     }
 
     // MARK: - Idle chatter
@@ -493,14 +753,15 @@ public final class ActivityCoordinator {
     /// Held for `chatterInterval` rather than re-rolled on every `recompute()`
     /// — this runs on the 2s decay timer, so choosing per call would rewrite the
     /// sentence out from under the reader three times before they finished it.
-    private func idleChatter(snapshot: StatusTicker.Snapshot,
+    private func idleChatter(slot: Int, seed: Int,
+                             snapshot: StatusTicker.Snapshot,
                              focusTask: String? = nil,
                              now: Date) -> (text: String, isMarquee: Bool) {
-        if let current = chatter, now.timeIntervalSince(chatterChosenAt) < Self.chatterInterval {
+        if let current = chatterCache[slot].line,
+           now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterInterval {
             return current
         }
 
-        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval)
         let status = StatusTicker.lines(for: snapshot, now: now)
 
         // Roughly every third turn is a status ticker, when one is available.
@@ -514,15 +775,15 @@ public final class ActivityCoordinator {
             next = (line ?? "Ready when you are", false)
         }
 
-        chatter = next
-        chatterChosenAt = now
+        chatterCache[slot].line = next
+        chatterCache[slot].chosenAt = now
         return next
     }
 
-    private func publish(_ new: PetState) {
-        guard new != state else { return }
-        state = new
-        onChange?(new)
+    private func publish(_ new: PetState, slot: Int) {
+        guard new != states[slot] else { return }
+        states[slot] = new
+        onChange?(slot, new)
     }
 
     /// Recount in-flight subagents for every live session.

@@ -13,17 +13,35 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onPin: (String?) -> Void
     private let onPreviewMood: (PetMood?) -> Void
     private let onSetPixelSize: (Double) -> Void
+    private let onSetCostume: (Costume) -> Void
+    private let onToggleStepAside: () -> Void
+    private let onTogglePersistency: () -> Void
+    private let onToggleSecondPet: () -> Void
+    private let onPinSecond: (String?) -> Void
+    private let onSetSecondCostume: (Costume) -> Void
     private let onQuit: () -> Void
 
     init(onToggleVisibility: @escaping () -> Void,
          onPin: @escaping (String?) -> Void,
          onPreviewMood: @escaping (PetMood?) -> Void,
          onSetPixelSize: @escaping (Double) -> Void,
+         onSetCostume: @escaping (Costume) -> Void,
+         onToggleStepAside: @escaping () -> Void,
+         onTogglePersistency: @escaping () -> Void,
+         onToggleSecondPet: @escaping () -> Void,
+         onPinSecond: @escaping (String?) -> Void,
+         onSetSecondCostume: @escaping (Costume) -> Void,
          onQuit: @escaping () -> Void) {
         self.onToggleVisibility = onToggleVisibility
         self.onPin = onPin
         self.onPreviewMood = onPreviewMood
         self.onSetPixelSize = onSetPixelSize
+        self.onSetCostume = onSetCostume
+        self.onToggleStepAside = onToggleStepAside
+        self.onTogglePersistency = onTogglePersistency
+        self.onToggleSecondPet = onToggleSecondPet
+        self.onPinSecond = onPinSecond
+        self.onSetSecondCostume = onSetSecondCostume
         self.onQuit = onQuit
 
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -58,6 +76,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(action("Show / hide pet") { [weak self] in self?.onToggleVisibility() })
 
+        // A visibility concern, so it lives beside the visibility row.
+        let persistency = action("Persistency") { [weak self] in
+            self?.onTogglePersistency()
+            self?.refresh()
+        }
+        persistency.state = Preferences.shared.persistent ? .on : .off
+        persistency.toolTip = "On: floats above every window (still steps aside for video). Off: app windows cover him."
+        menu.addItem(persistency)
+
         // Size submenu.
         let sizeItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")
         let sizeMenu = NSMenu()
@@ -73,6 +100,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         sizeItem.submenu = sizeMenu
         menu.addItem(sizeItem)
+
+        // Costume submenu.
+        let costumeItem = NSMenuItem(title: "Costume", action: nil, keyEquivalent: "")
+        let costumeMenu = NSMenu()
+        let worn = Preferences.shared.costume
+        for costume in Costume.allCases {
+            let entry = action(costume.title) { [weak self] in
+                self?.onSetCostume(costume)
+            }
+            entry.state = costume == worn ? .on : .off
+            costumeMenu.addItem(entry)
+        }
+        costumeItem.submenu = costumeMenu
+        menu.addItem(costumeItem)
 
         // Pin submenu
         let pinItem = NSMenuItem(title: "Follow session", action: nil, keyEquivalent: "")
@@ -90,6 +131,50 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         pinItem.submenu = pinMenu
         menu.addItem(pinItem)
+
+        // The second pet: summon/dismiss, and — while he is out — his own
+        // session to follow and his own wardrobe.
+        let secondItem = NSMenuItem(title: "Second pet 🦀", action: nil, keyEquivalent: "")
+        let secondMenu = NSMenu()
+        let summoned = Preferences.shared.pet2Enabled
+        secondMenu.addItem(action(summoned ? "Dismiss second pet" : "Summon second pet") { [weak self] in
+            self?.onToggleSecondPet()
+            self?.refresh()
+        })
+        if summoned {
+            secondMenu.addItem(.separator())
+
+            let followItem = NSMenuItem(title: "Follow session", action: nil, keyEquivalent: "")
+            let followMenu = NSMenu()
+            let pinned2 = Preferences.shared.pet2PinnedSessionID
+            let auto2 = action("Busiest other session (auto)") { [weak self] in self?.onPinSecond(nil) }
+            auto2.state = pinned2 == nil ? .on : .off
+            followMenu.addItem(auto2)
+            if !state.sessions.isEmpty { followMenu.addItem(.separator()) }
+            for session in state.sessions {
+                let entry = action(session.name) { [weak self] in self?.onPinSecond(session.id) }
+                entry.state = pinned2 == session.id ? .on : .off
+                entry.toolTip = session.cwd
+                followMenu.addItem(entry)
+            }
+            followItem.submenu = followMenu
+            secondMenu.addItem(followItem)
+
+            let costume2Item = NSMenuItem(title: "Costume", action: nil, keyEquivalent: "")
+            let costume2Menu = NSMenu()
+            let worn2 = Preferences.shared.pet2Costume
+            for costume in Costume.allCases {
+                let entry = action(costume.title) { [weak self] in
+                    self?.onSetSecondCostume(costume)
+                }
+                entry.state = costume == worn2 ? .on : .off
+                costume2Menu.addItem(entry)
+            }
+            costume2Item.submenu = costume2Menu
+            secondMenu.addItem(costume2Item)
+        }
+        secondItem.submenu = secondMenu
+        menu.addItem(secondItem)
 
         menu.addItem(.separator())
 
@@ -120,7 +205,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         cooking.state = Preferences.shared.cookingNotificationsEnabled ? .on : .off
         cooking.toolTip = "Off by default — cooking starts often."
+
+        // The preference itself lives in Preferences; the toggle goes through
+        // the app because flipping it mid-film has to act NOW (step aside or
+        // come back), not on the next belief change.
+        let stepAside = action("Step aside for video 🎬") { [weak self] in
+            self?.onToggleStepAside()
+            self?.refresh()
+        }
+        stepAside.state = Preferences.shared.stepsAsideForVideo ? .on : .off
+        stepAside.toolTip = "He fades out while a film plays fullscreen on his display."
         menu.addItem(cooking)
+        menu.addItem(stepAside)
 
         let login = action("Open at login") { [weak self] in
             Self.toggleLaunchAtLogin()

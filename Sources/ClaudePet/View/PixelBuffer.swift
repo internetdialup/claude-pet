@@ -31,6 +31,18 @@ public struct PixelBuffer: Sendable {
         case ember
         /// Paper — the plan clipboard.
         case paper
+        /// Costume accessory slots. Their colours come from the worn
+        /// `CostumeStyle` via `PixelCanvasView.inkOverrides`, so one pair of
+        /// inks dresses every costume.
+        case costumeA
+        case costumeB
+        /// A third accessory slot — the Gundam's visor recess earned it.
+        case costumeC
+        /// The cooking heat bands — body cells repainted as quantised heat.
+        case bodyHot
+        case bodyEmber
+        /// Alarm red — the npm cube; promoted from `Palette.alert` chrome.
+        case alert
     }
 
     private(set) var cells: [UInt8]
@@ -81,14 +93,16 @@ public struct PixelBuffer: Sendable {
         }
     }
 
-    /// Nearest-neighbour shrink, anchored at the feet and centred horizontally.
+    /// Nearest-neighbour scale, anchored at the feet and centred horizontally.
     ///
     /// Done here rather than with `.scaleEffect` on the view: `CrabView` ends in
     /// `.drawingGroup()`, so a view-level scale resamples a finished bitmap and
     /// softens the deliberately hard pixel edges. Resampling the grid keeps every
-    /// cell square.
+    /// cell square. Upscales (the epic finale's transform) keep the feet pinned
+    /// and crop at the grid's top edge — the buffer never grows; content that
+    /// leaves the 32 rows is simply gone for the beat it is gone.
     func scaled(_ factor: Double) -> PixelBuffer {
-        guard factor < 0.999, factor > 0.1 else { return self }
+        guard abs(factor - 1) > 0.001, factor > 0.1, factor < 2 else { return self }
         var out = PixelBuffer()
         let side = Double(Self.side)
         let inset = (side - side * factor) / 2
@@ -106,6 +120,41 @@ public struct PixelBuffer: Sendable {
             }
         }
         return out
+    }
+
+    /// Copies the non-clear cells of `overlay` in, keeping each cell only when
+    /// its hash clears `visibility` — the pixel-art alpha fade. The hash is a
+    /// pure function of the cell and `seed`, so a dissolve is a stable pattern
+    /// that fills in as visibility rises rather than a per-frame shimmer. At
+    /// visibility 1 this is a plain paint: identical output to drawing direct.
+    /// - Parameter preservingExisting: when true, destination cells that are
+    ///   already painted keep their ink — the overlay slides in BEHIND the
+    ///   scene instead of over it. This is how a ground object (the completion
+    ///   badge) lets the character stand in front of it.
+    mutating func composite(_ overlay: PixelBuffer, visibility: Double, seed: Int,
+                            preservingExisting: Bool = false) {
+        guard visibility > 0 else { return }
+        for y in 0..<Self.side {
+            for x in 0..<Self.side {
+                let ink = overlay[x, y]
+                guard ink != .clear else { continue }
+                if preservingExisting, self[x, y] != .clear { continue }
+                if visibility >= 1 || Self.hash01(x, y, seed) < visibility {
+                    self[x, y] = ink
+                }
+            }
+        }
+    }
+
+    /// splitmix64's finaliser over the cell index — the same generator the
+    /// animator schedules with, for the same reason: deterministic, avalanched.
+    private static func hash01(_ x: Int, _ y: Int, _ seed: Int) -> Double {
+        var v = UInt64(bitPattern: Int64(x &+ y &* side &+ seed &* 4099))
+        v = v &+ 0x9E37_79B9_7F4A_7C15
+        v = (v ^ (v >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        v = (v ^ (v >> 27)) &* 0x94D0_49BB_1331_11EB
+        v = v ^ (v >> 31)
+        return Double(v >> 11) / Double(1 << 53)
     }
 
     /// Horizontal runs of identical ink, so the renderer draws tens of rects
@@ -139,6 +188,11 @@ public struct PixelCanvasView: View {
     /// Overrides `.body` only. His eyes, mouth and props keep their own colours —
     /// tinting everything would just look like a hue-rotated screenshot.
     var bodyTint: Color?
+
+    /// Costume colours by ink slot. Resolution order for the body is
+    /// `bodyTint ?? inkOverrides[.body] ?? Palette.body` — status tints always
+    /// beat wardrobe, wardrobe beats the default shell.
+    var inkOverrides: [PixelBuffer.Ink: Color] = [:]
 
     /// Hairline overdraw that hides seams when a cell lands on a fractional
     /// device pixel.
@@ -179,9 +233,11 @@ public struct PixelCanvasView: View {
     private func color(for ink: PixelBuffer.Ink) -> Color {
         switch ink {
         case .clear: .clear
-        case .body: bodyTint ?? Palette.body
-        case .eye: Palette.ink
-        case .mouth: Palette.white
+        case .body: bodyTint ?? inkOverrides[.body] ?? Palette.body
+        // Eye and mouth accept costume overrides too: a white shell swallows
+        // a white mouth, and the Matrix look wants terminal-green eyes.
+        case .eye: inkOverrides[.eye] ?? Palette.ink
+        case .mouth: inkOverrides[.mouth] ?? Palette.white
         case .screenDark: Palette.screenDark
         case .screenLight: Palette.screenLight
         case .green: Palette.green
@@ -192,6 +248,14 @@ public struct PixelCanvasView: View {
         case .flameCore: Palette.flameCore
         case .ember: Palette.ember
         case .paper: Palette.kraft
+        // A costume slot with no wardrobe behind it should be impossible; the
+        // shell colour keeps it invisible-in-practice rather than magenta-loud.
+        case .costumeA: inkOverrides[.costumeA] ?? Palette.body
+        case .costumeB: inkOverrides[.costumeB] ?? Palette.body
+        case .costumeC: inkOverrides[.costumeC] ?? Palette.body
+        case .bodyHot: Palette.bodyHot
+        case .bodyEmber: Palette.bodyEmber
+        case .alert: Palette.alert
         }
     }
 }

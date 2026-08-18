@@ -5,6 +5,122 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-08-12
+
+### Added
+
+- **👘 A wardrobe.** Seven costumes — Ninja, Retro Black, Matrix, Jungle
+  Tiger, Arctic White, Gundam, Sonic — picked from the new menubar Costume
+  submenu and remembered between launches. Costumes survive every mood and
+  every prop; status effects always paint over them. The ninja trades the
+  shell for shadow with a terracotta eye window, because a mask may frame
+  the eyes but never cover them; the Matrix shell rains live green code
+  down his back; the Gundam brings the RX-78 head home — V-fin, red crest,
+  yellow cameras in a black visor recess, blue armor down the flanks; and
+  the Sonic goes fast — blue shell, back-swept quills, tan muzzle, red
+  sneakers over white socks.
+- **🔥 Fire that heats the shell.** During a hard cook, a banded heat cascade
+  sometimes sweeps up his body; when the todo list passes 80%, a soft white
+  pulse says the sprint is almost home; and when a cooking sprint lands, the
+  done state plays a ~10-second payoff — flash train, scale breathing, the hop
+  re-armed twice — before cooling back down. Rarely, mid-cook, a five-second
+  disco finds him. He keeps working through it.
+- **🏆 The epic finale.** A cook that runs a full minute and lands earns the
+  bigger payoff: the white flash, a warm glow blooming behind him under
+  three expanding 8-bit rings, his whole body growing a fifth and settling
+  back, and a rainbow sweeping the shell — all inside the same ten-second
+  bow, easing back to a plain done before it fades. Short cooks keep the
+  ordinary celebration.
+- **🔖 Service glyphs.** He name-checks the service he's talking to: an
+  8-bit npm cube while npm/yarn/pnpm/bun run, a GitHub mark while a push
+  or PR is in flight, a Linear diamond during Linear tool calls, a deploy
+  rocket for vercel/docker/fly — floating beside him AND badging his
+  thought bubble, easing in with the work and lingering a few seconds
+  past it. Original pixel marks, evocative not copied; recognition rides
+  the real shell command, not the polite description.
+- **📊 The cooking card.** With notifications on, a cook starting posts a
+  macOS banner, and each quarter of the todo list crossed updates it in
+  place — `▓▓▓▓░░░░ 50%` — silently, no re-chime. The done chime retires
+  the card so a stale bar never sits under it.
+- **⬛ Ground under his feet.** A soft 8-bit shadow block sits at his
+  footline — 15% black, one and a half cells tall — so he stands on the
+  desk instead of floating over it.
+- **🥚 Four secrets.** A floor bug worth clicking, press-and-hold petting with
+  rising hearts, a shrimp snack for whoever pokes a sleeping crab, and — in
+  the small hours only — a telescope.
+- **✨ Attention, eased.** The bubble sweeps an occasional light band and
+  pulses a slow check when a plan awaits your verdict.
+- **🎨 A vector bridge.** `--render-vectors` exports the base body and every
+  prop as layered SVGs for design review. Code stays the source of truth.
+- **🦀🦀 A second pet.** Summon him from the menu ("Second pet") and a
+  second Claw'd joins the desk — following the busiest session the first
+  isn't showing (or any session you pin him to), wearing his own costume,
+  remembering his own spot, and getting everything the first has: petting,
+  eggs, the badge, the film step-aside. Two windows, one app — never two
+  processes, which would fight over the event feed. He parks beside his
+  sibling, never under him, and dock-corner snaps de-stack. Maximum two;
+  this is a desk, not a beach.
+- **📌 Persistency.** A new menu toggle for how present he is. On (the
+  default, and the classic posture) he floats above every window — still
+  stepping aside for video. Off, he lives at normal window level: opening
+  Finder or a browser covers him, nothing ever shuffles him forward, and
+  you see him again when the windows move off.
+- **🎬 He steps aside for films.** Fullscreen video on his display — Netflix,
+  YouTube, whatever holds the screen awake — fades him out; the credits (or
+  your escape key) bring him back. Deliberately film-only: a window covering
+  the display AND that same app keeping the display awake, so a fullscreen
+  editor or a slide deck never scares him off. Sound cues hush during films
+  too. On by default; "Step aside for video" in the menu turns it off, and
+  showing him mid-film keeps him up for the rest of it.
+- **✅ The quiet done.** A finished task no longer leaves a lingering banner:
+  the done pose plays its moment, then hands the signal to a small 8-bit
+  checkbox parked beside his feet, bottom edge on his footline. It stays
+  until new work consumes it — not until a clock does — and every three
+  minutes it takes one soft golden breath to catch your eye. He stands in
+  front of it when he leans over it. Completions older than half an hour
+  don't resurrect on launch; recent ones greet you back.
+
+### Changed
+
+- **He's grabbed by the stomach.** The mouse knows exactly where he is —
+  his sprite, nothing more: no invisible margin, no grabbable bubble. Only
+  the torso moves him; claws, legs and crown still poke, pet and pounce.
+  With two pets parked side by side, that's what keeps each one
+  individually grabbable — and a poke never yanks him to the dock edge
+  anymore.
+- **Idle chatter goes intermittent.** For the first minute and a half of
+  quiet he keeps you company as always; past that, roughly one cycle in
+  three shows a line and the rest are calm. The status ticker keeps its
+  share of the cycles that do show.
+- **Nothing snaps anymore.** Mood changes cross-ease from the pose that was
+  actually on screen; the hover greeting decays from wherever it had reached
+  instead of vanishing; the 20-second prop re-roll puts one prop down and
+  picks the next up through a pixel dissolve; the working arms are eased
+  squares instead of square waves. The exemptions are single-pixel steps and
+  blinks, which snap in nature.
+- **The console is in his claws.** The little code window sits in front of him
+  like a held laptop — claw tips gripping the lid, eyes peering over it — and
+  tracks his bob instead of hanging painted on the sky.
+
+### Fixed
+
+- **One pet, ever.** Launching the app while a copy is already running now
+  quits the old copy instead of doubling him — the build you just launched
+  is the one you meant.
+- **Crash hardening, from the fork's crash hunt.** A launch or display
+  unplug with no screen attached no longer aborts (the pet defers placement
+  and settles the debt when a display arrives); "Install Claude hooks…"
+  works on machines that didn't compile the app (resources resolve relative
+  to the app, and two release checks now prove it); a clock that briefly
+  runs backwards can no longer kill him mid-flame; building from source and
+  running the bare binary reaches the desktop instead of aborting on the
+  notification centre; and `--probe nan`/`inf` run the default instead of
+  probing nothing or forever.
+- **First click grabs him.** A press while another app was frontmost was
+  swallowed as an activation click; dragging him needed a second try.
+- **The bubble tail is no longer eaten by the sprite** in the overlap band —
+  the live view gets the fix the reel renderer already had.
+
 ## [1.3.0] — 2026-08-08
 
 ### Added

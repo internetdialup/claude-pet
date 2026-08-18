@@ -6,8 +6,12 @@ public struct ActivityEvent: Sendable, Equatable {
     public enum Kind: Sendable, Equatable {
         /// Claude produced a `thinking` block with no tool call.
         case thinking
-        /// A tool call started. `detail` is `input.description` / `file_path` / `pattern`.
-        case toolStarted(name: String, detail: String?)
+        /// A tool call started. `detail` is `input.description` / `file_path` /
+        /// `pattern` — description-first, the bubble's text. `command` is the
+        /// raw `input.command` when the tool ran one, carried separately
+        /// because the description usually wins `detail` and the service-glyph
+        /// classifier needs the actual shell text.
+        case toolStarted(name: String, detail: String?, command: String?)
         /// The matching `tool_result` arrived.
         case toolFinished(name: String)
         /// Turn ended (`stop_reason == "end_turn"`, or a `Stop` hook).
@@ -16,6 +20,8 @@ public struct ActivityEvent: Sendable, Equatable {
         case needsAttention(reason: String)
         /// The in-progress todo changed. `activeForm`, e.g. "Refactoring the parser".
         case activeTask(String?)
+        /// The todo list's completion count moved, e.g. 4 of 5 done.
+        case taskProgress(completed: Int, total: Int)
         /// Session title changed.
         case title(String)
         /// Subagent count changed.
@@ -50,7 +56,10 @@ public struct ActivityEvent: Sendable, Equatable {
     /// happened in the session.
     public var countsAsActivity: Bool {
         switch kind {
-        case .subagents: false
+        // `.taskProgress` rides the same watcher as `.activeTask` but is a
+        // derived tally, not a fresh observation of Claude doing something —
+        // counting it would re-pin `lastActivity` on every re-read.
+        case .subagents, .taskProgress: false
         default: true
         }
     }
@@ -59,5 +68,13 @@ public struct ActivityEvent: Sendable, Equatable {
         self.sessionID = sessionID
         self.kind = kind
         self.timestamp = timestamp
+    }
+}
+
+extension ActivityEvent.Kind {
+    /// Compatibility spelling — an enum case cannot default its payload, and
+    /// most call sites have no command to offer.
+    public static func toolStarted(name: String, detail: String?) -> ActivityEvent.Kind {
+        .toolStarted(name: name, detail: detail, command: nil)
     }
 }
