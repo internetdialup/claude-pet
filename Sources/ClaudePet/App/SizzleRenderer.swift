@@ -173,9 +173,17 @@ enum SizzleRenderer {
                 FileHandle.standardError.write(Data("sizzle: \(cut.name) failed\n".utf8))
                 return false
             }
+            writeBeatMap(for: cut, beside: url)
             print("wrote \(url.path)")
         }
         return true
+    }
+
+    /// The editor's beat sidecar, named after the cut minus its extension.
+    private static func writeBeatMap(for cut: SizzleScript.Cut, beside url: URL) {
+        let base = url.deletingPathExtension()
+        let sidecar = base.appendingPathExtension("beats.txt")
+        SpriteImage.write(Data(SizzleScript.beatMap(for: cut).utf8), to: sidecar)
     }
 
     /// The plates: each frame lands twice — a lossless PNG (the ONLY keying
@@ -201,6 +209,7 @@ enum SizzleRenderer {
                 FileHandle.standardError.write(Data("plates: \(cut.name) failed\n".utf8))
                 return false
             }
+            writeBeatMap(for: cut, beside: dir.appendingPathComponent(cut.name))
             print("wrote \(seqDir.path) (+preview)")
         }
         return true

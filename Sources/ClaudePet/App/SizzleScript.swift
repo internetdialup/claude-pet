@@ -193,6 +193,54 @@ enum SizzleScript {
 
     static let plates: [Cut] = [plate16x9, plate9x16]
 
+    // MARK: - The beat map
+
+    /// The editor's sidecar: every chapter boundary and intra-chapter beat as
+    /// a TSV timeline, so music hits snap to cuts in Premiere without
+    /// frame-counting. Labels are raw values only — nothing real leaks.
+    static func beatMap(for cut: Cut) -> String {
+        var lines = ["# \(cut.name) beats v1"]
+        var cursor = 0.0
+
+        func emit(_ time: Double, _ kind: String, _ label: String) {
+            lines.append(String(format: "%.3f\t%@\t%@", time, kind, label))
+        }
+
+        for segment in cut.segments {
+            emit(cursor, "chapter", String(describing: segment.chapter))
+
+            // Intra-chapter cadences, mapped through the segment's clock.
+            let cadence: (period: Double, labels: [String])?
+            switch segment.chapter {
+            case .glyphs: cadence = (1.5, glyphBeats.map { $0.glyph.rawValue })
+            case .montage: cadence = (1.0, montageOrder.map { $0.rawValue })
+            default: cadence = nil
+            }
+            if let cadence {
+                let kind = segment.chapter == .glyphs ? "glyph" : "look"
+                switch segment.kind {
+                case .window(let offset):
+                    for (index, label) in cadence.labels.enumerated() {
+                        let masterT = Double(index) * cadence.period
+                        guard masterT >= offset, masterT < offset + segment.seconds else { continue }
+                        emit(cursor + (masterT - offset), kind, label)
+                    }
+                case .scaled:
+                    let master = masterSeconds[segment.chapter] ?? segment.seconds
+                    let factor = master / segment.seconds
+                    for (index, label) in cadence.labels.enumerated() {
+                        let masterT = Double(index) * cadence.period
+                        guard masterT < master else { continue }
+                        emit(cursor + masterT / factor, kind, label)
+                    }
+                }
+            }
+            cursor += segment.seconds
+        }
+        emit(cursor, "end", "-")
+        return lines.joined(separator: "\n") + "\n"
+    }
+
     // MARK: - The clock walk
 
     /// Maps a cut-time to (chapter, chapter-local t, segment progress 0…1).

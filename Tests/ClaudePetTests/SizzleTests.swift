@@ -460,3 +460,35 @@ struct ThinkingStarTests {
                 "the sizzle's terminal pin must survive")
     }
 }
+
+/// The beat sidecars: monotonic, complete, and exact where pinned.
+@Suite("Beat maps")
+@MainActor
+struct BeatMapTests {
+
+    @Test("Every cut's map is monotonic and ends at its duration")
+    func shape() {
+        for cut in SizzleScript.cuts + SizzleScript.plates {
+            let lines = SizzleScript.beatMap(for: cut)
+                .split(separator: "\n").filter { !$0.hasPrefix("#") }
+            let times = lines.compactMap { Double($0.split(separator: "\t")[0]) }
+            #expect(times == times.sorted(), "\(cut.name) must be monotonic")
+            #expect(abs((times.last ?? -1) - cut.seconds) < 0.002,
+                    "\(cut.name) must end at its duration")
+            #expect(lines.last?.hasSuffix("end\t-") == true)
+        }
+    }
+
+    @Test("The landscape glyph beats land where the cadence says")
+    func landscapeSpots() {
+        let map = SizzleScript.beatMap(for: SizzleScript.landscape)
+        // Glyphs start at 4.0 (wake 1.0 + mirror 3.0), compressed 6.0→2.8:
+        // beats at 4.0, 4.7, 5.4, 6.1 master → /2.142857…
+        #expect(map.contains("4.000\tglyph\tnpm"))
+        #expect(map.contains("4.700\tglyph\tgithub"))
+        #expect(map.contains("5.400\tglyph\tlinear"))
+        #expect(map.contains("6.100\tglyph\tdeploy"))
+        #expect(map.contains("chapter\tfinale"))
+        #expect(map.contains("look\tsonic"))
+    }
+}
