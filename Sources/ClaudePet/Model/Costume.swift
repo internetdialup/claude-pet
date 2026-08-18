@@ -35,7 +35,7 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .ninja: "Ninja"
         case .retroBlack: "Retro Black"
         case .matrix: "Matrix"
-        case .tiger: "Jungle Tiger"
+        case .tiger: "Tiger"
         case .white: "Arctic White"
         case .gundam: "Gundam"
         case .sonic: "Sonic"

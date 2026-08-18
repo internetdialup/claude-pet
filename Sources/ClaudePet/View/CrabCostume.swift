@@ -47,8 +47,11 @@ struct CostumeStyle {
         case .tiger:
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x3E_7A45),      // jungle green shell
-                    .costumeA: rgb(0x1F_4023),  // stripes
+                    .body: rgb(0xE0_8A2E),      // tiger orange — the operator's
+                                                // ruling: green never read cat
+                    .costumeA: rgb(0x26_1C10),  // warm near-black stripes
+                    .costumeC: rgb(0xF2_EFE4),  // the white belly patch
+                    .mouth: rgb(0x3D_3D3A),     // dark mouth on the white patch
                 ],
                 yieldsCrownToProps: false)
         case .white:
@@ -194,6 +197,9 @@ enum CrabCostume {
             // clear of the eye windows (10-12 and 19-21), where a stripe just
             // vanishes behind the face.
             let base = bodyY + dy + squash
+            // The white belly patch first, under the mouth — the stripes and
+            // the face paint over it.
+            b.rect(13 + dx, base + 8, 7, 2, .costumeC)
             // Stripes hang from the back and rise from the belly — staggered
             // bars, not spots; spots read leopard.
             for column in [7, 14, 22] {
