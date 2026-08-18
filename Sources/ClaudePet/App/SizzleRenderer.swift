@@ -98,7 +98,9 @@ enum SizzleRenderer {
             shot.side = fmt.spriteSide + (fmt.faceSide - fmt.spriteSide) * zoom
             shot.offset.y = (24 * zoom).rounded()
             shot.bubbleFade = 1 - zoom
-            let rosterU = Ease.window(t - 2.8, duration: 2.5, edge: 0.35)
+            // A reveal, not a punch: the slide's edges are slow (0.9s), or
+            // ninety points in a third of a second reads as a yank.
+            let rosterU = Ease.window(t - 2.8, duration: 2.5, edge: 0.9)
             if fmt.vertical {
                 shot.offset.y -= (40 * rosterU).rounded()
             } else {

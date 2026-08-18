@@ -217,8 +217,11 @@ struct SizzleCameraTests {
                 // A snap would be 30-100pt; 13 catches it with margin.
                 #expect(abs(shot.side - previous.side) <= 13.0,
                         "side jumped \(abs(shot.side - previous.side)) at frame \(index)")
-                #expect(abs(shot.offset.x - previous.offset.x) <= 4.0, "frame \(index)")
-                #expect(abs(shot.offset.y - previous.offset.y) <= 4.0, "frame \(index)")
+                // The fastest sanctioned drift is the roster slide: 90pt
+                // over a 0.9s smoothstep edge ≈ 5pt/frame; the shake swings
+                // at most 3 with rounding. A snap would be 30+.
+                #expect(abs(shot.offset.x - previous.offset.x) <= 6.0, "frame \(index)")
+                #expect(abs(shot.offset.y - previous.offset.y) <= 6.0, "frame \(index)")
                 // A three-frame-flat side is a dwell; dwells sit on stops.
                 if let beforePrevious, beforePrevious.side == previous.side,
                    previous.side == shot.side {
