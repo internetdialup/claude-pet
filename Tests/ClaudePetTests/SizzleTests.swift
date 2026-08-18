@@ -365,3 +365,27 @@ struct PartyConfettiTests {
         }
     }
 }
+
+/// The afterimage silhouette: one ink, same footprint.
+@Suite("Party trails")
+@MainActor
+struct PartyTrailTests {
+
+    @Test("A silhouette is body-only with its footprint preserved")
+    func silhouetteContract() {
+        let pose = CrabAnimator.pose(mood: .done, t: 0.3)
+        let full = CrabRig.render(pose, costume: .gundam, costumeVisibility: 1)
+        let ghost = full.silhouette()
+        var fullCount = 0, ghostCount = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                if full[x, y] != .clear { fullCount += 1 }
+                let ink = ghost[x, y]
+                #expect(ink == .clear || ink == .body,
+                        "silhouettes carry exactly one ink")
+                if ink != .clear { ghostCount += 1 }
+            }
+        }
+        #expect(fullCount == ghostCount, "the footprint must survive whole")
+    }
+}

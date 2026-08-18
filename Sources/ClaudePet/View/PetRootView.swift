@@ -103,6 +103,13 @@ public struct PetRootView: View {
                         .allowsHitTesting(false)
                 }
 
+                if let party = model.rainbowStartedAt {
+                    RainbowTrails(since: party.timeIntervalSinceReferenceDate,
+                                  side: spriteSize)
+                        .frame(width: spriteSize, height: spriteSize)
+                        .allowsHitTesting(false)
+                }
+
                 CrabView(
                     mood: model.state.mood,
                     costume: model.costume,
@@ -199,6 +206,40 @@ struct CelebrationGlow: View {
             let rect = CGRect(x: centre.x - half, y: centre.y - half,
                               width: half * 2, height: half * 2)
             context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
+        }
+    }
+}
+
+/// The party's chromatic afterimages: the same pure party pose pipeline at
+/// time-shifted offsets, silhouetted so a single hue-shifted tint colours the
+/// whole figure, stacked behind the live sprite at stepped opacity. Live-only
+/// by construction — offline renderers never compose PetRootView; the shifted
+/// tints are nil while elapsed < kΔ (clean birth) and the trapezoid ends them
+/// by 4.0s, so latch removal is never the ease.
+private struct RainbowTrails: View {
+    let since: Double
+    let side: CGFloat
+
+    var body: some View {
+        TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
+            let elapsed = timeline.date.timeIntervalSinceReferenceDate - since
+            ZStack {
+                trail(elapsed: elapsed, k: 2).opacity(0.18)
+                trail(elapsed: elapsed, k: 1).opacity(0.35)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trail(elapsed: Double, k: Int) -> some View {
+        let shifted = elapsed - Double(k) * 0.09
+        if shifted > 0,
+           let mood = CrabView.rainbowMood(elapsed: shifted),
+           let tint = CrabView.rainbowTint(elapsed: shifted) {
+            PixelCanvasView(buffer: CrabRig.render(
+                                CrabAnimator.pose(mood: mood, t: shifted)).silhouette(),
+                            bodyTint: tint, seamBleed: 0)
+                .frame(width: side, height: side)
         }
     }
 }

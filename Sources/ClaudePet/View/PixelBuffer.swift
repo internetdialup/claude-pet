@@ -76,6 +76,20 @@ public struct PixelBuffer: Sendable {
         }
     }
 
+    /// Every non-clear cell becomes `.body` — the afterimage read: a whole-
+    /// figure silhouette a single bodyTint can hue-shift cleanly. Without
+    /// this, a trail carries ink-black eyes and full-colour props at trail
+    /// opacity: floating ghost faces.
+    func silhouette() -> PixelBuffer {
+        var out = self
+        for y in 0..<Self.side {
+            for x in 0..<Self.side where out[x, y] != .clear {
+                out[x, y] = .body
+            }
+        }
+        return out
+    }
+
     public mutating func pixel(_ x: Int, _ y: Int, _ ink: Ink) {
         self[x, y] = ink
     }
