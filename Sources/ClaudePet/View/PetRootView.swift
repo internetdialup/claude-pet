@@ -104,6 +104,9 @@ public struct PetRootView: View {
                 }
 
                 if let party = model.rainbowStartedAt {
+                    RainbowRays(since: party.timeIntervalSinceReferenceDate)
+                        .frame(width: spriteSize, height: spriteSize)
+                        .allowsHitTesting(false)
                     RainbowTrails(since: party.timeIntervalSinceReferenceDate,
                                   side: spriteSize)
                         .frame(width: spriteSize, height: spriteSize)
@@ -206,6 +209,46 @@ struct CelebrationGlow: View {
             let rect = CGRect(x: centre.x - half, y: centre.y - half,
                               width: half * 2, height: half * 2)
             context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
+        }
+    }
+}
+
+/// The party's backdrop: eight flat-filled wedges of quantised hue rotating
+/// slowly behind him, alpha riding the party's trapezoid. Flat fills only —
+/// no gradients, so a GIF's global palette survives it — and the drawing is
+/// pure in `t` for the same determinism reasons as the glow.
+struct RainbowRays: View {
+    let since: Double
+
+    var body: some View {
+        TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
+            Canvas { context, size in
+                Self.draw(in: &context, size: size,
+                          t: timeline.date.timeIntervalSinceReferenceDate - since)
+            }
+        }
+    }
+
+    static func draw(in context: inout GraphicsContext, size: CGSize, t: Double) {
+        let amount = Ease.window(t, duration: 4.0, edge: 0.4)
+        guard amount > 0.001 else { return }
+        let centre = CGPoint(x: (size.width / 2).rounded(),
+                             y: (size.height * 0.55).rounded())
+        let reach = size.width * 0.9
+        let spin = t * 0.15 * 2 * .pi
+        for ray in 0..<8 {
+            let base = spin + Double(ray) / 8 * 2 * .pi
+            let hue = Double(ray) / 8
+            var path = Path()
+            path.move(to: centre)
+            path.addLine(to: CGPoint(x: centre.x + cos(base) * reach,
+                                     y: centre.y + sin(base) * reach))
+            path.addLine(to: CGPoint(x: centre.x + cos(base + 0.22) * reach,
+                                     y: centre.y + sin(base + 0.22) * reach))
+            path.closeSubpath()
+            context.fill(path, with: .color(Color(hue: hue, saturation: 0.7,
+                                                  brightness: 0.9)
+                .opacity(0.10 * amount)))
         }
     }
 }

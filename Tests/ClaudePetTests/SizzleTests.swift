@@ -389,3 +389,27 @@ struct PartyTrailTests {
         #expect(fullCount == ghostCount, "the footprint must survive whole")
     }
 }
+
+/// The ray sweep: dark outside the party, reproducible inside it.
+@Suite("Party rays", .serialized)
+@MainActor
+struct PartyRayTests {
+
+    private func render(t: Double) -> Data? {
+        let view = Canvas { context, size in
+            RainbowRays.draw(in: &context, size: size, t: t)
+        }
+        .frame(width: 96, height: 96)
+        .background(Color.black)
+        return SpriteImage.png(of: view, scale: 1, isOpaque: true)
+    }
+
+    @Test("Dark at both ends, lit in the middle, byte-stable")
+    func envelope() {
+        let dark = render(t: -100)
+        #expect(render(t: -0.1) == dark)
+        #expect(render(t: 4.5) == dark)
+        #expect(render(t: 2.0) != dark, "mid-party must shine")
+        #expect(render(t: 2.0) == render(t: 2.0), "and reproducibly so")
+    }
+}
