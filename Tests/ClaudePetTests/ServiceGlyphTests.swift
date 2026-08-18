@@ -167,3 +167,82 @@ struct ServiceGlyphLatchTests {
                 "a stale stamp must age out in the ingest that made it")
     }
 }
+
+/// The sprite pass: the glyph draws inside its reserved airspace, dissolves
+/// deterministically, and stays out of the blend's hands.
+@Suite("Service glyph sprite pass")
+struct ServiceGlyphSpriteTests {
+
+    @Test("Every glyph draws, and only inside the top-left airspace")
+    func drawsInsideTheAirspace() {
+        var basePose = CrabAnimator.pose(mood: .working, t: 3)
+        let baseline = CrabRig.render(basePose)
+        for glyph in ServiceGlyph.allCases {
+            basePose.serviceGlyph = glyph
+            basePose.serviceGlyphVisibility = 1
+            let lit = CrabRig.render(basePose)
+            var changed = 0
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where lit[x, y] != baseline[x, y] {
+                    changed += 1
+                    #expect(x >= 1 && x <= 8 && y <= 7,
+                            "\(glyph) painted (\(x),\(y)) outside cols 1-8 / rows 0-7")
+                }
+            }
+            #expect(changed > 0, "\(glyph) drew nothing")
+        }
+    }
+
+    @Test("Full visibility is identical to a direct draw")
+    func fullVisibilityIsIdentity() {
+        var pose = CrabAnimator.pose(mood: .working, t: 3)
+        pose.serviceGlyph = .github
+        pose.serviceGlyphVisibility = 1
+        let a = CrabRig.render(pose)
+        pose.serviceGlyphVisibility = 0.9999999
+        // Above the 0.999 threshold both go through the direct path; the
+        // dissolve threshold is what this pins.
+        let b = CrabRig.render(pose)
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                #expect(a[x, y] == b[x, y])
+            }
+        }
+    }
+
+    @Test("A partial dissolve shows some of the glyph, never all of it")
+    func partialDissolveIsPartial() {
+        var pose = CrabAnimator.pose(mood: .idle, t: 3)
+        let baseline = CrabRig.render(pose)
+        pose.serviceGlyph = .npm
+        pose.serviceGlyphVisibility = 1
+        let full = CrabRig.render(pose)
+        pose.serviceGlyphVisibility = 0.5
+        let half = CrabRig.render(pose)
+
+        var fullCells = 0, halfCells = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                if full[x, y] != baseline[x, y] { fullCells += 1 }
+                if half[x, y] != baseline[x, y] { halfCells += 1 }
+            }
+        }
+        #expect(halfCells > 0 && halfCells < fullCells,
+                "a half dissolve must be neither absent nor complete")
+    }
+
+    @Test("The blend leaves the incoming pose's glyph fields untouched")
+    func blendDoesNotLerpTheGlyph() {
+        var from = CrabAnimator.pose(mood: .working, t: 5)
+        from.serviceGlyph = .npm
+        from.serviceGlyphVisibility = 1
+        var to = CrabAnimator.pose(mood: .thinking, t: 0)
+        to.serviceGlyph = .github
+        to.serviceGlyphVisibility = 0.3
+
+        let mid = CrabPose.blend(from: from, to: to, u: 0.5)
+        #expect(mid.serviceGlyph == .github)
+        #expect(mid.serviceGlyphVisibility == 0.3,
+                "the envelope owns the glyph; the blend must not lerp it")
+    }
+}

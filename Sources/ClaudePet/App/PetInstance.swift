@@ -218,6 +218,7 @@ final class PetInstance {
             model.celebrationStartedAt = nil
         }
         model.state = state
+        updateServiceGlyphLatches()
         updateBadgeLatches()
     }
 
@@ -328,6 +329,46 @@ final class PetInstance {
                 self.model.badgeCompletionAt = nil
                 self.model.badgeShownAt = nil
                 self.model.badgeEndedAt = nil
+            }
+        }
+    }
+
+    /// The service glyph's appearance latches, on the badge pattern: a new
+    /// kind enters through a fresh attack; a kind CHANGE retires the old art
+    /// first and re-latches once the retreat has played, so swaps dip
+    /// through zero instead of popping new pixels at full visibility; state
+    /// going quiet eases out.
+    private func updateServiceGlyphLatches() {
+        let live = model.state.serviceGlyph
+        if let live {
+            if model.serviceGlyphKind == nil
+                || (model.serviceGlyphEndedAt != nil && model.serviceGlyphKind == live) {
+                // First appearance, or the same kind returning mid-retreat:
+                // fresh attack.
+                model.serviceGlyphKind = live
+                model.serviceGlyphShownAt = Date()
+                model.serviceGlyphEndedAt = nil
+            } else if model.serviceGlyphKind != live, model.serviceGlyphEndedAt == nil {
+                // A different service took over: retire the old art, then
+                // re-run this to bring the new one in from zero.
+                let ended = Date()
+                model.serviceGlyphEndedAt = ended
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                    guard let self, self.model.serviceGlyphEndedAt == ended else { return }
+                    self.model.serviceGlyphKind = nil
+                    self.model.serviceGlyphShownAt = nil
+                    self.model.serviceGlyphEndedAt = nil
+                    self.updateServiceGlyphLatches()
+                }
+            }
+        } else if model.serviceGlyphKind != nil, model.serviceGlyphEndedAt == nil {
+            let ended = Date()
+            model.serviceGlyphEndedAt = ended
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, self.model.serviceGlyphEndedAt == ended else { return }
+                self.model.serviceGlyphKind = nil
+                self.model.serviceGlyphShownAt = nil
+                self.model.serviceGlyphEndedAt = nil
             }
         }
     }

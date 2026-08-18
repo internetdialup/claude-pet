@@ -608,6 +608,12 @@ public struct CrabView: View {
     public var completedAt: Double?
     public var badgeShownAt: Double?
     public var badgeEndedAt: Double?
+    /// The service glyph — kind plus the shown/ended appearance latch, the
+    /// badge's exact contract: every entrance, kind swap and exit goes
+    /// through one eased envelope.
+    public var serviceGlyph: ServiceGlyph?
+    public var serviceGlyphShownAt: Double?
+    public var serviceGlyphEndedAt: Double?
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
@@ -634,6 +640,9 @@ public struct CrabView: View {
                 completedAt: Double? = nil,
                 badgeShownAt: Double? = nil,
                 badgeEndedAt: Double? = nil,
+                serviceGlyph: ServiceGlyph? = nil,
+                serviceGlyphShownAt: Double? = nil,
+                serviceGlyphEndedAt: Double? = nil,
                 frozenTime: Double? = nil,
                 moodClock: MoodClock = .shared,
                 costumeClock: CostumeClock = .shared) {
@@ -653,6 +662,9 @@ public struct CrabView: View {
         self.completedAt = completedAt
         self.badgeShownAt = badgeShownAt
         self.badgeEndedAt = badgeEndedAt
+        self.serviceGlyph = serviceGlyph
+        self.serviceGlyphShownAt = serviceGlyphShownAt
+        self.serviceGlyphEndedAt = serviceGlyphEndedAt
         self.frozenTime = frozenTime
         self.moodClock = moodClock
         self.costumeClock = costumeClock
@@ -886,6 +898,14 @@ public struct CrabView: View {
             if mood == .idle, pose.doneBadge > 0.5 {
                 pose.doneBadgePulse = CrabView.badgePulse(age: time - completedAt)
             }
+        }
+        if let serviceGlyph, frozenTime == nil {
+            // The service glyph floats in on the same two-ended latch as the
+            // badge; frozen renders never carry it by construction.
+            pose.serviceGlyph = serviceGlyph
+            pose.serviceGlyphVisibility = Ease.amount(now: time,
+                                                      since: serviceGlyphShownAt,
+                                                      endedAt: serviceGlyphEndedAt)
         }
         return pose
     }

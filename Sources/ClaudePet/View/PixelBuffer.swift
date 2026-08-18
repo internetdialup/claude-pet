@@ -41,6 +41,8 @@ public struct PixelBuffer: Sendable {
         /// The cooking heat bands — body cells repainted as quantised heat.
         case bodyHot
         case bodyEmber
+        /// Alarm red — the npm cube; promoted from `Palette.alert` chrome.
+        case alert
     }
 
     private(set) var cells: [UInt8]
@@ -253,6 +255,7 @@ public struct PixelCanvasView: View {
         case .costumeC: inkOverrides[.costumeC] ?? Palette.body
         case .bodyHot: Palette.bodyHot
         case .bodyEmber: Palette.bodyEmber
+        case .alert: Palette.alert
         }
     }
 }

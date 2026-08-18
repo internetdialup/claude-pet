@@ -57,6 +57,21 @@ enum SpriteSheetRenderer {
                     }
                 }
 
+                Text("service")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .frame(height: labelHeight, alignment: .leading)
+                ForEach(Array(ServiceGlyph.allCases.enumerated()), id: \.offset) { _, glyph in
+                    HStack(spacing: 6) {
+                        ServiceGlyphPreview(glyph: glyph)
+                            .frame(width: cell, height: cell)
+                            .background(Color.white.opacity(0.04))
+                        Text(glyph.rawValue)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+
                 Text("jump")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white)
@@ -111,6 +126,18 @@ private struct PropPreview: View {
         var pose = CrabPose()
         pose.prop = prop
         pose.propPhase = phase
+        return PixelCanvasView(buffer: CrabRig.render(pose))
+    }
+}
+
+/// One service glyph at full presence on a neutral pose — the art-review row.
+private struct ServiceGlyphPreview: View {
+    let glyph: ServiceGlyph
+
+    var body: some View {
+        var pose = CrabPose()
+        pose.serviceGlyph = glyph
+        pose.serviceGlyphVisibility = 1
         return PixelCanvasView(buffer: CrabRig.render(pose))
     }
 }

@@ -157,6 +157,10 @@ struct FrozenSentinelTests {
             #expect(pose.ghostProp == .none, "mood \(mood)")
             #expect(pose.ghostPropVisibility == 0, "mood \(mood)")
             #expect(pose.heat == 0, "mood \(mood)")
+            // Latch-driven, never scheduled — a frozen render must not carry
+            // a service glyph a live latch never handed it.
+            #expect(pose.serviceGlyph == nil, "mood \(mood)")
+            #expect(pose.serviceGlyphVisibility == 0, "mood \(mood)")
         }
     }
 

@@ -119,6 +119,9 @@ public struct PetRootView: View {
                     completedAt: model.badgeCompletionAt?.timeIntervalSinceReferenceDate,
                     badgeShownAt: model.badgeShownAt?.timeIntervalSinceReferenceDate,
                     badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate,
+                    serviceGlyph: model.serviceGlyphKind,
+                    serviceGlyphShownAt: model.serviceGlyphShownAt?.timeIntervalSinceReferenceDate,
+                    serviceGlyphEndedAt: model.serviceGlyphEndedAt?.timeIntervalSinceReferenceDate,
                     moodClock: model.moodClock,
                     costumeClock: model.costumeClock
                 )
@@ -214,6 +217,11 @@ public final class PetViewModel: ObservableObject {
     @Published public var badgeCompletionAt: Date?
     @Published public var badgeShownAt: Date?
     @Published public var badgeEndedAt: Date?
+    /// The service glyph's kind and appearance latches, managed by
+    /// PetInstance on the badge pattern — a kind change dips through zero.
+    @Published public var serviceGlyphKind: ServiceGlyph?
+    @Published public var serviceGlyphShownAt: Date?
+    @Published public var serviceGlyphEndedAt: Date?
     /// When the epic finale began — the glow layer's own t=0, latched by
     /// PetInstance from published state (never from MoodClock, whose epoch
     /// rebases on blends).

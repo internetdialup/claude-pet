@@ -106,12 +106,25 @@ public struct CrabPose: Sendable, Equatable {
     public var doneBadge: Double = 0
     /// The badge's three-minute reminder breath, 0…1. Same contract.
     public var doneBadgePulse: Double = 0
+
+    /// The service glyph floating in his top-left airspace, or nil, and its
+    /// presence 0…1. Written each frame by the live view from latch
+    /// timestamps (like `doneBadge`), so the mood blend deliberately does
+    /// not lerp them — the envelope owns the entrance and the exit.
+    public var serviceGlyph: ServiceGlyph? = nil
+    public var serviceGlyphVisibility: Double = 0
 }
 
 extension CrabPose.Prop {
     /// A dissolve seed that is stable across runs — `String.hashValue` is
     /// per-process randomised, which would re-deal the dissolve every launch.
     var stableSeed: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+}
+
+extension ServiceGlyph {
+    /// Dissolve seeds well clear of every other seed space (props are their
+    /// allCases indices, the easter eggs sit at 700-731, costumes at 900+).
+    var stableSeed: Int { 760 + (Self.allCases.firstIndex(of: self) ?? 0) }
 }
 
 /// Rasterises a `CrabPose` into a `PixelBuffer`.
@@ -195,6 +208,11 @@ public enum CrabRig {
         propPass(&buffer, pose: pose, prop: pose.prop,
                  phase: pose.propPhase, visibility: pose.propVisibility,
                  dx: dx, dy: dy)
+
+        // The service glyph, after the props so it wins its own cells where a
+        // sparkle wanders in — its own channel, like the fire layer, so it
+        // never fights the rolled prop, the ghost slot, or the crown yield.
+        servicePass(&buffer, pose: pose)
 
         // The quiet-hour extras: a scuttling bug on the floor, hearts while he
         // is petted, the snack, the telescope. Each is a world overlay that
@@ -355,6 +373,70 @@ public enum CrabRig {
                              dx: dx, dy: dy, squash: squash, pose: pose)
             b.composite(scratch, visibility: visibility,
                         seed: 900 + (Costume.allCases.firstIndex(of: costume) ?? 0))
+        }
+    }
+
+    /// The service glyph at its own visibility — the fire layer's shape, one
+    /// glyph at a time. World-anchored in the top-left airspace (cols 1-8,
+    /// rows 0-7), which every scheduled occupant verifiably avoids.
+    private static func servicePass(_ b: inout PixelBuffer, pose: CrabPose) {
+        guard let glyph = pose.serviceGlyph, pose.serviceGlyphVisibility > 0.001 else { return }
+        if pose.serviceGlyphVisibility > 0.999 {
+            drawServiceGlyph(&b, glyph)
+        } else {
+            var scratch = PixelBuffer()
+            drawServiceGlyph(&scratch, glyph)
+            b.composite(scratch, visibility: pose.serviceGlyphVisibility, seed: glyph.stableSeed)
+        }
+    }
+
+    /// Four original 8-bit marks, each centred in the (1,0) 8×8 box.
+    private static func drawServiceGlyph(_ b: inout PixelBuffer, _ glyph: ServiceGlyph) {
+        switch glyph {
+        case .npm:
+            // The red cube with the lowercase n carved in paper.
+            b.stamp([
+                "rrrrrrr",
+                "rrrrrrr",
+                "rpppppr",
+                "rpprppr",
+                "rpprppr",
+                "rpprppr",
+                "rrrrrrr",
+            ], at: (x: 1, y: 0), key: ["r": .alert, "p": .paper])
+        case .github:
+            // A round-eared silhouette on a paper disc — evocative, not copied.
+            b.stamp([
+                ".pppppp.",
+                "pkpppkpp",
+                "pkkkkkpp",
+                "pkpkpkpp",
+                "pkkkkkpp",
+                "ppkkkppp",
+                ".pppppp.",
+            ], at: (x: 1, y: 0), key: ["p": .paper, "k": .eye])
+        case .linear:
+            // The ascending diamond, one notch of steel through it.
+            b.stamp([
+                "...ll...",
+                "..llll..",
+                ".llssll.",
+                "llssssll",
+                ".llssll.",
+                "..llll..",
+                "...ll...",
+            ], at: (x: 1, y: 0), key: ["l": .screenLight, "s": .steel])
+        case .deploy:
+            // The rocket, exhaust first-two-rows-of-flame.
+            b.stamp([
+                "...ss...",
+                "..ssss..",
+                "..slls..",
+                "..ssss..",
+                ".ssssss.",
+                "..f..f..",
+                "..ee.ee.",
+            ], at: (x: 1, y: 0), key: ["s": .steel, "l": .screenLight, "f": .flame, "e": .ember])
         }
     }
 
