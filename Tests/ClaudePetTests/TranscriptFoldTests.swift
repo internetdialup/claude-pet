@@ -50,11 +50,12 @@ struct TranscriptFoldTests {
         #expect(title == "Build the crab")
         guard case .model(let model) = events[1].kind else { Issue.record("expected model"); return }
         #expect(model == "claude-opus-5")
-        guard case .toolStarted(let name, let detail) = events[2].kind else {
+        guard case .toolStarted(let name, let detail, let command) = events[2].kind else {
             Issue.record("expected toolStarted"); return
         }
         #expect(name == "Bash")
-        #expect(detail == "List files")
+        #expect(detail == "List files", "the human description wins the detail slot")
+        #expect(command == "ls", "and the raw command rides its own field")
         guard case .toolFinished(let finished) = events[3].kind else {
             Issue.record("expected toolFinished"); return
         }
@@ -135,7 +136,7 @@ struct TranscriptFoldTests {
         // Everything before the window is invisible; only the trailing tool call
         // survives, preceded by its model announcement.
         #expect(events.count == 2)
-        guard case .toolStarted(let name, _) = events[1].kind else {
+        guard case .toolStarted(let name, _, _) = events[1].kind else {
             Issue.record("expected toolStarted"); return
         }
         #expect(name == "Bash")

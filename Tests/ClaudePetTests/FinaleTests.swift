@@ -8,7 +8,7 @@ import Foundation
 /// Registry fixtures are synthetic files under a scratch `CLAUDE_PET_HOME` in
 /// `FileManager.temporaryDirectory` — nothing reads or writes the operator's
 /// real `~/.claude/` (the redline).
-private enum FinaleFixture {
+enum FinaleFixture {
 
     /// Candidate redirect. `ClaudeHome.root` is a process-wide `static let`,
     /// so whichever suite's fixture touches it first pins it — either way the

@@ -89,6 +89,11 @@ public final class ActivityCoordinator {
     /// A deliberate celebration beat. It is not new — it simply never ran,
     /// because the 2s workload poll kept `lastActivity` fresher than 6s.
     static var doneDecay: TimeInterval = 6
+    /// How long a service glyph outlives its last matching tool call — long
+    /// enough to bridge the thinking beat between two npm commands, short
+    /// enough that the mark never outlives the story it tells. A `var` so
+    /// tests can shrink it.
+    static var serviceGlyphLinger: TimeInterval = 6
 
     /// The celebrated done: a cooking sprint that lands plays a ~10s payoff
     /// (the game-design trick — the work is finished, the reward runs longer),
@@ -374,7 +379,7 @@ public final class ActivityCoordinator {
                 session.mood = .thinking
                 session.tool = nil
                 session.completionBadgeAt = nil     // new work consumes the marker
-            case .toolStarted(let name, let detail):
+            case .toolStarted(let name, let detail, let command):
                 session.mood = .working
                 session.tool = name
                 session.completionBadgeAt = nil     // new work consumes the marker
@@ -384,6 +389,13 @@ public final class ActivityCoordinator {
                 session.recentToolCalls.removeAll { $0 < cutoff }
                 if session.activeTaskLabel == nil {
                     session.activity = detail.map { Self.condense($0) } ?? name
+                }
+                // The service glyph: latest hit wins; stamped with the EVENT
+                // time, not Date(), so the priming replay's historical stamps
+                // age out in the same recompute that would have shown them.
+                if let glyph = ServiceGlyph.classify(tool: name, command: command) {
+                    session.serviceGlyph = glyph
+                    session.serviceGlyphAt = event.timestamp
                 }
             case .toolFinished:
                 // Between tools Claude is reasoning about the result.
@@ -424,6 +436,9 @@ public final class ActivityCoordinator {
                 // idle session displayed "List worktree contents…" indefinitely,
                 // and there was never a "no task" moment for a shout-out to fill.
                 session.activity = nil
+                // The landing retires the service glyph with the sprint.
+                session.serviceGlyph = nil
+                session.serviceGlyphAt = nil
             case .needsAttention(let reason):
                 session.mood = .needsAttention
                 session.activity = Self.condense(reason)
@@ -555,6 +570,17 @@ public final class ActivityCoordinator {
                 session.cookingSince = nil
                 sessions[id] = session
             }
+        }
+
+        // A service glyph nothing has renewed expires on the linger. Runs on
+        // every ingest and the 2s tick, so the worst-case overshoot hides
+        // inside the ease-out.
+        for (id, var session) in sessions {
+            guard let stamped = session.serviceGlyphAt,
+                  now.timeIntervalSince(stamped) > Self.serviceGlyphLinger else { continue }
+            session.serviceGlyph = nil
+            session.serviceGlyphAt = nil
+            sessions[id] = session
         }
 
         for (id, var session) in sessions {
@@ -715,7 +741,8 @@ public final class ActivityCoordinator {
             taskFraction: taskFraction,
             celebrating: mood == .done && focus.celebrating,
             epicCelebration: mood == .done && focus.epicCelebrating,
-            completedAt: focus.completionBadgeAt
+            completedAt: focus.completionBadgeAt,
+            serviceGlyph: focus.serviceGlyph
         )
     }
 

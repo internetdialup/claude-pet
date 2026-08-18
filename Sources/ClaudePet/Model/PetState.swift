@@ -68,6 +68,10 @@ public struct PetState: Sendable, Equatable {
     /// window. Written once per completion, so the equality-gated publish
     /// does not churn.
     public var completedAt: Date? = nil
+    /// The service the focused sprint is talking to — the npm cube, GitHub
+    /// mark, Linear diamond or deploy rocket, floating beside him and
+    /// badging the bubble. Display state, not an alert.
+    public var serviceGlyph: ServiceGlyph? = nil
 
     public enum BubbleStyle: Sendable, Equatable {
         /// Text, truncated if long. The default for task descriptions.

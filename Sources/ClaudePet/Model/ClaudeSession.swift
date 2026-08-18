@@ -65,6 +65,14 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// done pose (mood decay does not clear it); consumed by new work or by
     /// its own five-minute clock.
     public var completionBadgeAt: Date?
+    /// The recognisable service the current sprint is talking to, and when it
+    /// was last observed. Stamped by ingest on a classify hit (single writer,
+    /// like `cookingSince`), renewed on every matching tool call, and
+    /// deliberately NOT cleared on toolFinished — the linger bridges the gaps
+    /// between npm commands. Cleared when the turn lands or the linger
+    /// expires.
+    public var serviceGlyph: ServiceGlyph?
+    public var serviceGlyphAt: Date?
     /// Last time anything at all changed for this session.
     public var lastActivity: Date = .distantPast
 

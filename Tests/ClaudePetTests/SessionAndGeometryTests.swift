@@ -170,11 +170,12 @@ struct HookParsingTests {
         """
         let event = try #require(HookServer.parse(Data(json.utf8)))
         #expect(event.sessionID == "S1")
-        guard case .toolStarted(let name, let detail) = event.kind else {
+        guard case .toolStarted(let name, let detail, let command) = event.kind else {
             Issue.record("expected toolStarted"); return
         }
         #expect(name == "Bash")
-        #expect(detail == "List files")
+        #expect(detail == "List files", "the human description wins the detail slot")
+        #expect(command == "ls", "and the raw command rides its own field")
     }
 
     @Test("Notification becomes needsAttention carrying the message")
