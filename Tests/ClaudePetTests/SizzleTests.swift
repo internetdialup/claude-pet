@@ -503,3 +503,22 @@ struct BeatMapTests {
         #expect(map.contains("look\tsonic"))
     }
 }
+
+/// The montage tags: every resolved colour clears the field.
+@Suite("Montage tag colours")
+@MainActor
+struct MontageTagTests {
+
+    @Test func everyTagClears() {
+        for costume in Costume.allCases {
+            let color = SizzleRenderer.tagColor(for: costume)
+            let resolved = NSColor(color).usingColorSpace(.sRGB) ?? .white
+            let luminance = 0.2126 * resolved.redComponent
+                + 0.7152 * resolved.greenComponent
+                + 0.0722 * resolved.blueComponent
+            #expect(luminance >= 0.13, "\(costume) tag sinks into the field")
+        }
+        // The dark looks fall back rather than vanishing.
+        #expect(SizzleRenderer.tagColor(for: .retroBlack) == Palette.kraft)
+    }
+}

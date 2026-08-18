@@ -413,7 +413,8 @@ enum SizzleRenderer {
             },
             top: captionText(fmt.captions[.montage] ?? "", fmt: fmt,
                              size: fmt.wordmark),
-            bottom: captionText(to.title, fmt: fmt).opacity(tagOpacity))
+            bottom: captionText(to.title, fmt: fmt,
+                                color: tagColor(for: to)).opacity(tagOpacity))
     }
 
     private static func duetScene(t: Double, fmt: Format) -> some View {
@@ -660,12 +661,35 @@ enum SizzleRenderer {
     }
 
     private static func captionText(_ text: String, fmt: Format,
-                                    size: CGFloat? = nil) -> AnyView {
+                                    size: CGFloat? = nil,
+                                    color: Color? = nil) -> AnyView {
         AnyView(Text(text)
             .font(.system(size: (size ?? fmt.caption) * fmt.captionScale,
                           weight: .heavy, design: .monospaced))
             .multilineTextAlignment(.center)
-            .foregroundStyle(Palette.kraft.opacity(size == nil ? 0.85 : 1)))
+            .foregroundStyle(color ?? Palette.kraft.opacity(size == nil ? 0.85 : 1)))
+    }
+
+    /// The montage tag's colour: the costume's own key colour — the first
+    /// ink bright enough to be VIVID on the dark field (luminance ≥ 0.3,
+    /// well past bare 3:1 legibility, because a tag is branding, not body
+    /// text). The ninja's shadowed shell fails and his headband red tags
+    /// him instead; retroBlack's darks all fail and fall back to kraft;
+    /// Classic tags in his own terracotta.
+    static func tagColor(for costume: Costume) -> Color {
+        if costume == .none {
+            let body = SpriteTint.bodyRGB
+            return Color(red: body.r, green: body.g, blue: body.b)
+        }
+        let inks = CostumeStyle.of(costume).inks
+        for slot in [PixelBuffer.Ink.body, .costumeA, .costumeB, .costumeC] {
+            guard let ink = inks[slot] else { continue }
+            let luminance = 0.2126 * ink.r + 0.7152 * ink.g + 0.0722 * ink.b
+            if luminance >= 0.3 {
+                return Color(red: ink.r, green: ink.g, blue: ink.b)
+            }
+        }
+        return Palette.kraft
     }
 
     /// One arrangement for every chapter, with the camera as a layout no-op:
