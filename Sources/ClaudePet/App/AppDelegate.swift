@@ -100,6 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 self?.pets.forEach { $0.rebuildWindow() }
             },
             onSetCostume: { [weak self] costume in
+                // Guarded on actual change: re-picking the worn costume from
+                // the menu must not chime. (Launch restore bypasses these
+                // callbacks entirely — no boot shimmer.)
+                if costume != Preferences.shared.costume { SoundBank.play(.shimmer) }
                 Preferences.shared.costume = costume
                 self?.primary.model.costume = costume
             },
@@ -126,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             },
             onPinSecond: { [weak self] id in self?.coordinator.pin(slot: 1, sessionID: id) },
             onSetSecondCostume: { [weak self] costume in
+                if costume != Preferences.shared.pet2Costume { SoundBank.play(.shimmer) }
                 Preferences.shared.pet2Costume = costume
                 guard let self, self.pets.count > 1 else { return }
                 self.pets[1].model.costume = costume

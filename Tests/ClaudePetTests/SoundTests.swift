@@ -10,7 +10,7 @@ struct SoundSynthesisTests {
 
     private var allCues: [SoundBank.Cue] {
         [.chirp, .chime, .blip, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3),
-         .pounce, .purr]
+         .pounce, .purr, .shimmer]
     }
 
     @Test("Every cue's sample count matches its notes, with a sane peak")
