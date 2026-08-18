@@ -9,7 +9,8 @@ import Foundation
 struct SoundSynthesisTests {
 
     private var allCues: [SoundBank.Cue] {
-        [.chirp, .chime, .blip, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3)]
+        [.chirp, .chime, .blip, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3),
+         .pounce, .purr]
     }
 
     @Test("Every cue's sample count matches its notes, with a sane peak")
@@ -43,9 +44,12 @@ struct SoundSynthesisTests {
         // directly through a cue whose spec we synthesize by hand once
         // rests exist. Until then, pin the invariant on the wave engine:
         // frequency 0 must never emit a sample.
-        let (notes, _) = SoundBank.spec(for: .blip)
-        #expect(notes.allSatisfy { $0.frequency > 0 },
-                "when a rest enters a table, extend this test to assert its zeros")
+        // The pounce carries the first shipped rest: its gap must be zeros.
+        let samples = SoundBank.samples(for: .pounce)
+        let restStart = Int(44_100 * 0.07)
+        let restEnd = restStart + Int(44_100 * 0.02)
+        #expect(samples[restStart..<restEnd].allSatisfy { $0 == 0 },
+                "the squeak's gap must be silent")
     }
 
     @Test("The squeal bends up, and its steps climb")

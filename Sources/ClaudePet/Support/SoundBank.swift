@@ -31,6 +31,7 @@ public enum SoundBank {
         /// The poke squeal — `step` 1…3 rises so a triple-poke reads as a
         /// combo climbing into the party.
         case squeal(step: Int)
+        case pounce, purr
     }
 
     // MARK: - The gates
@@ -100,6 +101,17 @@ public enum SoundBank {
             return ([Note(frequency: 620 * ratio, duration: 0.15, wave: .square,
                           level: 0.5 + 0.025 * Double(step), slideTo: 1500 * ratio),
                      Note(frequency: 1975.5 * ratio, duration: 0.04, wave: .square, level: 0.4)], 10)
+        case .pounce:
+            // Squeak-squeak — the bug never stood a chance.
+            return ([Note(frequency: 1400, duration: 0.07, wave: .square, level: 0.35, slideTo: 2000),
+                     Note(frequency: 0, duration: 0.02),
+                     Note(frequency: 2200, duration: 0.05, wave: .square, level: 0.3)], 12)
+        case .purr:
+            // A low triangle wobble, one-shot on pet-start.
+            return ((0..<8).map { beat in
+                Note(frequency: beat % 2 == 0 ? 82 : 98, duration: 0.07,
+                     wave: .triangle, level: beat % 2 == 0 ? 0.45 : 0.4)
+            }, 3)
         }
     }
 

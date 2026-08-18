@@ -129,6 +129,7 @@ final class PetInstance {
                let bug = CrabAnimator.bugPosition(idleT: Date.timeIntervalSinceReferenceDate - epoch),
                let cell = self.gridCell(for: location),
                cell.y >= 26, cell.x >= bug - 2, cell.x <= bug + 3 {
+                SoundBank.play(.pounce)
                 self.model.pouncedAt = Date()
                 let seed = Int(Date().timeIntervalSince1970)
                 self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
@@ -165,6 +166,7 @@ final class PetInstance {
             }
         }
         controller.onPetStart = { [weak self] in
+            SoundBank.play(.purr)
             self?.model.pettingStartedAt = Date()
             self?.model.pettingEndedAt = nil
         }
