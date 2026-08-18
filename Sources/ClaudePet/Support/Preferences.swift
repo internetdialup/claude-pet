@@ -154,6 +154,9 @@ public final class Preferences {
     }
 
     /// Off by default — a blip on every tool call is a lot of tool calls.
+    /// The per-service glyph blips (the menu's "Service sound blips"). The
+    /// key keeps its historical name; the old "sound on every tool call"
+    /// promise was never wired to anything.
     public var toolBlipEnabled: Bool {
         get { store.bool(forKey: Key.toolBlipEnabled) }
         set { store.set(newValue, forKey: Key.toolBlipEnabled) }

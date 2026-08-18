@@ -185,7 +185,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         sounds.state = Preferences.shared.soundsEnabled ? .on : .off
         menu.addItem(sounds)
 
-        let blips = action("Sound on every tool call") { [weak self] in
+        let blips = action("Service sound blips") { [weak self] in
             Preferences.shared.toolBlipEnabled.toggle()
             self?.refresh()
         }

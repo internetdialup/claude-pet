@@ -9,8 +9,9 @@ import Foundation
 struct SoundSynthesisTests {
 
     private var allCues: [SoundBank.Cue] {
-        [.chirp, .chime, .blip, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3),
-         .pounce, .purr, .shimmer, .ignition, .fanfare]
+        [.chirp, .chime, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3),
+         .pounce, .purr, .shimmer, .ignition, .fanfare,
+         .glyphBlip(.npm), .glyphBlip(.github), .glyphBlip(.linear), .glyphBlip(.deploy)]
     }
 
     @Test("Every cue's sample count matches its notes, with a sane peak")
@@ -90,7 +91,7 @@ struct SoundSynthesisTests {
 
     @Test("The WAV wrapper carries the right magics and sizes")
     func wavShape() {
-        let samples = SoundBank.samples(for: .blip)
+        let samples = SoundBank.samples(for: .glyphBlip(.npm))
         let data = SoundBank.wavData(samples)
         #expect(data.count == 44 + samples.count * 2)
         #expect(String(data: data.prefix(4), encoding: .ascii) == "RIFF")
@@ -107,7 +108,7 @@ struct SoundGateTests {
 
     @Test("The hush kills everything; the master switch kills everything")
     func hardGates() {
-        for cue: SoundBank.Cue in [.chirp, .chime, .blip] {
+        for cue: SoundBank.Cue in [.chirp, .chime, .glyphBlip(.npm), .squeal(step: 1), .fanfare] {
             #expect(!SoundBank.shouldPlay(cue, soundsEnabled: true,
                                           blipsEnabled: true, hushed: true),
                     "\(cue) must hush during films")
@@ -117,15 +118,27 @@ struct SoundGateTests {
         }
     }
 
-    @Test("Only the blip consults the blips flag")
+    @Test("Only the glyph blips consult the blips flag")
     func blipFlag() {
-        #expect(!SoundBank.shouldPlay(.blip, soundsEnabled: true,
-                                      blipsEnabled: false, hushed: false))
-        #expect(SoundBank.shouldPlay(.blip, soundsEnabled: true,
-                                     blipsEnabled: true, hushed: false))
-        #expect(SoundBank.shouldPlay(.chirp, soundsEnabled: true,
-                                     blipsEnabled: false, hushed: false))
-        #expect(SoundBank.shouldPlay(.chime, soundsEnabled: true,
-                                     blipsEnabled: false, hushed: false))
+        for glyph in ServiceGlyph.allCases {
+            #expect(!SoundBank.shouldPlay(.glyphBlip(glyph), soundsEnabled: true,
+                                          blipsEnabled: false, hushed: false))
+            #expect(SoundBank.shouldPlay(.glyphBlip(glyph), soundsEnabled: true,
+                                         blipsEnabled: true, hushed: false))
+        }
+        for cue: SoundBank.Cue in [.chirp, .chime, .squeal(step: 2), .purr, .fanfare] {
+            #expect(SoundBank.shouldPlay(cue, soundsEnabled: true,
+                                         blipsEnabled: false, hushed: false),
+                    "only blips are optional")
+        }
+    }
+
+    @Test("The four families are told apart by ear")
+    func blipPitchesDiffer() {
+        let pitches = ServiceGlyph.allCases.map {
+            SoundBank.spec(for: .glyphBlip($0)).notes[0].frequency
+        }
+        #expect(Set(pitches).count == pitches.count)
+        #expect(pitches == pitches.sorted(), "C-E-G-B, rising with the enum")
     }
 }

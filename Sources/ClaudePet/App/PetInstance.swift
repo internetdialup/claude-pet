@@ -351,7 +351,8 @@ final class PetInstance {
             if model.serviceGlyphKind == nil
                 || (model.serviceGlyphEndedAt != nil && model.serviceGlyphKind == live) {
                 // First appearance, or the same kind returning mid-retreat:
-                // fresh attack.
+                // fresh attack — with the family's own blip.
+                SoundBank.play(.glyphBlip(live))
                 model.serviceGlyphKind = live
                 model.serviceGlyphShownAt = Date()
                 model.serviceGlyphEndedAt = nil

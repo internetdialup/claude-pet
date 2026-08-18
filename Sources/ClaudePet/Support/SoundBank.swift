@@ -27,7 +27,10 @@ public enum SoundBank {
     }
 
     public enum Cue: Hashable {
-        case chirp, chime, blip
+        case chirp, chime
+        /// One short note per service family — C, E, G or B, so npm and a
+        /// push are told apart by ear. Gated on the blips preference.
+        case glyphBlip(ServiceGlyph)
         /// The poke squeal — `step` 1…3 rises so a triple-poke reads as a
         /// combo climbing into the party.
         case squeal(step: Int)
@@ -51,7 +54,7 @@ public enum SoundBank {
     static func shouldPlay(_ cue: Cue, soundsEnabled: Bool,
                            blipsEnabled: Bool, hushed: Bool) -> Bool {
         guard soundsEnabled, !hushed else { return false }
-        if case .blip = cue { return blipsEnabled }
+        if case .glyphBlip = cue { return blipsEnabled }
         return true
     }
 
@@ -92,8 +95,15 @@ public enum SoundBank {
             return ([Note(frequency: 659.3, duration: 0.08, wave: .triangle, level: 0.5),
                      Note(frequency: 987.8, duration: 0.09, wave: .triangle, level: 0.5),
                      Note(frequency: 1318.5, duration: 0.14, wave: .triangle, level: 0.55)], 12)
-        case .blip:
-            return ([Note(frequency: 523, duration: 0.04, wave: .square, level: 0.45)], 18)
+        case .glyphBlip(let glyph):
+            let pitch: Double
+            switch glyph {
+            case .npm: pitch = 523.25      // C5
+            case .github: pitch = 659.25   // E5
+            case .linear: pitch = 784.0    // G5
+            case .deploy: pitch = 987.77   // B5
+            }
+            return ([Note(frequency: pitch, duration: 0.05, wave: .square, level: 0.45)], 18)
         case .squeal(let step):
             // "Wheee!" — a fast pitch-bend up and a tip, two semitones
             // higher per step. CUTE is the spec.
