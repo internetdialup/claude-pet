@@ -31,6 +31,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   back, and a rainbow sweeping the shell — all inside the same ten-second
   bow, easing back to a plain done before it fades. Short cooks keep the
   ordinary celebration.
+- **🔊 An 8-bit soundboard.** He speaks now: a cute rising squeal when
+  you poke him (three pokes climb into the party), a squeak-squeak on
+  the bug catch, a low purr when petting begins, a sparkle run on
+  costume changes, a fwoosh when a cook ignites, and a proper chiptune
+  fanfare when an epic lands — the done bell stands down for it. The
+  attention chirp and done chime got 8-bit voices too, and an optional
+  per-service blip (C-E-G-B for npm, GitHub, Linear, deploys) lives
+  behind "Service sound blips" in the menu. Every sound is synthesised
+  in memory — still zero binary assets — and everything hushes during
+  films, now enforced in one place.
 - **🔖 Service glyphs.** He name-checks the service he's talking to: an
   8-bit npm cube while npm/yarn/pnpm/bun run, a GitHub mark while a push
   or PR is in flight, a Linear diamond during Linear tool calls, a deploy
