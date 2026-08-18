@@ -31,7 +31,7 @@ public enum SoundBank {
         /// The poke squeal — `step` 1…3 rises so a triple-poke reads as a
         /// combo climbing into the party.
         case squeal(step: Int)
-        case pounce, purr, shimmer
+        case pounce, purr, shimmer, ignition
     }
 
     // MARK: - The gates
@@ -119,6 +119,11 @@ public enum SoundBank {
                      Note(frequency: 1568.0, duration: 0.045, wave: .triangle, level: 0.4),
                      Note(frequency: 1975.5, duration: 0.045, wave: .triangle, level: 0.45),
                      Note(frequency: 2637.0, duration: 0.06, wave: .triangle, level: 0.5)], 10)
+        case .ignition:
+            // The fwoosh: a noise burst, a rising flame, a crackle of embers.
+            return ([Note(frequency: 1, duration: 0.07, wave: .noise, level: 0.6),
+                     Note(frequency: 140, duration: 0.18, wave: .square, level: 0.5, slideTo: 560),
+                     Note(frequency: 1, duration: 0.10, wave: .noise, level: 0.25)], 9)
         }
     }
 

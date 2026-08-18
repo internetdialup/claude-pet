@@ -328,6 +328,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// notification this path replaces.
     private func postCookProgress(_ milestone: ActivityCoordinator.CookMilestone,
                                   session: ClaudeSession) {
+        // The stove lights. The sound rides its own gates (master switch +
+        // film hush inside SoundBank), never the notification prefs below —
+        // a cook is audible even with banners off.
+        if case .started = milestone { SoundBank.play(.ignition) }
         guard Preferences.shared.notificationsEnabled,
               Preferences.shared.cookingNotificationsEnabled,
               !pets.contains(where: { $0.filmPlaying }) else { return }
