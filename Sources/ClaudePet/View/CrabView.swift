@@ -75,6 +75,15 @@ public enum CrabAnimator {
         return (choice, since / choice.duration)
     }
 
+    /// The thinking spell's prop: sparkles first, then the Claude star, in
+    /// strict 20s alternation — dice would be degenerate here (MoodClock
+    /// rebases t on every entry, so cycle-0 dice is a constant), and the
+    /// alternation guarantees the star actually appears in a long think
+    /// while keeping every committed thinking clip (all < 20s) byte-stable.
+    static func thinkingProp(at t: Double, spell: Double = 20) -> CrabPose.Prop {
+        Int(floor(t / spell)) % 2 == 0 ? .sparkles : .star
+    }
+
     /// A prop for the current work spell. Re-rolled every `spell` seconds so a
     /// long task does not stare at the same terminal window for ten minutes.
     static func workingProp(at t: Double, spell: Double = 20) -> CrabPose.Prop {
@@ -90,18 +99,21 @@ public enum CrabAnimator {
     /// spell never fades in (there is nothing before it to put down).
     private static let propFade = 0.35
 
-    static func applyPropDissolve(at t: Double, spell: Double = 20, to pose: inout CrabPose) {
+    static func applyPropDissolve(at t: Double, spell: Double = 20,
+                                  roll: ((Double) -> CrabPose.Prop)? = nil,
+                                  to pose: inout CrabPose) {
+        let pick = roll ?? { workingProp(at: $0, spell: spell) }
         let cycle = Int(floor(t / spell))
         let within = t - Double(cycle) * spell
-        let current = workingProp(at: t, spell: spell)
+        let current = pick(t)
 
         if cycle > 0, within < propFade {
-            let previous = workingProp(at: (Double(cycle) - 0.5) * spell, spell: spell)
+            let previous = pick((Double(cycle) - 0.5) * spell)
             if previous != current {
                 pose.propVisibility = Ease.smoothstep(within / propFade)
             }
         } else if within > spell - propFade {
-            let next = workingProp(at: (Double(cycle) + 1.5) * spell, spell: spell)
+            let next = pick((Double(cycle) + 1.5) * spell)
             if next != current {
                 pose.propVisibility = Ease.smoothstep((spell - within) / propFade)
             }
@@ -190,7 +202,8 @@ public enum CrabAnimator {
             // Eyes scanning side to side — the "working it out" tell.
             pose.gazeX = sin(t * 1.6) > 0 ? 1 : -1
             pose.mouth = .flat
-            pose.prop = .sparkles
+            pose.prop = thinkingProp(at: t)
+            applyPropDissolve(at: t, roll: { thinkingProp(at: $0) }, to: &pose)
 
         case .working:
             // Deliberately unhurried. At the original rates the arms and legs

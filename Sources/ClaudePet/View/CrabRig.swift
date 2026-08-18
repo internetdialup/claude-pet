@@ -60,6 +60,9 @@ public struct CrabPose: Sendable, Equatable {
         case sparkles, terminal, check, bang, zzz, servers, balloon, plan
         // Worn props: drawn on the body, and must travel with `bob` and `lean`.
         case hardHat, phone, fire, glasses
+        // Appended (stableSeed is the allCases index — order is load-bearing):
+        // the 8-bit Claude star, the thinking spell's second wind.
+        case star
 
         var isWorn: Bool {
             switch self {
@@ -725,6 +728,11 @@ public enum CrabRig {
 
         case .hardHat:
             drawHardHat(&b, dx: dx, dy: dy, phase: phase)
+
+        case .star:
+            // The Claude star, holding the top-right airspace (cols 20-28) —
+            // clear of the service glyph box on the left and the body below.
+            b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)

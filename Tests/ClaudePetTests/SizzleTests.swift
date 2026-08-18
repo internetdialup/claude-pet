@@ -413,3 +413,50 @@ struct PartyRayTests {
         #expect(render(t: 2.0) == render(t: 2.0), "and reproducibly so")
     }
 }
+
+/// The thinking spell's star: alternation, dissolve, containment.
+@Suite("The thinking star")
+@MainActor
+struct ThinkingStarTests {
+
+    @Test("Sparkles first — every committed thinking clip stays byte-stable")
+    func firstSpellIsSparkles() {
+        #expect(CrabAnimator.thinkingProp(at: 1.0) == .sparkles)
+        #expect(CrabAnimator.thinkingProp(at: 19.9) == .sparkles)
+    }
+
+    @Test("The star arrives on the second spell, through the dissolve")
+    func starArrives() {
+        #expect(CrabAnimator.thinkingProp(at: 21.0) == .star)
+        // The boundary dips: visibility below 1 just before and after t=20.
+        let before = CrabAnimator.pose(mood: .thinking, t: 19.9)
+        let after = CrabAnimator.pose(mood: .thinking, t: 20.1)
+        #expect(before.propVisibility < 1, "the sparkles must be put down")
+        #expect(after.propVisibility < 1, "the star must be picked up")
+        let settled = CrabAnimator.pose(mood: .thinking, t: 22.0)
+        #expect(settled.propVisibility == 1 && settled.prop == .star)
+    }
+
+    @Test("The star holds the top-right airspace, clear of the glyph box")
+    func starStaysInItsCorner() {
+        var pose = CrabPose()
+        pose.prop = .star
+        let bare = CrabRig.render(CrabPose())
+        let lit = CrabRig.render(pose)
+        var cells = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where lit[x, y] != bare[x, y] {
+                cells += 1
+                #expect(x >= 20 && y <= 8, "star pixel at (\(x),\(y)) strays")
+            }
+        }
+        #expect(cells > 0, "the star must draw")
+    }
+
+    @Test("The working roll is untouched — the star never joins it")
+    func workingRollUntouched() {
+        #expect(!CrabPose.Prop.working.contains(.star))
+        #expect(CrabAnimator.workingProp(at: SizzleScript.workBase + 1.0) == .terminal,
+                "the sizzle's terminal pin must survive")
+    }
+}
