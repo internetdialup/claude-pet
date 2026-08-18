@@ -9,14 +9,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
-- **👘 A wardrobe.** Six costumes — Ninja, Retro Black, Matrix, Jungle
-  Tiger, Arctic White, Gundam — picked from the new menubar Costume submenu
-  and remembered between launches. Costumes survive every mood and every
-  prop; status effects always paint over them. The ninja trades the shell
-  for shadow with a terracotta eye window, because a mask may frame the eyes
-  but never cover them; the Matrix shell rains live green code down his
-  back; the Gundam brings the RX-78 head home — V-fin, red crest, yellow
-  cameras in a black visor recess.
+- **👘 A wardrobe.** Seven costumes — Ninja, Retro Black, Matrix, Jungle
+  Tiger, Arctic White, Gundam, Sonic — picked from the new menubar Costume
+  submenu and remembered between launches. Costumes survive every mood and
+  every prop; status effects always paint over them. The ninja trades the
+  shell for shadow with a terracotta eye window, because a mask may frame
+  the eyes but never cover them; the Matrix shell rains live green code
+  down his back; the Gundam brings the RX-78 head home — V-fin, red crest,
+  yellow cameras in a black visor recess, blue armor down the flanks; and
+  the Sonic goes fast — blue shell, back-swept quills, tan muzzle, red
+  sneakers over white socks.
 - **🔥 Fire that heats the shell.** During a hard cook, a banded heat cascade
   sometimes sweeps up his body; when the todo list passes 80%, a soft white
   pulse says the sprint is almost home; and when a cooking sprint lands, the

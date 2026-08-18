@@ -69,6 +69,16 @@ struct CostumeStyle {
                     .mouth: rgb(0x3D_3D3A),
                 ],
                 yieldsCrownToProps: true)       // the V-fin yields the crown to the hard hat
+        case .sonic:
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x23_50D2),      // that blue
+                    .costumeA: rgb(0x15_2F8E),  // quill shadow-blue
+                    .costumeB: rgb(0xD8_3030),  // the sneakers
+                    .costumeC: rgb(0xF2_CE9E),  // muzzle-and-belly tan
+                    .mouth: rgb(0x2B_1B10),     // a dark mouth on the tan muzzle
+                ],
+                yieldsCrownToProps: true)       // the quills yield to the hard hat
         }
     }
 
@@ -244,6 +254,35 @@ enum CrabCostume {
             for leg in [7, 11, 20, 24] {                // red feet
                 b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
             }
+
+        case .sonic:
+            let crown = bodyY + dy + squash
+            if layer == .onBody {
+                // The muzzle-and-belly tan; the face pass draws the mouth
+                // over it, and the eyes stay his own.
+                b.rect(12 + dx, 16 + dy, 8, 4, .costumeC)
+                // Red sneakers with white socks, on all four feet.
+                for leg in [7, 11, 20, 24] {
+                    b.rect(leg + dx, 22 + dy, 2, 1, .paper)
+                    b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
+                }
+                break
+            }
+            guard layer == .front else { break }
+            // The quills, all in the shadow blue so they read against the
+            // shell: three back-swept points across the crown and one
+            // flaring out past each flank, drooping at the tip.
+            b.rect(14 + dx, crown - 2, 4, 1, .costumeA)
+            b.pixel(15 + dx, crown - 3, .costumeA)
+            b.pixel(16 + dx, crown - 3, .costumeA)
+            b.rect(10 + dx, crown - 1, 3, 1, .costumeA)
+            b.pixel(11 + dx, crown - 2, .costumeA)
+            b.rect(19 + dx, crown - 1, 3, 1, .costumeA)
+            b.pixel(20 + dx, crown - 2, .costumeA)
+            b.rect(3 + dx, 12 + dy, 3, 1, .costumeA)
+            b.pixel(3 + dx, 13 + dy, .costumeA)
+            b.rect(26 + dx, 12 + dy, 3, 1, .costumeA)
+            b.pixel(28 + dx, 13 + dy, .costumeA)
         }
     }
 }
