@@ -40,6 +40,11 @@ enum SizzleScript {
     /// identical to the landscape master).
     enum Family { case master, readme, meme, plate }
 
+    /// What stands behind him. Ocean is the committed-asset classic;
+    /// gradient and forest are showcase scenery — MP4-only by usage, so the
+    /// GIF palette doctrine never meets the gradient.
+    enum Scenery { case ocean, gradient, forest }
+
     struct Cut {
         let name: String
         /// Canvas in points; frames render at `canvas × scale` pixels.
@@ -47,6 +52,7 @@ enum SizzleScript {
         let scale: CGFloat
         let fps: Int32
         let family: Family
+        var scenery: Scenery = .ocean
         let segments: [Segment]
         var seconds: Double { segments.reduce(0) { $0 + $1.seconds } }
         var frameCount: Int { Int((seconds * Double(fps)).rounded()) }

@@ -230,18 +230,112 @@ enum SizzleRenderer {
         guard let cue = SizzleScript.resolve(cut, at: t) else { return nil }
         let fmt = format(for: cut)
         let scene = ZStack {
-            if fmt.plate {
-                // The keying field: a single-entry ramp rides Backdrop's
-                // whole-point, no-antialiasing path — one coalesced rect per
-                // row, every frame the same bytes.
-                Backdrop(style: .init(ramp: [Palette.keyField], foam: nil))
-            } else {
-                Backdrop()
-            }
+            scenery(for: cut, t: t, fmt: fmt)
             chapterScene(cue.chapter, t: cue.localT, fmt: fmt)
         }
         .frame(width: cut.canvas.width, height: cut.canvas.height)
         return SpriteImage.cgImage(of: scene, scale: cut.scale, isOpaque: true)
+    }
+
+    /// What stands behind him this frame. Plates override everything with
+    /// the key field; the forest scrolls in CUT time, so its drift is
+    /// continuous across chapter cuts.
+    @ViewBuilder
+    private static func scenery(for cut: SizzleScript.Cut, t: Double,
+                                fmt: Format) -> some View {
+        if fmt.plate {
+            // The keying field: a single-entry ramp rides Backdrop's
+            // whole-point, no-antialiasing path.
+            Backdrop(style: .init(ramp: [Palette.keyField], foam: nil))
+        } else {
+            switch cut.scenery {
+            case .ocean:
+                Backdrop()
+            case .gradient:
+                // The one sanctioned gradient: showcase cuts are MP4-only,
+                // where smooth ramps cost nothing. Dusk, indigo to ember.
+                LinearGradient(colors: [Color(hex: 0x1B2447),
+                                        Color(hex: 0x3E2C55),
+                                        Color(hex: 0xB2694C)],
+                               startPoint: .top, endPoint: .bottom)
+            case .forest:
+                ForestBackdrop(t: t)
+            }
+        }
+    }
+
+    /// The moving 8-bit forest: three parallax rows of pine silhouettes
+    /// drifting at different speeds under a banded night sky with a static
+    /// hash-dither starfield. Flat colours, whole-point geometry, pure in t.
+    struct ForestBackdrop: View {
+        let t: Double
+
+        var body: some View {
+            Canvas { context, size in
+                Self.draw(in: &context, size: size, t: t)
+            }
+        }
+
+        static func draw(in context: inout GraphicsContext, size: CGSize, t: Double) {
+            // The sky: three flat bands, light to dark downward.
+            let skyBands: [(Color, ClosedRange<Double>)] = [
+                (Color(hex: 0x18294A), 0.0...0.28),
+                (Color(hex: 0x122040), 0.28...0.52),
+                (Color(hex: 0x0D1830), 0.52...0.70),
+            ]
+            for (color, range) in skyBands {
+                context.fill(Path(CGRect(x: 0, y: (size.height * range.lowerBound).rounded(),
+                                         width: size.width,
+                                         height: (size.height * (range.upperBound - range.lowerBound)).rounded() + 1)),
+                             with: .color(color))
+            }
+            // Static stars: splitmix64 dither over an 8pt grid, top band only.
+            for gy in 0..<Int(size.height * 0.26 / 8) {
+                for gx in 0..<Int(size.width / 8) {
+                    var v = UInt64(gx &+ gy &* 977) &* 0x9E37_79B9_7F4A_7C15
+                    v = (v ^ (v >> 30)) &* 0xBF58_476D_1CE4_E5B9
+                    if Double(v >> 11) / Double(1 << 53) < 0.045 {
+                        context.fill(Path(CGRect(x: CGFloat(gx) * 8 + 3,
+                                                 y: CGFloat(gy) * 8 + 2,
+                                                 width: 2, height: 2)),
+                                     with: .color(Color(hex: 0xC5D7E2).opacity(0.7)))
+                    }
+                }
+            }
+            // The ground.
+            context.fill(Path(CGRect(x: 0, y: (size.height * 0.86).rounded(),
+                                     width: size.width,
+                                     height: size.height * 0.14 + 1)),
+                         with: .color(Color(hex: 0x0A1812)))
+            // Three pine rows, far to near, each drifting at its own speed.
+            let layers: [(speed: Double, base: Double, height: Double, period: Double, color: Color)] = [
+                (4, 0.70, 0.20, 96, Color(hex: 0x1A3A2F)),
+                (10, 0.76, 0.24, 128, Color(hex: 0x142E24)),
+                (18, 0.82, 0.28, 168, Color(hex: 0x0E211A)),
+            ]
+            for layer in layers {
+                let shift = (t * layer.speed).truncatingRemainder(dividingBy: layer.period)
+                let baseY = (size.height * layer.base).rounded()
+                let treeH = (size.height * layer.height).rounded()
+                var x = -shift.rounded() - layer.period
+                while x < Double(size.width) + layer.period {
+                    // One pine: three stacked, narrowing rects plus a trunk.
+                    let w = layer.period * 0.5
+                    for (step, frac) in [(0, 1.0), (1, 0.66), (2, 0.36)] {
+                        let sw = (w * frac).rounded()
+                        let sh = (treeH * 0.3).rounded()
+                        context.fill(Path(CGRect(x: (x + (w - sw) / 2).rounded(),
+                                                 y: baseY - sh * Double(step + 1),
+                                                 width: sw, height: sh)),
+                                     with: .color(layer.color))
+                    }
+                    context.fill(Path(CGRect(x: (x + w / 2 - 2).rounded(), y: baseY,
+                                             width: 4, height: treeH * 0.12)),
+                                 with: .color(layer.color))
+                    x += layer.period
+                }
+            }
+        }
     }
 
     // MARK: - Chapters
