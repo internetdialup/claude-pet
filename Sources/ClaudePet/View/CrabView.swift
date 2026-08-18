@@ -139,6 +139,19 @@ public enum CrabAnimator {
         return column >= -2 && column <= 33 ? column : nil
     }
 
+    /// The balloon's rare idle float — the prop was dead vocabulary from the
+    /// day it was drawn: listed, rendered in every strip, scheduled by
+    /// nothing. Now it is the bug and the telescope's sibling: on dice, in
+    /// a long idle, he holds a balloon for eight seconds. Never in the
+    /// first cycle (frozen sentinel), eased both ways via the window.
+    static func idleBalloon(idleT t: Double) -> Double? {
+        let cycle = Int(floor(t / 150))
+        guard cycle > 0, noise(cycle &* 43 &+ 11) < 0.25 else { return nil }
+        let since = t - Double(cycle) * 150
+        guard since < 8 else { return nil }
+        return Ease.window(since, duration: 8, edge: 0.9)
+    }
+
     /// The midnight stargazer's envelope and clock during an idle spell, in
     /// the small hours only. 12s of telescope, eased 0.8s at both ends.
     static func stargaze(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
@@ -175,6 +188,11 @@ public enum CrabAnimator {
 
             if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
+            }
+
+            if let float = idleBalloon(idleT: t) {
+                pose.prop = .balloon
+                pose.propVisibility = float
             }
 
             // A visiting bug owns his attention: eyes drop to the floor and

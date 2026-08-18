@@ -522,3 +522,36 @@ struct MontageTagTests {
         #expect(SizzleRenderer.tagColor(for: .retroBlack) == Palette.kraft)
     }
 }
+
+/// The balloon's idle float: dark first cycle, dice-scheduled, eased.
+@Suite("The idle balloon")
+@MainActor
+struct IdleBalloonTests {
+
+    @Test("Never in the first cycle, and it does fire on some later one")
+    func schedule() {
+        for t in stride(from: 0.0, to: 150.0, by: 5.0) {
+            #expect(CrabAnimator.idleBalloon(idleT: t) == nil,
+                    "the first cycle must stay bare at t=\(t)")
+        }
+        var fired = false
+        for cycle in 1...40 where CrabAnimator.idleBalloon(idleT: Double(cycle) * 150 + 4) != nil {
+            fired = true
+            break
+        }
+        #expect(fired, "the dice must land within forty cycles")
+    }
+
+    @Test("The float eases in and out")
+    func easedEdges() {
+        guard let cycle = (1...40).first(where: {
+            CrabAnimator.idleBalloon(idleT: Double($0) * 150 + 4) != nil
+        }) else { Issue.record("no firing cycle found"); return }
+        let base = Double(cycle) * 150
+        let early = CrabAnimator.idleBalloon(idleT: base + 0.1) ?? -1
+        let mid = CrabAnimator.idleBalloon(idleT: base + 4) ?? -1
+        let late = CrabAnimator.idleBalloon(idleT: base + 7.9) ?? -1
+        #expect(early < 0.3 && late < 0.3, "the ends must be eased")
+        #expect(mid > 0.9, "the middle must be full")
+    }
+}
