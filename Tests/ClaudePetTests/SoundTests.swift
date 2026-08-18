@@ -10,7 +10,7 @@ struct SoundSynthesisTests {
 
     private var allCues: [SoundBank.Cue] {
         [.chirp, .chime, .blip, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3),
-         .pounce, .purr, .shimmer]
+         .pounce, .purr, .shimmer, .ignition, .fanfare]
     }
 
     @Test("Every cue's sample count matches its notes, with a sane peak")
@@ -75,6 +75,17 @@ struct SoundSynthesisTests {
         }
         #expect(openings[0] < openings[1] && openings[1] < openings[2],
                 "the steps must open at rising pitches")
+    }
+
+    @Test("The fanfare rings past a second, tail still audible")
+    func fanfareRings() {
+        let samples = SoundBank.samples(for: .fanfare)
+        #expect(Double(samples.count) / 44_100 >= 1.2)
+        let tail = samples.suffix(Int(44_100 * 0.2))
+        let rms = (tail.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(tail.count))
+            .squareRoot()
+        let peak = Double(samples.map { abs(Int($0)) }.max() ?? 1)
+        #expect(rms > peak * 0.05, "the last note must ring, not die")
     }
 
     @Test("The WAV wrapper carries the right magics and sizes")

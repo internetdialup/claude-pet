@@ -218,6 +218,9 @@ final class PetInstance {
         // celebration ends (the envelope is long done by then).
         if state.epicCelebration, model.celebrationStartedAt == nil {
             model.celebrationStartedAt = Date()
+            // Once per finale, on the edge — the fanfare replaces the done
+            // chime for epics (handleAlert stands down; see its guard).
+            SoundBank.play(.fanfare)
         } else if !state.celebrating, model.celebrationStartedAt != nil {
             model.celebrationStartedAt = nil
         }

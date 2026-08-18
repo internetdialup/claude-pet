@@ -307,7 +307,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         switch event {
         case .needsYou: SoundBank.play(.chirp)
-        case .finished: SoundBank.play(.chime)
+        case .finished:
+            // An epic landing gets the fanfare (played on the latch edge in
+            // PetInstance) — the chime stands down rather than layering. A
+            // tick-race where the alert beats the state intake would chime
+            // then fanfare; accepted as rare and harmless.
+            if !coordinator.state.epicCelebration { SoundBank.play(.chime) }
         default: break                 // plan-ready and cooking stay silent
         }
 
