@@ -36,23 +36,32 @@ enum SizzleRenderer {
         /// the rich cuts: the README pair stays static so the GIF keeps its
         /// palette, its size and its loop seam.
         let rich: Bool
+        /// Chroma plates: cameras run, everything translucent or typographic
+        /// is suppressed, the field is broadcast green.
+        let plate: Bool
+        /// The cut's language and its volume — the meme family shouts.
+        let captions: [SizzleScript.Chapter: String]
+        let captionScale: CGFloat
     }
 
     static func format(for cut: SizzleScript.Cut) -> Format {
+        let vertical = cut.canvas.width < cut.canvas.height
         switch cut.family {
         case .master, .meme, .plate:
-            if cut.canvas.width < cut.canvas.height {
-                return Format(spriteSide: 264, punchSide: 288, faceSide: 320,
-                              duoSide: 160, wordmark: 26, caption: 15, tag: 13,
-                              vertical: true, gifSafe: false, rich: true)
-            }
-            return Format(spriteSide: 224, punchSide: 256, faceSide: 320,
-                          duoSide: 160, wordmark: 30, caption: 16, tag: 12,
-                          vertical: false, gifSafe: false, rich: true)
+            let base: (side: CGFloat, punch: CGFloat, word: CGFloat, cap: CGFloat, tag: CGFloat) =
+                vertical ? (264, 288, 26, 15, 13) : (224, 256, 30, 16, 12)
+            return Format(spriteSide: base.side, punchSide: base.punch, faceSide: 320,
+                          duoSide: 160, wordmark: base.word, caption: base.cap, tag: base.tag,
+                          vertical: vertical, gifSafe: false, rich: true,
+                          plate: cut.family == .plate,
+                          captions: cut.family == .meme ? SizzleScript.memeCaptions
+                              : cut.family == .plate ? [:] : SizzleScript.captions,
+                          captionScale: cut.family == .meme ? 1.6 : 1)
         case .readme:
             return Format(spriteSide: 128, punchSide: 128, faceSide: 128,
                           duoSide: 96, wordmark: 14, caption: 9, tag: 8,
-                          vertical: false, gifSafe: cut.fps == 10, rich: false)
+                          vertical: false, gifSafe: cut.fps == 10, rich: false,
+                          plate: false, captions: SizzleScript.captions, captionScale: 1)
         }
     }
 
@@ -258,7 +267,7 @@ enum SizzleRenderer {
                              },
                              furniture: fmt.rich && rosterU > 0.001
                                  ? rosterCard(fmt: fmt, presence: rosterU) : nil,
-                             bottom: captionText(SizzleScript.captions[.mirror] ?? "",
+                             bottom: captionText(fmt.captions[.mirror] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
 
@@ -283,7 +292,7 @@ enum SizzleRenderer {
                              },
                              furniture: fmt.rich ? glyphFurniture(beat: beat, beatT: beatT,
                                                                   fmt: fmt) : nil,
-                             bottom: captionText(SizzleScript.captions[.glyphs] ?? "",
+                             bottom: captionText(fmt.captions[.glyphs] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
 
@@ -302,7 +311,7 @@ enum SizzleRenderer {
                                                   tint: CrabView.discoTint(cookingT: cookT),
                                                   side: side, fmt: fmt)
                              },
-                             bottom: captionText(SizzleScript.captions[.cook] ?? "",
+                             bottom: captionText(fmt.captions[.cook] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
 
@@ -324,7 +333,7 @@ enum SizzleRenderer {
                                                   behind: AnyView(glow),
                                                   side: side, fmt: fmt)
                              },
-                             bottom: captionText(SizzleScript.captions[.finale] ?? "",
+                             bottom: captionText(fmt.captions[.finale] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
 
@@ -354,7 +363,7 @@ enum SizzleRenderer {
                                  ghost: u < 1 ? from : Costume.none, costumeU: u,
                                  side: side, fmt: fmt)
             },
-            top: captionText(SizzleScript.captions[.montage] ?? "", fmt: fmt,
+            top: captionText(fmt.captions[.montage] ?? "", fmt: fmt,
                              size: fmt.wordmark),
             bottom: captionText(to.title, fmt: fmt).opacity(tagOpacity))
     }
@@ -375,7 +384,7 @@ enum SizzleRenderer {
                                                side: fmt.duoSide, fmt: fmt)
                                  })
                              },
-                             bottom: captionText(SizzleScript.captions[.duet] ?? "",
+                             bottom: captionText(fmt.captions[.duet] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
 
@@ -392,7 +401,7 @@ enum SizzleRenderer {
                                                side: fmt.duoSide, fmt: fmt)
                                  })
                              },
-                             top: titleCard(SizzleScript.wordmark,
+                             top: titleCard(fmt.captions[.outro] ?? SizzleScript.wordmark,
                                             sub: SizzleScript.url,
                                             fmt: fmt).opacity(card))
     }
@@ -571,7 +580,8 @@ enum SizzleRenderer {
     private static func captionText(_ text: String, fmt: Format,
                                     size: CGFloat? = nil) -> AnyView {
         AnyView(Text(text)
-            .font(.system(size: size ?? fmt.caption, weight: .heavy, design: .monospaced))
+            .font(.system(size: (size ?? fmt.caption) * fmt.captionScale,
+                          weight: .heavy, design: .monospaced))
             .multilineTextAlignment(.center)
             .foregroundStyle(Palette.kraft.opacity(size == nil ? 0.85 : 1)))
     }

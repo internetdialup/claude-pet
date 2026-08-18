@@ -94,6 +94,15 @@ enum SizzleScript {
     static let mirrorBubble = "Wiring the pipeline"
     static let cookBubble = "Absolutely cooking 🔥"
 
+    /// The meme cut's language: two words, maximum volume.
+    static let memeCaptions: [Chapter: String] = [
+        .glyphs: "HE SHIPS",
+        .cook: "HE COOKS",
+        .finale: "BIG ONE",
+        .montage: "8 LOOKS",
+        .outro: "SHIP IT",
+    ]
+
     // MARK: - The cuts
 
     static let landscape = Cut(
@@ -136,7 +145,42 @@ enum SizzleScript {
         family: .readme,
         segments: readme.segments)
 
-    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo]
+    /// The meme cut: the greatest hits at attention-span speed. Windows
+    /// enter the master camera curves mid-move; scaled segments compress
+    /// beats and camera together. 14.0s — people have shit attention spans.
+    static let meme = Cut(
+        name: "sizzle-meme.mp4",
+        canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
+        family: .meme,
+        segments: [
+            Segment(chapter: .mirror, kind: .window(offset: 0.4), seconds: 2.0),
+            Segment(chapter: .glyphs, kind: .scaled, seconds: 2.2),
+            Segment(chapter: .cook, kind: .window(offset: 2.5), seconds: 1.5),
+            Segment(chapter: .finale, kind: .window(offset: 0), seconds: 4.0),
+            Segment(chapter: .montage, kind: .scaled, seconds: 2.8),
+            Segment(chapter: .outro, kind: .scaled, seconds: 1.5),
+        ])
+
+    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme]
+
+    /// The green-screen plates: the master cuts' segments VERBATIM — the
+    /// camera is pure in (chapter, localT, format), so every plate frame's
+    /// sprite geometry matches the titled frame's and keyed footage stays
+    /// in sync. A separate array so --render-sizzle doesn't implicitly drag
+    /// 2310 more frames; --render-plates walks these.
+    static let plate16x9 = Cut(
+        name: "plate-16x9",
+        canvas: landscape.canvas, scale: 3, fps: 30,
+        family: .plate,
+        segments: landscape.segments)
+
+    static let plate9x16 = Cut(
+        name: "plate-9x16",
+        canvas: vertical.canvas, scale: 3, fps: 30,
+        family: .plate,
+        segments: vertical.segments)
+
+    static let plates: [Cut] = [plate16x9, plate9x16]
 
     // MARK: - The clock walk
 
