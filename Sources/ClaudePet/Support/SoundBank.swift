@@ -80,13 +80,16 @@ public enum SoundBank {
     nonisolated static func spec(for cue: Cue) -> (notes: [Note], decay: Double) {
         switch cue {
         case .chirp:
-            return ([Note(frequency: 880, duration: 0.07),
-                     Note(frequency: 1174, duration: 0.09)], 18)
+            // The "hey!": the same rising skeleton, square-voiced.
+            return ([Note(frequency: 880, duration: 0.06, wave: .square, level: 0.5),
+                     Note(frequency: 1174.7, duration: 0.09, wave: .square, level: 0.55)], 16)
         case .chime:
-            return ([Note(frequency: 659, duration: 0.09),
-                     Note(frequency: 988, duration: 0.14)], 18)
+            // The done bell: E5-B5-E6 soft triangle arpeggio.
+            return ([Note(frequency: 659.3, duration: 0.08, wave: .triangle, level: 0.5),
+                     Note(frequency: 987.8, duration: 0.09, wave: .triangle, level: 0.5),
+                     Note(frequency: 1318.5, duration: 0.14, wave: .triangle, level: 0.55)], 12)
         case .blip:
-            return ([Note(frequency: 523, duration: 0.04)], 18)
+            return ([Note(frequency: 523, duration: 0.04, wave: .square, level: 0.45)], 18)
         }
     }
 
