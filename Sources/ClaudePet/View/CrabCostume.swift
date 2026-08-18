@@ -230,11 +230,17 @@ enum CrabCostume {
             b.pixel(17 + dx, crown - 1, .yellow)
             b.rect(bodyX + dx - squash, crown, 2, 2, .costumeA)
             b.rect(bodyX + bodyW - 2 + dx + squash, crown, 2, 2, .costumeA)
+            // Side armor running down both flanks from the shoulders — the
+            // punch-up pass: more federation blue down the sides, framing
+            // the visor's black.
+            b.rect(bodyX + dx - squash, crown + 2, 2, 5, .costumeA)
+            b.rect(bodyX + bodyW - 2 + dx + squash, crown + 2, 2, 5, .costumeA)
             b.pixel(13 + dx, 19 + dy, .yellow)          // collar, per the reference
             b.pixel(19 + dx, 19 + dy, .yellow)
             b.rect(15 + dx, 19 + dy, 3, 1, .costumeB)   // chin
-            b.rect(13 + dx, 20 + dy, 7, 1, .costumeA)   // chest band
-            b.pixel(16 + dx, 20 + dy, .yellow)          // vent
+            b.rect(12 + dx, 20 + dy, 9, 1, .costumeA)   // chest band, full width
+            b.pixel(15 + dx, 20 + dy, .yellow)          // twin vents
+            b.pixel(17 + dx, 20 + dy, .yellow)
             for leg in [7, 11, 20, 24] {                // red feet
                 b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
             }
