@@ -81,13 +81,20 @@ enum SizzleRenderer {
             shot.offset.y = ((1 - Ease.smoothstep(min(1, t / 1.0))) * 28).rounded()
 
         case .mirror:
-            // The face punch: in over [2.4, 2.8], dwell, out by 5.3.
-            let inU = Ease.smoothstep(min(1, max(0, (t - 2.4) / 0.4)))
-            let outU = Ease.smoothstep(min(1, max(0, (t - 4.8) / 0.5)))
+            // The face punch rides the thinking beat [0.6, 2.2] (the dots
+            // fade with the zoom); the roster beat then slides him aside.
+            let inU = Ease.smoothstep(min(1, max(0, (t - 0.6) / 0.4)))
+            let outU = Ease.smoothstep(min(1, max(0, (t - 1.8) / 0.4)))
             let zoom = inU * (1 - outU)
             shot.side = fmt.spriteSide + (fmt.faceSide - fmt.spriteSide) * zoom
             shot.offset.y = (24 * zoom).rounded()
             shot.bubbleFade = 1 - zoom
+            let rosterU = Ease.window(t - 2.8, duration: 2.5, edge: 0.35)
+            if fmt.vertical {
+                shot.offset.y -= (40 * rosterU).rounded()
+            } else {
+                shot.offset.x -= (90 * rosterU).rounded()
+            }
 
         case .glyphs:
             // A beat punch on each service.
@@ -223,6 +230,7 @@ enum SizzleRenderer {
     private static func mirrorScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .mirror, t: t, fmt: fmt)
         let caption = Ease.window(t - 0.4, duration: 5.1, edge: 0.3)
+        let rosterU = Ease.window(t - 2.8, duration: 2.5, edge: 0.35)
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { side, fade in
                                  var pose: CrabPose
@@ -248,6 +256,8 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
+                             furniture: fmt.rich && rosterU > 0.001
+                                 ? rosterCard(fmt: fmt, presence: rosterU) : nil,
                              bottom: captionText(SizzleScript.captions[.mirror] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
@@ -271,6 +281,8 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
+                             furniture: fmt.rich ? glyphFurniture(beat: beat, beatT: beatT,
+                                                                  fmt: fmt) : nil,
                              bottom: captionText(SizzleScript.captions[.glyphs] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
@@ -385,6 +397,115 @@ enum SizzleRenderer {
                                             fmt: fmt).opacity(card))
     }
 
+    // MARK: - The pixel cards (fake repo furniture — every string fabricated)
+
+    /// Flat-rect 8-bit cards in the bubble's recipe: square corners, a steel
+    /// border by backing inset, monospaced type, fixed intrinsics. Frame
+    /// space only — they never ride the camera, so punches don't scale text.
+    private struct PixelCard: View {
+        enum Kind {
+            case prMerged
+            case npmInstall(progress: Double)
+            case buildPassing
+        }
+        let kind: Kind
+
+        var body: some View {
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Rectangle().fill(Palette.slate))
+                .padding(2)
+                .background(Rectangle().fill(Palette.steel))
+        }
+
+        @ViewBuilder
+        private var content: some View {
+            switch kind {
+            case .prMerged:
+                HStack(spacing: 6) {
+                    ThoughtBubble.ServiceBadge(kind: .github)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("PR #47")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Palette.kraft)
+                        Text("MERGED")
+                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(Palette.green)
+                    }
+                }
+            case .npmInstall(let progress):
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("npm install")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Palette.kraft)
+                    // Ten discrete cells — quantised fill, no partial cells,
+                    // no new colours.
+                    let filled = Int(max(0, min(1, progress)) * 10)
+                    HStack(spacing: 2) {
+                        ForEach(0..<10, id: \.self) { cell in
+                            Rectangle()
+                                .fill(cell < filled ? Palette.green : Palette.steel.opacity(0.4))
+                                .frame(width: 8, height: 6)
+                        }
+                    }
+                }
+            case .buildPassing:
+                HStack(spacing: 0) {
+                    Text(" build ")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Palette.kraft)
+                        .padding(.vertical, 3)
+                        .background(Rectangle().fill(Palette.slate))
+                    Text(" passing ")
+                        .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 3)
+                        .background(Rectangle().fill(Palette.green))
+                }
+            }
+        }
+    }
+
+    /// The card each glyph beat pops: npm's progress bar, the merged PR on
+    /// the push, the shields-style badge on the deploy. Linear keeps the
+    /// frame clean — the diamond alone carries that beat.
+    private static func glyphFurniture(beat: Int, beatT: Double, fmt: Format) -> AnyView? {
+        let dx = fmt.spriteSide / 2 + 80
+        switch beat {
+        case 0: return cardPop(.npmInstall(progress: (beatT - 0.2) / 1.1), beatT: beatT, x: dx)
+        case 1: return cardPop(.prMerged, beatT: beatT, x: -dx)
+        case 3: return cardPop(.buildPassing, beatT: beatT, x: dx)
+        default: return nil
+        }
+    }
+
+    /// A card's pop: eased presence plus a small integer-stepped rise.
+    private static func cardPop(_ kind: PixelCard.Kind, beatT: Double,
+                                x: CGFloat) -> AnyView {
+        let appear = Ease.window(beatT - 0.15, duration: 1.25, edge: 0.22)
+        let rise = CGFloat(Int((6 * Ease.smoothstep(min(1, max(0, (beatT - 0.15) / 1.25)))).rounded()))
+        return AnyView(PixelCard(kind: kind)
+            .opacity(appear)
+            .offset(x: x, y: -rise))
+    }
+
+    /// The roster beat's decorated panel — the still renderer's exact chain,
+    /// on the sizzle's own backdrop. Fixed elapsed 7.0 so the fabricated
+    /// sessions hold still mid-shot.
+    private static func rosterCard(fmt: Format, presence: Double) -> AnyView {
+        AnyView(RosterPanel(state: DemoMode.state(at: 7.0),
+                            pinnedID: DemoMode.sessions[1].id,
+                            onPin: { _ in }, scrolls: false)
+            .environment(\.colorScheme, .dark)
+            .background(Palette.slate)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .scaleEffect(fmt.vertical ? 1.0 : 0.85)   // vector text — CTM-safe
+            .opacity(presence)
+            .offset(x: fmt.vertical ? 0 : 178,
+                    y: fmt.vertical ? 205 : 0))
+    }
+
     // MARK: - The pet stack
 
     /// The sprite over its ground shadow, optionally behind a glow, under an
@@ -463,6 +584,7 @@ enum SizzleRenderer {
     private static func chapterLayout(fmt: Format,
                                       camera: Shot,
                                       petBuilder: (CGFloat, Double) -> AnyView,
+                                      furniture: AnyView? = nil,
                                       top: (some View)? = Optional<AnyView>.none,
                                       bottom: (some View)? = Optional<AnyView>.none) -> some View {
         VStack(spacing: 0) {
@@ -475,6 +597,9 @@ enum SizzleRenderer {
                     petBuilder(camera.side, camera.bubbleFade)
                         .offset(x: camera.offset.x, y: camera.offset.y)
                 }
+                // Frame-space furniture — cards and the roster live outside
+                // the shot transform, so punches never scale their text.
+                .overlay { if let furniture { furniture } }
             Spacer(minLength: 4)
             if let bottom { bottom.padding(.bottom, fmt.vertical ? 44 : 12).zIndex(1) }
             else { Spacer(minLength: fmt.vertical ? 44 : 12) }
