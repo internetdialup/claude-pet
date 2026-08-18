@@ -66,6 +66,11 @@ enum SizzleRenderer {
         return true
     }
 
+    /// Test seam: one frame of a cut, exactly as the encoders receive it.
+    static func testFrame(cut: SizzleScript.Cut, index: Int) -> CGImage? {
+        frameImage(cut: cut, index: index)
+    }
+
     private static func frameImage(cut: SizzleScript.Cut, index: Int) -> CGImage? {
         let t = Double(index) / Double(cut.fps)
         guard let cue = SizzleScript.resolve(cut, at: t) else { return nil }
