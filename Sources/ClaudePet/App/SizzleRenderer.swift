@@ -37,7 +37,7 @@ enum SizzleRenderer {
         /// palette, its size and its loop seam.
         let rich: Bool
         /// Chroma plates: cameras run, everything translucent or typographic
-        /// is suppressed, the field is broadcast green.
+        /// is suppressed, the field is the dark-red key field.
         let plate: Bool
         /// The cut's language and its volume — the meme family shouts.
         let captions: [SizzleScript.Chapter: String]
@@ -87,13 +87,13 @@ enum SizzleRenderer {
         switch chapter {
         case .wake:
             // The rise-in: he steps up into frame in whole-pixel increments.
-            shot.offset.y = ((1 - Ease.smoothstep(min(1, t / 1.0))) * 28).rounded()
+            shot.offset.y = ((1 - Ease.smoothstep(min(1, t / 0.7))) * 28).rounded()
 
         case .mirror:
             // The face punch rides the thinking beat [0.6, 2.2] (the dots
             // fade with the zoom); the roster beat then slides him aside.
-            let inU = Ease.smoothstep(min(1, max(0, (t - 0.6) / 0.4)))
-            let outU = Ease.smoothstep(min(1, max(0, (t - 1.8) / 0.4)))
+            let inU = Ease.smoothstep(min(1, max(0, (t - 0.6) / 0.25)))
+            let outU = Ease.smoothstep(min(1, max(0, (t - 1.8) / 0.35)))
             let zoom = inU * (1 - outU)
             shot.side = fmt.spriteSide + (fmt.faceSide - fmt.spriteSide) * zoom
             shot.offset.y = (24 * zoom).rounded()
@@ -110,7 +110,7 @@ enum SizzleRenderer {
         case .glyphs:
             // A beat punch on each service.
             let beatT = t.truncatingRemainder(dividingBy: 1.5)
-            let env = Ease.window(beatT, duration: 0.45, edge: 0.18)
+            let env = Ease.window(beatT, duration: 0.32, edge: 0.11)
             shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env
 
         case .cook:
@@ -126,8 +126,8 @@ enum SizzleRenderer {
 
         case .finale:
             // Hold wide; punch with the flash; settle back for the badge.
-            let inU = Ease.smoothstep(min(1, max(0, (t - 1.2) / 0.4)))
-            let outU = Ease.smoothstep(min(1, max(0, (t - 3.8) / 0.7)))
+            let inU = Ease.smoothstep(min(1, max(0, (t - 1.2) / 0.28)))
+            let outU = Ease.smoothstep(min(1, max(0, (t - 3.8) / 0.5)))
             let zoom = inU * (1 - outU)
             shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * zoom
 
@@ -135,7 +135,7 @@ enum SizzleRenderer {
             // Alternating punch per look, drifting with the beat's parity.
             let beat = min(Int(t), SizzleScript.montageOrder.count - 1)
             let beatT = t - Double(beat)
-            let env = Ease.window(beatT, duration: 0.45, edge: 0.18)
+            let env = Ease.window(beatT, duration: 0.32, edge: 0.11)
             let dir: CGFloat = beat % 2 == 0 ? 1 : -1
             // Full punch — the window's plateau then dwells at a sanctioned
             // stop, and half-measures read as hesitation at meme speed.
@@ -225,7 +225,7 @@ enum SizzleRenderer {
                 // The keying field: a single-entry ramp rides Backdrop's
                 // whole-point, no-antialiasing path — one coalesced rect per
                 // row, every frame the same bytes.
-                Backdrop(style: .init(ramp: [Palette.broadcastGreen], foam: nil))
+                Backdrop(style: .init(ramp: [Palette.keyField], foam: nil))
             } else {
                 Backdrop()
             }

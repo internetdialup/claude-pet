@@ -51,7 +51,7 @@ struct SizzleScriptTests {
         let readmeFinale = SizzleScript.readme.segments.first { $0.chapter == .finale }
         #expect((readmeFinale?.seconds ?? 0) >= 8.0)
         let memeFinale = SizzleScript.meme.segments.first { $0.chapter == .finale }
-        #expect(memeFinale?.seconds == 4.0)
+        #expect(memeFinale?.seconds == 3.2)
         if case .window(let offset) = memeFinale?.kind {
             #expect(offset == 0, "the meme finale opens on the flash")
         } else {
@@ -213,9 +213,9 @@ struct SizzleCameraTests {
             let shot = SizzleRenderer.shot(for: cue.chapter, t: cue.localT, fmt: fmt)
             if let previous, lastChapter == cue.chapter {
                 // The fastest sanctioned move is the face punch: 96pt over
-                // 0.4s, smoothstepped — mid-slope ≈ 12pt/frame at 30fps.
-                // A snap would be 30-100pt; 13 catches it with margin.
-                #expect(abs(shot.side - previous.side) <= 13.0,
+                // 0.25s, smoothstepped — mid-slope ≈ 19.2pt/frame at 30fps.
+                // A snap would be 60-100pt; 21 catches it with margin.
+                #expect(abs(shot.side - previous.side) <= 21.0,
                         "side jumped \(abs(shot.side - previous.side)) at frame \(index)")
                 // The fastest sanctioned drift is the roster slide: 90pt
                 // over a 0.9s smoothstep edge ≈ 5pt/frame; the shake swings
@@ -252,7 +252,7 @@ struct SizzlePlateTests {
         // The self-calibrating reference: the same green through the same
         // pipeline, so colour management cannot fake a failure.
         let reference = try #require(SpriteImage.cgImage(
-            of: Rectangle().fill(Palette.broadcastGreen).frame(width: 4, height: 4),
+            of: Rectangle().fill(Palette.keyField).frame(width: 4, height: 4),
             scale: 1, isOpaque: true))
         let refData = try #require(reference.dataProvider?.data as Data?)
         let refPixel = [refData[0], refData[1], refData[2], refData[3]]
@@ -264,7 +264,7 @@ struct SizzlePlateTests {
         }
         for (x, y) in [(0, 0), (frame.width - 1, 0), (0, frame.height - 1),
                        (frame.width - 1, frame.height - 1)] {
-            #expect(pixel(x, y) == refPixel, "corner (\(x),\(y)) is not the key green")
+            #expect(pixel(x, y) == refPixel, "corner (\(x),\(y)) is not the key field")
         }
 
         // Distinct colours stay bounded — AA text, a translucent shadow or

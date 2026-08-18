@@ -147,18 +147,19 @@ enum SizzleScript {
 
     /// The meme cut: the greatest hits at attention-span speed. Windows
     /// enter the master camera curves mid-move; scaled segments compress
-    /// beats and camera together. 14.0s — people have shit attention spans.
+    /// beats and camera together. 10.4s — the operator's law, twice over:
+    /// "people have shit attention spans", then "it needs to be faster".
     static let meme = Cut(
         name: "sizzle-meme.mp4",
         canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
         family: .meme,
         segments: [
-            Segment(chapter: .mirror, kind: .window(offset: 0.4), seconds: 2.0),
-            Segment(chapter: .glyphs, kind: .scaled, seconds: 2.2),
-            Segment(chapter: .cook, kind: .window(offset: 2.5), seconds: 1.5),
-            Segment(chapter: .finale, kind: .window(offset: 0), seconds: 4.0),
-            Segment(chapter: .montage, kind: .scaled, seconds: 2.8),
-            Segment(chapter: .outro, kind: .scaled, seconds: 1.5),
+            Segment(chapter: .mirror, kind: .window(offset: 0.4), seconds: 1.2),
+            Segment(chapter: .glyphs, kind: .scaled, seconds: 1.6),
+            Segment(chapter: .cook, kind: .window(offset: 2.7), seconds: 1.2),
+            Segment(chapter: .finale, kind: .window(offset: 0), seconds: 3.2),
+            Segment(chapter: .montage, kind: .scaled, seconds: 2.4),
+            Segment(chapter: .outro, kind: .scaled, seconds: 0.8),
         ])
 
     static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme]
