@@ -15,6 +15,9 @@ public struct ThoughtBubble: View {
     public var tool: String?
     public var mood: PetMood
     public var style: PetState.BubbleStyle = .plain
+    /// The service the sprint is talking to — when set, the leading glyph
+    /// slot renders the 8-bit badge instead of the ASCII tool glyph.
+    public var service: ServiceGlyph? = nil
 
     /// Renders against a fixed instant instead of the display link.
     ///
@@ -59,7 +62,11 @@ public struct ThoughtBubble: View {
     public var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
-                if !glyph.isEmpty {
+                if let service, style != .dots {
+                    // The dots stay wordless AND badgeless — reasoning is
+                    // reasoning, whoever it is about.
+                    ServiceBadge(kind: service)
+                } else if !glyph.isEmpty {
                     Text(glyph)
                         .font(.system(size: 10, weight: .black, design: .monospaced))
                 }
@@ -106,6 +113,46 @@ public struct ThoughtBubble: View {
                 Rectangle().fill(fill).frame(width: 8, height: 4)
                 Rectangle().fill(fill).frame(width: 4, height: 4)
             }
+        }
+    }
+
+    /// The 8-bit service badge in the bubble's glyph slot: the sprite's own
+    /// bitmap (`ServiceGlyph.art`) at two points a cell, in brand-evocative
+    /// colours on a kraft backing square so it survives every bubble fill.
+    /// Static — no clock, so offline renders are deterministic for free.
+    private struct ServiceBadge: View {
+        let kind: ServiceGlyph
+
+        private static let colors: [ServiceGlyph: [Character: Color]] = [
+            .npm: ["r": Color(red: 0.796, green: 0.220, blue: 0.216),   // npm red
+                   "p": .white],
+            .github: ["p": Palette.kraft,
+                      "k": Color(red: 0.141, green: 0.161, blue: 0.184)], // github ink
+            .linear: ["l": Color(red: 0.369, green: 0.416, blue: 0.824), // linear violet
+                      "s": .white],
+            .deploy: ["s": Palette.steel, "l": Palette.screenLight,
+                      "f": Palette.flame, "e": Palette.ember],
+        ]
+
+        var body: some View {
+            let art = kind.art
+            let cell: CGFloat = 2
+            let side = CGFloat(art.rows.map(\.count).max() ?? 0) * cell
+            Canvas { context, _ in
+                context.fill(Path(CGRect(x: 0, y: 0, width: side, height: side)),
+                             with: .color(Palette.kraft.opacity(0.35)))
+                for (rowIndex, row) in art.rows.enumerated() {
+                    for (colIndex, char) in row.enumerated() where char != "." {
+                        guard let color = Self.colors[kind]?[char] else { continue }
+                        context.fill(
+                            Path(CGRect(x: CGFloat(colIndex) * cell,
+                                        y: CGFloat(rowIndex) * cell,
+                                        width: cell, height: cell)),
+                            with: .color(color))
+                    }
+                }
+            }
+            .frame(width: side, height: CGFloat(art.rows.count) * cell)
         }
     }
 }

@@ -68,7 +68,8 @@ public struct PetRootView: View {
                         text: text,
                         tool: transient == nil ? model.state.tool : nil,
                         mood: transient == nil ? model.state.mood : .done,
-                        style: transient == nil ? model.state.bubbleStyle : .plain
+                        style: transient == nil ? model.state.bubbleStyle : .plain,
+                        service: transient == nil ? model.state.serviceGlyph : nil
                     )
                     .transition(.opacity)
                     .id(text)

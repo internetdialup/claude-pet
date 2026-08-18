@@ -125,6 +125,58 @@ extension ServiceGlyph {
     /// Dissolve seeds well clear of every other seed space (props are their
     /// allCases indices, the easter eggs sit at 700-731, costumes at 900+).
     var stableSeed: Int { 760 + (Self.allCases.firstIndex(of: self) ?? 0) }
+
+    /// The mark's bitmap and ink key — the single source both the sprite
+    /// stamp and the bubble badge draw from. Original 8-bit takes, all of
+    /// them: evocative, never copied.
+    var art: (rows: [String], key: [Character: PixelBuffer.Ink]) {
+        switch self {
+        case .npm:
+            // The red cube with the lowercase n carved in paper.
+            return ([
+                "rrrrrrr",
+                "rrrrrrr",
+                "rpppppr",
+                "rpprppr",
+                "rpprppr",
+                "rpprppr",
+                "rrrrrrr",
+            ], ["r": .alert, "p": .paper])
+        case .github:
+            // A round-eared silhouette on a paper disc.
+            return ([
+                ".pppppp.",
+                "pkpppkpp",
+                "pkkkkkpp",
+                "pkpkpkpp",
+                "pkkkkkpp",
+                "ppkkkppp",
+                ".pppppp.",
+            ], ["p": .paper, "k": .eye])
+        case .linear:
+            // The ascending diamond, one notch of steel through it.
+            return ([
+                "...ll...",
+                "..llll..",
+                ".llssll.",
+                "llssssll",
+                ".llssll.",
+                "..llll..",
+                "...ll...",
+            ], ["l": .screenLight, "s": .steel])
+        case .deploy:
+            // The rocket, exhaust in flame and ember.
+            return ([
+                "...ss...",
+                "..ssss..",
+                "..slls..",
+                "..ssss..",
+                ".ssssss.",
+                "..f..f..",
+                "..ee.ee.",
+            ], ["s": .steel, "l": .screenLight, "f": .flame, "e": .ember])
+        }
+    }
 }
 
 /// Rasterises a `CrabPose` into a `PixelBuffer`.
@@ -390,54 +442,12 @@ public enum CrabRig {
         }
     }
 
-    /// Four original 8-bit marks, each centred in the (1,0) 8×8 box.
+    /// One original 8-bit mark, centred in the (1,0) 8×8 box. The bitmap and
+    /// key come from `ServiceGlyph.art` — the same rows the bubble badge
+    /// draws, so the two renditions cannot drift.
     private static func drawServiceGlyph(_ b: inout PixelBuffer, _ glyph: ServiceGlyph) {
-        switch glyph {
-        case .npm:
-            // The red cube with the lowercase n carved in paper.
-            b.stamp([
-                "rrrrrrr",
-                "rrrrrrr",
-                "rpppppr",
-                "rpprppr",
-                "rpprppr",
-                "rpprppr",
-                "rrrrrrr",
-            ], at: (x: 1, y: 0), key: ["r": .alert, "p": .paper])
-        case .github:
-            // A round-eared silhouette on a paper disc — evocative, not copied.
-            b.stamp([
-                ".pppppp.",
-                "pkpppkpp",
-                "pkkkkkpp",
-                "pkpkpkpp",
-                "pkkkkkpp",
-                "ppkkkppp",
-                ".pppppp.",
-            ], at: (x: 1, y: 0), key: ["p": .paper, "k": .eye])
-        case .linear:
-            // The ascending diamond, one notch of steel through it.
-            b.stamp([
-                "...ll...",
-                "..llll..",
-                ".llssll.",
-                "llssssll",
-                ".llssll.",
-                "..llll..",
-                "...ll...",
-            ], at: (x: 1, y: 0), key: ["l": .screenLight, "s": .steel])
-        case .deploy:
-            // The rocket, exhaust first-two-rows-of-flame.
-            b.stamp([
-                "...ss...",
-                "..ssss..",
-                "..slls..",
-                "..ssss..",
-                ".ssssss.",
-                "..f..f..",
-                "..ee.ee.",
-            ], at: (x: 1, y: 0), key: ["s": .steel, "l": .screenLight, "f": .flame, "e": .ember])
-        }
+        let art = glyph.art
+        b.stamp(art.rows, at: (x: 1, y: 0), key: art.key)
     }
 
     /// The behind-the-body flame layer for whichever of the live and ghost
