@@ -45,6 +45,17 @@ if let index = arguments.firstIndex(of: "--render-social"), index + 1 < argument
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-sizzle"), index + 1 < arguments.count {
+    // The trailer: three cuts from one master script. Like `--render-social`,
+    // deliberately separate from `--render-reel` so a multi-MB video can
+    // never land in `docs/media` by a typo — the operator copies the
+    // eyeballed README GIF over by hand.
+    let ok = MainActor.assumeIsolated {
+        SizzleRenderer.render(to: arguments[index + 1])
+    }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--probe") {
     // `--probe [seconds]`. The default is long enough to attach the feeds and
     // fold what is already on disk, but shorter than any decay horizon — so
