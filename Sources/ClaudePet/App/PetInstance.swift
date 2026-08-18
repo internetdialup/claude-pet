@@ -153,7 +153,9 @@ final class PetInstance {
             }
 
             // Squash first, roster second — the reaction is feedback for the
-            // click, and the roster is what the click is for.
+            // click, and the roster is what the click is for. The squeal
+            // steps up with the click count into the triple-poke party.
+            SoundBank.play(.squeal(step: min(clicks, 3)))
             self.model.clickedAt = Date()
             self.onRosterRequested?()
             // Clear it once the animation is done so the view drops back to

@@ -8,7 +8,9 @@ import Foundation
 @Suite("Sound synthesis")
 struct SoundSynthesisTests {
 
-    private var allCues: [SoundBank.Cue] { [.chirp, .chime, .blip] }
+    private var allCues: [SoundBank.Cue] {
+        [.chirp, .chime, .blip, .squeal(step: 1), .squeal(step: 2), .squeal(step: 3)]
+    }
 
     @Test("Every cue's sample count matches its notes, with a sane peak")
     func sampleShape() {
@@ -44,6 +46,31 @@ struct SoundSynthesisTests {
         let (notes, _) = SoundBank.spec(for: .blip)
         #expect(notes.allSatisfy { $0.frequency > 0 },
                 "when a rest enters a table, extend this test to assert its zeros")
+    }
+
+    @Test("The squeal bends up, and its steps climb")
+    func squealRises() {
+        func crossings(_ samples: ArraySlice<Int16>) -> Int {
+            var count = 0
+            var last = samples.first ?? 0
+            for s in samples.dropFirst() {
+                if (last < 0 && s >= 0) || (last >= 0 && s < 0) { count += 1 }
+                last = s
+            }
+            return count
+        }
+        var openings: [Int] = []
+        for step in 1...3 {
+            let samples = SoundBank.samples(for: .squeal(step: step))
+            let slide = samples.prefix(Int(44_100 * 0.15))
+            let quarter = slide.count / 4
+            let head = crossings(slide.prefix(quarter))
+            let tail = crossings(slide.suffix(quarter))
+            #expect(tail > head, "step \(step) must bend upward")
+            openings.append(head)
+        }
+        #expect(openings[0] < openings[1] && openings[1] < openings[2],
+                "the steps must open at rising pitches")
     }
 
     @Test("The WAV wrapper carries the right magics and sizes")

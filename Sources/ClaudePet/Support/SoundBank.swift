@@ -28,6 +28,9 @@ public enum SoundBank {
 
     public enum Cue: Hashable {
         case chirp, chime, blip
+        /// The poke squeal — `step` 1…3 rises so a triple-poke reads as a
+        /// combo climbing into the party.
+        case squeal(step: Int)
     }
 
     // MARK: - The gates
@@ -90,6 +93,13 @@ public enum SoundBank {
                      Note(frequency: 1318.5, duration: 0.14, wave: .triangle, level: 0.55)], 12)
         case .blip:
             return ([Note(frequency: 523, duration: 0.04, wave: .square, level: 0.45)], 18)
+        case .squeal(let step):
+            // "Wheee!" — a fast pitch-bend up and a tip, two semitones
+            // higher per step. CUTE is the spec.
+            let ratio = pow(2.0, Double(max(1, min(3, step)) - 1) * 2.0 / 12.0)
+            return ([Note(frequency: 620 * ratio, duration: 0.15, wave: .square,
+                          level: 0.5 + 0.025 * Double(step), slideTo: 1500 * ratio),
+                     Note(frequency: 1975.5 * ratio, duration: 0.04, wave: .square, level: 0.4)], 10)
         }
     }
 
