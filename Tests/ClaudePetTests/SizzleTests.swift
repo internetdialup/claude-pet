@@ -613,3 +613,30 @@ struct GlyphReactionTests {
         #expect(poses[3].lean == -1 && poses[3].eyes == .wide)
     }
 }
+
+/// The showcase opens on action; the duet finally has a camera.
+@Suite("Showcase and duet upgrades")
+@MainActor
+struct ShowcaseDuetTests {
+
+    @Test("Text-free cuts skip the wake and stay lawful")
+    func actionOpens() {
+        for cut in [SizzleScript.showcaseGradient, SizzleScript.showcaseGradientTall] {
+            #expect(cut.segments.first?.chapter != .wake, "\(cut.name) must open on action")
+            #expect(cut.seconds < 25.0)
+        }
+        #expect(abs(SizzleScript.showcaseGradient.seconds - 23.2) < 1e-9)
+        #expect(abs(SizzleScript.showcaseGradientTall.seconds - 22.1) < 1e-9)
+    }
+
+    @Test("The duet pan dwells on the pounce, crosses, and settles")
+    func duetPan() {
+        let fmt = SizzleRenderer.format(for: SizzleScript.landscape)
+        #expect(SizzleRenderer.shot(for: .duet, t: 1.2, fmt: fmt).offset.x == 38,
+                "the pounce lands on the dwell")
+        #expect(SizzleRenderer.shot(for: .duet, t: 2.4, fmt: fmt).offset.x == -38,
+                "then the pan crosses to pet two")
+        #expect(SizzleRenderer.shot(for: .duet, t: 3.8, fmt: fmt).offset.x == 0,
+                "and settles wide")
+    }
+}

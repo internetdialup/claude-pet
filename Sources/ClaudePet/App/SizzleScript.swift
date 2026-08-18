@@ -196,13 +196,15 @@ enum SizzleScript {
         name: "showcase-gradient.mp4",
         canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
         family: .showcase, scenery: .gradient,
-        segments: landscape.segments)
+        // No title card means the sleeping wake is dead air: text-free cuts
+        // open on the thinking beat, face punch seconds away.
+        segments: Array(landscape.segments.dropFirst()))
 
     static let showcaseGradientTall = Cut(
         name: "showcase-gradient-9x16.mp4",
         canvas: CGSize(width: 360, height: 640), scale: 3, fps: 30,
         family: .showcase, scenery: .gradient,
-        segments: vertical.segments)
+        segments: Array(vertical.segments.dropFirst()))
 
     /// The forest cuts left the render set on the operator's verdict: dark
     /// moving pine rows are worst-case low-luma motion for 8 Mbps H.264 —

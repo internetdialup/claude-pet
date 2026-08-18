@@ -151,8 +151,15 @@ enum SizzleRenderer {
             shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env
             shot.offset.x = (dir * 10 * env).rounded()
 
-        case .duet, .outro:
-            break   // pair shots stay locked
+        case .duet:
+            // The crossing pan: dwell on pet 1 to catch the pounce, cross
+            // to pet 2, settle wide. ~4.8pt/frame, inside the bounds.
+            let toTwo = Ease.smoothstep(min(1, max(0, (t - 1.6) / 0.8)))
+            let widen = Ease.smoothstep(min(1, max(0, (t - 2.8) / 0.8)))
+            shot.offset.x = ((38 - 76 * toTwo) * (1 - widen)).rounded()
+
+        case .outro:
+            break   // the goodnight stays locked
         }
         return shot
     }
