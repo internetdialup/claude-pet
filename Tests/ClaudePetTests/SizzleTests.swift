@@ -320,3 +320,48 @@ struct SizzlePlateTests {
                 "lexicographic order must equal frame order")
     }
 }
+
+/// The party's confetti: in-grid, eased at both ends, deterministic.
+@Suite("Party confetti")
+@MainActor
+struct PartyConfettiTests {
+
+    private func render(elapsed: Double?) -> PixelBuffer {
+        var pose = CrabAnimator.pose(mood: .done, t: 1.0)
+        pose.confettiElapsed = elapsed
+        return CrabRig.render(pose)
+    }
+
+    @Test("Confetti shows mid-party, in-grid, and never at the edges")
+    func showerShape() {
+        let bare = render(elapsed: nil)
+        let mid = render(elapsed: 2.0)
+        var changed = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where mid[x, y] != bare[x, y] {
+                changed += 1
+            }
+        }
+        #expect(changed > 0, "mid-party must shower")
+
+        // The trapezoid's edges: nearly nothing at the very start and end.
+        for edge in [0.05, 3.97] {
+            let frame = render(elapsed: edge)
+            var edgeChanged = 0
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where frame[x, y] != bare[x, y] {
+                    edgeChanged += 1
+                }
+            }
+            #expect(edgeChanged <= 2, "the shower must ease at elapsed \(edge)")
+        }
+    }
+
+    @Test("The pose function only sets confetti during the live party")
+    func frozenStaysDry() {
+        for mood in PetMood.allCases {
+            #expect(CrabAnimator.pose(mood: mood, t: 0).confettiElapsed == nil)
+            #expect(CrabAnimator.pose(mood: mood, t: 5).confettiElapsed == nil)
+        }
+    }
+}

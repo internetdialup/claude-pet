@@ -108,7 +108,7 @@ enum ReelRenderer {
         let mood = party ? (CrabView.rainbowMood(elapsed: t) ?? cue.beat.mood) : cue.beat.mood
 
         var pose = CrabAnimator.pose(mood: mood, t: t)
-        let _ = { if party { pose.mouth = .open } }()
+        let _ = { if party { pose.mouth = .open; pose.confettiElapsed = t } }()
 
         // The sprite frame carries about ten empty grid rows above the body —
         // headroom the props grow into. Left alone, the bubble floats a long way
@@ -299,7 +299,7 @@ enum ReelRenderer {
         let mood = party ? (CrabView.rainbowMood(elapsed: t) ?? cue.beat.mood) : cue.beat.mood
 
         var pose = CrabAnimator.pose(mood: mood, t: t)
-        let _ = { if party { pose.mouth = .open } }()
+        let _ = { if party { pose.mouth = .open; pose.confettiElapsed = t } }()
 
         ZStack {
             Backdrop()

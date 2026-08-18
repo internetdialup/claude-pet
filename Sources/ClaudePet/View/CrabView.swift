@@ -847,6 +847,7 @@ public struct CrabView: View {
            let partyMood = CrabView.rainbowMood(elapsed: time - rainbowSince) {
             var pose = CrabAnimator.pose(mood: partyMood, t: time - rainbowSince)
             pose.mouth = .open
+            pose.confettiElapsed = time - rainbowSince
             return pose
         }
 
