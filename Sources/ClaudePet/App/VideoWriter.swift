@@ -17,7 +17,16 @@ enum VideoWriter {
     /// than throwing — every caller is a command-line renderer that wants a
     /// clean exit code.
     static func write(_ frames: [CGImage], to url: URL, fps: Int32) -> Bool {
-        guard let first = frames.first else { return false }
+        write(to: url, fps: fps, frameCount: frames.count) { frames[$0] }
+    }
+
+    /// The streaming spelling: frames are produced one at a time inside the
+    /// append loop, so a long cut holds ONE frame in flight instead of the
+    /// whole reel — at 1350 frames of 1920×1080 BGRA the accumulated array
+    /// would be measured in gigabytes. `frame` returning nil aborts.
+    static func write(to url: URL, fps: Int32, frameCount: Int,
+                      frame: (Int) -> CGImage?) -> Bool {
+        guard frameCount > 0, let first = frame(0) else { return false }
         let width = first.width, height = first.height
 
         // H.264 requires even dimensions. Every size here is a multiple of 2 by
@@ -64,14 +73,18 @@ enum VideoWriter {
         }
         writer.startSession(atSourceTime: .zero)
 
-        for (index, frame) in frames.enumerated() {
+        for index in 0..<frameCount {
+            // Frame 0 was produced once for the dimension probe; re-request
+            // is cheap against the alternative of holding it across the
+            // writer setup.
+            guard let image = frame(index) else { return false }
             // The input has a bounded queue; spin until it drains rather than
             // dropping frames, since this is offline and has no deadline.
             while !input.isReadyForMoreMediaData {
                 Thread.sleep(forTimeInterval: 0.005)
             }
             guard let pool = adaptor.pixelBufferPool,
-                  let buffer = pixelBuffer(from: frame, pool: pool, width: width, height: height)
+                  let buffer = pixelBuffer(from: image, pool: pool, width: width, height: height)
             else { return false }
             adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(index), timescale: fps))
         }
