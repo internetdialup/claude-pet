@@ -58,7 +58,11 @@ struct SizzleScriptTests {
             Issue.record("the meme finale must be a window slice")
         }
 
-        // The meme respects the attention span, and carries its spine.
+        // The operator's runtime law: EVERY clip under 25 seconds; the
+        // meme under 20 besides.
+        for cut in SizzleScript.cuts {
+            #expect(cut.seconds < 25.0, "\(cut.name) breaks the 25-second law")
+        }
         #expect(SizzleScript.meme.seconds < 20.0)
         for chapter in [SizzleScript.Chapter.glyphs, .montage, .outro] {
             #expect(SizzleScript.meme.segments.contains { $0.chapter == chapter },
@@ -212,16 +216,16 @@ struct SizzleCameraTests {
             guard let cue = SizzleScript.resolve(cut, at: t) else { continue }
             let shot = SizzleRenderer.shot(for: cue.chapter, t: cue.localT, fmt: fmt)
             if let previous, lastChapter == cue.chapter {
-                // The fastest sanctioned move is the face punch: 96pt over
-                // 0.25s, smoothstepped — mid-slope ≈ 19.2pt/frame at 30fps.
-                // A snap would be 60-100pt; 21 catches it with margin.
-                #expect(abs(shot.side - previous.side) <= 21.0,
+                // Bounds are on the DESIGNED chapter-local move — the face
+                // punch's ~19.2pt/frame mid-slope, the roster slide's
+                // ~5pt/frame — multiplied by the segment's compression,
+                // because `.scaled` speeds the camera with the scene. A snap
+                // would still blow past by 3-5x.
+                let rate = cue.scaleFactor
+                #expect(abs(shot.side - previous.side) <= 21.0 * rate,
                         "side jumped \(abs(shot.side - previous.side)) at frame \(index)")
-                // The fastest sanctioned drift is the roster slide: 90pt
-                // over a 0.9s smoothstep edge ≈ 5pt/frame; the shake swings
-                // at most 3 with rounding. A snap would be 30+.
-                #expect(abs(shot.offset.x - previous.offset.x) <= 6.0, "frame \(index)")
-                #expect(abs(shot.offset.y - previous.offset.y) <= 6.0, "frame \(index)")
+                #expect(abs(shot.offset.x - previous.offset.x) <= 6.0 * rate, "frame \(index)")
+                #expect(abs(shot.offset.y - previous.offset.y) <= 6.0 * rate, "frame \(index)")
                 // A three-frame-flat side is a dwell; dwells sit on stops.
                 if let beforePrevious, beforePrevious.side == previous.side,
                    previous.side == shot.side {

@@ -105,26 +105,36 @@ enum SizzleScript {
 
     // MARK: - The cuts
 
+    /// The operator's runtime law: every clip under 25 seconds. The finale
+    /// keeps its whole ten — the payoff IS the star — and everything else
+    /// compresses around it through `.scaled`, camera included.
     static let landscape = Cut(
         name: "sizzle-16x9.mp4",
         canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
         family: .master,
-        segments: Chapter.allCases.map {
-            Segment(chapter: $0, kind: .scaled, seconds: masterSeconds[$0] ?? 0)
-        })
+        segments: [
+            Segment(chapter: .wake, kind: .scaled, seconds: 1.0),
+            Segment(chapter: .mirror, kind: .scaled, seconds: 3.0),
+            Segment(chapter: .glyphs, kind: .scaled, seconds: 2.8),
+            Segment(chapter: .cook, kind: .window(offset: 2.0), seconds: 2.0),
+            Segment(chapter: .finale, kind: .window(offset: 0), seconds: 10.0),
+            Segment(chapter: .montage, kind: .scaled, seconds: 3.2),
+            Segment(chapter: .duet, kind: .scaled, seconds: 1.2),
+            Segment(chapter: .outro, kind: .scaled, seconds: 1.0),
+        ])
 
     static let vertical = Cut(
         name: "sizzle-9x16.mp4",
         canvas: CGSize(width: 360, height: 640), scale: 3, fps: 30,
         family: .master,
         segments: [
-            Segment(chapter: .wake, kind: .scaled, seconds: 2.0),
-            Segment(chapter: .glyphs, kind: .scaled, seconds: 4.0),
-            Segment(chapter: .cook, kind: .window(offset: 1.5), seconds: 3.5),
+            Segment(chapter: .wake, kind: .scaled, seconds: 1.0),
+            Segment(chapter: .glyphs, kind: .scaled, seconds: 2.8),
+            Segment(chapter: .cook, kind: .window(offset: 1.5), seconds: 2.5),
             Segment(chapter: .finale, kind: .window(offset: 0), seconds: 10.0),
-            Segment(chapter: .montage, kind: .scaled, seconds: 8.0),
-            Segment(chapter: .duet, kind: .scaled, seconds: 2.5),
-            Segment(chapter: .outro, kind: .scaled, seconds: 2.0),
+            Segment(chapter: .montage, kind: .scaled, seconds: 4.0),
+            Segment(chapter: .duet, kind: .scaled, seconds: 1.6),
+            Segment(chapter: .outro, kind: .scaled, seconds: 1.2),
         ])
 
     static let readme = Cut(
