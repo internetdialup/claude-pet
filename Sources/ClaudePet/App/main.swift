@@ -56,6 +56,16 @@ if let index = arguments.firstIndex(of: "--render-sizzle"), index + 1 < argument
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-plates"), index + 1 < arguments.count {
+    // Green-screen plates: lossless PNG sequences (the keying source) plus
+    // H.264 previews (sync eyeballing only). Same doctrine as the other
+    // heavy renders — output goes only where pointed, never docs/media.
+    let ok = MainActor.assumeIsolated {
+        SizzleRenderer.renderPlates(to: arguments[index + 1])
+    }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--probe") {
     // `--probe [seconds]`. The default is long enough to attach the feeds and
     // fold what is already on disk, but shorter than any decay horizon — so

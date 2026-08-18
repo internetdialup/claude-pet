@@ -31,6 +31,9 @@ public enum Palette {
     /// Chrome colours for the bubble and roster (not part of the sprite).
     public static let slate = Color(hex: 0x141413)
     public static let slateSoft = Color(hex: 0x3D3D3A)
+    /// Chroma-key green (0x00B140, the broadcast standard) — the sizzle
+    /// plates' field. Pure 0x00FF00 spills worse on dark pixel edges.
+    public static let broadcastGreen = Color(hex: 0x00B140)
     public static let kraft = Color(hex: 0xF0EEE6)
     public static let alert = Color(hex: 0xE05252)
 

@@ -174,6 +174,34 @@ enum SizzleRenderer {
         return true
     }
 
+    /// The plates: each frame lands twice — a lossless PNG (the ONLY keying
+    /// source; the preview's H.264 is 4:2:0 and smears the green boundary,
+    /// it exists purely to eyeball sync) and the preview stream. One pass,
+    /// one frame in flight.
+    static func renderPlates(to directory: String) -> Bool {
+        let dir = URL(fileURLWithPath: directory)
+        for cut in SizzleScript.plates {
+            let seqDir = dir.appendingPathComponent(cut.name)
+            try? FileManager.default.createDirectory(at: seqDir, withIntermediateDirectories: true)
+            let preview = dir.appendingPathComponent("\(cut.name)-preview.mp4")
+            let ok = VideoWriter.write(to: preview, fps: cut.fps, frameCount: cut.frameCount) { index in
+                guard let image = frameImage(cut: cut, index: index) else { return nil }
+                let rep = NSBitmapImageRep(cgImage: image)
+                guard let png = rep.representation(using: .png, properties: [:]),
+                      SpriteImage.write(png, to: seqDir.appendingPathComponent(
+                          String(format: "frame-%04d.png", index)))
+                else { return nil }
+                return image
+            }
+            guard ok else {
+                FileHandle.standardError.write(Data("plates: \(cut.name) failed\n".utf8))
+                return false
+            }
+            print("wrote \(seqDir.path) (+preview)")
+        }
+        return true
+    }
+
     /// Test seam: one frame of a cut, exactly as the encoders receive it.
     static func testFrame(cut: SizzleScript.Cut, index: Int) -> CGImage? {
         frameImage(cut: cut, index: index)
@@ -189,7 +217,14 @@ enum SizzleRenderer {
         guard let cue = SizzleScript.resolve(cut, at: t) else { return nil }
         let fmt = format(for: cut)
         let scene = ZStack {
-            Backdrop()
+            if fmt.plate {
+                // The keying field: a single-entry ramp rides Backdrop's
+                // whole-point, no-antialiasing path — one coalesced rect per
+                // row, every frame the same bytes.
+                Backdrop(style: .init(ramp: [Palette.broadcastGreen], foam: nil))
+            } else {
+                Backdrop()
+            }
             chapterScene(cue.chapter, t: cue.localT, fmt: fmt)
         }
         .frame(width: cut.canvas.width, height: cut.canvas.height)
@@ -265,7 +300,7 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
-                             furniture: fmt.rich && rosterU > 0.001
+                             furniture: fmt.rich && !fmt.plate && rosterU > 0.001
                                  ? rosterCard(fmt: fmt, presence: rosterU) : nil,
                              bottom: captionText(fmt.captions[.mirror] ?? "",
                                                  fmt: fmt).opacity(caption))
@@ -290,8 +325,8 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
-                             furniture: fmt.rich ? glyphFurniture(beat: beat, beatT: beatT,
-                                                                  fmt: fmt) : nil,
+                             furniture: fmt.rich && !fmt.plate
+                                 ? glyphFurniture(beat: beat, beatT: beatT, fmt: fmt) : nil,
                              bottom: captionText(fmt.captions[.glyphs] ?? "",
                                                  fmt: fmt).opacity(caption))
     }
@@ -323,14 +358,14 @@ enum SizzleRenderer {
                                  var pose = CrabAnimator.pose(mood: .done, t: t)
                                  CrabAnimator.applyCelebration(t: t, epic: true, to: &pose)
                                  pose.doneBadge = Ease.smoothstep(max(0, min(1, (t - 8.2) / 0.5)))
-                                 let glow = Canvas { context, size in
+                                 let glow = fmt.plate ? nil : AnyView(Canvas { context, size in
                                      CelebrationGlow.draw(in: &context, size: size, t: t,
                                                           bloom: !fmt.gifSafe)
                                  }
-                                 .frame(width: side, height: side)
+                                 .frame(width: side, height: side))
                                  return sizzlePet(pose: pose,
                                                   tint: CrabView.epicTint(doneT: t),
-                                                  behind: AnyView(glow),
+                                                  behind: glow,
                                                   side: side, fmt: fmt)
                              },
                              bottom: captionText(fmt.captions[.finale] ?? "",
@@ -546,16 +581,22 @@ enum SizzleRenderer {
                             seamBleed: 0)
                 .frame(width: spriteSide, height: spriteSide)
                 // The floor's opinion, same numbers as the live window.
+                // Suppressed on plates: translucent black over green keys
+                // as a hole.
                 .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Color.black.opacity(0.15))
-                        .frame(width: 20 * px, height: 1.5 * px)
-                        .offset(y: 25 * px)
+                    if !fmt.plate {
+                        Rectangle()
+                            .fill(Color.black.opacity(0.15))
+                            .frame(width: 20 * px, height: 1.5 * px)
+                            .offset(y: 25 * px)
+                    }
                 }
         }
         if let bubble {
+            // Plates keep the bubble IN LAYOUT at opacity zero — omission
+            // would shift the sprite against its titled twin.
             return AnyView(VStack(spacing: -crown) {
-                bubble.opacity(bubbleOpacity).zIndex(1)
+                bubble.opacity(fmt.plate ? 0 : bubbleOpacity).zIndex(1)
                 sprite
             })
         }
@@ -599,7 +640,7 @@ enum SizzleRenderer {
                                       bottom: (some View)? = Optional<AnyView>.none) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: fmt.vertical ? 40 : 8)
-            if let top { top.zIndex(1) }
+            if let top, !fmt.plate { top.zIndex(1) }
             Spacer(minLength: 4)
             petBuilder(fmt.spriteSide, 1)
                 .hidden()
@@ -611,8 +652,9 @@ enum SizzleRenderer {
                 // the shot transform, so punches never scale their text.
                 .overlay { if let furniture { furniture } }
             Spacer(minLength: 4)
-            if let bottom { bottom.padding(.bottom, fmt.vertical ? 44 : 12).zIndex(1) }
-            else { Spacer(minLength: fmt.vertical ? 44 : 12) }
+            if let bottom, !fmt.plate {
+                bottom.padding(.bottom, fmt.vertical ? 44 : 12).zIndex(1)
+            } else { Spacer(minLength: fmt.vertical ? 44 : 12) }
         }
     }
 }
