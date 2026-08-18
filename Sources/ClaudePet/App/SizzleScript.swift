@@ -189,28 +189,28 @@ enum SizzleScript {
             + landscape.segments)
 
     /// The showcase cuts: the masters' choreography with the type stripped —
-    /// "i dont need the text just show off the pet" — on living scenery.
-    /// Bubbles and glyphs stay: they are the product, not the marketing.
-    static let showcaseForest = Cut(
-        name: "showcase-forest.mp4",
-        canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
-        family: .showcase, scenery: .forest,
-        segments: landscape.segments)
-
+    /// "i dont need the text just show off the pet" — on the dusk gradient
+    /// (the operator's pick). Bubbles and glyphs stay: they are the product,
+    /// not the marketing.
     static let showcaseGradient = Cut(
         name: "showcase-gradient.mp4",
         canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
         family: .showcase, scenery: .gradient,
         segments: landscape.segments)
 
-    static let showcaseForestTall = Cut(
-        name: "showcase-forest-9x16.mp4",
+    static let showcaseGradientTall = Cut(
+        name: "showcase-gradient-9x16.mp4",
         canvas: CGSize(width: 360, height: 640), scale: 3, fps: 30,
-        family: .showcase, scenery: .forest,
+        family: .showcase, scenery: .gradient,
         segments: vertical.segments)
 
+    /// The forest cuts left the render set on the operator's verdict: dark
+    /// moving pine rows are worst-case low-luma motion for 8 Mbps H.264 —
+    /// the "lighting glitch" was macroblocking, amplified by the finale
+    /// glow over dark bands. ForestBackdrop stays in code; the fix path if
+    /// it returns is a bitrate bump in VideoWriter.
     static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme, hook,
-                              showcaseForest, showcaseGradient, showcaseForestTall]
+                              showcaseGradient, showcaseGradientTall]
 
     /// The green-screen plates: the master cuts' segments VERBATIM — the
     /// camera is pure in (chapter, localT, format), so every plate frame's
