@@ -31,6 +31,13 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   back, and a rainbow sweeping the shell — all inside the same ten-second
   bow, easing back to a plain done before it fades. Short cooks keep the
   ordinary celebration.
+- **🔖 Service glyphs.** He name-checks the service he's talking to: an
+  8-bit npm cube while npm/yarn/pnpm/bun run, a GitHub mark while a push
+  or PR is in flight, a Linear diamond during Linear tool calls, a deploy
+  rocket for vercel/docker/fly — floating beside him AND badging his
+  thought bubble, easing in with the work and lingering a few seconds
+  past it. Original pixel marks, evocative not copied; recognition rides
+  the real shell command, not the polite description.
 - **📊 The cooking card.** With notifications on, a cook starting posts a
   macOS banner, and each quarter of the todo list crossed updates it in
   place — `▓▓▓▓░░░░ 50%` — silently, no re-chime. The done chime retires
