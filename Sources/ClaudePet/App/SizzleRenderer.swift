@@ -611,6 +611,7 @@ enum SizzleRenderer {
 
     private static func titleCard(_ title: String, sub: String, fmt: Format) -> AnyView {
         AnyView(VStack(spacing: fmt.tag * 0.8) {
+            StarSting(cell: (fmt.tag * 0.45).rounded())
             Text(title)
                 .font(.system(size: fmt.wordmark, weight: .heavy, design: .monospaced))
                 .tracking(4)
@@ -620,6 +621,33 @@ enum SizzleRenderer {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Palette.kraft.opacity(0.7))
         })
+    }
+
+    /// The brand sting: the Claude star from the shared StarMark table, a
+    /// whole-point cell size, popped with whatever ease the card rides.
+    private struct StarSting: View {
+        let cell: CGFloat
+
+        var body: some View {
+            let rows = StarMark.art.rows
+            let palette: [Character: Color] = [
+                "C": Palette.flameCore, "f": Palette.flame, "y": Palette.yellow,
+            ]
+            Canvas { context, _ in
+                for (rowIndex, row) in rows.enumerated() {
+                    for (colIndex, char) in row.enumerated() where char != "." {
+                        guard let color = palette[char] else { continue }
+                        context.fill(
+                            Path(CGRect(x: CGFloat(colIndex) * cell,
+                                        y: CGFloat(rowIndex) * cell,
+                                        width: cell, height: cell)),
+                            with: .color(color))
+                    }
+                }
+            }
+            .frame(width: CGFloat(rows.map(\.count).max() ?? 0) * cell,
+                   height: CGFloat(rows.count) * cell)
+        }
     }
 
     private static func captionText(_ text: String, fmt: Format,
