@@ -42,26 +42,35 @@ enum SizzleRenderer {
         /// The cut's language and its volume — the meme family shouts.
         let captions: [SizzleScript.Chapter: String]
         let captionScale: CGFloat
+        /// Title cards, captions, tags. Off for plates (they fringe keys)
+        /// and showcase cuts (the operator's ruling: just show the pet).
+        let type: Bool
+        /// Cards and the roster. Off wherever type is off — they are text.
+        let furniture: Bool
     }
 
     static func format(for cut: SizzleScript.Cut) -> Format {
         let vertical = cut.canvas.width < cut.canvas.height
         switch cut.family {
-        case .master, .meme, .plate:
+        case .master, .meme, .plate, .showcase:
             let base: (side: CGFloat, punch: CGFloat, word: CGFloat, cap: CGFloat, tag: CGFloat) =
                 vertical ? (264, 288, 26, 15, 13) : (224, 256, 30, 16, 12)
+            let quiet = cut.family == .plate || cut.family == .showcase
             return Format(spriteSide: base.side, punchSide: base.punch, faceSide: 320,
                           duoSide: 160, wordmark: base.word, caption: base.cap, tag: base.tag,
                           vertical: vertical, gifSafe: false, rich: true,
                           plate: cut.family == .plate,
                           captions: cut.family == .meme ? SizzleScript.memeCaptions
-                              : cut.family == .plate ? [:] : SizzleScript.captions,
-                          captionScale: cut.family == .meme ? 1.6 : 1)
+                              : quiet ? [:] : SizzleScript.captions,
+                          captionScale: cut.family == .meme ? 1.6 : 1,
+                          type: !quiet,
+                          furniture: !quiet)
         case .readme:
             return Format(spriteSide: 128, punchSide: 128, faceSide: 128,
                           duoSide: 96, wordmark: 14, caption: 9, tag: 8,
                           vertical: false, gifSafe: cut.fps == 10, rich: false,
-                          plate: false, captions: SizzleScript.captions, captionScale: 1)
+                          plate: false, captions: SizzleScript.captions, captionScale: 1,
+                          type: true, furniture: false)
         }
     }
 
@@ -407,7 +416,7 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
-                             furniture: fmt.rich && !fmt.plate && rosterU > 0.001
+                             furniture: fmt.furniture && rosterU > 0.001
                                  ? rosterCard(fmt: fmt, presence: rosterU) : nil,
                              bottom: captionText(fmt.captions[.mirror] ?? "",
                                                  fmt: fmt).opacity(caption))
@@ -432,7 +441,7 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
-                             furniture: fmt.rich && !fmt.plate
+                             furniture: fmt.furniture
                                  ? glyphFurniture(beat: beat, beatT: beatT, fmt: fmt) : nil,
                              bottom: captionText(fmt.captions[.glyphs] ?? "",
                                                  fmt: fmt).opacity(caption))
@@ -799,7 +808,7 @@ enum SizzleRenderer {
                                       bottom: (some View)? = Optional<AnyView>.none) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: fmt.vertical ? 40 : 8)
-            if let top, !fmt.plate { top.zIndex(1) }
+            if let top, fmt.type { top.zIndex(1) }
             Spacer(minLength: 4)
             petBuilder(fmt.spriteSide, 1)
                 .hidden()
@@ -811,7 +820,7 @@ enum SizzleRenderer {
                 // the shot transform, so punches never scale their text.
                 .overlay { if let furniture { furniture } }
             Spacer(minLength: 4)
-            if let bottom, !fmt.plate {
+            if let bottom, fmt.type {
                 bottom.padding(.bottom, fmt.vertical ? 44 : 12).zIndex(1)
             } else { Spacer(minLength: fmt.vertical ? 44 : 12) }
         }

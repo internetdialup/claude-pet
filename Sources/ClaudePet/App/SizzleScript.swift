@@ -38,7 +38,7 @@ enum SizzleScript {
     /// What kind of output a cut is — the renderer's Format dispatches on
     /// this, never on canvas/fps heuristics (the meme cut is heuristically
     /// identical to the landscape master).
-    enum Family { case master, readme, meme, plate }
+    enum Family { case master, readme, meme, plate, showcase }
 
     /// What stands behind him. Ocean is the committed-asset classic;
     /// gradient and forest are showcase scenery — MP4-only by usage, so the
@@ -188,7 +188,29 @@ enum SizzleScript {
         segments: [Segment(chapter: .finale, kind: .window(offset: 1.0), seconds: 0.6)]
             + landscape.segments)
 
-    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme, hook]
+    /// The showcase cuts: the masters' choreography with the type stripped —
+    /// "i dont need the text just show off the pet" — on living scenery.
+    /// Bubbles and glyphs stay: they are the product, not the marketing.
+    static let showcaseForest = Cut(
+        name: "showcase-forest.mp4",
+        canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
+        family: .showcase, scenery: .forest,
+        segments: landscape.segments)
+
+    static let showcaseGradient = Cut(
+        name: "showcase-gradient.mp4",
+        canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
+        family: .showcase, scenery: .gradient,
+        segments: landscape.segments)
+
+    static let showcaseForestTall = Cut(
+        name: "showcase-forest-9x16.mp4",
+        canvas: CGSize(width: 360, height: 640), scale: 3, fps: 30,
+        family: .showcase, scenery: .forest,
+        segments: vertical.segments)
+
+    static let cuts: [Cut] = [landscape, vertical, readme, readmeVideo, meme, hook,
+                              showcaseForest, showcaseGradient, showcaseForestTall]
 
     /// The green-screen plates: the master cuts' segments VERBATIM — the
     /// camera is pure in (chapter, localT, format), so every plate frame's
