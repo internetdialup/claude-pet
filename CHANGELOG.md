@@ -5,6 +5,44 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-08-18
+
+### Added
+
+- **🔊 An 8-bit soundboard.** He speaks now: a cute rising squeal when
+  you poke him (three pokes climb into the party), a squeak-squeak on
+  the bug catch, a low purr when petting begins, a sparkle run on
+  costume changes, a fwoosh when a cook ignites, and a proper chiptune
+  fanfare when an epic lands — the done bell stands down for it. The
+  attention chirp and done chime got 8-bit voices too, and an optional
+  per-service blip (C-E-G-B for npm, GitHub, Linear, deploys) lives
+  behind "Service sound blips" in the menu. Every sound is synthesised
+  in memory — still zero binary assets — and everything hushes during
+  films, now enforced in one place.
+- **⭐ A star for the thinking spell.** During long thinking stretches the
+  sparkles now trade shifts with an 8-bit Claude star — a nine-cell
+  sunburst in flame and gold, the same mark the reel's sting wears.
+- **🌈 The rainbow, hammered home.** The triple-poke party throws real
+  confetti now — six flecks tumbling through the trapezoid — the rainbow
+  drags a chromatic afterimage behind him as he moves, and the epic bow
+  fires a flat eight-ray sweep behind the glow. Mix and match, all three.
+- **🎈 A balloon worth waiting for.** On a long idle, once in a while, he
+  floats a balloon for a few seconds. Rare on purpose — never in the
+  first stretch, so a fresh launch stays calm.
+
+### Changed
+
+- **🐯 The tiger goes orange.** Jungle Tiger trades green for actual tiger:
+  orange coat, dark stripes, a cream belly patch, a darker mouth.
+- **💥📟 Bang and phone, redrawn.** The alert bang wears an ember outline
+  with a paper highlight and hops phase; the phone lights its screen and
+  shows the alert dot, so the prop reads at a glance.
+- **🗝️ The preview goes secret.** "Preview animation" left the menu bar —
+  it was an art-review tool wearing a public hat. Shift+click the pet,
+  then press K within three seconds: the animation-testing menu opens at
+  the pet, Live hands control back to the live feed. Any other key, or
+  just waiting, closes the gate quietly.
+
 ## [1.4.0] — 2026-08-12
 
 ### Added
@@ -31,16 +69,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   back, and a rainbow sweeping the shell — all inside the same ten-second
   bow, easing back to a plain done before it fades. Short cooks keep the
   ordinary celebration.
-- **🔊 An 8-bit soundboard.** He speaks now: a cute rising squeal when
-  you poke him (three pokes climb into the party), a squeak-squeak on
-  the bug catch, a low purr when petting begins, a sparkle run on
-  costume changes, a fwoosh when a cook ignites, and a proper chiptune
-  fanfare when an epic lands — the done bell stands down for it. The
-  attention chirp and done chime got 8-bit voices too, and an optional
-  per-service blip (C-E-G-B for npm, GitHub, Linear, deploys) lives
-  behind "Service sound blips" in the menu. Every sound is synthesised
-  in memory — still zero binary assets — and everything hushes during
-  films, now enforced in one place.
 - **🔖 Service glyphs.** He name-checks the service he's talking to: an
   8-bit npm cube while npm/yarn/pnpm/bun run, a GitHub mark while a push
   or PR is in flight, a Linear diamond during Linear tool calls, a deploy
