@@ -11,7 +11,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private let onToggleVisibility: () -> Void
     private let onPin: (String?) -> Void
-    private let onPreviewMood: (PetMood?) -> Void
     private let onSetPixelSize: (Double) -> Void
     private let onSetCostume: (Costume) -> Void
     private let onToggleStepAside: () -> Void
@@ -23,7 +22,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     init(onToggleVisibility: @escaping () -> Void,
          onPin: @escaping (String?) -> Void,
-         onPreviewMood: @escaping (PetMood?) -> Void,
          onSetPixelSize: @escaping (Double) -> Void,
          onSetCostume: @escaping (Costume) -> Void,
          onToggleStepAside: @escaping () -> Void,
@@ -34,7 +32,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
          onQuit: @escaping () -> Void) {
         self.onToggleVisibility = onToggleVisibility
         self.onPin = onPin
-        self.onPreviewMood = onPreviewMood
         self.onSetPixelSize = onSetPixelSize
         self.onSetCostume = onSetCostume
         self.onToggleStepAside = onToggleStepAside
@@ -232,21 +229,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         hooks.toolTip = "Adds a hooks entry to ~/.claude/settings.json for instant reactions. Shows the change and backs up first."
         menu.addItem(hooks)
-
-        // Art review: freeze the crab in each mood.
-        //
-        // This branch keeps the submenu on in every configuration, including
-        // release builds, so the sprite can be driven by hand while working on
-        // it. On `main` the same block is wrapped in `#if DEBUG`.
-        let preview = NSMenuItem(title: "Preview animation", action: nil, keyEquivalent: "")
-        let previewMenu = NSMenu()
-        previewMenu.addItem(action("Live") { [weak self] in self?.onPreviewMood(nil) })
-        previewMenu.addItem(.separator())
-        for mood in PetMood.allCases {
-            previewMenu.addItem(action(mood.rawValue) { [weak self] in self?.onPreviewMood(mood) })
-        }
-        preview.submenu = previewMenu
-        menu.addItem(preview)
 
         menu.addItem(.separator())
         menu.addItem(action("Quit Claude Pet") { [weak self] in self?.onQuit() })

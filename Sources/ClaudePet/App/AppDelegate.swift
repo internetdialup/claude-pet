@@ -94,7 +94,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         menuBar = MenuBarController(
             onToggleVisibility: { [weak self] in self?.primary.toggleVisibility() },
             onPin: { [weak self] id in self?.coordinator.pin(sessionID: id) },
-            onPreviewMood: { [weak self] mood in self?.previewMood(mood) },
             onSetPixelSize: { [weak self] size in
                 Preferences.shared.pixelSize = size
                 self?.pets.forEach { $0.rebuildWindow() }
