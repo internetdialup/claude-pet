@@ -22,9 +22,17 @@ final class PetInstance {
 
     /// Opens the global roster anchored to this pet's window.
     var onRosterRequested: (() -> Void)?
+    /// Opens the secret animation-testing menu anchored to this pet's window.
+    /// Summoned by Shift+click, then K — see `SecretMenuGate`.
+    var onSecretMenuRequested: (() -> Void)?
     /// The other pet's window frame, for snap de-stacking. Wired by the app,
     /// which is the only thing that knows about siblings.
     var siblingFrame: (() -> CGRect?)?
+
+    /// The Shift+click-then-K state, plus the timer that hands borrowed key
+    /// focus back when the operator arms the gate and then wanders off.
+    private var secretGate = SecretMenuGate()
+    private var secretDisarmTimer: Timer?
 
     // MARK: - Visibility policy
     //
@@ -51,6 +59,8 @@ final class PetInstance {
     /// leave nothing ticking. The screen-parameters observer token is stored
     /// precisely so this can remove it.
     func teardown() {
+        secretDisarmTimer?.invalidate()
+        secretDisarmTimer = nil
         filmWatch?.stop()
         filmWatch = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -113,6 +123,15 @@ final class PetInstance {
     private func wire(_ controller: PetWindowController) {
         controller.onClick = { [weak self] clicks, location in
             guard let self else { return }
+            // 🗝️ Shift+click is the arming half of the secret handshake, not
+            // a poke: the window borrows key focus (the roster's dance) and
+            // listens for a lone K. Modifier state is polled because it is
+            // the one keyboard fact a focusless window can always read.
+            if NSEvent.modifierFlags.contains(.shift) {
+                self.armSecretMenu()
+                return
+            }
+
             // 🎉🪄 Poke him three times and he throws a party.
             if clicks >= 3 {
                 self.model.rainbowStartedAt = Date()
@@ -207,6 +226,45 @@ final class PetInstance {
             self?.filmWatch?.reconsider()
             self?.stepAsideIfWanted()
         }
+        controller.onKey = { [weak self] event in
+            guard let self else { return false }
+            switch self.secretGate.press(event.charactersIgnoringModifiers, at: Date()) {
+            case .summon:
+                // Hand the key back BEFORE the menu tracks: the menu runs its
+                // own event loop and needs nothing from this window.
+                self.disarmSecretMenu()
+                self.onSecretMenuRequested?()
+                return true
+            case .disarm:
+                // A wrong key closes the gate quietly — consumed, no beep.
+                self.disarmSecretMenu()
+                return true
+            case .ignore:
+                return false
+            }
+        }
+    }
+
+    // MARK: - The secret door
+
+    /// Shift+click armed the gate: borrow key focus the way the roster does
+    /// and listen for K. The timer is the wander-off path — an armed gate
+    /// with no keypress must still hand the borrowed focus back.
+    private func armSecretMenu() {
+        secretGate.arm(at: Date())
+        controller?.borrowKey()
+        secretDisarmTimer?.invalidate()
+        secretDisarmTimer = Timer.scheduledTimer(withTimeInterval: SecretMenuGate.armWindow,
+                                                 repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.disarmSecretMenu() }
+        }
+    }
+
+    private func disarmSecretMenu() {
+        secretDisarmTimer?.invalidate()
+        secretDisarmTimer = nil
+        secretGate.disarm()
+        controller?.returnKey()
     }
 
     // MARK: - State intake

@@ -26,6 +26,67 @@ struct PressGestureTests {
     }
 }
 
+/// The Shift+click-then-K gate for the secret animation-testing menu. Pure
+/// over dates and characters, same as the press classifier above, so the
+/// arming window and the one-shot rule are pinned without key events.
+@Suite("Secret menu gate")
+struct SecretMenuGateTests {
+
+    private let t0 = Date(timeIntervalSinceReferenceDate: 1_000)
+
+    @Test func armedKSummonsExactlyOnce() {
+        var gate = SecretMenuGate()
+        #expect(!gate.isArmed)
+        gate.arm(at: t0)
+        #expect(gate.isArmed)
+        #expect(gate.press("k", at: t0.addingTimeInterval(1)) == .summon)
+        #expect(!gate.isArmed, "the summon spends the arming — one menu per handshake")
+        #expect(gate.press("k", at: t0.addingTimeInterval(1.1)) == .ignore)
+    }
+
+    @Test func shiftStillHeldCapitalKSummons() {
+        var gate = SecretMenuGate()
+        gate.arm(at: t0)
+        #expect(gate.press("K", at: t0.addingTimeInterval(0.5)) == .summon,
+                "the arming Shift is usually still down when K lands")
+    }
+
+    @Test func wrongKeyClosesTheGateQuietly() {
+        var gate = SecretMenuGate()
+        gate.arm(at: t0)
+        #expect(gate.press("j", at: t0.addingTimeInterval(0.5)) == .disarm,
+                "consumed — a wrong key must not beep or fall through")
+        #expect(gate.press("k", at: t0.addingTimeInterval(0.6)) == .ignore,
+                "and the gate is closed behind it")
+    }
+
+    @Test func aLapsedWindowDisarms() {
+        var gate = SecretMenuGate()
+        gate.arm(at: t0)
+        #expect(gate.press("k", at: t0.addingTimeInterval(SecretMenuGate.armWindow)) == .disarm)
+    }
+
+    @Test func reArmingResetsTheWindow() {
+        var gate = SecretMenuGate()
+        gate.arm(at: t0)
+        gate.arm(at: t0.addingTimeInterval(2.5))
+        #expect(gate.press("k", at: t0.addingTimeInterval(3.5)) == .summon,
+                "a second Shift+click means still trying, not a fault")
+    }
+
+    @Test func unarmedNeverConsumes() {
+        var gate = SecretMenuGate()
+        #expect(gate.press("k", at: t0) == .ignore)
+        #expect(gate.press(nil, at: t0) == .ignore)
+    }
+
+    @Test func aDeadKeyIsAWrongKey() {
+        var gate = SecretMenuGate()
+        gate.arm(at: t0)
+        #expect(gate.press(nil, at: t0.addingTimeInterval(0.5)) == .disarm)
+    }
+}
+
 /// The quiet-hour schedules: deterministic, dice-gated, silent at t=0, and
 /// invisible to offline renderers.
 @Suite("Easter egg schedules")

@@ -11,9 +11,10 @@ final class PetWindow: NSWindow {
     ///
     /// Off by default. A desktop pet that steals focus when you poke it pulls
     /// the caret out of whatever you were typing in, which is precisely the
-    /// wrong behaviour for something that sits on top all day. It is flipped on
-    /// only while the roster popover is open, because a popover needs a key
-    /// window before its rows can be clicked.
+    /// wrong behaviour for something that sits on top all day. It is flipped
+    /// on only while the roster popover is open (a popover needs a key window
+    /// before its rows can be clicked) and during the secret-menu arming
+    /// window, when the pet is deliberately listening for one keypress.
     var acceptsKey = false
 
     override var canBecomeKey: Bool { acceptsKey }
@@ -57,6 +58,9 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// Fired after a drag settles — the film watch re-reads a window that may
     /// have landed on another display, and a deferred step-aside gets its turn.
     var onDragEnded: (() -> Void)?
+    /// A key press while the window holds borrowed key focus. Return true to
+    /// consume the event; false hands it back to AppKit's unhandled-key path.
+    var onKey: ((NSEvent) -> Bool)?
 
     /// The sprite square — the whole mouse territory, and the scope of hover
     /// tracking and pet eligibility, because every interaction means "the
@@ -212,6 +216,23 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     }
 
     var isVisible: Bool { window.isVisible }
+
+    // MARK: - Borrowed key focus
+
+    /// The roster's focus dance, lent out: a desktop pet never holds key
+    /// focus at rest, so listening for a keypress means borrowing it
+    /// deliberately — and every exit path must pair this with `returnKey()`.
+    func borrowKey() {
+        window.acceptsKey = true
+        window.makeKey()
+        window.makeFirstResponder(window.contentView)
+    }
+
+    /// Revokes the capability; the window stops being able to become key
+    /// again, exactly the way the roster's close path does it.
+    func returnKey() {
+        window.acceptsKey = false
+    }
 
     // MARK: - Dragging
 
@@ -403,6 +424,38 @@ enum PressGesture {
     }
 }
 
+/// The secret-menu gate: Shift+click arms a short window in which a lone K
+/// summons the animation-testing menu. Pure over dates and characters, same
+/// as `PressGesture` above, so the arming window and every verdict are
+/// testable without synthesising key events.
+struct SecretMenuGate {
+    /// How long an arming click keeps listening before the borrowed key
+    /// focus should be handed back.
+    static let armWindow: TimeInterval = 3.0
+
+    private(set) var armedAt: Date?
+    var isArmed: Bool { armedAt != nil }
+
+    /// Re-arming while armed resets the window — a second Shift+click means
+    /// "I'm still trying", not a fault.
+    mutating func arm(at date: Date) { armedAt = date }
+    mutating func disarm() { armedAt = nil }
+
+    /// What a key press means. `.summon` opens the menu; `.disarm` is any
+    /// other key or a press after the window lapsed — both consume the key,
+    /// and either way the gate closes (one-shot: a second menu needs a
+    /// second Shift+click). An unarmed gate never consumes anything.
+    enum Verdict { case summon, disarm, ignore }
+
+    mutating func press(_ characters: String?, at date: Date) -> Verdict {
+        guard let armed = armedAt else { return .ignore }
+        armedAt = nil
+        guard date.timeIntervalSince(armed) < Self.armWindow,
+              characters?.lowercased() == "k" else { return .disarm }
+        return .summon
+    }
+}
+
 /// Hosts the SwiftUI view and turns raw mouse events into drags.
 ///
 /// SwiftUI's own `DragGesture` cannot move an `NSWindow` without fighting the
@@ -451,6 +504,16 @@ private final class DragHostView: NSView {
     /// this the first press while another app is frontmost is treated as an
     /// activation click and swallowed — you had to click him twice to drag.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// Always willing on paper, moot in practice: key events only reach the
+    /// view while the controller has borrowed key focus, and the window
+    /// cannot become key at all outside that window.
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        let consumed = MainActor.assumeIsolated { controller?.onKey?(event) ?? false }
+        if !consumed { super.keyDown(with: event) }
+    }
 
     /// Tracking is scoped to the sprite square, same as the mouse territory,
     /// so hovering the transparent margin or the bubble does not make him

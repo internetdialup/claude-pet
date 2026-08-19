@@ -62,6 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard let self, let pet else { return }
             self.toggleRoster(anchoredTo: pet)
         }
+        pet.onSecretMenuRequested = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.showSecretMenu(anchoredTo: pet)
+        }
         pets = [pet]
         pet.rebuildWindow()
 
@@ -159,6 +163,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard let self, let pet else { return }
             self.toggleRoster(anchoredTo: pet)
         }
+        pet.onSecretMenuRequested = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.showSecretMenu(anchoredTo: pet)
+        }
         pets.append(pet)
         // Each pet dodges the other's spot when a drag-release snap would
         // stack them; only the app knows about siblings.
@@ -217,6 +225,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 }
             }
         }
+    }
+
+    /// The secret animation-testing menu, summoned by Shift+click-then-K on
+    /// either pet. Same contract as the submenu that used to live in the
+    /// menu bar: Live hands control back to the coordinator; a mood freezes
+    /// pet 1 in it for art review (pet 1 only, by rule — the check marks
+    /// read from `debugMood` so the menu always shows where control sits).
+    private func showSecretMenu(anchoredTo pet: PetInstance) {
+        guard let contentView = pet.controller?.window.contentView else { return }
+
+        let menu = NSMenu()
+        let live = NSMenuItem(title: "Live", action: #selector(secretMenuPick(_:)),
+                              keyEquivalent: "")
+        live.target = self
+        live.state = debugMood == nil ? .on : .off
+        menu.addItem(live)
+        menu.addItem(.separator())
+        for mood in PetMood.allCases {
+            let item = NSMenuItem(title: mood.rawValue, action: #selector(secretMenuPick(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = mood
+            item.state = debugMood == mood ? .on : .off
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: nil,
+                   at: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.maxY),
+                   in: contentView)
+    }
+
+    @objc private func secretMenuPick(_ sender: NSMenuItem) {
+        previewMood(sender.representedObject as? PetMood)
     }
 
     /// Freezes pet 1 in one mood so the art can be reviewed live. Selecting
