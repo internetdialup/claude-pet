@@ -670,17 +670,36 @@ public struct CrabView: View {
         self.costumeClock = costumeClock
     }
 
+    // `nonisolated` on the two party constants and on `rainbowMood`,
+    // `discoTint`, `nearDoneTint` and `rainbowTint` below.
+    //
+    // None of them touch view state. They are pure functions of a clock reading
+    // and their arguments, and they were always written that way — the isolation
+    // was never asked for. `CrabView` conforms to `View`, `View` is `@MainActor`,
+    // and Swift 6.1 pushes that inference onto the type's static members too.
+    // Swift 6.3 does not, so this compiled clean on the machine it was written on
+    // and handed the CI runner — two minor versions back — twenty-one errors in
+    // test code that never wanted a main actor, most of them inside `#expect`
+    // expansions, which are synchronous and nonisolated.
+    //
+    // Saying `nonisolated` at the declaration is the honest fix rather than the
+    // small one: a colour is not main-actor state, and the alternative was
+    // pinning twenty-one assertions to the main actor to work around one wrong
+    // inference. `epicTint` and `celebrationTint` are every bit as pure, but
+    // their callers already sit on the main actor, so nothing put the question
+    // to them; this changes only what the runner rejected.
+
     /// How long the party lasts.
-    public static let rainbowDuration = 4.0
+    nonisolated public static let rainbowDuration = 4.0
 
     /// How long each pose holds during the party.
-    static let rainbowPoseInterval = 0.8
+    nonisolated static let rainbowPoseInterval = 0.8
 
     /// The pose to strike at a moment in the party, or nil when not partying.
     ///
     /// Cycling the colour alone reads as a recolour; cycling the pose too reads
     /// as a celebration.
-    static func rainbowMood(elapsed: Double) -> PetMood? {
+    nonisolated static func rainbowMood(elapsed: Double) -> PetMood? {
         guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
         let order = PetMood.allCases
         let step = Int(elapsed / rainbowPoseInterval) % order.count
@@ -691,7 +710,7 @@ public struct CrabView: View {
     /// at half saturation, pose untouched — he keeps working, head down, while
     /// the lights happen to him. Dice-gated to roughly one flash per few
     /// minutes of continuous cooking, never in the first cycle.
-    static func discoTint(cookingT t: Double) -> Color? {
+    nonisolated static func discoTint(cookingT t: Double) -> Color? {
         let cycle = Int(floor(t / 45))
         guard cycle > 0, CrabAnimator.noise(cycle &* 41 &+ 17) < 0.22 else { return nil }
         let since = t - Double(cycle) * 45
@@ -704,7 +723,7 @@ public struct CrabView: View {
 
     /// The near-done glow: once the todo list is ≥80% complete, a soft white
     /// pulse every 2.5s while he cooks — the sprint is almost home.
-    static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
+    nonisolated static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
         guard let fraction, fraction >= 0.8 else { return nil }
         let pulse = Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 2.5))
         let amount = 0.35 * pulse
@@ -759,7 +778,8 @@ public struct CrabView: View {
     }
 
     /// The body colour at a moment in the cycle, or nil when not partying.
-    static func rainbowTint(elapsed: Double) -> Color? {
+    /// `nonisolated` for the reason given above `rainbowDuration`.
+    nonisolated static func rainbowTint(elapsed: Double) -> Color? {
         guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
         // Two full trips round the wheel, then out. Saturation stays under 1 so
         // he still reads as Claw'd wearing colours rather than a colour wheel.
