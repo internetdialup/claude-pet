@@ -7,10 +7,26 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-14
+    # macos-15, not macos-14. The 14 image's default toolchain is Swift 5.10,
+    # and Package.swift declares tools version 6.0 — so SwiftPM rejected the
+    # manifest seven seconds in, before compiling a single file. Every red run
+    # on this repo was that one line; the tests themselves never ran once.
+    #
+    # Deliberately NOT pinned to an /Applications/Xcode_NN.app path: a hardcoded
+    # path that disappears on the next image bump is the same failure wearing a
+    # different hat. The image default is the contract, and the step below makes
+    # it visible so the next mismatch is legible from the first line of the log.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
       - name: Build
         run: swift build --product ClaudePet
+
       - name: Test
         run: swift test
