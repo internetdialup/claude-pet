@@ -32,6 +32,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **⚡ The white flash became a flashbang.** It used to be a peach wash
+  held across the whole ten-second celebration — only 40% of the way to
+  white, and only on his shell, so his eyes stayed black and a dark
+  costume never lit at all. Now the whole sprite blanches to pure white,
+  eyes and costume and heat bands together, in two hard hits inside the
+  first second — bang, a beat of honest terracotta, secondary — with
+  light spilling off him and, on an epic, the burst rings brightening on
+  each hit. The other nine seconds stay calm, which is what makes the
+  hits land. Honors the system Reduce Motion setting: he still
+  celebrates with pose, hops and colour, just without the strobe.
 - **🐯 The tiger goes orange.** Jungle Tiger trades green for actual tiger:
   orange coat, dark stripes, a cream belly patch, a darker mouth.
 - **💥📟 Bang and phone, redrawn.** The alert bang wears an ember outline
