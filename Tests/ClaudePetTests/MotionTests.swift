@@ -251,12 +251,21 @@ struct BlanchTests {
         #expect(checked > 500, "the fixture should cover a real sprite, not a few cells")
     }
 
+    /// `seamBleed: 0` on purpose. At the default 0.5 the run rects end on
+    /// half-points, and comparing two INDEPENDENT renders of antialiased edges
+    /// is the byte-instability this suite has a documented history of (the
+    /// glow's fractional centre, the `.clipped()` incident) — it fails
+    /// intermittently under full-suite parallel load and passes in isolation,
+    /// which makes it a coin flip rather than a pin. Whole-pixel geometry has
+    /// no antialiasing to be unstable about, so the byte comparison means what
+    /// it says. What is under test is the `> 0.001` guard skipping the wash
+    /// entirely, and that is geometry-independent.
     @Test("Blanch zero is the identity — inert for every existing caller")
     func blanchZeroIsIdentity() throws {
         let buffer = hardestBuffer()
-        let plain = SpriteImage.png(of: PixelCanvasView(buffer: buffer)
+        let plain = SpriteImage.png(of: PixelCanvasView(buffer: buffer, seamBleed: 0)
             .frame(width: 96, height: 96))
-        let unlit = SpriteImage.png(of: PixelCanvasView(buffer: buffer, blanch: 0)
+        let unlit = SpriteImage.png(of: PixelCanvasView(buffer: buffer, seamBleed: 0, blanch: 0)
             .frame(width: 96, height: 96))
         #expect(plain != nil && plain == unlit)
     }
