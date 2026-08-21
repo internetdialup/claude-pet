@@ -58,7 +58,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // Just the crab. A session count beside it was noise — the number is in
         // the menu's status line and in the roster, and a two-digit count made
         // the menu bar item jump around as sessions came and went.
-        item.button?.toolTip = state.bubble ?? statusLine
+        // `bubbleContent` before `bubble`: the bubble now goes quiet between
+        // bursts, and a tooltip that blinked to the status line every time he
+        // stopped talking would be hiding the live task from someone who went
+        // looking for it.
+        item.button?.toolTip = state.bubbleContent ?? state.bubble ?? statusLine
     }
 
     // MARK: - Menu

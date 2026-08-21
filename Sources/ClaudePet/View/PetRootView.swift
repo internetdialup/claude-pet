@@ -101,7 +101,13 @@ public struct PetRootView: View {
                         style: transient == nil ? model.state.bubbleStyle : .plain,
                         service: transient == nil ? model.state.serviceGlyph : nil
                     )
-                    .transition(.opacity)
+                    // Asymmetric on purpose: he now speaks and goes quiet
+                    // several times a minute, and a symmetric fade reads as
+                    // blinking. A slower exit makes a burst read as FINISHING
+                    // rather than being cut off.
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeOut(duration: 0.28)),
+                        removal: .opacity.animation(.easeIn(duration: 0.45))))
                     .id(text)
                 }
             }

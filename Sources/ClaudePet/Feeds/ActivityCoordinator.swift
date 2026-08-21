@@ -132,6 +132,90 @@ public final class ActivityCoordinator {
         quiet < chatterQuietAfter || CrabAnimator.noise(seed &* 43 &+ 13) < 1.0 / 3.0
     }
 
+    /// When each mood is allowed to speak.
+    ///
+    /// The `default:` branch of `derive` used to hand back a non-nil bubble on
+    /// EVERY recompute — no dice, no horizon — so for the whole length of a
+    /// working or cooking mood the banner sat on his head, its text merely
+    /// swapping every 14s. That is furniture, and the eye stops reading it.
+    ///
+    /// The resolution of the "never hide real information" rule is delivery,
+    /// not silence: **a task label's first appearance is information; its
+    /// four-hundredth consecutive recompute is furniture.** New words show at
+    /// once and hold; after that the pose, the props and the tool glyph carry
+    /// the continuous half, and he checks back in periodically. Nothing is
+    /// destroyed — `PetState.bubbleContent` keeps the live text for the
+    /// tooltip through every quiet stretch.
+    ///
+    /// A `var` so tests can shrink a 30s period into milliseconds, exactly as
+    /// the decay horizons are shrunk.
+    static var bubbleCadences: [PetMood: BubbleCadence] = [
+        // A tool call is in flight. The label is news once; after that the
+        // props and the tool glyph say it continuously, without words.
+        .working: BubbleCadence(period: 30, dwell: 6, chance: 0.6,
+                                newsDwell: 8, newsRefractory: 10),
+        // Going hard, so a shorter gap — a sprint genuinely has more to
+        // report. The refractory is what does the real work here.
+        .cooking: BubbleCadence(period: 24, dwell: 6, chance: 0.75,
+                                newsDwell: 8, newsRefractory: 14),
+        // Idle but holding a live todo: between tools, not between tasks.
+        // Backs off further than working, because nothing is moving.
+        .idle: BubbleCadence(period: 40, dwell: 6, chance: 0.5,
+                             newsDwell: 8, newsRefractory: 12),
+        // Calls to action pulse rather than go dark. `chance: 1.0` never rolls
+        // a quiet cycle, so the gap is always exactly one beat — which reads
+        // as more insistent than a banner that never moves, not less. These
+        // are the two states the pet exists to shout about, and today either
+        // can hold a motionless bubble for half an hour.
+        .nudging: BubbleCadence(period: 18, dwell: 10, chance: 1.0,
+                                newsDwell: 12, newsRefractory: 6),
+        .needsAttention: BubbleCadence(period: 18, dwell: 10, chance: 1.0,
+                                       newsDwell: 12, newsRefractory: 6),
+        // `.done` is absent on purpose: it cannot outlive `celebrationDecay`,
+        // and a state that is over in twelve seconds cannot become furniture.
+        // `.thinking`, `.sleeping` and bare `.idle` run their own honest gates.
+    ]
+
+    /// Which burst, if any, is on screen `elapsed` seconds after this slot's
+    /// speech epoch — `nil` means quiet. The value is the burst index, which
+    /// also seeds the line, so one burst says exactly one thing instead of
+    /// rewriting itself mid-sentence on a 14s boundary.
+    ///
+    /// Measured against elapsed time rather than the 14s chatter seed on
+    /// purpose: that seed only changes on 14s edges, so a 6s burst is not
+    /// expressible through it and — the part that matters — a burst could not
+    /// *start* at the moment the news did. `dotsQuietAfter` already works this
+    /// way.
+    ///
+    /// Burst 0 is the news window: dice-free, and the only thing reachable at
+    /// `elapsed == 0`. It exists because something CHANGED, which is a latch,
+    /// not a schedule — so the frozen sentinel holds: nothing the dice
+    /// invented can appear in a render frozen at zero.
+    static func bubbleBurst(elapsed: TimeInterval,
+                            cadence: BubbleCadence?,
+                            salt: Int) -> Int? {
+        // No cadence means never silenced; keep the 14s rotation, phased from
+        // the epoch so fresh news still starts its own turn.
+        guard let cadence else { return Int(max(0, elapsed) / chatterInterval) }
+        guard elapsed >= 0 else { return 0 }
+        if elapsed < cadence.newsDwell { return 0 }
+        guard cadence.period > 0, cadence.dwell > 0 else { return nil }
+
+        // The burst sits at the END of its period, not the start. Otherwise
+        // the first scheduled cycle begins the instant the news window closes
+        // and the two run together as one long stretch — which is the banner
+        // this replaces, just shorter. Quiet has to follow news.
+        let since = elapsed - cadence.newsDwell
+        let cycle = Int(since / cadence.period) &+ 1        // never 0
+        guard since.truncatingRemainder(dividingBy: cadence.period)
+            >= cadence.period - cadence.dwell else { return nil }
+        // 71+29 is unused: 19+13, 41+17, 43+11, 43+13, 53+7 and 61+3 are taken
+        // by the shimmer, disco, balloon, chatter gate, bug and stargazer.
+        guard CrabAnimator.noise(cycle &* 71 &+ 29 &+ salt) < cadence.chance
+        else { return nil }
+        return cycle
+    }
+
     /// How long a session may sit in a *working* mood, silent, before the pet
     /// stops asserting it and falls back to `idle`.
     ///
@@ -201,6 +285,12 @@ public final class ActivityCoordinator {
     private struct SlotChatter {
         var line: (text: String, isMarquee: Bool)?
         var chosenAt: Date = .distantPast
+        /// The last thing that counted as news: the mood, the session, and the
+        /// words themselves. A recompute that reproduces the same sentence is
+        /// not news, however many times it runs.
+        var lastNews: String?
+        /// When that news broke — the epoch every cadence is measured from.
+        var newsAt: Date = .distantPast
     }
     private var chatterCache: [SlotChatter] = [SlotChatter()]
 
@@ -659,6 +749,9 @@ public final class ActivityCoordinator {
         let task = focus.activeTaskLabel ?? focus.activity ?? focus.title
         var bubble = task.map { Self.condense($0) }
         var style = PetState.BubbleStyle.plain
+        // Whether this mood rides the burst schedule. Set by the `default:`
+        // branch; the moods that run their own honest gate leave it false.
+        var scheduled = false
 
         // Precedence, documented at the top of `vocab.swift`:
         //   1. a rule matching the current task
@@ -721,6 +814,44 @@ public final class ActivityCoordinator {
             } else {
                 bubble = Vocab.line(for: mood.shoutoutOccasion, seed: seed)
             }
+            scheduled = true
+        }
+
+        // Everything above chose the WORDS. This chooses whether they are on
+        // screen. `.thinking`, `.sleeping` and bare `.idle` have already run
+        // their own honest gates and are exempt — a second gate on the
+        // thinking dots would make "still thinking" flicker, which is a worse
+        // claim than a steady one.
+        if scheduled {
+            // News is a change in what there is to say, not a change in the
+            // clock. The session id is in the fingerprint because the same
+            // sentence about a different session is a different claim.
+            let cadence = Self.bubbleCadences[mood]
+            let news = "\(mood.rawValue)|\(focus.id)|\(bubble ?? "")"
+            if news != chatterCache[slot].lastNews {
+                let sinceLast = now.timeIntervalSince(chatterCache[slot].newsAt)
+                chatterCache[slot].lastNews = news
+                // Inside the refractory the words update in place and the
+                // burst does NOT restart. This single line is what keeps a
+                // cooking sprint — whose label churns every couple of seconds
+                // — from pinning the bubble to his head all over again.
+                if sinceLast >= (cadence?.newsRefractory ?? 0) {
+                    chatterCache[slot].newsAt = now
+                }
+            }
+            let burst = Self.bubbleBurst(
+                elapsed: now.timeIntervalSince(chatterCache[slot].newsAt),
+                cadence: cadence,
+                salt: slot &* 7919)
+            if burst == nil {
+                bubble = nil
+            } else if task == nil, let burst {
+                // Nothing real to protect, so re-seed from the burst: one
+                // burst says one thing, rather than swapping sentence
+                // mid-read when the 14s seed rolls over.
+                bubble = Vocab.line(for: mood.shoutoutOccasion,
+                                    seed: seed &+ burst &* 101) ?? bubble
+            }
         }
 
         // The near-done glow needs a real list behind it: three or more tasks,
@@ -733,6 +864,11 @@ public final class ActivityCoordinator {
         return PetState(
             mood: mood,
             bubble: bubble,
+            // The live task survives every quiet stretch: the cadence decides
+            // when he SPEAKS, never what is known. The same `task` the bubble
+            // would have shown — real text only, never the vocabulary line,
+            // so a quiet rotation cannot churn the equality-gated publish.
+            bubbleContent: task.map { Self.condense($0) },
             tool: focus.tool,
             sessions: ordered,
             focusedSessionID: focus.id,
