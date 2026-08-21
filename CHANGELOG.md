@@ -32,6 +32,32 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **🖱️ He only takes the clicks that are his.** The mouse used to treat
+  his whole 32×32 square as him — so the empty sky over his head, the
+  floor under his feet, the window's corners and the gaps between his
+  legs all swallowed clicks meant for whatever was behind him, and
+  opened the roster on the way. Now the click zone is his actual
+  silhouette, widened just enough to cover the bob he does while
+  breathing. Everything else passes straight through to the app
+  underneath. Hovering and petting tightened with it: he stirs when the
+  pointer is touching him, not when it is somewhere in his airspace.
+  The stomach is still the only drag handle, and the floor bug is still
+  pounceable while it is out.
+- **🟩 The Matrix goes full terminal.** The code used to be six
+  one-pixel columns dripping at a single speed, drawn under his face so
+  his eyes erased chunks of it. Now it falls down his whole shell —
+  every column at its own speed and streak length, through a bright
+  head, a phosphor body and a dim tail — with varying-width code-lines
+  scrolling underneath it. The shell is darker so the code carries, and
+  his eyes are brighter than any of it so he keeps his face.
+- **💬 He speaks in bursts instead of wearing a banner.** The thought
+  bubble used to sit on his head for the entire time he was working or
+  cooking, its text merely swapping every fourteen seconds. Now a new
+  task or tool shows immediately and holds, then he goes quiet and
+  checks back in every half-minute or so. Alerts and plan-nudges are
+  never silenced — they pulse instead, because being blocked on you is
+  the one thing worth interrupting for. The menu-bar tooltip always
+  shows the live task, even while he is quiet.
 - **⚡ The white flash became a flashbang.** It used to be a peach wash
   held across the whole ten-second celebration — only 40% of the way to
   white, and only on his shell, so his eyes stayed black and a dark
