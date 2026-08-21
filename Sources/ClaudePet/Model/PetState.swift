@@ -40,10 +40,49 @@ public enum PetMood: String, Sendable, Codable, CaseIterable {
 }
 
 /// The complete render input for the pet. One value, rebuilt on every change.
+/// How often a mood is allowed to *say* what it is, as opposed to *be* it.
+///
+/// The pose is continuous; the bubble is episodic. A pet whose banner never
+/// goes out stops being read at all — the eye files it as furniture and skips
+/// it, which is the opposite of what a thought bubble is for.
+public struct BubbleCadence: Sendable, Equatable {
+    /// One burst plus the quiet after it.
+    public var period: TimeInterval
+    /// How long a burst that fires holds the bubble up.
+    public var dwell: TimeInterval
+    /// Fraction of scheduled cycles that speak at all. 1.0 is a metronome —
+    /// a heartbeat that never skips, for the states that exist to get you.
+    /// Below 1.0 his silences stop being predictable, which is the difference
+    /// between a machine and a pet.
+    public var chance: Double
+    /// How long the bubble holds when the words themselves are NEW.
+    /// Deterministic and dice-free: news is not something to roll for.
+    public var newsDwell: TimeInterval
+    /// Refractory period. New text arriving inside this window updates the
+    /// words without restarting the burst — without it a cooking sprint, whose
+    /// label churns every couple of seconds, re-arms the news timer forever
+    /// and the bubble is exactly as permanent as it was before.
+    public var newsRefractory: TimeInterval
+
+    public init(period: TimeInterval, dwell: TimeInterval, chance: Double,
+                newsDwell: TimeInterval, newsRefractory: TimeInterval) {
+        self.period = period
+        self.dwell = dwell
+        self.chance = chance
+        self.newsDwell = newsDwell
+        self.newsRefractory = newsRefractory
+    }
+}
+
 public struct PetState: Sendable, Equatable {
     public var mood: PetMood
     /// Text for the thought bubble. `nil` hides the bubble entirely.
     public var bubble: String?
+    /// What he would say right now, whether or not the cadence has him
+    /// speaking. The menu-bar tooltip reads this, so going quiet never hides
+    /// the live task from someone who goes looking: **the cadence decides when
+    /// he speaks, never what is known.**
+    public var bubbleContent: String?
     /// Tool name when `mood == .working` — drives the glyph in the bubble.
     public var tool: String?
     /// Every live session, most-recently-active first.

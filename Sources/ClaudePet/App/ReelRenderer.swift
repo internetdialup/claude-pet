@@ -108,7 +108,7 @@ enum ReelRenderer {
         let mood = party ? (CrabView.rainbowMood(elapsed: t) ?? cue.beat.mood) : cue.beat.mood
 
         var pose = CrabAnimator.pose(mood: mood, t: t)
-        let _ = { if party { pose.mouth = .open } }()
+        let _ = { if party { pose.mouth = .open; pose.confettiElapsed = t } }()
 
         // The sprite frame carries about ten empty grid rows above the body —
         // headroom the props grow into. Left alone, the bubble floats a long way
@@ -299,7 +299,7 @@ enum ReelRenderer {
         let mood = party ? (CrabView.rainbowMood(elapsed: t) ?? cue.beat.mood) : cue.beat.mood
 
         var pose = CrabAnimator.pose(mood: mood, t: t)
-        let _ = { if party { pose.mouth = .open } }()
+        let _ = { if party { pose.mouth = .open; pose.confettiElapsed = t } }()
 
         ZStack {
             Backdrop()
@@ -387,7 +387,7 @@ enum ReelRenderer {
 
     /// Every prop in one strip, so the README's list of them is concrete.
     ///
-    /// On slate rather than the ocean: five of the twelve props are drawn in
+    /// On slate rather than the ocean: five of the thirteen props are drawn in
     /// `screenDark`/`screenLight` navy — the terminal, the servers, the z's, the
     /// balloon, the phone — and navy on navy water runs about 1.4:1. This strip
     /// illustrates the rig, not the marketing scene, so it gets the ground that

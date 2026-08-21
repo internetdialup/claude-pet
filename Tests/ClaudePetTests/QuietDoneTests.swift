@@ -167,22 +167,38 @@ struct QuietDoneTests {
                 "the status ticker must survive the quiet hours")
     }
 
-    /// The mouse territory is exactly the sprite square — no halo, no bubble
-    /// band. With two pets side by side, any invisible margin on one sat over
-    /// the other's body and stole the pointer.
-    @Test func mouseRegionIsExactlyTheSprite() {
-        // The common case: the square fits and comes back untouched.
-        let sprite = PetRootView.spriteFrame(pixelSize: 3)
-        let window = PetRootView.windowSize(pixelSize: 3)
-        #expect(PetWindowController.grabRect(sprite: sprite, window: window) == sprite)
+    /// The mouse territory is his SILHOUETTE, not the square he is drawn in.
+    /// He fills about a third of that square, and the rest of it used to
+    /// swallow clicks meant for whatever was behind him. With two pets side by
+    /// side, any invisible margin on one also sat over the other's body and
+    /// stole the pointer — the same reason the 14pt halo died.
+    @Test func mouseRegionIsHisSilhouette() {
+        let box = CrabHitMask.body.bounds
+        let bounds = try! #require(box)
 
-        // At pixel size 8 the 256pt square overhangs the 252pt window top by
-        // 4pt; the clamp keeps the region honest about what is reachable.
-        let big = PetRootView.spriteFrame(pixelSize: 8)
-        let bigWindow = PetRootView.windowSize(pixelSize: 8)
-        let clamped = PetWindowController.grabRect(sprite: big, window: bigWindow)
-        #expect(bigWindow.height < big.height, "the overhang this clamp exists for")
-        #expect(clamped.maxY == bigWindow.height)
-        #expect(clamped.minX == big.minX && clamped.width == big.width)
+        // Strictly inside the sprite square on all four sides.
+        #expect(bounds.x > 0 && bounds.y > 0)
+        #expect(bounds.x + bounds.w < PixelBuffer.side)
+        #expect(bounds.y + bounds.h < PixelBuffer.side)
+
+        // Nothing like the whole square: he is a crab, not a billboard.
+        let coverage = Double(CrabHitMask.body.cellCount)
+            / Double(PixelBuffer.side * PixelBuffer.side)
+        #expect(coverage < 0.5, "the mask covers \(coverage) of the square — too greedy")
+
+        // The hover box is reachable inside the window at every size, INCLUDING
+        // pixel size 8, where the sprite square overhangs the window top by 4pt.
+        for px in Preferences.pixelSizes {
+            let window = PetRootView.windowSize(pixelSize: px)
+            let hover = PetWindowController.hoverBounds(
+                mask: CrabHitMask.body,
+                sprite: PetRootView.spriteFrame(pixelSize: px),
+                pixelSize: px, window: window)
+            #expect(!hover.isEmpty, "no hover box at pixel size \(px)")
+            #expect(CGRect(origin: .zero, size: window).contains(hover),
+                    "the hover box escapes the window at pixel size \(px)")
+            #expect(hover.width < window.width,
+                    "a full-width territory is what stole the neighbour's pointer")
+        }
     }
 }

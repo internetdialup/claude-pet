@@ -120,7 +120,8 @@ public struct ThoughtBubble: View {
     /// bitmap (`ServiceGlyph.art`) at two points a cell, in brand-evocative
     /// colours on a kraft backing square so it survives every bubble fill.
     /// Static — no clock, so offline renders are deterministic for free.
-    private struct ServiceBadge: View {
+    /// Internal, not private: the sizzle's pixel cards wear the same badge.
+    struct ServiceBadge: View {
         let kind: ServiceGlyph
 
         private static let colors: [ServiceGlyph: [Character: Color]] = [

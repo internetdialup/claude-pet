@@ -396,6 +396,24 @@ struct EpicOverlayTests {
         #expect(lit)
     }
 
+    @Test("The epic adds one apex tap, and is otherwise the standard double-tap")
+    func epicBlanchAddsTheApexTap() {
+        #expect(CrabView.epicBlanch(doneT: 0) == 0, "frozen sentinel")
+        #expect(CrabView.epicBlanch(doneT: 10.5) == 0)
+
+        // The third tap fires at full white ON the transform's apex — the
+        // loudest moment in the app gets the longest hold.
+        #expect(CrabView.epicBlanch(doneT: 2.35) == 1.0)
+        #expect(CrabAnimator.epicPeak(doneT: 2.35) > 0.99,
+                "the apex tap must land on the peak, not beside it")
+
+        // Everywhere outside its own tap, the epic IS the plain celebration.
+        for t in [0.35, 0.74, 0.92, 5.0, 9.5] {
+            #expect(CrabView.epicBlanch(doneT: t) == CrabView.celebrationBlanch(doneT: t),
+                    "the tiers diverge at t=\(t)")
+        }
+    }
+
     @Test("A poke mid-transform dents the current scale instead of snapping it to 1")
     func clickComposesMultiplicatively() {
         var pose = CrabAnimator.pose(mood: .done, t: 2.3)

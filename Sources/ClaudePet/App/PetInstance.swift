@@ -22,9 +22,17 @@ final class PetInstance {
 
     /// Opens the global roster anchored to this pet's window.
     var onRosterRequested: (() -> Void)?
+    /// Opens the secret animation-testing menu anchored to this pet's window.
+    /// Summoned by Shift+click, then K — see `SecretMenuGate`.
+    var onSecretMenuRequested: (() -> Void)?
     /// The other pet's window frame, for snap de-stacking. Wired by the app,
     /// which is the only thing that knows about siblings.
     var siblingFrame: (() -> CGRect?)?
+
+    /// The Shift+click-then-K state, plus the timer that hands borrowed key
+    /// focus back when the operator arms the gate and then wanders off.
+    private var secretGate = SecretMenuGate()
+    private var secretDisarmTimer: Timer?
 
     // MARK: - Visibility policy
     //
@@ -51,6 +59,8 @@ final class PetInstance {
     /// leave nothing ticking. The screen-parameters observer token is stored
     /// precisely so this can remove it.
     func teardown() {
+        secretDisarmTimer?.invalidate()
+        secretDisarmTimer = nil
         filmWatch?.stop()
         filmWatch = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -73,15 +83,15 @@ final class PetInstance {
 
         let pixelSize = Preferences.shared.pixelSize
         let size = PetRootView.windowSize(pixelSize: pixelSize)
-        // Only the sprite square accepts clicks; the rest of the window is
-        // transparent and click-through. `PetRootView` owns the layout maths
-        // so the grab area cannot drift away from the character.
-        let interactive = PetRootView.spriteFrame(pixelSize: pixelSize)
+        // Only HE accepts clicks — his silhouette, not the square he is drawn
+        // in. Everything else in the window is transparent and click-through,
+        // so the desktop and whatever app is under him keep their own mouse.
+        let region = PetHitRegion(pixelSize: pixelSize, mask: CrabHitMask.body)
 
         let slot = self.slot
         let controller = PetWindowController(
             contentSize: size,
-            interactiveRect: interactive,
+            hitRegion: region,
             // The torso is the drag handle; the rest of him pokes, pets and
             // pounces. Both rects come from the same pixelSize in the same
             // call, so they can never go stale against each other.
@@ -98,6 +108,13 @@ final class PetInstance {
             parkOffset: slot == 0 ? 0 : size.width + 12
         )
         controller.avoidingFrame = { [weak self] in self?.siblingFrame?() }
+        // The bug stands on cells the silhouette calls empty, so it publishes
+        // its own clickable box while it is out. Consulted only when the mask
+        // has already missed, i.e. on clicks that were about to pass through.
+        controller.liveZones = { [weak self] in
+            guard let zone = self?.currentBugZone() else { return [] }
+            return [zone]
+        }
         wire(controller)
         controller.setPersistent(Preferences.shared.persistent)
         self.controller = controller
@@ -113,6 +130,15 @@ final class PetInstance {
     private func wire(_ controller: PetWindowController) {
         controller.onClick = { [weak self] clicks, location in
             guard let self else { return }
+            // 🗝️ Shift+click is the arming half of the secret handshake, not
+            // a poke: the window borrows key focus (the roster's dance) and
+            // listens for a lone K. Modifier state is polled because it is
+            // the one keyboard fact a focusless window can always read.
+            if NSEvent.modifierFlags.contains(.shift) {
+                self.armSecretMenu()
+                return
+            }
+
             // 🎉🪄 Poke him three times and he throws a party.
             if clicks >= 3 {
                 self.model.rainbowStartedAt = Date()
@@ -124,11 +150,9 @@ final class PetInstance {
             // 🐛 A click on the visiting floor bug is a pounce, not a roster
             // request. The bug's schedule is pure, so ask it where it is —
             // through THIS pet's clock; the shared one is nobody's clock now.
-            if self.model.state.mood == .idle,
-               let epoch = self.model.moodClock.currentEpoch(for: .idle),
-               let bug = CrabAnimator.bugPosition(idleT: Date.timeIntervalSinceReferenceDate - epoch),
-               let cell = self.gridCell(for: location),
-               cell.y >= 26, cell.x >= bug - 2, cell.x <= bug + 3 {
+            if let zone = self.currentBugZone(),
+               let cell = self.gridCell(for: location), zone.contains(cell) {
+                SoundBank.play(.pounce)
                 self.model.pouncedAt = Date()
                 let seed = Int(Date().timeIntervalSince1970)
                 self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
@@ -140,11 +164,11 @@ final class PetInstance {
             }
 
             // 🍤 A click on a sleeping crab is a snack, not a roster request —
-            // the roster stays a menu-bar away. The `gridCell` gate stays even
-            // with the mouse territory now sprite-only: the click location is
-            // sampled at mouseUp and can drift a few points off the sprite.
+            // the roster stays a menu-bar away. The cell gate stays even now
+            // that the mouse territory is his silhouette: the click location
+            // is sampled at mouseUp and can drift a few points off him.
             if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil,
-               self.gridCell(for: location) != nil {
+               let cell = self.gridCell(for: location), CrabHitMask.body[cell.x, cell.y] {
                 self.model.snackStartedAt = Date()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) {
                     self.model.snackStartedAt = nil
@@ -153,7 +177,9 @@ final class PetInstance {
             }
 
             // Squash first, roster second — the reaction is feedback for the
-            // click, and the roster is what the click is for.
+            // click, and the roster is what the click is for. The squeal
+            // steps up with the click count into the triple-poke party.
+            SoundBank.play(.squeal(step: min(clicks, 3)))
             self.model.clickedAt = Date()
             self.onRosterRequested?()
             // Clear it once the animation is done so the view drops back to
@@ -163,6 +189,7 @@ final class PetInstance {
             }
         }
         controller.onPetStart = { [weak self] in
+            SoundBank.play(.purr)
             self?.model.pettingStartedAt = Date()
             self?.model.pettingEndedAt = nil
         }
@@ -203,6 +230,45 @@ final class PetInstance {
             self?.filmWatch?.reconsider()
             self?.stepAsideIfWanted()
         }
+        controller.onKey = { [weak self] event in
+            guard let self else { return false }
+            switch self.secretGate.press(event.charactersIgnoringModifiers, at: Date()) {
+            case .summon:
+                // Hand the key back BEFORE the menu tracks: the menu runs its
+                // own event loop and needs nothing from this window.
+                self.disarmSecretMenu()
+                self.onSecretMenuRequested?()
+                return true
+            case .disarm:
+                // A wrong key closes the gate quietly — consumed, no beep.
+                self.disarmSecretMenu()
+                return true
+            case .ignore:
+                return false
+            }
+        }
+    }
+
+    // MARK: - The secret door
+
+    /// Shift+click armed the gate: borrow key focus the way the roster does
+    /// and listen for K. The timer is the wander-off path — an armed gate
+    /// with no keypress must still hand the borrowed focus back.
+    private func armSecretMenu() {
+        secretGate.arm(at: Date())
+        controller?.borrowKey()
+        secretDisarmTimer?.invalidate()
+        secretDisarmTimer = Timer.scheduledTimer(withTimeInterval: SecretMenuGate.armWindow,
+                                                 repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.disarmSecretMenu() }
+        }
+    }
+
+    private func disarmSecretMenu() {
+        secretDisarmTimer?.invalidate()
+        secretDisarmTimer = nil
+        secretGate.disarm()
+        controller?.returnKey()
     }
 
     // MARK: - State intake
@@ -214,6 +280,9 @@ final class PetInstance {
         // celebration ends (the envelope is long done by then).
         if state.epicCelebration, model.celebrationStartedAt == nil {
             model.celebrationStartedAt = Date()
+            // Once per finale, on the edge — the fanfare replaces the done
+            // chime for epics (handleAlert stands down; see its guard).
+            SoundBank.play(.fanfare)
         } else if !state.celebrating, model.celebrationStartedAt != nil {
             model.celebrationStartedAt = nil
         }
@@ -344,7 +413,8 @@ final class PetInstance {
             if model.serviceGlyphKind == nil
                 || (model.serviceGlyphEndedAt != nil && model.serviceGlyphKind == live) {
                 // First appearance, or the same kind returning mid-retreat:
-                // fresh attack.
+                // fresh attack — with the family's own blip.
+                SoundBank.play(.glyphBlip(live))
                 model.serviceGlyphKind = live
                 model.serviceGlyphShownAt = Date()
                 model.serviceGlyphEndedAt = nil
@@ -373,15 +443,17 @@ final class PetInstance {
         }
     }
 
-    /// Maps a click in view coordinates to a sprite-grid cell. View y runs
-    /// upward from the window's bottom; the buffer's y runs downward from its
-    /// top row, hence the flip.
+    /// The floor bug's clickable box right now, through THIS pet's idle clock
+    /// — the shared one is nobody's clock now. Nil unless a bug is out.
+    private func currentBugZone() -> CellRect? {
+        guard model.state.mood == .idle,
+              let epoch = model.moodClock.currentEpoch(for: .idle) else { return nil }
+        return CrabAnimator.bugZone(idleT: Date.timeIntervalSinceReferenceDate - epoch)
+    }
+
+    /// This pet's click→cell mapping. The maths lives once, on `PetRootView`,
+    /// where the window's hit test reads it too.
     private func gridCell(for location: CGPoint) -> (x: Int, y: Int)? {
-        let pixelSize = Preferences.shared.pixelSize
-        let frame = PetRootView.spriteFrame(pixelSize: pixelSize)
-        guard frame.contains(location), pixelSize > 0 else { return nil }
-        let x = Int((location.x - frame.minX) / pixelSize)
-        let y = PixelBuffer.side - 1 - Int((location.y - frame.minY) / pixelSize)
-        return (x, y)
+        PetRootView.spriteCell(for: location, pixelSize: Preferences.shared.pixelSize)
     }
 }

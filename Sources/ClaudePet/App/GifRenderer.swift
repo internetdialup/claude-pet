@@ -59,6 +59,7 @@ enum GifRenderer {
         let rainbow = stride(from: 0.0, to: CrabView.rainbowDuration, by: frameDelay).map { t -> PixelBuffer in
             var pose = CrabAnimator.pose(mood: CrabView.rainbowMood(elapsed: t) ?? .done, t: t)
             pose.mouth = .open
+            pose.confettiElapsed = t
             return CrabRig.render(pose)
         }
         guard write(rainbow, to: root.appendingPathComponent("rainbow.gif"),
@@ -147,6 +148,7 @@ enum GifRenderer {
         let party = stride(from: 0.0, to: CrabView.rainbowDuration, by: frameDelay).map { t -> PixelBuffer in
             var pose = CrabAnimator.pose(mood: CrabView.rainbowMood(elapsed: t) ?? .done, t: t)
             pose.mouth = .open
+            pose.confettiElapsed = t
             return CrabRig.render(pose)
         }
         guard write(party, to: root.appendingPathComponent("party.gif"),

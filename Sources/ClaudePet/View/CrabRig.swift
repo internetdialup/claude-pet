@@ -60,6 +60,9 @@ public struct CrabPose: Sendable, Equatable {
         case sparkles, terminal, check, bang, zzz, servers, balloon, plan
         // Worn props: drawn on the body, and must travel with `bob` and `lean`.
         case hardHat, phone, fire, glasses
+        // Appended (stableSeed is the allCases index — order is load-bearing):
+        // the 8-bit Claude star, the thinking spell's second wind.
+        case star
 
         var isWorn: Bool {
             switch self {
@@ -113,6 +116,10 @@ public struct CrabPose: Sendable, Equatable {
     /// not lerp them — the envelope owns the entrance and the exit.
     public var serviceGlyph: ServiceGlyph? = nil
     public var serviceGlyphVisibility: Double = 0
+
+    /// Seconds into the rainbow party, for the confetti. nil = no party.
+    /// Same contract as `heartsElapsed`: the blend never lerps it.
+    public var confettiElapsed: Double? = nil
 }
 
 extension CrabPose.Prop {
@@ -271,6 +278,9 @@ public enum CrabRig {
         // dissolves in and out like everything else. The completion badge
         // rides in the FOREGROUND, tucked against his side — it wins the leg
         // cells it overlaps, and only ever shell cells.
+        if let confetti = pose.confettiElapsed {
+            drawConfetti(&buffer, elapsed: confetti)
+        }
         if pose.doneBadge > 0.001 {
             drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
         }
@@ -337,6 +347,30 @@ public enum CrabRig {
     }
 
     /// Up to three pink hearts spawning at the crown every 0.8s, each rising a
+    /// The party's confetti: six flecks falling from the crown on a
+    /// deterministic spawn table, each fading as it falls, the whole shower
+    /// eased by the party's own trapezoid so the ends never snap. Seeds
+    /// 740-745 — the registry gap between the easter eggs and the glyphs.
+    private static func drawConfetti(_ b: inout PixelBuffer, elapsed: Double) {
+        let window = Ease.window(elapsed, duration: 4.0, edge: 0.4)
+        guard window > 0.001 else { return }
+        let spawns: [(x: Int, born: Double, ink: PixelBuffer.Ink)] = [
+            (6, 0.2, .yellow), (12, 0.5, .pink), (18, 0.8, .green),
+            (24, 0.35, .screenLight), (9, 1.4, .pink), (21, 1.7, .yellow),
+        ]
+        for (index, fleck) in spawns.enumerated() {
+            let age = (elapsed - fleck.born).truncatingRemainder(dividingBy: 2.4)
+            guard elapsed > fleck.born, age >= 0 else { continue }
+            let y = Int(age / 0.12)
+            guard y < PixelBuffer.side else { continue }
+            var piece = PixelBuffer()
+            piece.pixel(fleck.x, y, fleck.ink)
+            piece.pixel(fleck.x + (index % 2 == 0 ? 1 : -1), y + 1, fleck.ink)
+            let fade = max(0, 1 - age / 1.6) * window
+            b.composite(piece, visibility: fade, seed: 740 + index)
+        }
+    }
+
     /// pixel every 0.15s and dissolving as it climbs.
     private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
         let spawns = [0.3, 1.1, 1.9]
@@ -652,8 +686,16 @@ public enum CrabRig {
             ], at: (x: 0, y: 1), key: key)
 
         case .bang:
-            b.rect(15, 1, 2, 5, .pink)
-            b.rect(15, 7, 2, 2, .pink)
+            // A proper 8-bit exclamation: three wide with an ember outline
+            // and a paper highlight, bouncing a single pixel on the phase —
+            // the sanctioned snap, and the urgency the two plain rects of
+            // the first draft never had.
+            let hop = sin(phase * 4) > 0.3 ? -1 : 0
+            b.rect(14, 1 + hop, 4, 6, .ember)
+            b.rect(15, 1 + hop, 2, 5, .pink)
+            b.pixel(15, 1 + hop, .paper)
+            b.rect(14, 8 + hop, 4, 2, .ember)
+            b.rect(15, 8 + hop, 2, 1, .pink)
 
         case .zzz:
             let key: [Character: PixelBuffer.Ink] = ["z": .screenLight]
@@ -695,6 +737,11 @@ public enum CrabRig {
         case .hardHat:
             drawHardHat(&b, dx: dx, dy: dy, phase: phase)
 
+        case .star:
+            // The Claude star, holding the top-right airspace (cols 20-28) —
+            // clear of the service glyph box on the left and the body below.
+            b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
+
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)
 
@@ -712,12 +759,17 @@ public enum CrabRig {
             ], at: (x: 25, y: 4), key: key)
 
         case .phone:
-            // Held at his side, screen facing out, content flickering.
-            let x = 27 + dx
-            let y = 11 + dy
-            b.rect(x, y, 4, 7, .screenDark)
-            b.rect(x + 1, y + 1, 2, 4, sin(phase * 3) > 0 ? .green : .screenLight)
-            b.pixel(x + 2, y + 6, .steel)
+            // Held at his side, screen facing out. The first draft read as
+            // a smudge at desk size: now a wider slab with a lit screen, a
+            // glow row, a notification dot pulsing in alert red, and a home
+            // button — a phone, not a domino.
+            let x = 26 + dx
+            let y = 10 + dy
+            b.rect(x, y, 5, 8, .screenDark)
+            b.rect(x + 1, y + 1, 3, 5, sin(phase * 3) > 0 ? .screenLight : .screenDark)
+            b.rect(x + 1, y + 1, 3, 1, .paper)
+            if sin(phase * 2.2) > -0.2 { b.pixel(x + 3, y + 2, .alert) }
+            b.pixel(x + 2, y + 7, .steel)
         }
     }
 

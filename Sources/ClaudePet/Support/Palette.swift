@@ -31,6 +31,11 @@ public enum Palette {
     /// Chrome colours for the bubble and roster (not part of the sprite).
     public static let slate = Color(hex: 0x141413)
     public static let slateSoft = Color(hex: 0x3D3D3A)
+    /// The sizzle plates' keying field: dark red, on the operator's ruling —
+    /// Clawd's world is green-heavy (matrix, tiger, the progress cells), so
+    /// green fields collide with content. Note the body is terracotta
+    /// (red-adjacent): the key range needs to sit tight around this value.
+    public static let keyField = Color(hex: 0x7A0E0E)
     public static let kraft = Color(hex: 0xF0EEE6)
     public static let alert = Color(hex: 0xE05252)
 

@@ -1,5 +1,7 @@
 import Testing
 import Foundation
+import AppKit
+import SwiftUI
 @testable import ClaudePet
 
 /// Task-progress plumbing and the cooking→done celebration. Fixtures are
@@ -87,17 +89,58 @@ struct CelebrationTests {
         }
     }
 
-    @Test func celebrationTintCoolsToNothing() {
-        // Fires somewhere in the middle…
-        var lit = false
-        for t in stride(from: 0.5, through: 9.0, by: 0.1) where CrabView.celebrationTint(doneT: t) != nil {
-            lit = true
-            break
+    /// Asserted at NAMED times, never by scanning for "lit somewhere". The old
+    /// tint dwelled near its peak for most of ten seconds, so a scan always
+    /// found it; a hard double-tap is mostly OFF, and a scan that happened to
+    /// land on a plateau would be luck rather than a pin.
+    @Test("The flashbang is a hard double-tap at pure white, then nothing")
+    func celebrationBlanchIsAHardDoubleTap() {
+        #expect(CrabView.celebrationBlanch(doneT: 0) == 0, "frozen sentinel")
+        #expect(CrabView.celebrationBlanch(doneT: -1) == 0)
+        #expect(CrabView.celebrationBlanch(doneT: 10.5) == 0)
+
+        // The redline: both taps reach EXACTLY white. A partial push toward
+        // white over terracotta is a peach, and the peach was the bug.
+        #expect(CrabView.celebrationBlanch(doneT: 0.35) == 1.0)
+        #expect(CrabView.celebrationBlanch(doneT: 0.92) == 1.0)
+
+        // …with real terracotta between them, or it is a wash, not a double-tap.
+        #expect(CrabView.celebrationBlanch(doneT: 0.74) == 0)
+
+        // …and the nine seconds after the event are flash-free, which is the
+        // whole point: the dwell WAS the washed-out monitor.
+        for t in stride(from: 1.20, through: 10.0, by: 0.02) {
+            #expect(CrabView.celebrationBlanch(doneT: t) == 0, "still lit at t=\(t)")
         }
-        #expect(lit)
-        // …and is gone at both ends.
-        #expect(CrabView.celebrationTint(doneT: 0) == nil)
-        #expect(CrabView.celebrationTint(doneT: 10.5) == nil)
+    }
+
+    @Test("No frame at the live 30fps tick jumps the blanch more than half way")
+    func blanchNeverSnaps() {
+        var previous = 0.0
+        for step in 0...360 {
+            let value = CrabView.epicBlanch(doneT: Double(step) / 30)
+            #expect(value >= 0 && value <= 1, "out of contract at step \(step)")
+            #expect(abs(value - previous) < 0.60,
+                    "a \(abs(value - previous)) jump at step \(step) is a snap, not an attack")
+            previous = value
+        }
+    }
+
+    /// The README GIF samples the finale at 10fps. Every tap start on the 0.1s
+    /// grid with `flashAttack < 0.10 < attack + hold` means the sample at
+    /// `at + 0.10` always lands strictly inside the plateau. Break any of the
+    /// three and the GIF silently starts sampling flanks — a mediocre README
+    /// with no error anywhere.
+    @Test("Every flash start survives the README GIF's 10fps sampling")
+    func flashesSurviveTenFps() {
+        for tap in CrabView.celebrationFlashes + [CrabView.epicFlash] {
+            #expect(abs(tap.at * 10 - (tap.at * 10).rounded()) < 1e-9,
+                    "\(tap.at) misses the 0.1s grid")
+            #expect(CrabView.flashAttack < 0.10)
+            #expect(tap.hold > 0.01)
+            #expect(CrabView.epicBlanch(doneT: tap.at + 0.10) == 1.0,
+                    "the 10fps sample after \(tap.at) missed the plateau")
+        }
     }
 }
 
@@ -181,3 +224,4 @@ struct HeatAndDiscoScheduleTests {
         #expect(lit, "a 90% list should glow within one pulse period")
     }
 }
+

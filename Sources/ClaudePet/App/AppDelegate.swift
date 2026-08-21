@@ -62,6 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard let self, let pet else { return }
             self.toggleRoster(anchoredTo: pet)
         }
+        pet.onSecretMenuRequested = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.showSecretMenu(anchoredTo: pet)
+        }
         pets = [pet]
         pet.rebuildWindow()
 
@@ -84,17 +88,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         coordinator.onCookingProgress = { [weak self] milestone, session in
             self?.postCookProgress(milestone, session: session)
         }
+        // The film hush lives inside SoundBank so every cue from every seam
+        // honors it; injected before the coordinator can fire a first alert.
+        SoundBank.isHushed = { [weak self] in
+            self?.pets.contains { $0.filmPlaying } ?? false
+        }
         coordinator.start()
 
         menuBar = MenuBarController(
             onToggleVisibility: { [weak self] in self?.primary.toggleVisibility() },
             onPin: { [weak self] id in self?.coordinator.pin(sessionID: id) },
-            onPreviewMood: { [weak self] mood in self?.previewMood(mood) },
             onSetPixelSize: { [weak self] size in
                 Preferences.shared.pixelSize = size
                 self?.pets.forEach { $0.rebuildWindow() }
             },
             onSetCostume: { [weak self] costume in
+                // Guarded on actual change: re-picking the worn costume from
+                // the menu must not chime. (Launch restore bypasses these
+                // callbacks entirely — no boot shimmer.)
+                if costume != Preferences.shared.costume { SoundBank.play(.shimmer) }
                 Preferences.shared.costume = costume
                 self?.primary.model.costume = costume
             },
@@ -121,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             },
             onPinSecond: { [weak self] id in self?.coordinator.pin(slot: 1, sessionID: id) },
             onSetSecondCostume: { [weak self] costume in
+                if costume != Preferences.shared.pet2Costume { SoundBank.play(.shimmer) }
                 Preferences.shared.pet2Costume = costume
                 guard let self, self.pets.count > 1 else { return }
                 self.pets[1].model.costume = costume
@@ -149,6 +162,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         pet.onRosterRequested = { [weak self, weak pet] in
             guard let self, let pet else { return }
             self.toggleRoster(anchoredTo: pet)
+        }
+        pet.onSecretMenuRequested = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.showSecretMenu(anchoredTo: pet)
         }
         pets.append(pet)
         // Each pet dodges the other's spot when a drag-release snap would
@@ -208,6 +225,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 }
             }
         }
+    }
+
+    /// The secret animation-testing menu, summoned by Shift+click-then-K on
+    /// either pet. Same contract as the submenu that used to live in the
+    /// menu bar: Live hands control back to the coordinator; a mood freezes
+    /// pet 1 in it for art review (pet 1 only, by rule — the check marks
+    /// read from `debugMood` so the menu always shows where control sits).
+    private func showSecretMenu(anchoredTo pet: PetInstance) {
+        guard let contentView = pet.controller?.window.contentView else { return }
+
+        let menu = NSMenu()
+        let live = NSMenuItem(title: "Live", action: #selector(secretMenuPick(_:)),
+                              keyEquivalent: "")
+        live.target = self
+        live.state = debugMood == nil ? .on : .off
+        menu.addItem(live)
+        menu.addItem(.separator())
+        for mood in PetMood.allCases {
+            let item = NSMenuItem(title: mood.rawValue, action: #selector(secretMenuPick(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = mood
+            item.state = debugMood == mood ? .on : .off
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: nil,
+                   at: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.maxY),
+                   in: contentView)
+    }
+
+    @objc private func secretMenuPick(_ sender: NSMenuItem) {
+        previewMood(sender.representedObject as? PetMood)
     }
 
     /// Freezes pet 1 in one mood so the art can be reviewed live. Selecting
@@ -297,7 +346,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         switch event {
         case .needsYou: SoundBank.play(.chirp)
-        case .finished: SoundBank.play(.chime)
+        case .finished:
+            // An epic landing gets the fanfare (played on the latch edge in
+            // PetInstance) — the chime stands down rather than layering. A
+            // tick-race where the alert beats the state intake would chime
+            // then fanfare; accepted as rare and harmless.
+            if !coordinator.state.epicCelebration { SoundBank.play(.chime) }
         default: break                 // plan-ready and cooking stay silent
         }
 
@@ -318,6 +372,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// notification this path replaces.
     private func postCookProgress(_ milestone: ActivityCoordinator.CookMilestone,
                                   session: ClaudeSession) {
+        // The stove lights. The sound rides its own gates (master switch +
+        // film hush inside SoundBank), never the notification prefs below —
+        // a cook is audible even with banners off.
+        if case .started = milestone { SoundBank.play(.ignition) }
         guard Preferences.shared.notificationsEnabled,
               Preferences.shared.cookingNotificationsEnabled,
               !pets.contains(where: { $0.filmPlaying }) else { return }

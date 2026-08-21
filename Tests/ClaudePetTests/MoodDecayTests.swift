@@ -20,14 +20,28 @@ private enum DecayFixture {
         return dir
     }()
 
-    /// Writes one `<home>/sessions/<slot>.json` per id, in the shape
+    /// Writes one `<sessions>/<slot>.json` per id, in the shape
     /// `SessionRegistry` decodes.
     ///
     /// The PID is this test process, which is unarguably alive, and `procStart`
     /// is omitted so liveness falls back to the `kill(pid, 0)` check alone.
+    ///
+    /// It writes into `ClaudeHome.sessions` — the home that actually WON —
+    /// rather than into `home`, this fixture's candidate. `ClaudeHome.root` is
+    /// a process-wide `static let`, so the first suite to touch it pins it for
+    /// the whole run; when another suite's fixture got there first, this one
+    /// used to write its sessions into a directory nobody reads. The
+    /// coordinator then saw the winner's sessions instead, and every
+    /// assertion here failed on ids belonging to another file. Writing where
+    /// the reader reads makes the outcome of that race irrelevant.
     static func register(_ ids: [String]) throws {
+        _ = home
+        let real = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude")
+        precondition(ClaudeHome.root.path != real.path,
+                     "the redline: tests must never write into the real ~/.claude")
         let fm = FileManager.default
-        let sessions = home.appendingPathComponent("sessions")
+        let sessions = ClaudeHome.sessions
         if fm.fileExists(atPath: sessions.path) { try fm.removeItem(at: sessions) }
         try fm.createDirectory(at: sessions, withIntermediateDirectories: true)
 
@@ -352,5 +366,41 @@ struct MoodDecayTests {
         // Fresh reasoning brings them straight back.
         coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
         #expect(coordinator.state.bubble == "…")
+    }
+
+    /// The regression that would silently undo the whole burst design.
+    ///
+    /// A cooking sprint's task label churns every couple of seconds. If each
+    /// churn re-armed the news window, the bubble would be pinned to his head
+    /// exactly as permanently as before — under precisely the workload the
+    /// cadence exists for. The refractory is what prevents it, and this is the
+    /// test that notices if it ever stops.
+    @Test("A churning task label cannot pin the bubble back on his head")
+    func churningLabelStillGoesQuiet() async throws {
+        let stored = ActivityCoordinator.bubbleCadences[.working]
+        ActivityCoordinator.bubbleCadences[.working] = BubbleCadence(
+            period: 0.4, dwell: 0.08, chance: 0.6, newsDwell: 0.08, newsRefractory: 0.5)
+        defer { ActivityCoordinator.bubbleCadences[.working] = stored }
+
+        let id = "s-churn"
+        let coordinator = try quietCoordinator([id])
+
+        var quiet = 0
+        var samples = 0
+        for step in 0..<24 {
+            // A brand-new label every single tick — the worst case.
+            coordinator.ingest([ActivityEvent(sessionID: id,
+                                              kind: .toolStarted(name: "Bash",
+                                                                 detail: "step \(step) of the sprint"))])
+            samples += 1
+            if coordinator.state.bubble == nil { quiet += 1 }
+            try await Task.sleep(for: .milliseconds(60))
+        }
+
+        #expect(quiet > samples / 5,
+                "he spoke on \(samples - quiet) of \(samples) ticks — the refractory is gone")
+        // And the information was never destroyed, only the repetition.
+        #expect(coordinator.state.bubbleContent != nil,
+                "the live task must survive the quiet for the tooltip")
     }
 }

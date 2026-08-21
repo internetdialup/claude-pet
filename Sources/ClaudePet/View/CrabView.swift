@@ -75,6 +75,15 @@ public enum CrabAnimator {
         return (choice, since / choice.duration)
     }
 
+    /// The thinking spell's prop: sparkles first, then the Claude star, in
+    /// strict 20s alternation — dice would be degenerate here (MoodClock
+    /// rebases t on every entry, so cycle-0 dice is a constant), and the
+    /// alternation guarantees the star actually appears in a long think
+    /// while keeping every committed thinking clip (all < 20s) byte-stable.
+    static func thinkingProp(at t: Double, spell: Double = 20) -> CrabPose.Prop {
+        Int(floor(t / spell)) % 2 == 0 ? .sparkles : .star
+    }
+
     /// A prop for the current work spell. Re-rolled every `spell` seconds so a
     /// long task does not stare at the same terminal window for ten minutes.
     static func workingProp(at t: Double, spell: Double = 20) -> CrabPose.Prop {
@@ -90,18 +99,21 @@ public enum CrabAnimator {
     /// spell never fades in (there is nothing before it to put down).
     private static let propFade = 0.35
 
-    static func applyPropDissolve(at t: Double, spell: Double = 20, to pose: inout CrabPose) {
+    static func applyPropDissolve(at t: Double, spell: Double = 20,
+                                  roll: ((Double) -> CrabPose.Prop)? = nil,
+                                  to pose: inout CrabPose) {
+        let pick = roll ?? { workingProp(at: $0, spell: spell) }
         let cycle = Int(floor(t / spell))
         let within = t - Double(cycle) * spell
-        let current = workingProp(at: t, spell: spell)
+        let current = pick(t)
 
         if cycle > 0, within < propFade {
-            let previous = workingProp(at: (Double(cycle) - 0.5) * spell, spell: spell)
+            let previous = pick((Double(cycle) - 0.5) * spell)
             if previous != current {
                 pose.propVisibility = Ease.smoothstep(within / propFade)
             }
         } else if within > spell - propFade {
-            let next = workingProp(at: (Double(cycle) + 1.5) * spell, spell: spell)
+            let next = pick((Double(cycle) + 1.5) * spell)
             if next != current {
                 pose.propVisibility = Ease.smoothstep((spell - within) / propFade)
             }
@@ -125,6 +137,32 @@ public enum CrabAnimator {
         let x = -3.0 + progress * 37.0
         let column = cycle % 2 == 0 ? Int(x.rounded()) : 31 - Int(x.rounded())
         return column >= -2 && column <= 33 ? column : nil
+    }
+
+    /// The floor bug's clickable box, or nil when no bug is out.
+    ///
+    /// The bug is a transient overlay standing on cells the silhouette mask
+    /// calls empty, so the pounce cannot ride the mask — it rides here, and
+    /// the window asks only when the mask has already missed. Pure, and
+    /// cheap: a floor, a hash, a compare. The geometry lives with the
+    /// schedule that owns it rather than as four literals inlined in the
+    /// click handler.
+    static func bugZone(idleT t: Double) -> CellRect? {
+        guard let column = bugPosition(idleT: t) else { return nil }
+        return CellRect(x: column - 2, y: 26, w: 6, h: PixelBuffer.side - 26)
+    }
+
+    /// The balloon's rare idle float — the prop was dead vocabulary from the
+    /// day it was drawn: listed, rendered in every strip, scheduled by
+    /// nothing. Now it is the bug and the telescope's sibling: on dice, in
+    /// a long idle, he holds a balloon for eight seconds. Never in the
+    /// first cycle (frozen sentinel), eased both ways via the window.
+    static func idleBalloon(idleT t: Double) -> Double? {
+        let cycle = Int(floor(t / 150))
+        guard cycle > 0, noise(cycle &* 43 &+ 11) < 0.25 else { return nil }
+        let since = t - Double(cycle) * 150
+        guard since < 8 else { return nil }
+        return Ease.window(since, duration: 8, edge: 0.9)
     }
 
     /// The midnight stargazer's envelope and clock during an idle spell, in
@@ -165,6 +203,11 @@ public enum CrabAnimator {
                 apply(kind, progress: progress, t: t, to: &pose)
             }
 
+            if let float = idleBalloon(idleT: t) {
+                pose.prop = .balloon
+                pose.propVisibility = float
+            }
+
             // A visiting bug owns his attention: eyes drop to the floor and
             // follow it across.
             if let bug = bugPosition(idleT: t) {
@@ -190,7 +233,8 @@ public enum CrabAnimator {
             // Eyes scanning side to side — the "working it out" tell.
             pose.gazeX = sin(t * 1.6) > 0 ? 1 : -1
             pose.mouth = .flat
-            pose.prop = .sparkles
+            pose.prop = thinkingProp(at: t)
+            applyPropDissolve(at: t, roll: { thinkingProp(at: $0) }, to: &pose)
 
         case .working:
             // Deliberately unhurried. At the original rates the arms and legs
@@ -617,6 +661,15 @@ public struct CrabView: View {
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
+    /// Scales the flashbang, for the system Reduce Motion setting: 1 normally,
+    /// 0 when the operator has asked the machine to calm down.
+    ///
+    /// Injected rather than read here. The setting is a property of the running
+    /// machine, and reading it inside a render path would make the sizzle's
+    /// byte-determinism depend on the build machine's accessibility
+    /// preferences. Only the live view supplies anything but the default.
+    public var flashScale: Double = 1
+
     /// The view-state clocks. Per-model instances live — two pets must not
     /// rebase each other's epochs or cross-trigger costume dissolves — with
     /// `.shared` as the default so bare constructions (previews, frozen
@@ -644,6 +697,7 @@ public struct CrabView: View {
                 serviceGlyphShownAt: Double? = nil,
                 serviceGlyphEndedAt: Double? = nil,
                 frozenTime: Double? = nil,
+                flashScale: Double = 1,
                 moodClock: MoodClock = .shared,
                 costumeClock: CostumeClock = .shared) {
         self.mood = mood
@@ -666,6 +720,7 @@ public struct CrabView: View {
         self.serviceGlyphShownAt = serviceGlyphShownAt
         self.serviceGlyphEndedAt = serviceGlyphEndedAt
         self.frozenTime = frozenTime
+        self.flashScale = flashScale
         self.moodClock = moodClock
         self.costumeClock = costumeClock
     }
@@ -731,45 +786,98 @@ public struct CrabView: View {
         return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
     }
 
-    /// The epic finale's tint: the rainbow burst under the same 10s master
-    /// envelope, with the flash train riding ON the hue cycle — colour first,
-    /// white light over it, everything easing up from and back down to
-    /// terracotta.
+    /// The epic finale's tint: the rainbow burst under the 10s master envelope.
+    ///
+    /// The white light that used to ride on top of this lives in `epicBlanch`
+    /// now, where it can reach the eyes and the costume instead of only the
+    /// body — so what is left here is a plain hue lerp, and the rainbow stays
+    /// saturated instead of washing to pastel twice a second.
+    ///
+    /// Deliberately non-nil across the whole window: it is what stops
+    /// `composedTint` falling through into the plain-celebration branch
+    /// mid-finale.
     static func epicTint(doneT t: Double) -> Color? {
         let envelope = Ease.window(t, duration: 10, edge: 0.6)
         guard envelope > 0.001 else { return nil }
         let hue = (t / 5).truncatingRemainder(dividingBy: 1)
-        let target = SpriteTint.rgb(hue: hue, saturation: 0.7, brightness: 0.95)
-        let base = SpriteTint.bodyRGB
-        let r = base.r + (target.r - base.r) * envelope
-        let g = base.g + (target.g - base.g) * envelope
-        let b = base.b + (target.b - base.b) * envelope
-        let flash = 0.35 * envelope * Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 1.2))
-        return Color(red: r + (1 - r) * flash,
-                     green: g + (1 - g) * flash,
-                     blue: b + (1 - b) * flash)
+        return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.7, brightness: 0.95),
+                                  amount: envelope)
     }
 
-    /// The celebration flash train: quick white pulses under the same 10s
-    /// master envelope as the pose overlay, cooling to nothing in the tail.
-    static func celebrationTint(doneT t: Double) -> Color? {
-        let envelope = Ease.window(t, duration: 10, edge: 0.6)
-        guard envelope > 0.001 else { return nil }
-        let pulse = Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 1.2))
-        let amount = 0.4 * envelope * pulse
-        guard amount > 0.01 else { return nil }
-        return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
+    // MARK: - The flashbang
+
+    /// How fast the light arrives. Under the README GIF's 0.1s sampling step
+    /// on purpose — see `celebrationFlashes`.
+    static let flashAttack = 0.09
+
+    /// The flashbang: two detonations inside the first second, then nothing.
+    ///
+    /// Every tap peaks at **exactly 1.0**. Taps differ by duration and spacing,
+    /// never by amplitude, because a partial push toward white over terracotta
+    /// is a peach — and nine peach pulses dwelling across ten seconds is what
+    /// this replaces. It read as a washed-out monitor because that is what a
+    /// low-amplitude signal held for ten seconds is.
+    ///
+    /// The bang, 110ms of real terracotta, then a shorter secondary: the event
+    /// spans 0.20→1.15, and the other nine seconds carry no flash at all.
+    ///
+    /// Starts sit on the 0.1s grid and `flashAttack < 0.10 < attack + hold`, so
+    /// the README GIF — which samples the finale at 10fps — always lands
+    /// strictly inside a plateau rather than on a flank. `flashesSurviveTenFps`
+    /// pins all three halves of that invariant.
+    static let celebrationFlashes: [(at: Double, hold: Double, decay: Double)] = [
+        (at: 0.20, hold: 0.12, decay: 0.28),
+        (at: 0.80, hold: 0.06, decay: 0.20),
+    ]
+
+    /// The epic's third tap, landing on the 1.2× transform's apex (`epicPeak`
+    /// plateaus across [2.0, 2.6]) — the loudest moment in the app gets the
+    /// longest hold. No tap at t≈0: the reel's `matchCutFlash` already whites
+    /// the whole frame out across the cook→finale boundary, and the finale
+    /// opens decaying from it. A sprite flash there is a white on a white.
+    static let epicFlash = (at: 2.20, hold: 0.14, decay: 0.32)
+
+    /// The loudest hit of the train at `t`. `max`, not a sum: two taps must
+    /// never add to 2 and clip, so the 0…1 contract holds by construction
+    /// rather than by the schedule happening not to overlap.
+    private static func loudest(_ t: Double,
+                                _ schedule: [(at: Double, hold: Double, decay: Double)]) -> Double {
+        schedule.reduce(0) { best, tap in
+            max(best, Ease.pulse(t - tap.at, attack: flashAttack,
+                                 hold: tap.hold, decay: tap.decay))
+        }
+    }
+
+    static func celebrationBlanch(doneT t: Double) -> Double {
+        loudest(t, celebrationFlashes)
+    }
+
+    static func epicBlanch(doneT t: Double) -> Double {
+        loudest(t, celebrationFlashes + [epicFlash])
+    }
+
+    /// The whiteness channel, composed. Deliberately NOT part of
+    /// `composedTint`: a tint chooses a hue and reaches one ink, a blanch
+    /// chooses how much light is hitting all of them. A flash expressed as a
+    /// tint could only ever reach `.body`, which is exactly how the old one
+    /// ended up as peach with black eyes in the middle of it.
+    static func composedBlanch(mood: PetMood, t: Double,
+                               celebrating: Bool, epic: Bool) -> Double {
+        guard mood == .done, celebrating else { return 0 }
+        return epic ? epicBlanch(doneT: t) : celebrationBlanch(doneT: t)
     }
 
     /// One place decides which tint owns the body, so two effects can never
     /// fight frame-by-frame: the user's party outranks the celebration, which
     /// outranks the disco, which outranks the near-done glow.
+    ///
+    /// The plain celebration has no tint of its own any more — between taps he
+    /// is honest terracotta, and the colour event IS the bang.
     static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
                              celebrating: Bool, epic: Bool = false,
                              taskFraction: Double?) -> Color? {
         if let rainbowElapsed, let party = rainbowTint(elapsed: rainbowElapsed) { return party }
         if mood == .done, celebrating, epic, let burst = epicTint(doneT: t) { return burst }
-        if mood == .done, celebrating, let flash = celebrationTint(doneT: t) { return flash }
         if mood == .cooking {
             if let disco = discoTint(cookingT: t) { return disco }
             if let glow = nearDoneTint(cookingT: t, fraction: taskFraction) { return glow }
@@ -846,6 +954,9 @@ public struct CrabView: View {
                                          celebrating: celebrating,
                                          epic: epicCelebration,
                                          taskFraction: taskFraction)
+        let blanch = CrabView.composedBlanch(mood: mood, t: localT,
+                                             celebrating: celebrating,
+                                             epic: epicCelebration) * flashScale
         return PixelCanvasView(buffer: CrabRig.render(pose,
                                                       costume: costume,
                                                       ghostCostume: ghostCostume,
@@ -853,7 +964,8 @@ public struct CrabView: View {
                                bodyTint: tint,
                                inkOverrides: CostumeStyle.blendedOverrides(from: ghostCostume,
                                                                            to: costume,
-                                                                           u: costumeProgress))
+                                                                           u: costumeProgress),
+                               blanch: blanch)
             .drawingGroup()
     }
 
@@ -867,6 +979,7 @@ public struct CrabView: View {
            let partyMood = CrabView.rainbowMood(elapsed: time - rainbowSince) {
             var pose = CrabAnimator.pose(mood: partyMood, t: time - rainbowSince)
             pose.mouth = .open
+            pose.confettiElapsed = time - rainbowSince
             return pose
         }
 

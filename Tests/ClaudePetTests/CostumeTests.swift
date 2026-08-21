@@ -108,3 +108,24 @@ struct CostumeTests {
         #expect(mid[.body] != settled[.body])
     }
 }
+
+/// The tiger reads tiger: orange shell, darker stripes, lighter belly.
+@Suite("Tiger palette")
+@MainActor
+struct TigerPaletteTests {
+
+    @Test func orangeNotGreen() throws {
+        let inks = CostumeStyle.of(.tiger).inks
+        let body = try #require(inks[.body])
+        #expect(body.r > body.g && body.g > body.b, "a tiger is orange")
+
+        let stripe = try #require(inks[.costumeA])
+        #expect(stripe.r + stripe.g + stripe.b < body.r + body.g + body.b,
+                "stripes sit darker than the shell")
+
+        let patch = try #require(inks[.costumeC])
+        #expect(patch.r + patch.g + patch.b > body.r + body.g + body.b,
+                "the belly patch sits lighter than the shell")
+        #expect(inks[.mouth] != nil, "a white mouth on the white patch is no mouth")
+    }
+}

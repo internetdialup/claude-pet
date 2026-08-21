@@ -53,6 +53,25 @@ enum Ease {
         guard t > 0, t < duration else { return 0 }
         return min(smoothstep(t / edge), smoothstep((duration - t) / edge))
     }
+
+    /// A hit: the asymmetric trapezoid `window` cannot say. Eases up over
+    /// `attack`, **holds at exactly 1** for `hold`, eases down over `decay`,
+    /// and is zero everywhere outside — so a schedule of these carries its own
+    /// frozen sentinel.
+    ///
+    /// `window` is this shape at leisure, with one `edge` for both sides. Light
+    /// does not work that way: it arrives faster than it leaves, and a flash
+    /// that fades in as slowly as it fades out never reads as a flash. Both
+    /// junctions are still C¹ (smoothstep has zero slope at each end), so the
+    /// plateau arrives and leaves without a corner — the no-snap rule bans a
+    /// one-frame change, not a fast one.
+    @inline(__always)
+    static func pulse(_ t: Double, attack: Double, hold: Double, decay: Double) -> Double {
+        guard t > 0, t < attack + hold + decay else { return 0 }
+        if t < attack { return smoothstep(t / attack) }
+        if t < attack + hold { return 1 }
+        return 1 - smoothstep((t - attack - hold) / decay)
+    }
 }
 
 /// Colour arithmetic for the body tint. The palette itself stays flat; the only

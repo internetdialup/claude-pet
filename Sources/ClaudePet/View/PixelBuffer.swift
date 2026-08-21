@@ -76,6 +76,20 @@ public struct PixelBuffer: Sendable {
         }
     }
 
+    /// Every non-clear cell becomes `.body` — the afterimage read: a whole-
+    /// figure silhouette a single bodyTint can hue-shift cleanly. Without
+    /// this, a trail carries ink-black eyes and full-colour props at trail
+    /// opacity: floating ghost faces.
+    func silhouette() -> PixelBuffer {
+        var out = self
+        for y in 0..<Self.side {
+            for x in 0..<Self.side where out[x, y] != .clear {
+                out[x, y] = .body
+            }
+        }
+        return out
+    }
+
     public mutating func pixel(_ x: Int, _ y: Int, _ ink: Ink) {
         self[x, y] = ink
     }
@@ -205,29 +219,62 @@ public struct PixelCanvasView: View {
     /// guarantee whole-pixel cells.
     var seamBleed: CGFloat = 0.5
 
+    /// How far **every** resolved ink is pushed toward white, 0…1. At 1 he is a
+    /// pure white silhouette — eyes, mouth, costume shell, heat bands and held
+    /// props included.
+    ///
+    /// The second channel exists because `bodyTint` deliberately reaches the
+    /// `.body` ink and nothing else: a hue-shifted eye reads as a recolour. A
+    /// flash is the one effect that has to reach everything at once, because a
+    /// "white flash" that leaves black eyes and a dark ninja hood in place is
+    /// not white, it is a washed-out peach.
+    ///
+    /// Applied as a second flat fill of `Palette.white` at `blanch` alpha
+    /// rather than as a per-ink colour lerp: the resolved inks are SwiftUI
+    /// `Color`s and cannot be taken apart again without asking AppKit to
+    /// introspect them, and white over opaque ink at alpha a *is* the lerp —
+    /// `c·(1−a) + a`. So `bodyTint` and `inkOverrides` whiten for free, as the
+    /// base fill this composites onto.
+    var blanch: Double = 0
+
     public var body: some View {
         Canvas(rendersAsynchronously: false) { context, size in
             let px = size.width / Double(PixelBuffer.side)
-            for run in buffer.runs() {
-                let x0 = Double(run.x) * px, x1 = Double(run.x + run.length) * px
-                let y0 = Double(run.y) * px, y1 = y0 + px
-                let rect: CGRect
-                if seamBleed > 0 {
-                    rect = CGRect(x: x0, y: y0,
-                                  width: x1 - x0 + seamBleed, height: y1 - y0 + seamBleed)
-                } else {
-                    // No bleed to hide seams with, so snap the edges instead:
-                    // neighbouring runs then share an exact boundary and tile
-                    // with neither a gap nor a blend. Necessary because a cell
-                    // is only a whole number of pixels when the frame happens to
-                    // be a multiple of 32.
-                    rect = CGRect(x: x0.rounded(), y: y0.rounded(),
-                                  width: x1.rounded() - x0.rounded(),
-                                  height: y1.rounded() - y0.rounded())
-                }
-                context.fill(Path(rect), with: .color(color(for: run.ink)))
+            let runs = buffer.runs()
+            for run in runs {
+                context.fill(Path(rect(for: run, px: px)), with: .color(color(for: run.ink)))
             }
+            // One fill over the UNION of the runs, never one per run: with
+            // `seamBleed` on, adjacent rects overlap by half a point, and a
+            // per-run wash would composite white twice down every seam —
+            // painting a bright grid across a sprite whose palette forbids
+            // shading. A single path rasterises the overlap as coverage and
+            // blends exactly once.
+            let wash = Ease.clamp01(blanch)
+            guard wash > 0.001 else { return }
+            var lit = Path()
+            for run in runs { lit.addRect(rect(for: run, px: px)) }
+            context.fill(lit, with: .color(Palette.white.opacity(wash)))
         }
+    }
+
+    /// One cell run's rectangle. Shared by both passes so the wash provably
+    /// covers the same geometry as the ink underneath it.
+    private func rect(for run: (x: Int, y: Int, length: Int, ink: PixelBuffer.Ink),
+                      px: Double) -> CGRect {
+        let x0 = Double(run.x) * px, x1 = Double(run.x + run.length) * px
+        let y0 = Double(run.y) * px, y1 = y0 + px
+        if seamBleed > 0 {
+            return CGRect(x: x0, y: y0,
+                          width: x1 - x0 + seamBleed, height: y1 - y0 + seamBleed)
+        }
+        // No bleed to hide seams with, so snap the edges instead: neighbouring
+        // runs then share an exact boundary and tile with neither a gap nor a
+        // blend. Necessary because a cell is only a whole number of pixels when
+        // the frame happens to be a multiple of 32.
+        return CGRect(x: x0.rounded(), y: y0.rounded(),
+                      width: x1.rounded() - x0.rounded(),
+                      height: y1.rounded() - y0.rounded())
     }
 
     private func color(for ink: PixelBuffer.Ink) -> Color {

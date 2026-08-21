@@ -37,18 +37,25 @@ struct CostumeStyle {
         case .matrix:
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x0C_100C),      // terminal-dark shell
-                    .costumeA: rgb(0x53_F26A),  // rain heads, phosphor bright
-                    .costumeB: rgb(0x1E_6B2E),  // rain trails, dim
-                    .eye: rgb(0x53_F26A),       // he IS in the terminal
-                    .mouth: rgb(0x2E_9C43),
+                    .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the code carries
+                    .costumeA: rgb(0x7C_F08D),  // rain heads
+                    .costumeB: rgb(0x2E_A845),  // the streak body
+                    .costumeC: rgb(0x1D_7431),  // tails, and the code-lines under them
+                    // Brighter than any rain stop on purpose: with code
+                    // crossing his whole shell, the eyes have to out-rank the
+                    // field or he loses his face in his own costume.
+                    .eye: rgb(0xD8_FFE2),
+                    .mouth: rgb(0x2E_A845),
                 ],
                 yieldsCrownToProps: false)
         case .tiger:
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x3E_7A45),      // jungle green shell
-                    .costumeA: rgb(0x1F_4023),  // stripes
+                    .body: rgb(0xE0_8A2E),      // tiger orange — the operator's
+                                                // ruling: green never read cat
+                    .costumeA: rgb(0x26_1C10),  // warm near-black stripes
+                    .costumeC: rgb(0xF2_EFE4),  // the white belly patch
+                    .mouth: rgb(0x3D_3D3A),     // dark mouth on the white patch
                 ],
                 yieldsCrownToProps: false)
         case .white:
@@ -169,21 +176,68 @@ enum CrabCostume {
             b.rect(bodyX + 2 + dx, 12 + dy, bodyW - 4, 5, .costumeB)
 
         case .matrix:
-            guard layer == .onBody else { break }
-            // The rain: one drop per column, scrolling DOWN the shell on the
-            // prop clock, each column offset by its own constant so the field
-            // never marches in step. Head bright, three-cell trail dim, all
-            // clipped to the shell.
+            // The rain runs on `.front`, i.e. AFTER `drawFace`, and writes
+            // only where the cell is still `.body`. That mask is the whole
+            // trick — the eyes and mouth are `.eye`/`.mouth` by then, so they
+            // are simply not written, and the wardrobe's promise never to
+            // cover an open eye holds by construction instead of by keeping
+            // clear of coordinates. It also frees the rain to cross his whole
+            // shell rather than trickling down six thin columns.
+            //
+            // Heat outranks it: a cell mid-cascade is `.bodyHot`, not `.body`,
+            // so the fire burns through the code.
+            guard layer == .front else { break }
             let top = bodyY + dy + squash
             let height = bodyH - squash
-            let span = height + 6
-            for (index, column) in [7, 10, 13, 16, 19, 22].enumerated() {
-                let phase = pose.propPhase * 3.0 + Double(index) * 7.3
-                let head = Int(phase.truncatingRemainder(dividingBy: Double(span)))
-                for trail in 0..<4 {
+            guard height > 0 else { break }
+            let left = bodyX + dx - squash
+            let width = bodyW + squash * 2
+
+            @inline(__always) func onShell(_ x: Int, _ y: Int, _ ink: PixelBuffer.Ink) {
+                guard b[x, y] == .body else { return }
+                b.pixel(x, y, ink)
+            }
+
+            // Code-lines first: varying-width bars scrolling down behind the
+            // rain, borrowed from the terminal prop's vocabulary — the way
+            // this rig already spells "source code". They read as structure;
+            // the rain reads as motion over it.
+            let lineWidths = [5, 3, 6, 2, 4, 7]
+            let scroll = Int(pose.propPhase * 1.6)
+            for row in 0..<height {
+                let index = ((row - scroll) % lineWidths.count + lineWidths.count)
+                    % lineWidths.count
+                // One row in three carries a line. Denser than this and the
+                // shell stops reading as a dark terminal with code on it and
+                // starts reading as a green crab.
+                guard (row &+ scroll) % 3 == 0 else { continue }
+                let indent = (row &+ scroll) % 4 == 0 ? 1 : 4
+                for step in 0..<lineWidths[index] {
+                    onShell(left + indent + step, top + row, .costumeC)
+                }
+            }
+
+            // The rain: every column of the shell, each with its own speed and
+            // streak length off the shared die, so the field never marches in
+            // step. Three stops — bright head, phosphor body, dim tail — which
+            // is what makes a streak read as falling rather than blinking.
+            // The span is generously longer than the shell so each column is
+            // dark most of the time: a streak has to be an event, or the
+            // whole field is on at once and nothing appears to fall.
+            let span = height + 16
+            for column in 0..<width {
+                let x = left + column
+                let speed = 2.0 + CrabAnimator.noise(column &* 37 &+ 11) * 4.0
+                let offset = CrabAnimator.noise(column &* 91 &+ 17) * Double(span)
+                let length = 2 + Int(CrabAnimator.noise(column &* 53 &+ 29) * 3)
+                let head = Int((pose.propPhase * speed + offset)
+                    .truncatingRemainder(dividingBy: Double(span)))
+                for trail in 0...length {
                     let y = top + head - trail
                     guard y >= top, y < top + height else { continue }
-                    b.pixel(column + dx, y, trail == 0 ? .costumeA : .costumeB)
+                    let ink: PixelBuffer.Ink = trail == 0 ? .costumeA
+                        : (trail <= length / 2 ? .costumeB : .costumeC)
+                    onShell(x, y, ink)
                 }
             }
 
@@ -194,6 +248,9 @@ enum CrabCostume {
             // clear of the eye windows (10-12 and 19-21), where a stripe just
             // vanishes behind the face.
             let base = bodyY + dy + squash
+            // The white belly patch first, under the mouth — the stripes and
+            // the face paint over it.
+            b.rect(13 + dx, base + 8, 7, 2, .costumeC)
             // Stripes hang from the back and rise from the belly — staggered
             // bars, not spots; spots read leopard.
             for column in [7, 14, 22] {
