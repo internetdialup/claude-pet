@@ -5,7 +5,7 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] — 2026-08-18
+## [1.5.0] — 2026-08-21
 
 ### Added
 
@@ -423,5 +423,10 @@ First public release.
 - Reads your Claude Code data **read-only**, never over the network. The only
   write to anything Claude owns is the hook installer, and only when you ask.
 
+[1.5.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.5.0
+[1.4.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.4.0
+[1.3.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.3.0
+[1.2.1]: https://github.com/internetdialup/claude-pet/releases/tag/v1.2.1
+[1.2.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.2.0
 [1.1.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.1.0
 [1.0.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.0.0
