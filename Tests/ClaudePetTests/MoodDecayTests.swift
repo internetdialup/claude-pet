@@ -377,10 +377,27 @@ struct MoodDecayTests {
     /// test that notices if it ever stops.
     @Test("A churning task label cannot pin the bubble back on his head")
     func churningLabelStillGoesQuiet() async throws {
-        let stored = ActivityCoordinator.bubbleCadences[.working]
-        ActivityCoordinator.bubbleCadences[.working] = BubbleCadence(
-            period: 0.4, dwell: 0.08, chance: 0.6, newsDwell: 0.08, newsRefractory: 0.5)
-        defer { ActivityCoordinator.bubbleCadences[.working] = stored }
+        // Both moods, because two dozen tool calls in a second and a half IS
+        // a sprint: the rate gate tips him into `.cooking` partway through,
+        // and a cadence shrunk only for `.working` would silently stop
+        // applying at exactly the moment the test got interesting.
+        //
+        // `chance: 1.0` removes the dice and a refractory longer than the test
+        // makes the question decisive rather than statistical: the news epoch
+        // may advance at most once here, so a working refractory leaves him
+        // quiet most ticks while a broken one never lets him stop. The first
+        // draft asserted a four-versus-four margin off sleep jitter, which is
+        // a coin flip wearing a test's clothes.
+        let fast = BubbleCadence(period: 0.2, dwell: 0.05, chance: 1.0,
+                                 newsDwell: 0.05, newsRefractory: 5)
+        let stored = (ActivityCoordinator.bubbleCadences[.working],
+                      ActivityCoordinator.bubbleCadences[.cooking])
+        ActivityCoordinator.bubbleCadences[.working] = fast
+        ActivityCoordinator.bubbleCadences[.cooking] = fast
+        defer {
+            ActivityCoordinator.bubbleCadences[.working] = stored.0
+            ActivityCoordinator.bubbleCadences[.cooking] = stored.1
+        }
 
         let id = "s-churn"
         let coordinator = try quietCoordinator([id])
@@ -397,7 +414,7 @@ struct MoodDecayTests {
             try await Task.sleep(for: .milliseconds(60))
         }
 
-        #expect(quiet > samples / 5,
+        #expect(quiet > samples / 3,
                 "he spoke on \(samples - quiet) of \(samples) ticks — the refractory is gone")
         // And the information was never destroyed, only the repetition.
         #expect(coordinator.state.bubbleContent != nil,
