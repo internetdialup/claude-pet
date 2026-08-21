@@ -57,6 +57,22 @@ public struct PetRootView: View {
         return CGRect(x: (window.width - sprite) / 2, y: 0, width: sprite, height: sprite)
     }
 
+    /// Maps a point in view coordinates to a sprite-grid cell, or nil when the
+    /// point is off the sprite square. View y runs upward from the window's
+    /// bottom; the buffer's y runs downward from its top row, hence the flip.
+    ///
+    /// The one copy. The window's hit test, the floor-bug pounce and the tests
+    /// all ask here — it used to be private on `PetInstance` and restated by
+    /// hand in the test suite, which is how a mapping quietly drifts away from
+    /// its own test.
+    public static func spriteCell(for point: CGPoint, pixelSize: Double) -> (x: Int, y: Int)? {
+        guard pixelSize > 0 else { return nil }
+        let frame = spriteFrame(pixelSize: pixelSize)
+        guard frame.contains(point) else { return nil }
+        return (Int((point.x - frame.minX) / pixelSize),
+                PixelBuffer.side - 1 - Int((point.y - frame.minY) / pixelSize))
+    }
+
     /// The rest-pose torso in view coordinates — the window-drag handle.
     /// `CrabRig`'s body block (cols 6–25, rows 10–20) through the same y-flip
     /// the click-to-cell mapping uses. Rest pose on purpose: drags start on a

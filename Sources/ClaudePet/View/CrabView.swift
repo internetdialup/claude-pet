@@ -139,6 +139,19 @@ public enum CrabAnimator {
         return column >= -2 && column <= 33 ? column : nil
     }
 
+    /// The floor bug's clickable box, or nil when no bug is out.
+    ///
+    /// The bug is a transient overlay standing on cells the silhouette mask
+    /// calls empty, so the pounce cannot ride the mask — it rides here, and
+    /// the window asks only when the mask has already missed. Pure, and
+    /// cheap: a floor, a hash, a compare. The geometry lives with the
+    /// schedule that owns it rather than as four literals inlined in the
+    /// click handler.
+    static func bugZone(idleT t: Double) -> CellRect? {
+        guard let column = bugPosition(idleT: t) else { return nil }
+        return CellRect(x: column - 2, y: 26, w: 6, h: PixelBuffer.side - 26)
+    }
+
     /// The balloon's rare idle float — the prop was dead vocabulary from the
     /// day it was drawn: listed, rendered in every strip, scheduled by
     /// nothing. Now it is the bug and the telescope's sibling: on dice, in

@@ -83,15 +83,15 @@ final class PetInstance {
 
         let pixelSize = Preferences.shared.pixelSize
         let size = PetRootView.windowSize(pixelSize: pixelSize)
-        // Only the sprite square accepts clicks; the rest of the window is
-        // transparent and click-through. `PetRootView` owns the layout maths
-        // so the grab area cannot drift away from the character.
-        let interactive = PetRootView.spriteFrame(pixelSize: pixelSize)
+        // Only HE accepts clicks — his silhouette, not the square he is drawn
+        // in. Everything else in the window is transparent and click-through,
+        // so the desktop and whatever app is under him keep their own mouse.
+        let region = PetHitRegion(pixelSize: pixelSize, mask: CrabHitMask.body)
 
         let slot = self.slot
         let controller = PetWindowController(
             contentSize: size,
-            interactiveRect: interactive,
+            hitRegion: region,
             // The torso is the drag handle; the rest of him pokes, pets and
             // pounces. Both rects come from the same pixelSize in the same
             // call, so they can never go stale against each other.
@@ -108,6 +108,13 @@ final class PetInstance {
             parkOffset: slot == 0 ? 0 : size.width + 12
         )
         controller.avoidingFrame = { [weak self] in self?.siblingFrame?() }
+        // The bug stands on cells the silhouette calls empty, so it publishes
+        // its own clickable box while it is out. Consulted only when the mask
+        // has already missed, i.e. on clicks that were about to pass through.
+        controller.liveZones = { [weak self] in
+            guard let zone = self?.currentBugZone() else { return [] }
+            return [zone]
+        }
         wire(controller)
         controller.setPersistent(Preferences.shared.persistent)
         self.controller = controller
@@ -143,11 +150,8 @@ final class PetInstance {
             // 🐛 A click on the visiting floor bug is a pounce, not a roster
             // request. The bug's schedule is pure, so ask it where it is —
             // through THIS pet's clock; the shared one is nobody's clock now.
-            if self.model.state.mood == .idle,
-               let epoch = self.model.moodClock.currentEpoch(for: .idle),
-               let bug = CrabAnimator.bugPosition(idleT: Date.timeIntervalSinceReferenceDate - epoch),
-               let cell = self.gridCell(for: location),
-               cell.y >= 26, cell.x >= bug - 2, cell.x <= bug + 3 {
+            if let zone = self.currentBugZone(),
+               let cell = self.gridCell(for: location), zone.contains(cell) {
                 SoundBank.play(.pounce)
                 self.model.pouncedAt = Date()
                 let seed = Int(Date().timeIntervalSince1970)
@@ -160,11 +164,11 @@ final class PetInstance {
             }
 
             // 🍤 A click on a sleeping crab is a snack, not a roster request —
-            // the roster stays a menu-bar away. The `gridCell` gate stays even
-            // with the mouse territory now sprite-only: the click location is
-            // sampled at mouseUp and can drift a few points off the sprite.
+            // the roster stays a menu-bar away. The cell gate stays even now
+            // that the mouse territory is his silhouette: the click location
+            // is sampled at mouseUp and can drift a few points off him.
             if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil,
-               self.gridCell(for: location) != nil {
+               let cell = self.gridCell(for: location), CrabHitMask.body[cell.x, cell.y] {
                 self.model.snackStartedAt = Date()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) {
                     self.model.snackStartedAt = nil
@@ -439,15 +443,17 @@ final class PetInstance {
         }
     }
 
-    /// Maps a click in view coordinates to a sprite-grid cell. View y runs
-    /// upward from the window's bottom; the buffer's y runs downward from its
-    /// top row, hence the flip.
+    /// The floor bug's clickable box right now, through THIS pet's idle clock
+    /// — the shared one is nobody's clock now. Nil unless a bug is out.
+    private func currentBugZone() -> CellRect? {
+        guard model.state.mood == .idle,
+              let epoch = model.moodClock.currentEpoch(for: .idle) else { return nil }
+        return CrabAnimator.bugZone(idleT: Date.timeIntervalSinceReferenceDate - epoch)
+    }
+
+    /// This pet's click→cell mapping. The maths lives once, on `PetRootView`,
+    /// where the window's hit test reads it too.
     private func gridCell(for location: CGPoint) -> (x: Int, y: Int)? {
-        let pixelSize = Preferences.shared.pixelSize
-        let frame = PetRootView.spriteFrame(pixelSize: pixelSize)
-        guard frame.contains(location), pixelSize > 0 else { return nil }
-        let x = Int((location.x - frame.minX) / pixelSize)
-        let y = PixelBuffer.side - 1 - Int((location.y - frame.minY) / pixelSize)
-        return (x, y)
+        PetRootView.spriteCell(for: location, pixelSize: Preferences.shared.pixelSize)
     }
 }

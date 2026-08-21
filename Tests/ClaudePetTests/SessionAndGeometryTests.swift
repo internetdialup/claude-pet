@@ -231,13 +231,11 @@ struct CondenseTests {
 @MainActor
 struct TorsoDragHandleTests {
 
-    /// The formula `PetInstance.gridCell(for:)` applies (it is private there);
-    /// three lines, restated so the tests can round-trip view points to cells.
+    /// The real mapping, not a copy of it. This used to restate the three
+    /// lines `PetInstance` kept privately, which is how a mapping drifts away
+    /// from the test that is supposed to be pinning it.
     private func cell(_ point: CGPoint, pixelSize: Double) -> (x: Int, y: Int)? {
-        let frame = PetRootView.spriteFrame(pixelSize: pixelSize)
-        guard frame.contains(point) else { return nil }
-        return (Int((point.x - frame.minX) / pixelSize),
-                PixelBuffer.side - 1 - Int((point.y - frame.minY) / pixelSize))
+        PetRootView.spriteCell(for: point, pixelSize: pixelSize)
     }
 
     /// The view point at the centre of a grid cell.
@@ -287,15 +285,19 @@ struct TorsoDragHandleTests {
                     "the body centre is the handle")
 
             let leg = point(col: 8, row: 23, pixelSize: px)
-            #expect(!torso.contains(leg) && sprite.contains(leg),
+            #expect(!torso.contains(leg) && CrabHitMask.body[8, 23],
                     "a leg clicks but never drags")
 
             #expect(!torso.contains(point(col: 15, row: 5, pixelSize: px)),
                     "the crown rows are props' airspace, not a handle")
 
+            // The bug floor is no longer part of him: it is reachable only
+            // while a bug is actually standing there (see SilhouetteHitTests).
             let bugRow = point(col: 15, row: 29, pixelSize: px)
             #expect(!torso.contains(bugRow) && sprite.contains(bugRow),
                     "a pounce click can never be mistaken for a drag")
+            #expect(!CrabHitMask.body[15, 29],
+                    "the empty floor is not his body")
         }
     }
 }

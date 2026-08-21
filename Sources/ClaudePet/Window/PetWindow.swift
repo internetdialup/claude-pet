@@ -62,19 +62,41 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// consume the event; false hands it back to AppKit's unhandled-key path.
     var onKey: ((NSEvent) -> Bool)?
 
-    /// The sprite square — the whole mouse territory, and the scope of hover
-    /// tracking and pet eligibility, because every interaction means "the
-    /// pointer is on HIM".
-    private let spriteRect: CGRect
+    /// Where the mouse may land on him — his silhouette, not the square he is
+    /// drawn in. Hover and pet eligibility both consult it, because every
+    /// interaction means "the pointer is on HIM".
+    private var hitRegion: PetHitRegion
 
-    /// The one rect that accepts the mouse: exactly the sprite square, clamped
-    /// to the window (at pixel size 8 the square overhangs the window top by
-    /// 4pt). Everything else — the margins, the bubble — stays click-through.
-    /// The old 14pt halo and talking-bubble band are gone on purpose: with two
-    /// pets parked side by side, one pet's invisible grab zone sat over the
-    /// other's body and stole the pointer.
-    static func grabRect(sprite: CGRect, window: CGSize) -> CGRect {
-        sprite.intersection(CGRect(origin: .zero, size: window))
+    /// Cells that are clickable only right now — the floor bug. Wired by
+    /// `PetInstance`, which is the only thing that knows the mood clock.
+    var liveZones: () -> [CellRect] = { [] } {
+        didSet { hitRegion.liveZones = liveZones; hostView?.region = hitRegion }
+    }
+
+    private weak var hostView: DragHostView?
+
+    /// The mask's bounding box in view coordinates, clamped to the window —
+    /// the hover tracking area, and nothing else.
+    ///
+    /// An `NSTrackingArea` can only be a rectangle, so the box is the coarse
+    /// filter and the mask is the fine one. The clamp still earns its keep: at
+    /// pixel size 8 the sprite square overhangs the window top by 4pt.
+    ///
+    /// The gate itself is no longer a rect at all. It used to be exactly the
+    /// sprite square — but he only fills about a third of that square, so the
+    /// airspace over his head, the floor under his feet and the window's
+    /// corners all swallowed clicks meant for whatever was behind him. The old
+    /// 14pt halo and talking-bubble band died for the same reason one level
+    /// out: with two pets side by side, one pet's invisible territory sat over
+    /// the other's body and stole the pointer.
+    static func hoverBounds(mask: SpriteMask, sprite: CGRect,
+                            pixelSize: Double, window: CGSize) -> CGRect {
+        guard let box = mask.bounds else { return .zero }
+        let rect = CGRect(x: sprite.minX + CGFloat(box.x) * pixelSize,
+                          y: sprite.minY + CGFloat(PixelBuffer.side - box.y - box.h) * pixelSize,
+                          width: CGFloat(box.w) * pixelSize,
+                          height: CGFloat(box.h) * pixelSize)
+        return rect.intersection(CGRect(origin: .zero, size: window))
     }
 
     /// Where this pet's position persists. Injected because pet 2 keeps his
@@ -93,12 +115,12 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// - Parameter dragRect: the torso, in view coordinates — the only place
     ///   a press moves the window. Pass-through to the host view, never
     ///   re-read here.
-    init(contentSize: CGSize, interactiveRect: CGRect, dragRect: CGRect, rootView: some View,
+    init(contentSize: CGSize, hitRegion: PetHitRegion, dragRect: CGRect, rootView: some View,
          loadPosition: @escaping () -> CGPoint? = { Preferences.shared.position },
          storePosition: @escaping (CGPoint) -> Void = { Preferences.shared.position = $0 },
          parkOffset: CGFloat = 0) {
         self.contentSize = contentSize
-        self.spriteRect = interactiveRect
+        self.hitRegion = hitRegion
         self.loadPosition = loadPosition
         self.storePosition = storePosition
         self.parkOffset = parkOffset
@@ -108,9 +130,13 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         let hosting = NSHostingView(rootView: AnyView(rootView))
         hosting.frame = CGRect(origin: .zero, size: contentSize)
         let host = DragHostView(hosting: hosting, controller: self)
-        host.spriteRect = interactiveRect
-        host.grabRect = Self.grabRect(sprite: interactiveRect, window: contentSize)
+        host.region = hitRegion
+        host.hoverBounds = Self.hoverBounds(
+            mask: hitRegion.mask,
+            sprite: PetRootView.spriteFrame(pixelSize: hitRegion.pixelSize),
+            pixelSize: hitRegion.pixelSize, window: contentSize)
         host.dragRect = dragRect
+        hostView = host
         host.updateTrackingAreas()
         window.contentView = host
         window.delegate = self
@@ -472,12 +498,13 @@ private final class DragHostView: NSView {
     private var petEligible = false
     private var dragArmed = false
 
-    /// The sprite square: hover tracking and pet eligibility.
-    var spriteRect: CGRect = .infinite
-
-    /// The rect that accepts the mouse. Outside it `hitTest` returns nil and
+    /// Where the mouse may land on him. Outside it `hitTest` returns nil and
     /// the click passes through to whatever is behind the window.
-    var grabRect: CGRect = .zero
+    var region = PetHitRegion(pixelSize: 1, mask: SpriteMask())
+
+    /// The mask's bounding box — the tracking area only. Hover is confirmed
+    /// against the mask itself, because a tracking area cannot be crab-shaped.
+    var hoverBounds: CGRect = .zero
 
     /// The torso — the only place a press moves the window. Claws, legs and
     /// crown still click, pet and pounce; with two pets on one desk, a
@@ -497,7 +524,7 @@ private final class DragHostView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         // `point` arrives in the superview's coordinate space.
         let local = convert(point, from: superview)
-        return grabRect.contains(local) ? self : nil
+        return region.accepts(local) ? self : nil
     }
 
     /// The app is an accessory and the window never takes key focus, so without
@@ -515,25 +542,41 @@ private final class DragHostView: NSView {
         if !consumed { super.keyDown(with: event) }
     }
 
-    /// Tracking is scoped to the sprite square, same as the mouse territory,
-    /// so hovering the transparent margin or the bubble does not make him
-    /// react.
+    /// Tracking is scoped to the mask's bounding box — the coarse filter —
+    /// and `.mouseMoved` refines it against the mask itself inside that box,
+    /// because an `NSTrackingArea` can only be a rectangle and he is not one.
+    /// Hovering the sky over his head or the gap between his legs must not
+    /// make him react: he stirs when the pointer is touching HIM.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
         addTrackingArea(NSTrackingArea(
-            rect: spriteRect,
-            options: [.mouseEnteredAndExited, .activeAlways],
+            rect: hoverBounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
             owner: self
         ))
     }
 
+    /// The last hover state actually reported, so a pointer crossing his
+    /// silhouette inside the box does not re-fire the greeting every sample.
+    private var hovering = false
+
+    private func reportHover(_ on: Bool) {
+        guard on != hovering else { return }
+        hovering = on
+        MainActor.assumeIsolated { controller?.onHover?(on) }
+    }
+
     override func mouseEntered(with event: NSEvent) {
-        MainActor.assumeIsolated { controller?.onHover?(true) }
+        reportHover(region.onBody(convert(event.locationInWindow, from: nil)))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        reportHover(region.onBody(convert(event.locationInWindow, from: nil)))
     }
 
     override func mouseExited(with event: NSEvent) {
-        MainActor.assumeIsolated { controller?.onHover?(false) }
+        reportHover(false)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -543,8 +586,10 @@ private final class DragHostView: NSView {
         pressOrigin = NSEvent.mouseLocation
         pressStartedAt = Date()
         let local = convert(event.locationInWindow, from: nil)
-        // Petting means touching HIM — a press inside the sprite square.
-        petEligible = spriteRect.contains(local)
+        // Petting means touching HIM. A press that only reached us through a
+        // live zone — the floor bug — is a pounce, and holding still on a bug
+        // must not start a purr.
+        petEligible = region.onBody(local)
         // Only a torso press arms the drag; a press on a claw or a leg is a
         // poke or a pet, never a move.
         dragArmed = dragRect.contains(local)
