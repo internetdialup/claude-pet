@@ -56,12 +56,7 @@ public struct RosterPanel: View {
 
             if pinnedID != nil {
                 Divider()
-                Button("Unpin — follow the busiest session") { onPin(nil) }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(Palette.body)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                UnpinRow { onPin(nil) }
             }
         }
         .frame(width: 320)
@@ -73,6 +68,8 @@ private struct SessionRow: View {
     let isFocused: Bool
     let isPinned: Bool
     let onPin: () -> Void
+
+    @State private var hovering = false
 
     var body: some View {
         Button(action: onPin) {
@@ -108,10 +105,59 @@ private struct SessionRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isFocused ? Palette.body.opacity(0.10) : .clear)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RowStyle(isFocused: isFocused, hovering: hovering))
+        .onHover { hovering = $0 }
         .help(isPinned ? "Unpin this session" : "Pin the crab to this session")
+    }
+}
+
+/// A row that admits it is a button.
+///
+/// These were `.buttonStyle(.plain)` with a background that only ever marked
+/// the focused row: nothing lit under the pointer and nothing moved on the
+/// press, so a list of clickable sessions read as a list of labels and the one
+/// thing you could do with the roster was invisible.
+///
+/// Flat fills at four levels — rest, hover, focused, pressed — because the
+/// palette forbids gradients, and eased rather than switched, because a
+/// one-frame change is a glitch here for the same reason it is on the sprite.
+private struct RowStyle: ButtonStyle {
+    let isFocused: Bool
+    let hovering: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        let level: Double = configuration.isPressed ? 0.20
+            : isFocused ? (hovering ? 0.16 : 0.10)
+            : (hovering ? 0.07 : 0)
+        return configuration.label
+            .background(Palette.body.opacity(level))
+            // The press reads faster than the hover: a click should feel
+            // answered, a pointer merely acknowledged.
+            .animation(.easeOut(duration: 0.06), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+
+/// The unpin action, given the same affordance as the rows above it — it used
+/// to be bare text that happened to be clickable.
+private struct UnpinRow: View {
+    let onUnpin: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onUnpin) {
+            Text("Unpin — follow the busiest session")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(Palette.body)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(RowStyle(isFocused: false, hovering: hovering))
+        .onHover { hovering = $0 }
     }
 }

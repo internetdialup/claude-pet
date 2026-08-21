@@ -282,20 +282,51 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// A small crab glyph drawn as a template image, matching the monochrome
     /// convention Claude.app uses for its own tray icon.
-    private static func templateIcon() -> NSImage {
-        let size = NSSize(width: 18, height: 14)
+    /// Half a point per sprite cell — so on a retina bar every cell is exactly
+    /// ONE device pixel and the grid stays hard-edged.
+    ///
+    /// The size is not freely tunable, which is worth knowing before anyone
+    /// nudges it: a cell has to land on whole device pixels or the edges
+    /// antialias, and at 2x that allows 0.5pt and 1pt and nothing between.
+    /// A point per cell made him 24×15pt — wider than the clock beside him and
+    /// visibly chunky. This is the next crisp stop down.
+    static let iconCell: CGFloat = 0.5
+
+    /// The menu-bar crab, drawn from the rig itself.
+    ///
+    /// It used to be freehand bezier: an oval body, two stick eye-stalks and
+    /// two oval claws that shared nothing with the character on the desktop —
+    /// a circle crab standing in for a pixel one. Now the same `CrabRig` that
+    /// draws him renders the icon, cropped to his inked bounding box so he
+    /// fills the bar instead of floating inside the sprite's transparent
+    /// margins.
+    ///
+    /// A template image carries only alpha, so the face cannot be drawn — the
+    /// eyes and mouth are PUNCHED, left transparent inside the filled shell,
+    /// which is how a stencil reads a face. That punch is load-bearing: his
+    /// silhouette alone is a rectangle with legs, and it is the face that
+    /// makes the shape read as him. Everything else that is ink becomes black,
+    /// and macOS tints it for the light bar, the dark bar and the menu-open
+    /// highlight.
+    static func templateIcon() -> NSImage {
+        let buffer = CrabRig.render(CrabPose())
+        guard let box = SpriteMask(buffer).bounds else {
+            return NSImage(size: NSSize(width: 1, height: 1))
+        }
+        let cell = iconCell
+        let size = NSSize(width: CGFloat(box.w) * cell, height: CGFloat(box.h) * cell)
         let image = NSImage(size: size, flipped: false) { _ in
-            let body = NSBezierPath(ovalIn: NSRect(x: 3, y: 2.5, width: 12, height: 8))
             NSColor.black.setFill()
-            body.fill()
-            // Eye stalks.
-            for x in [6.5, 10.5] {
-                NSBezierPath(rect: NSRect(x: x, y: 9, width: 1.2, height: 3)).fill()
-                NSBezierPath(ovalIn: NSRect(x: x - 1, y: 11, width: 3.2, height: 3.2)).fill()
-            }
-            // Claws.
-            for x in [0.5, 14.5] {
-                NSBezierPath(ovalIn: NSRect(x: x, y: 4, width: 3.5, height: 4)).fill()
+            for row in 0..<box.h {
+                for column in 0..<box.w {
+                    let ink = buffer[box.x + column, box.y + row]
+                    guard ink != .clear, ink != .eye, ink != .mouth else { continue }
+                    // The buffer's rows run down from its top; an unflipped
+                    // NSImage's run up from its bottom.
+                    NSRect(x: CGFloat(column) * cell,
+                           y: CGFloat(box.h - 1 - row) * cell,
+                           width: cell, height: cell).fill()
+                }
             }
             return true
         }
