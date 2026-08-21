@@ -5,6 +5,90 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-08-21
+
+### Added
+
+- **🔊 An 8-bit soundboard.** He speaks now: a cute rising squeal when
+  you poke him (three pokes climb into the party), a squeak-squeak on
+  the bug catch, a low purr when petting begins, a sparkle run on
+  costume changes, a fwoosh when a cook ignites, and a proper chiptune
+  fanfare when an epic lands — the done bell stands down for it. The
+  attention chirp and done chime got 8-bit voices too, and an optional
+  per-service blip (C-E-G-B for npm, GitHub, Linear, deploys) lives
+  behind "Service sound blips" in the menu. Every sound is synthesised
+  in memory — still zero binary assets — and everything hushes during
+  films, now enforced in one place.
+- **⭐ A star for the thinking spell.** During long thinking stretches the
+  sparkles now trade shifts with an 8-bit Claude star — a nine-cell
+  sunburst in flame and gold, the same mark the reel's sting wears.
+- **🌈 The rainbow, hammered home.** The triple-poke party throws real
+  confetti now — six flecks tumbling through the trapezoid — the rainbow
+  drags a chromatic afterimage behind him as he moves, and the epic bow
+  fires a flat eight-ray sweep behind the glow. Mix and match, all three.
+- **🎈 A balloon worth waiting for.** On a long idle, once in a while, he
+  floats a balloon for a few seconds. Rare on purpose — never in the
+  first stretch, so a fresh launch stays calm.
+
+### Changed
+
+- **🦀 The menu bar gets the actual crab.** The icon was a freehand
+  drawing — an oval body, two stick eye-stalks, two oval claws — that
+  shared nothing with the character on your desktop. It is drawn from
+  the real sprite now, cropped so he fills the bar, with his eyes and
+  smile punched through the shell the way a stencil reads a face.
+- **👆 The roster admits it is clickable.** The session rows gave no
+  feedback at all: nothing lit under the pointer, nothing moved when
+  you pressed, so a list of sessions you can pin read as a list of
+  labels. Rows now light on hover and answer on press, and the "Unpin"
+  line got the same treatment.
+- **🖱️ He only takes the clicks that are his.** The mouse used to treat
+  his whole 32×32 square as him — so the empty sky over his head, the
+  floor under his feet, the window's corners and the gaps between his
+  legs all swallowed clicks meant for whatever was behind him, and
+  opened the roster on the way. Now the click zone is his actual
+  silhouette, widened just enough to cover the bob he does while
+  breathing. Everything else passes straight through to the app
+  underneath. Hovering and petting tightened with it: he stirs when the
+  pointer is touching him, not when it is somewhere in his airspace.
+  The stomach is still the only drag handle, and the floor bug is still
+  pounceable while it is out.
+- **🟩 The Matrix goes full terminal.** The code used to be six
+  one-pixel columns dripping at a single speed, drawn under his face so
+  his eyes erased chunks of it. Now it falls down his whole shell —
+  every column at its own speed and streak length, through a bright
+  head, a phosphor body and a dim tail — with varying-width code-lines
+  scrolling underneath it. The shell is darker so the code carries, and
+  his eyes are brighter than any of it so he keeps his face.
+- **💬 He speaks in bursts instead of wearing a banner.** The thought
+  bubble used to sit on his head for the entire time he was working or
+  cooking, its text merely swapping every fourteen seconds. Now a new
+  task or tool shows immediately and holds, then he goes quiet and
+  checks back in every half-minute or so. Alerts and plan-nudges are
+  never silenced — they pulse instead, because being blocked on you is
+  the one thing worth interrupting for. The menu-bar tooltip always
+  shows the live task, even while he is quiet.
+- **⚡ The white flash became a flashbang.** It used to be a peach wash
+  held across the whole ten-second celebration — only 40% of the way to
+  white, and only on his shell, so his eyes stayed black and a dark
+  costume never lit at all. Now the whole sprite blanches to pure white,
+  eyes and costume and heat bands together, in two hard hits inside the
+  first second — bang, a beat of honest terracotta, secondary — with
+  light spilling off him and, on an epic, the burst rings brightening on
+  each hit. The other nine seconds stay calm, which is what makes the
+  hits land. Honors the system Reduce Motion setting: he still
+  celebrates with pose, hops and colour, just without the strobe.
+- **🐯 The tiger goes orange.** Jungle Tiger trades green for actual tiger:
+  orange coat, dark stripes, a cream belly patch, a darker mouth.
+- **💥📟 Bang and phone, redrawn.** The alert bang wears an ember outline
+  with a paper highlight and hops phase; the phone lights its screen and
+  shows the alert dot, so the prop reads at a glance.
+- **🗝️ The preview goes secret.** "Preview animation" left the menu bar —
+  it was an art-review tool wearing a public hat. Shift+click the pet,
+  then press K within three seconds: the animation-testing menu opens at
+  the pet, Live hands control back to the live feed. Any other key, or
+  just waiting, closes the gate quietly.
+
 ## [1.4.0] — 2026-08-12
 
 ### Added
@@ -31,16 +115,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   back, and a rainbow sweeping the shell — all inside the same ten-second
   bow, easing back to a plain done before it fades. Short cooks keep the
   ordinary celebration.
-- **🔊 An 8-bit soundboard.** He speaks now: a cute rising squeal when
-  you poke him (three pokes climb into the party), a squeak-squeak on
-  the bug catch, a low purr when petting begins, a sparkle run on
-  costume changes, a fwoosh when a cook ignites, and a proper chiptune
-  fanfare when an epic lands — the done bell stands down for it. The
-  attention chirp and done chime got 8-bit voices too, and an optional
-  per-service blip (C-E-G-B for npm, GitHub, Linear, deploys) lives
-  behind "Service sound blips" in the menu. Every sound is synthesised
-  in memory — still zero binary assets — and everything hushes during
-  films, now enforced in one place.
 - **🔖 Service glyphs.** He name-checks the service he's talking to: an
   8-bit npm cube while npm/yarn/pnpm/bun run, a GitHub mark while a push
   or PR is in flight, a Linear diamond during Linear tool calls, a deploy
@@ -349,5 +423,10 @@ First public release.
 - Reads your Claude Code data **read-only**, never over the network. The only
   write to anything Claude owns is the hook installer, and only when you ask.
 
+[1.5.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.5.0
+[1.4.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.4.0
+[1.3.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.3.0
+[1.2.1]: https://github.com/internetdialup/claude-pet/releases/tag/v1.2.1
+[1.2.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.2.0
 [1.1.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.1.0
 [1.0.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.0.0
