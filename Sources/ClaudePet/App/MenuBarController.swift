@@ -282,10 +282,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// A small crab glyph drawn as a template image, matching the monochrome
     /// convention Claude.app uses for its own tray icon.
-    /// One point per sprite cell — so on a retina menu bar every cell is
-    /// exactly two device pixels and the grid stays hard-edged. A fractional
-    /// cell size would blur the one thing pixel art cannot afford to lose.
-    static let iconCell: CGFloat = 1
+    /// Half a point per sprite cell — so on a retina bar every cell is exactly
+    /// ONE device pixel and the grid stays hard-edged.
+    ///
+    /// The size is not freely tunable, which is worth knowing before anyone
+    /// nudges it: a cell has to land on whole device pixels or the edges
+    /// antialias, and at 2x that allows 0.5pt and 1pt and nothing between.
+    /// A point per cell made him 24×15pt — wider than the clock beside him and
+    /// visibly chunky. This is the next crisp stop down.
+    static let iconCell: CGFloat = 0.5
 
     /// The menu-bar crab, drawn from the rig itself.
     ///

@@ -36,16 +36,27 @@ struct MenuBarIconTests {
         let buffer = CrabRig.render(CrabPose())
         let box = try #require(SpriteMask(buffer).bounds)
         let icon = MenuBarController.templateIcon()
-        let tiff = try #require(icon.tiffRepresentation)
-        let rep = try #require(NSBitmapImageRep(data: tiff))
+
+        // Drawn into a bitmap of exactly one pixel per sprite cell, rather
+        // than sampled from whatever backing scale `tiffRepresentation`
+        // happens to hand back. At a half-point cell a 1x bitmap would put two
+        // cells in one pixel and the punch would become unreadable — the test
+        // would then be measuring the sampling, not the icon.
+        let rep = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: box.w, pixelsHigh: box.h,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        icon.draw(in: NSRect(x: 0, y: 0, width: box.w, height: box.h))
+        NSGraphicsContext.restoreGraphicsState()
 
         // A cell's row in the bitmap is its row in the crop: the draw flips
         // once going into the unflipped image and the bitmap flips back.
         func alpha(bufferX: Int, bufferY: Int) -> CGFloat? {
             let column = bufferX - box.x, row = bufferY - box.y
             guard column >= 0, row >= 0, column < box.w, row < box.h else { return nil }
-            let scale = Int(CGFloat(rep.pixelsWide) / icon.size.width)
-            return rep.colorAt(x: column * scale, y: row * scale)?.alphaComponent
+            return rep.colorAt(x: column, y: row)?.alphaComponent
         }
 
         var checkedEye = false, checkedShell = false
