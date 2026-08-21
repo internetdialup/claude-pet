@@ -32,6 +32,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **🦀 The menu bar gets the actual crab.** The icon was a freehand
+  drawing — an oval body, two stick eye-stalks, two oval claws — that
+  shared nothing with the character on your desktop. It is drawn from
+  the real sprite now, cropped so he fills the bar, with his eyes and
+  smile punched through the shell the way a stencil reads a face.
+- **👆 The roster admits it is clickable.** The session rows gave no
+  feedback at all: nothing lit under the pointer, nothing moved when
+  you pressed, so a list of sessions you can pin read as a list of
+  labels. Rows now light on hover and answer on press, and the "Unpin"
+  line got the same treatment.
 - **🖱️ He only takes the clicks that are his.** The mouse used to treat
   his whole 32×32 square as him — so the empty sky over his head, the
   floor under his feet, the window's corners and the gaps between his
