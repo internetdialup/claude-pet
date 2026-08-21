@@ -12,6 +12,20 @@ public struct PetRootView: View {
     /// Points per sprite pixel; the 32×32 grid renders at 32× this.
     public let pixelSize: Double
 
+    /// The system Reduce Motion setting. SwiftUI keeps this current, so
+    /// flipping it in System Settings calms him without a relaunch.
+    ///
+    /// Read HERE, at the live composition layer, and never inside the sprite's
+    /// pure render functions — the offline renderers must not inherit the build
+    /// machine's accessibility preferences, or the sizzle's byte-determinism
+    /// stops being a property of the code.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The flashbang, scaled by that setting. He still celebrates with pose,
+    /// hops and colour when the flash stands down — what goes away is the
+    /// full-luminance strobe, which is the part worth having a switch for.
+    private var flashScale: Double { reduceMotion ? 0 : 1 }
+
     /// Transparent grid rows above his head, reserved for worn props like the
     /// hard hat. The bubble band overlaps these so the bubble sits *on* his
     /// head rather than floating a sprite-height above it.
@@ -98,7 +112,19 @@ public struct PetRootView: View {
                     .allowsHitTesting(false)
 
                 if let started = model.celebrationStartedAt {
-                    CelebrationGlow(since: started.timeIntervalSinceReferenceDate)
+                    CelebrationGlow(since: started.timeIntervalSinceReferenceDate,
+                                    flashSince: flashScale > 0
+                                        ? model.moodClock.currentEpoch(for: .done) : nil)
+                        .frame(width: spriteSize, height: spriteSize)
+                        .allowsHitTesting(false)
+                }
+
+                // The flash's spill, behind him and on his clock. Both tiers
+                // get it — the plain celebration is the common case, and it is
+                // the one the operator sees most.
+                if model.state.mood == .done, model.state.celebrating, flashScale > 0,
+                   let epoch = model.moodClock.currentEpoch(for: .done) {
+                    FlashHalo(since: epoch, epic: model.state.epicCelebration)
                         .frame(width: spriteSize, height: spriteSize)
                         .allowsHitTesting(false)
                 }
@@ -133,6 +159,7 @@ public struct PetRootView: View {
                     serviceGlyph: model.serviceGlyphKind,
                     serviceGlyphShownAt: model.serviceGlyphShownAt?.timeIntervalSinceReferenceDate,
                     serviceGlyphEndedAt: model.serviceGlyphEndedAt?.timeIntervalSinceReferenceDate,
+                    flashScale: flashScale,
                     moodClock: model.moodClock,
                     costumeClock: model.costumeClock
                 )
@@ -163,12 +190,18 @@ public struct PetRootView: View {
 /// offline sizzle renderer share one implementation and cannot drift.
 struct CelebrationGlow: View {
     let since: Double
+    /// The flash's own epoch — `MoodClock`'s, not `celebrationStartedAt`'s.
+    /// The rings brighten on the taps, and a 90ms attack has no tolerance for
+    /// the skew between the two clocks. Nil outside a live celebration.
+    var flashSince: Double?
 
     var body: some View {
         TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
             Canvas { context, size in
+                let now = timeline.date.timeIntervalSinceReferenceDate
                 Self.draw(in: &context, size: size,
-                          t: timeline.date.timeIntervalSinceReferenceDate - since)
+                          t: now - since,
+                          blanch: flashSince.map { CrabView.epicBlanch(doneT: now - $0) } ?? 0)
             }
         }
     }
@@ -177,8 +210,11 @@ struct CelebrationGlow: View {
     /// the 10s envelope closes.
     /// - Parameter bloom: the radial gradient is a smooth ramp — poison for
     ///   a GIF's global palette — so the GIF cut renders rings only.
+    /// - Parameter blanch: how hard the sprite is flashing right now. The rings
+    ///   ride it up so the burst brightens with the bang instead of holding a
+    ///   constant glow while he detonates.
     static func draw(in context: inout GraphicsContext, size: CGSize, t: Double,
-                     bloom drawsBloom: Bool = true) {
+                     bloom drawsBloom: Bool = true, blanch: Double = 0) {
         let envelope = Ease.window(t, duration: 10, edge: 0.9)
         guard envelope > 0.001 else { return }
         let px = size.width / Double(PixelBuffer.side)
@@ -205,10 +241,64 @@ struct CelebrationGlow: View {
             let phase = (t * 0.5 + Double(ring) / 3).truncatingRemainder(dividingBy: 1)
             let cells = (6 + phase * 10).rounded()
             let half = cells * px
-            let alpha = (1 - phase) * 0.30 * envelope
+            // A BOOST on the base 0.30, never a multiplier: at blanch 0 the
+            // rings must render exactly as they always have, which is what
+            // keeps the sizzle's byte-equality samples honest.
+            let alpha = (1 - phase) * (0.30 + 0.45 * Ease.clamp01(blanch)) * envelope
             let rect = CGRect(x: centre.x - half, y: centre.y - half,
                               width: half * 2, height: half * 2)
             context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
+        }
+    }
+}
+
+/// The flash's spill: a soft white bloom on the same clock as the sprite's
+/// blanch, so he reads as EMITTING light rather than merely being repainted.
+///
+/// Bounded to the sprite square on purpose. The window is only a couple of
+/// dozen points taller than the sprite and has **no margin at all below his
+/// feet**, so a bloom any wider than this meets the window's bottom bound at
+/// non-zero alpha and draws a hard white line under him on every flash.
+///
+/// Live-only by construction: offline renderers compose `CrabView` directly and
+/// never see this file, so the radial ramp can never reach a GIF's palette or a
+/// chroma key — the same argument `RainbowTrails` runs on.
+struct FlashHalo: View {
+    /// `MoodClock`'s epoch for the done mood — the SAME clock the sprite's
+    /// blanch uses. Do not "simplify" this to `celebrationStartedAt`: that is
+    /// stamped from `Date()` at state intake, and the resulting skew would put
+    /// the spill visibly out of phase with a 90ms attack.
+    let since: Double
+    let epic: Bool
+
+    /// Peak centre alpha. The sprite goes to 100%; the air around him at 42%
+    /// reads as light spilling off him without becoming a screen event.
+    static let peakAlpha = 0.42
+
+    var body: some View {
+        TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
+            Canvas { context, size in
+                let t = timeline.date.timeIntervalSinceReferenceDate - since
+                let blanch = epic ? CrabView.epicBlanch(doneT: t)
+                                  : CrabView.celebrationBlanch(doneT: t)
+                guard blanch > 0.001 else { return }
+                // Whole-point centre, matching CelebrationGlow: on an epic the
+                // two effects must share an origin, and fractional centres are
+                // what put LSB noise into antialiased edges here before.
+                let centre = CGPoint(x: (size.width / 2).rounded(),
+                                     y: (size.height * 0.55).rounded())
+                // 0.45 × side from a 0.55h centre puts alpha at zero exactly on
+                // the nearest frame boundary, so the disc never meets a clip
+                // edge while still lit.
+                let radius = size.width * 0.45
+                let ramp = Gradient(colors: [Palette.white.opacity(Self.peakAlpha * blanch),
+                                             .clear])
+                context.fill(
+                    Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius,
+                                           width: radius * 2, height: radius * 2)),
+                    with: .radialGradient(ramp, center: centre,
+                                          startRadius: 0, endRadius: radius))
+            }
         }
     }
 }
