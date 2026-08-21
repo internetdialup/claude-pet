@@ -90,7 +90,7 @@ struct SizzleScriptTests {
         // verbatim, still inside the law.
         let opener = SizzleScript.hook.segments.first
         #expect(opener?.chapter == .finale && opener?.seconds == 0.6)
-        if case .window(let offset) = opener?.kind { #expect(offset == 1.0) }
+        if case .window(let offset) = opener?.kind { #expect(offset == 2.05) }
         else { Issue.record("the hook must open on a window slice") }
         #expect(Array(SizzleScript.hook.segments.dropFirst()).count
                 == SizzleScript.landscape.segments.count)
@@ -191,6 +191,31 @@ struct SizzleFrameTests {
             let b = frameData(cut: cut, t: t)
             #expect(a != nil && a == b, "readme cook frame at t=\(t) must be reproducible")
         }
+        // A frame mid-flashbang: the blanch adds a second fill pass over the
+        // union of the sprite's runs, and that pass has to rasterise as
+        // stably as the inks under it. The readme finale opens at cut t=6.0,
+        // so t=6.4 is finale-local 0.4 — inside the first tap's plateau, i.e.
+        // a fully white sprite.
+        for t in [6.4] {
+            let cut = SizzleScript.readme
+            #expect(CrabView.epicBlanch(doneT: t - 6.0) == 1.0,
+                    "the determinism sample must actually land on a flash")
+            let a = frameData(cut: cut, t: t)
+            let b = frameData(cut: cut, t: t)
+            #expect(a != nil && a == b, "blanched frame at t=\(t) must be reproducible")
+        }
+    }
+
+    @Test("The hook cut opens on an actual flash, not a decay tail")
+    func hookOpensOnTheBang() {
+        let opener = SizzleScript.hook.segments[0]
+        guard case .window(let offset) = opener.kind else {
+            Issue.record("the hook must open on a window slice")
+            return
+        }
+        let lit = stride(from: 0.0, to: opener.seconds, by: 1.0 / 30)
+            .contains { CrabView.epicBlanch(doneT: offset + $0) > 0.99 }
+        #expect(lit, "the cold open must contain a full-white frame")
     }
 
     private func frameData(cut: SizzleScript.Cut, t: Double) -> Data? {
@@ -264,7 +289,10 @@ struct SizzlePlateTests {
 
     @Test("A plate frame keys clean: exact green corners, a bounded palette")
     func platePurity() throws {
-        // Mid-cook: shake, disco tint, suppressed shadow and bubble in play.
+        // Mid-FINALE: the landscape cursor puts t=17.5 at finale-local ~8.7 —
+        // rainbow tint, badge landing, suppressed shadow and bubble in play,
+        // and deliberately past the last flashbang tap, so this samples the
+        // plate's steady state rather than a white frame.
         let cut = SizzleScript.plate16x9
         let index = Int((17.5 * Double(cut.fps)).rounded())
         let frame = try #require(SizzleRenderer.testFrame(cut: cut, index: index))
@@ -568,8 +596,10 @@ struct MatchCutTests {
         // Landscape: cook ends at 8.8, finale begins there.
         let exitFlash = SizzleRenderer.matchCutFlash(cut: cut, at: 8.799, fmt: fmt)
         let entryFlash = SizzleRenderer.matchCutFlash(cut: cut, at: 8.801, fmt: fmt)
-        #expect(abs(exitFlash - 0.9) < 0.02, "the cook must exit at full white")
-        #expect(abs(entryFlash - 0.9) < 0.02, "the finale must open at the same white")
+        // 1.0, not 0.9: nine tenths of white composites to a grey over a dark
+        // backdrop, which is the washed-out complaint in a different room.
+        #expect(abs(exitFlash - 1.0) < 0.02, "the cook must exit at full white")
+        #expect(abs(entryFlash - 1.0) < 0.02, "the finale must open at the same white")
         // And it dies quickly on both sides.
         #expect(SizzleRenderer.matchCutFlash(cut: cut, at: 8.0, fmt: fmt) < 0.01)
         #expect(SizzleRenderer.matchCutFlash(cut: cut, at: 9.4, fmt: fmt) < 0.01)

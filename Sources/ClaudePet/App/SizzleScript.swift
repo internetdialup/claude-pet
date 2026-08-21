@@ -181,11 +181,19 @@ enum SizzleScript {
     /// The hook cut: 0.6s of the finale's flash as a cold open — the
     /// retention pattern socials reward — then the landscape master
     /// verbatim. 24.8s, still inside the law.
+    ///
+    /// The offset tracks the flash schedule and must keep doing so. It used to
+    /// be 1.0, which worked only because the old tint pulsed every 1.2s and any
+    /// window caught something; the flashbang fires on a sparse schedule, so
+    /// 1.0 would now open on a decay tail. 2.05 lands on the epic apex tap AND
+    /// the 1.2× transform's peak — he swells a fifth and detonates, which is a
+    /// better cold open than the one this replaces. `hookOpensOnTheBang` fails
+    /// if the schedule ever moves out from under it.
     static let hook = Cut(
         name: "sizzle-hook.mp4",
         canvas: CGSize(width: 640, height: 360), scale: 3, fps: 30,
         family: .master,
-        segments: [Segment(chapter: .finale, kind: .window(offset: 1.0), seconds: 0.6)]
+        segments: [Segment(chapter: .finale, kind: .window(offset: 2.05), seconds: 0.6)]
             + landscape.segments)
 
     /// The showcase cuts: the masters' choreography with the type stripped —
@@ -249,30 +257,39 @@ enum SizzleScript {
         for segment in cut.segments {
             emit(cursor, "chapter", String(describing: segment.chapter))
 
-            // Intra-chapter cadences, mapped through the segment's clock.
-            let cadence: (period: Double, labels: [String])?
+            // Intra-chapter beats at explicit master times, mapped through the
+            // segment's clock. Explicit times rather than a (period, labels)
+            // cadence because the finale's hits are the flashbang schedule,
+            // which is deliberately irregular — and those are exactly the beats
+            // an edit wants to cut music to.
+            let beats: [(time: Double, label: String)]
+            let kind: String
             switch segment.chapter {
-            case .glyphs: cadence = (1.5, glyphBeats.map { $0.glyph.rawValue })
-            case .montage: cadence = (1.0, montageOrder.map { $0.rawValue })
-            default: cadence = nil
+            case .glyphs:
+                beats = glyphBeats.enumerated().map { (Double($0.offset) * 1.5, $0.element.glyph.rawValue) }
+                kind = "glyph"
+            case .montage:
+                beats = montageOrder.enumerated().map { (Double($0.offset) * 1.0, $0.element.rawValue) }
+                kind = "look"
+            case .finale:
+                beats = (CrabView.celebrationFlashes + [CrabView.epicFlash])
+                    .map { ($0.at, "flash") }
+                kind = "flash"
+            default:
+                beats = []
+                kind = ""
             }
-            if let cadence {
-                let kind = segment.chapter == .glyphs ? "glyph" : "look"
-                switch segment.kind {
-                case .window(let offset):
-                    for (index, label) in cadence.labels.enumerated() {
-                        let masterT = Double(index) * cadence.period
-                        guard masterT >= offset, masterT < offset + segment.seconds else { continue }
-                        emit(cursor + (masterT - offset), kind, label)
-                    }
-                case .scaled:
-                    let master = masterSeconds[segment.chapter] ?? segment.seconds
-                    let factor = master / segment.seconds
-                    for (index, label) in cadence.labels.enumerated() {
-                        let masterT = Double(index) * cadence.period
-                        guard masterT < master else { continue }
-                        emit(cursor + masterT / factor, kind, label)
-                    }
+            switch segment.kind {
+            case .window(let offset):
+                for beat in beats {
+                    guard beat.time >= offset, beat.time < offset + segment.seconds else { continue }
+                    emit(cursor + (beat.time - offset), kind, beat.label)
+                }
+            case .scaled:
+                let master = masterSeconds[segment.chapter] ?? segment.seconds
+                let factor = master / segment.seconds
+                for beat in beats where beat.time < master {
+                    emit(cursor + beat.time / factor, kind, beat.label)
                 }
             }
             cursor += segment.seconds

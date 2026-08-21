@@ -369,11 +369,14 @@ enum SizzleRenderer {
         guard !fmt.plate, cut.family != .readme,
               let cue = SizzleScript.resolve(cut, at: t),
               let hood = SizzleScript.neighbors(in: cut, at: t) else { return 0 }
+        // 1.0, not 0.9: nine tenths of white over a dark backdrop composites to
+        // about #E5E5E5 — a grey, which is the same washed-out complaint in a
+        // different room. The ramps are unchanged; only the peak is honest now.
         if cue.chapter == .cook, hood.next == .finale {
-            return 0.9 * Ease.smoothstep(max(0, min(1, (0.4 - hood.remaining) / 0.4)))
+            return Ease.smoothstep(max(0, min(1, (0.4 - hood.remaining) / 0.4)))
         }
         if cue.chapter == .finale, hood.previous == .cook {
-            return 0.9 * (1 - Ease.smoothstep(min(1, hood.into / 0.3)))
+            return 1 - Ease.smoothstep(min(1, hood.into / 0.3))
         }
         return 0
     }
@@ -506,13 +509,22 @@ enum SizzleRenderer {
                                  var pose = CrabAnimator.pose(mood: .done, t: t)
                                  CrabAnimator.applyCelebration(t: t, epic: true, to: &pose)
                                  pose.doneBadge = Ease.smoothstep(max(0, min(1, (t - 8.2) / 0.5)))
+                                 // The flash rides the same chapter clock the
+                                 // pose does, so the reel and the desktop
+                                 // detonate on identical frames.
+                                 let blanch = CrabView.epicBlanch(doneT: t)
                                  let glow = fmt.plate ? nil : AnyView(Canvas { context, size in
                                      CelebrationGlow.draw(in: &context, size: size, t: t,
-                                                          bloom: !fmt.gifSafe)
+                                                          bloom: !fmt.gifSafe, blanch: blanch)
                                  }
                                  .frame(width: side, height: side))
+                                 // Plates KEEP the blanch: white against the
+                                 // dark-red key field separates better than
+                                 // terracotta does, and keyed footage must not
+                                 // show him calm while the titled twin flashes.
                                  return sizzlePet(pose: pose,
                                                   tint: CrabView.epicTint(doneT: t),
+                                                  blanch: blanch,
                                                   behind: glow,
                                                   side: side, fmt: fmt)
                              },
@@ -732,6 +744,7 @@ enum SizzleRenderer {
                                   bubble: AnyView? = nil,
                                   bubbleOpacity: Double = 1,
                                   tint: Color? = nil,
+                                  blanch: Double = 0,
                                   behind: AnyView? = nil,
                                   side: CGFloat? = nil,
                                   fmt: Format) -> AnyView {
@@ -749,7 +762,8 @@ enum SizzleRenderer {
                                                    costumeVisibility: costumeU),
                             bodyTint: tint,
                             inkOverrides: overrides,
-                            seamBleed: 0)
+                            seamBleed: 0,
+                            blanch: blanch)
                 .frame(width: spriteSide, height: spriteSide)
                 // The floor's opinion, same numbers as the live window.
                 // Suppressed on plates: translucent black over green keys
