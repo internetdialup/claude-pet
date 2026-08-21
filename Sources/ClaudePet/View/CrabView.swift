@@ -619,6 +619,11 @@ public enum CrabAnimator {
 }
 
 /// Claw'd himself, animating continuously off the display link.
+/// `@MainActor` written down rather than inferred — see the note on
+/// `PetRootView`. The pure schedules (the tints, the flash bursts) are
+/// `nonisolated` beneath it, because they are functions of a clock reading
+/// and nothing else.
+@MainActor
 public struct CrabView: View {
     public var mood: PetMood
     /// The wardrobe. Costume changes cross-dissolve via `CostumeClock`.
@@ -808,7 +813,7 @@ public struct CrabView: View {
 
     /// How fast the light arrives. Under the README GIF's 0.1s sampling step
     /// on purpose — see `celebrationFlashes`.
-    static let flashAttack = 0.09
+    nonisolated static let flashAttack = 0.09
 
     /// The flashbang: two detonations inside the first second, then nothing.
     ///
@@ -825,7 +830,7 @@ public struct CrabView: View {
     /// the README GIF — which samples the finale at 10fps — always lands
     /// strictly inside a plateau rather than on a flank. `flashesSurviveTenFps`
     /// pins all three halves of that invariant.
-    static let celebrationFlashes: [(at: Double, hold: Double, decay: Double)] = [
+    nonisolated static let celebrationFlashes: [(at: Double, hold: Double, decay: Double)] = [
         (at: 0.20, hold: 0.12, decay: 0.28),
         (at: 0.80, hold: 0.06, decay: 0.20),
     ]
@@ -835,12 +840,12 @@ public struct CrabView: View {
     /// longest hold. No tap at t≈0: the reel's `matchCutFlash` already whites
     /// the whole frame out across the cook→finale boundary, and the finale
     /// opens decaying from it. A sprite flash there is a white on a white.
-    static let epicFlash = (at: 2.20, hold: 0.14, decay: 0.32)
+    nonisolated static let epicFlash = (at: 2.20, hold: 0.14, decay: 0.32)
 
     /// The loudest hit of the train at `t`. `max`, not a sum: two taps must
     /// never add to 2 and clip, so the 0…1 contract holds by construction
     /// rather than by the schedule happening not to overlap.
-    private static func loudest(_ t: Double,
+    nonisolated private static func loudest(_ t: Double,
                                 _ schedule: [(at: Double, hold: Double, decay: Double)]) -> Double {
         schedule.reduce(0) { best, tap in
             max(best, Ease.pulse(t - tap.at, attack: flashAttack,
@@ -848,11 +853,11 @@ public struct CrabView: View {
         }
     }
 
-    static func celebrationBlanch(doneT t: Double) -> Double {
+    nonisolated static func celebrationBlanch(doneT t: Double) -> Double {
         loudest(t, celebrationFlashes)
     }
 
-    static func epicBlanch(doneT t: Double) -> Double {
+    nonisolated static func epicBlanch(doneT t: Double) -> Double {
         loudest(t, celebrationFlashes + [epicFlash])
     }
 
@@ -861,7 +866,7 @@ public struct CrabView: View {
     /// chooses how much light is hitting all of them. A flash expressed as a
     /// tint could only ever reach `.body`, which is exactly how the old one
     /// ended up as peach with black eyes in the middle of it.
-    static func composedBlanch(mood: PetMood, t: Double,
+    nonisolated static func composedBlanch(mood: PetMood, t: Double,
                                celebrating: Bool, epic: Bool) -> Double {
         guard mood == .done, celebrating else { return 0 }
         return epic ? epicBlanch(doneT: t) : celebrationBlanch(doneT: t)

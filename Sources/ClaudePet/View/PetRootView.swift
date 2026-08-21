@@ -6,6 +6,17 @@ import SwiftUI
 /// body. The surrounding margin is transparent and made click-through by
 /// `PetWindowController`, so a large window does not become a large dead zone
 /// over the desktop.
+/// `@MainActor` is written down rather than inferred, on purpose.
+///
+/// `View` carries it, so this type was always main-actor state — but WHICH
+/// members inherited it depended on the compiler: Swift 6.1 pushes the
+/// inference onto static members and 6.3 does not. That gap is invisible from
+/// a desk running the newer one, and it is how `SpriteMask`'s nonisolated hit
+/// test shipped green locally and turned the CI runner red on the merge.
+///
+/// Spelled out here, both toolchains agree, and the `nonisolated` geometry
+/// below is a promise the local build actually checks.
+@MainActor
 public struct PetRootView: View {
     @ObservedObject var model: PetViewModel
 
@@ -26,22 +37,37 @@ public struct PetRootView: View {
     /// full-luminance strobe, which is the part worth having a switch for.
     private var flashScale: Double { reduceMotion ? 0 : 1 }
 
+    // The geometry below is `nonisolated` deliberately, and must stay that
+    // way. `PetRootView` conforms to `View`, `View` is `@MainActor`, and Swift
+    // 6.1 pushes that inference onto the type's static members — so this
+    // whole group was main-actor-isolated without anyone writing it down.
+    //
+    // None of it touches view state: it is pure arithmetic over a pixel size.
+    // The window's hit test needs it from `DragHostView`, an `NSView` whose
+    // `hitTest` is synchronous and nonisolated, and `PetHitRegion` is a plain
+    // struct — neither can await a main actor, and neither should have to.
+    //
+    // This is the same trap `A colour is not main-actor state` fell into, and
+    // it shipped the same way: the Swift on this desk (6.3) does not infer the
+    // isolation, so it built clean locally and the CI runner (6.1) went red on
+    // the merge. Local green is not a build.
+
     /// Transparent grid rows above his head, reserved for worn props like the
     /// hard hat. The bubble band overlaps these so the bubble sits *on* his
     /// head rather than floating a sprite-height above it.
-    public static let crownCells = 6
+    public nonisolated static let crownCells = 6
 
     /// Room for one line of bubble plus its tail.
-    public static let bubbleBand: CGFloat = 44
+    public nonisolated static let bubbleBand: CGFloat = 44
 
     public var spriteSize: CGFloat { CGFloat(Double(PixelBuffer.side) * pixelSize) }
     private var overlap: CGFloat { CGFloat(Double(Self.crownCells) * pixelSize) }
 
-    public static func spriteSize(pixelSize: Double) -> CGFloat {
+    public nonisolated static func spriteSize(pixelSize: Double) -> CGFloat {
         CGFloat(Double(PixelBuffer.side) * pixelSize)
     }
 
-    public static func windowSize(pixelSize: Double) -> CGSize {
+    public nonisolated static func windowSize(pixelSize: Double) -> CGSize {
         let sprite = spriteSize(pixelSize: pixelSize)
         let overlap = CGFloat(Double(crownCells) * pixelSize)
         // Wide enough that a full-length bubble, centred over him, still fits.
@@ -51,7 +77,7 @@ public struct PetRootView: View {
     /// Where the sprite sits inside the window, in AppKit's bottom-left origin
     /// space. `AppDelegate` uses this for the click-through region, so the grab
     /// area tracks the sprite instead of guessing.
-    public static func spriteFrame(pixelSize: Double) -> CGRect {
+    public nonisolated static func spriteFrame(pixelSize: Double) -> CGRect {
         let window = windowSize(pixelSize: pixelSize)
         let sprite = spriteSize(pixelSize: pixelSize)
         return CGRect(x: (window.width - sprite) / 2, y: 0, width: sprite, height: sprite)
@@ -65,7 +91,7 @@ public struct PetRootView: View {
     /// all ask here — it used to be private on `PetInstance` and restated by
     /// hand in the test suite, which is how a mapping quietly drifts away from
     /// its own test.
-    public static func spriteCell(for point: CGPoint, pixelSize: Double) -> (x: Int, y: Int)? {
+    public nonisolated static func spriteCell(for point: CGPoint, pixelSize: Double) -> (x: Int, y: Int)? {
         guard pixelSize > 0 else { return nil }
         let frame = spriteFrame(pixelSize: pixelSize)
         guard frame.contains(point) else { return nil }
@@ -77,7 +103,7 @@ public struct PetRootView: View {
     /// `CrabRig`'s body block (cols 6–25, rows 10–20) through the same y-flip
     /// the click-to-cell mapping uses. Rest pose on purpose: drags start on a
     /// calm pet, and a handle that bobbed with him would be unlearnable.
-    public static func torsoFrame(pixelSize: Double) -> CGRect {
+    public nonisolated static func torsoFrame(pixelSize: Double) -> CGRect {
         let sprite = spriteFrame(pixelSize: pixelSize)
         return CGRect(
             x: sprite.minX + CGFloat(CrabRig.bodyX) * pixelSize,
