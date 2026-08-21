@@ -1,5 +1,7 @@
 import Testing
 import Foundation
+import AppKit
+import SwiftUI
 @testable import ClaudePet
 
 /// The easing vocabulary's contract: envelopes hit their endpoints, rise
@@ -185,5 +187,130 @@ struct FrozenSentinelTests {
             #expect(a.x == b.x && a.y == b.y && a.length == b.length && a.ink == b.ink)
         }
         _ = direct
+    }
+
+    @Test("A hit holds at exactly one, and is its own frozen sentinel")
+    func pulseHoldsAndSleeps() {
+        #expect(Ease.pulse(0, attack: 0.09, hold: 0.12, decay: 0.28) == 0, "frozen sentinel")
+        #expect(Ease.pulse(-1, attack: 0.09, hold: 0.12, decay: 0.28) == 0)
+        #expect(Ease.pulse(0.5, attack: 0.09, hold: 0.12, decay: 0.28) == 0, "past the tail")
+        // The plateau: anywhere inside [attack, attack + hold] is exactly 1.
+        // Reaching EXACTLY 1 is the point — a hit that tops out at 0.9 is a
+        // grey, and a hit that tops out at 0.4 is the peach this replaced.
+        #expect(Ease.pulse(0.10, attack: 0.09, hold: 0.12, decay: 0.28) == 1)
+        #expect(Ease.pulse(0.20, attack: 0.09, hold: 0.12, decay: 0.28) == 1)
+        // And it ramps rather than steps on both sides.
+        let rising = Ease.pulse(0.045, attack: 0.09, hold: 0.12, decay: 0.28)
+        let falling = Ease.pulse(0.35, attack: 0.09, hold: 0.12, decay: 0.28)
+        #expect(rising > 0.4 && rising < 0.6)
+        #expect(falling > 0.05 && falling < 0.95)
+    }
+}
+
+/// The blanch: the channel that takes the WHOLE sprite to white, as opposed to
+/// `bodyTint`, which reaches one ink by design. These are the tests that would
+/// have caught the peach — a "white" flash that left black eyes and a dark
+/// costume standing in the middle of it.
+@Suite("The blanch")
+@MainActor
+struct BlanchTests {
+
+    /// A fixture carrying every hard case at once: heat bands present, and the
+    /// Gundam wardrobe, whose `costumeC` is near-black, whose eyes are
+    /// overridden yellow, and whose `costumeA`/`costumeB` are saturated.
+    private func hardestBuffer() -> PixelBuffer {
+        var pose = CrabAnimator.pose(mood: .done, t: 0.3)
+        pose.heat = 1
+        pose.heatPhase = 0.4
+        return CrabRig.render(pose, costume: .gundam, costumeVisibility: 1)
+    }
+
+    private func pixels(_ view: some View) throws -> NSBitmapImageRep {
+        let image = try #require(SpriteImage.cgImage(of: view.frame(width: 96, height: 96)))
+        return NSBitmapImageRep(cgImage: image)
+    }
+
+    @Test("At full blanch every lit cell is pure white — eyes and costume too")
+    func fullBlanchIsPureWhite() throws {
+        let rep = try pixels(PixelCanvasView(buffer: hardestBuffer(),
+                                             inkOverrides: CostumeStyle.blendedOverrides(
+                                                from: .none, to: .gundam, u: 1),
+                                             seamBleed: 0,
+                                             blanch: 1))
+        var checked = 0
+        for x in 0..<rep.pixelsWide {
+            for y in 0..<rep.pixelsHigh {
+                guard let colour = rep.colorAt(x: x, y: y),
+                      colour.alphaComponent > 0.99 else { continue }
+                checked += 1
+                #expect(colour.redComponent > 0.99 && colour.greenComponent > 0.99
+                        && colour.blueComponent > 0.99,
+                        "an opaque cell at (\(x),\(y)) survived the flash: \(colour)")
+            }
+        }
+        #expect(checked > 500, "the fixture should cover a real sprite, not a few cells")
+    }
+
+    @Test("Blanch zero is the identity — inert for every existing caller")
+    func blanchZeroIsIdentity() throws {
+        let buffer = hardestBuffer()
+        let plain = SpriteImage.png(of: PixelCanvasView(buffer: buffer)
+            .frame(width: 96, height: 96))
+        let unlit = SpriteImage.png(of: PixelCanvasView(buffer: buffer, blanch: 0)
+            .frame(width: 96, height: 96))
+        #expect(plain != nil && plain == unlit)
+    }
+
+    /// The seam trap. `seamBleed` (0.5 in the live view) makes neighbouring run
+    /// rects OVERLAP, so a wash filled per-run would composite white twice down
+    /// every seam and paint a bright grid across a sprite whose palette forbids
+    /// shading — and an even-odd fill of the union would punch transparent
+    /// holes there instead. One non-zero-wound path over the union does
+    /// neither. A solid block spanning many runs makes either bug visible as a
+    /// pixel that differs from its neighbours.
+    @Test("A partial blanch leaves no seam grid across a solid area")
+    func partialBlanchHasNoSeams() throws {
+        var buffer = PixelBuffer()
+        for y in 8..<24 {
+            for x in 8..<24 { buffer[x, y] = .body }
+        }
+        let rep = try pixels(PixelCanvasView(buffer: buffer, blanch: 0.5))
+        // Sample well inside the block so no antialiased outer edge is caught:
+        // grid cells 10…21 at 3pt per cell.
+        var seen = Set<Int>()
+        for x in (10 * 3)...(21 * 3) {
+            for y in (10 * 3)...(21 * 3) {
+                let colour = try #require(rep.colorAt(x: x, y: y))
+                #expect(colour.alphaComponent > 0.99, "a hole at (\(x),\(y)) — even-odd fill?")
+                seen.insert(Int((colour.redComponent * 255).rounded()))
+            }
+        }
+        #expect(seen.count == 1,
+                "uneven wash across a solid block (\(seen.sorted())) — it composited more than once somewhere")
+    }
+
+    @Test("The blanch ramps the darkest ink rather than snapping it")
+    func blanchIsMonotoneNotBinary() throws {
+        // Sampled on the whole sprite rather than one cell: the darkest pixel
+        // in the frame has to climb with the wash, which is the property that
+        // matters and the one that cannot drift with the rig's geometry.
+        var previous = -1.0
+        for amount in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            let rep = try pixels(PixelCanvasView(buffer: hardestBuffer(),
+                                                 seamBleed: 0,
+                                                 blanch: amount))
+            var darkest = 1.0
+            for x in 0..<rep.pixelsWide {
+                for y in 0..<rep.pixelsHigh {
+                    guard let colour = rep.colorAt(x: x, y: y),
+                          colour.alphaComponent > 0.99 else { continue }
+                    darkest = min(darkest, colour.redComponent)
+                }
+            }
+            #expect(darkest > previous,
+                    "blanch \(amount) did not lift the darkest ink past \(previous)")
+            previous = darkest
+        }
+        #expect(previous > 0.99, "a full blanch must land the darkest ink on white")
     }
 }
