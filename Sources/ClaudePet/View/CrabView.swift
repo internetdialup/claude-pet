@@ -332,8 +332,13 @@ public enum CrabAnimator {
             // Through upright, not across it: flipping -1 to 1 moved him two
             // pixels in a frame, so the "wave" was really a shudder.
             pose.lean = Int((sin(t * 3.2) * 1.4).rounded())
-            pose.armLeft = 0.7 + (sin(t * 5.5) > 0 ? 0.3 : 0)
-            pose.armRight = 1.0 - (sin(t * 5.5) > 0 ? 0.3 : 0)
+            // Eased, because `drawArm` quantises this to whole cells: a hard
+            // flip between 0.7 and 1.0 moves the drawn reach from four cells to
+            // six in a single frame, three times a second. The eased square
+            // keeps the impatient duty cycle and lands on five on the way.
+            let wave = Ease.square(t * 5.5)
+            pose.armLeft = 0.7 + 0.3 * wave
+            pose.armRight = 1.0 - 0.3 * wave
             pose.mouth = .open
             pose.prop = .bang
 
@@ -509,10 +514,15 @@ public enum CrabAnimator {
 
         pose.scale = min(pose.scale, 1 - 0.04 * envelope * (0.5 + 0.5 * sin(t * 2.5)))
 
+        // The two re-armed hops, on the same arc the base `.done` hop was
+        // rewritten to use. They kept the old shape — a threshold that put him
+        // two pixels off the floor in one frame and back the same way — which
+        // is the snap the rest of the rig is not allowed. A floor-merge still,
+        // so a poke or a greeting can deepen it.
         for start in [3.5, 7.0] {
             let hop = t - start
-            if hop >= 0, hop < 1.2, sin(hop * 5) > 0.3 {
-                pose.bob = min(pose.bob, -2)
+            if hop >= 0, hop < 1.2 {
+                pose.bob = min(pose.bob, -Int((max(0, sin(hop * 5)) * 2).rounded()))
             }
         }
 

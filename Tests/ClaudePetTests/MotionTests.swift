@@ -103,6 +103,52 @@ struct MotionContinuityTests {
         }
     }
 
+    /// The celebration overlay is applied ON TOP of the done pose, so
+    /// `moodMotionNeverTeleports` never saw it — and its two re-armed hops kept
+    /// the very shape the base hop was rewritten to lose.
+    @Test func celebrationMotionNeverTeleports() {
+        let step = PetMood.done.style.frameInterval
+        for epic in [false, true] {
+            var previous: CrabPose?
+            var t = 0.0
+            while t <= 12.0 {
+                var pose = CrabAnimator.pose(mood: .done, t: t, flourishes: false)
+                CrabAnimator.applyCelebration(t: t, epic: epic, to: &pose)
+                if let previous {
+                    #expect(abs(pose.bob - previous.bob) <= 1,
+                            "celebration bob jumped \(pose.bob - previous.bob) at t=\(t) epic=\(epic)")
+                }
+                previous = pose
+                t += step
+            }
+        }
+    }
+
+    /// Arms are a Double channel, but `CrabRig.drawArm` quantises them to whole
+    /// cells — so the no-snap rule applies to the DRAWN reach, not to the raw
+    /// value. `.needsAttention` used to flip 0.7 to 1.0 on a hard threshold,
+    /// which is four cells to six in one frame, about three times a second.
+    @Test func armReachLandsOnEveryCell() {
+        func reach(_ value: Double) -> Int { Int((min(max(value, 0), 1) * 6).rounded()) }
+        for mood in PetMood.allCases {
+            let step = mood.style.frameInterval
+            let first = CrabAnimator.pose(mood: mood, t: 0, flourishes: false)
+            var left = reach(first.armLeft), right = reach(first.armRight)
+            var t = step
+            while t <= 12.0 {
+                let pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+                let nextLeft = reach(pose.armLeft), nextRight = reach(pose.armRight)
+                #expect(abs(nextLeft - left) <= 1,
+                        "\(mood) left arm skipped \(abs(nextLeft - left)) cells at t=\(t)")
+                #expect(abs(nextRight - right) <= 1,
+                        "\(mood) right arm skipped \(abs(nextRight - right)) cells at t=\(t)")
+                left = nextLeft
+                right = nextRight
+                t += step
+            }
+        }
+    }
+
     /// The states that are asking you something have to be seen from across
     /// the room, so they get real travel rather than a one-pixel twitch.
     @Test func theAskingMoodsCarry() {
