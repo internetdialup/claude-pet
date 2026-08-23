@@ -418,13 +418,26 @@ public final class ActivityCoordinator {
             Task { @MainActor in self.ingest(events) }
         }
 
-        let tasksURL = session.tasksDirectory
-        // Watch the parent when the tasks directory does not exist yet, so a
-        // session that has not created todos still gets picked up later. Waiting
-        // for it to exist at attach time was a one-shot race the session usually
-        // lost.
-        let watchURL = FileManager.default.fileExists(atPath: tasksURL.path) ? tasksURL : ClaudeHome.tasks
-        taskWatchers[id] = FileWatcher(url: watchURL, queue: queue, coalesce: 0.2) { [weak self] in
+        // The tasks directory is created by the first TodoWrite, not at session
+        // start, so it usually does not exist yet — the watcher waits for it.
+        attachTaskWatcher(id: id, tasksURL: session.tasksDirectory)
+    }
+
+    /// Watches a session's todo directory, waiting for it to be created.
+    ///
+    /// This used to fall back to the SHARED `~/.claude/tasks` parent and stay
+    /// there. A vnode watch on a directory fires only when that directory's own
+    /// entries change, so the parent heard `<sessionId>/` being created — once,
+    /// at which instant the new directory is still empty — and then never again,
+    /// because every later write lands inside the child. The todo feed was
+    /// therefore delivered exactly one nil for the life of the session, which
+    /// quietly took the near-done glow and the cooking milestones with it.
+    ///
+    /// Now the watcher is aimed at the child from the start and simply waits
+    /// for it (`FileWatcher` no longer requires the path to exist), so there is
+    /// no parent to re-point away from and no one-shot to miss.
+    private func attachTaskWatcher(id: String, tasksURL: URL) {
+        taskWatchers[id] = FileWatcher(url: tasksURL, queue: queue, coalesce: 0.2) { [weak self] in
             guard let self else { return }
             let label = TaskWatcher.activeTask(in: tasksURL)
             let progress = TaskWatcher.progress(in: tasksURL)

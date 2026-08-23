@@ -18,6 +18,17 @@ import Foundation
 /// then sits at whatever it last heard, decays to idle, and stays idle until
 /// the app is relaunched — while a freshly started copy reads the same session
 /// as busy, because its watchers are new.
+///
+/// **It also waits for a path that does not exist yet**, which is the same
+/// problem approached from the other side and the more common one by far.
+/// Claude Code writes `~/.claude/sessions/<pid>.json` a second or two BEFORE it
+/// creates the session's transcript — measured on three real sessions at +1.26s,
+/// +1.29s and +2.52s. The pet attaches a quarter-second after the registry file
+/// lands, so the transcript reliably is not there yet. A failable init returned
+/// nil into a dictionary assignment, which stored nothing, and the caller only
+/// ever attaches once per session — so EVERY session started while the pet was
+/// running was silently never read. Arming is therefore something this type
+/// keeps trying, not something it either wins or loses at birth.
 final class FileWatcher: @unchecked Sendable {
     // Safety: every mutation of `source`, `descriptor`, `pending`, `cancelled`
     // and `retries` happens under `lock`. The DispatchSource itself is
@@ -40,15 +51,21 @@ final class FileWatcher: @unchecked Sendable {
     private static let maxRetries = 240
 
     /// - Parameters:
-    ///   - url: file or directory to watch. Must exist.
+    ///   - url: file or directory to watch. It does NOT have to exist yet —
+    ///     a path that appears later is picked up by the same retry the
+    ///     re-arm uses, and `onChange` fires once it does.
     ///   - coalesce: quiet period before `onChange` fires.
-    init?(url: URL, queue: DispatchQueue, coalesce: TimeInterval = 0.12,
-          onChange: @escaping @Sendable () -> Void) {
+    init(url: URL, queue: DispatchQueue, coalesce: TimeInterval = 0.12,
+         onChange: @escaping @Sendable () -> Void) {
         self.url = url
         self.queue = queue
         self.coalesce = coalesce
         self.onChange = onChange
-        guard arm() else { return nil }
+        // Not failable, deliberately. The one caller that mattered assigned the
+        // result straight into a dictionary, so a nil meant "this session has
+        // no watcher, for ever" — and it happened on every newly started
+        // session, because the transcript is written after the registry entry.
+        if !arm() { scheduleRetry() }
     }
 
     /// Opens the path and starts a source on it. Returns false when the path
@@ -83,6 +100,8 @@ final class FileWatcher: @unchecked Sendable {
         }
         self.source = source
         self.descriptor = fd
+        // Only a successful arm refills the budget, and only once armed: a
+        // path that never appears must not retry for ever.
         self.retries = 0
         lock.unlock()
 
@@ -106,6 +125,13 @@ final class FileWatcher: @unchecked Sendable {
         descriptor = -1
         lock.unlock()
 
+        scheduleRetry()
+    }
+
+    /// Tries again shortly, until the path shows up or the budget runs out.
+    /// Shared by the re-arm (the file was replaced) and by construction (the
+    /// file has not been written yet).
+    private func scheduleRetry() {
         queue.asyncAfter(deadline: .now() + Self.retryInterval) { [weak self] in
             guard let self else { return }
             self.lock.lock()
@@ -115,12 +141,12 @@ final class FileWatcher: @unchecked Sendable {
             guard !stop else { return }
 
             if self.arm() {
-                // Anything written while we were deaf is still on disk; the
-                // readers all work forward from a byte offset, so one more
-                // change notification is enough to collect it.
+                // Anything written while we were not listening is still on
+                // disk; the readers all work forward from a byte offset, so
+                // one more change notification is enough to collect it.
                 self.scheduleChange()
             } else {
-                self.rearm()
+                self.scheduleRetry()
             }
         }
     }
