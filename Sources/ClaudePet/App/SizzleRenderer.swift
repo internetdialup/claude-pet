@@ -60,8 +60,15 @@ enum SizzleRenderer {
                           duoSide: 160, wordmark: base.word, caption: base.cap, tag: base.tag,
                           vertical: vertical, gifSafe: false, rich: true,
                           plate: cut.family == .plate,
+                          // A PLATE keeps the master's captions and hides them:
+                          // an empty string is a different height than a real
+                          // line, and that moves the sprite — the one thing a
+                          // plate may not do, since it exists to be keyed
+                          // against the titled master frame for frame. The
+                          // showcase really has no text and is keyed against
+                          // nothing, so it alone empties.
                           captions: cut.family == .meme ? SizzleScript.memeCaptions
-                              : quiet ? [:] : SizzleScript.captions,
+                              : cut.family == .showcase ? [:] : SizzleScript.captions,
                           captionScale: cut.family == .meme ? 1.6 : 1,
                           type: !quiet,
                           furniture: !quiet)
@@ -234,6 +241,16 @@ enum SizzleRenderer {
     /// Test seam: one frame of a cut, exactly as the encoders receive it.
     static func testFrame(cut: SizzleScript.Cut, index: Int) -> CGImage? {
         frameImage(cut: cut, index: index)
+    }
+
+    /// Seams for the plate-registration test: the two type views, so their
+    /// geometry can be measured without rendering a whole 1920×1080 frame.
+    static func captionProbe(_ text: String, fmt: Format) -> AnyView {
+        captionText(text, fmt: fmt)
+    }
+
+    static func titleProbe(fmt: Format) -> AnyView {
+        titleCard(SizzleScript.wordmark, sub: "probe", fmt: fmt)
     }
 
     // NOTE: deliberately no `.clipped()` on the frame — ImageRenderer already
@@ -801,15 +818,15 @@ enum SizzleRenderer {
 
     private static func titleCard(_ title: String, sub: String, fmt: Format) -> AnyView {
         AnyView(VStack(spacing: fmt.tag * 0.8) {
-            StarSting(cell: (fmt.tag * 0.45).rounded())
+            StarSting(cell: (fmt.tag * 0.45).rounded(), inked: fmt.type)
             Text(title)
                 .font(.system(size: fmt.wordmark, weight: .heavy, design: .monospaced))
                 .tracking(4)
-                .foregroundStyle(Palette.kraft)
+                .foregroundStyle(fmt.type ? Palette.kraft : Color.clear)
             Text(sub)
                 .font(.system(size: fmt.tag, weight: .semibold, design: .monospaced))
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Palette.kraft.opacity(0.7))
+                .foregroundStyle(fmt.type ? Palette.kraft.opacity(0.7) : Color.clear)
         })
     }
 
@@ -817,6 +834,9 @@ enum SizzleRenderer {
     /// whole-point cell size, popped with whatever ease the card rides.
     private struct StarSting: View {
         let cell: CGFloat
+        /// False on a plate: the star keeps its frame and draws none of itself,
+        /// so the card's height is identical and the sprite below does not move.
+        var inked: Bool = true
 
         var body: some View {
             let rows = StarMark.art.rows
@@ -824,6 +844,7 @@ enum SizzleRenderer {
                 "C": Palette.flameCore, "f": Palette.flame, "y": Palette.yellow,
             ]
             Canvas { context, _ in
+                guard inked else { return }
                 for (rowIndex, row) in rows.enumerated() {
                     for (colIndex, char) in row.enumerated() where char != "." {
                         guard let color = palette[char] else { continue }
@@ -847,7 +868,8 @@ enum SizzleRenderer {
             .font(.system(size: (size ?? fmt.caption) * fmt.captionScale,
                           weight: .heavy, design: .monospaced))
             .multilineTextAlignment(.center)
-            .foregroundStyle(color ?? Palette.kraft.opacity(size == nil ? 0.85 : 1)))
+            .foregroundStyle(fmt.type ? (color ?? Palette.kraft.opacity(size == nil ? 0.85 : 1))
+                                       : Color.clear))
     }
 
     /// The montage tag's colour: the costume's own key colour — the first
@@ -885,7 +907,7 @@ enum SizzleRenderer {
                                       bottom: (some View)? = Optional<AnyView>.none) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: fmt.vertical ? 40 : 8)
-            if let top, fmt.type { top.zIndex(1) }
+            if let top { top.zIndex(1) }
             Spacer(minLength: 4)
             petBuilder(fmt.spriteSide, 1)
                 .hidden()
@@ -897,7 +919,7 @@ enum SizzleRenderer {
                 // the shot transform, so punches never scale their text.
                 .overlay { if let furniture { furniture } }
             Spacer(minLength: 4)
-            if let bottom, fmt.type {
+            if let bottom {
                 bottom.padding(.bottom, fmt.vertical ? 44 : 12).zIndex(1)
             } else { Spacer(minLength: fmt.vertical ? 44 : 12) }
         }
