@@ -304,10 +304,19 @@ enum SizzleRenderer {
                 (Color(hex: 0x0D1830), 0.52...0.70),
             ]
             for (color, range) in skyBands {
-                context.fill(Path(CGRect(x: 0, y: (size.height * range.lowerBound).rounded(),
-                                         width: size.width,
-                                         height: (size.height * (range.upperBound - range.lowerBound)).rounded() + 1)),
-                             with: .color(color))
+                // Spelled out in explicitly-typed steps rather than one nested
+                // expression. `CGFloat` and `Double` are the same type on this
+                // platform, so mixing them inside a four-argument initialiser
+                // is legal — but it leaves the operators overloaded, and Swift
+                // 6.1 gives up on the resulting expression as ambiguous where
+                // 6.3 resolves it. CI runs 6.1; the desk runs 6.3. Naming the
+                // edges also says what the band IS, which the nested form did
+                // not: top edge, bottom edge, one pixel of overlap so adjacent
+                // bands cannot leave a seam after rounding.
+                let top: CGFloat = (size.height * range.lowerBound).rounded()
+                let bottom: CGFloat = (size.height * range.upperBound).rounded()
+                let band = CGRect(x: 0, y: top, width: size.width, height: bottom - top + 1)
+                context.fill(Path(band), with: .color(color))
             }
             // Static stars: splitmix64 dither over an 8pt grid, top band only.
             for gy in 0..<Int(size.height * 0.26 / 8) {
