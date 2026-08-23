@@ -140,9 +140,18 @@ final class PetInstance {
             }
 
             // 🎉🪄 Poke him three times and he throws a party.
+            //
+            // The clear is guarded on the stamp it was queued for. Without
+            // that, a second triple-poke rebases the latch while the FIRST
+            // clear is still in flight, and that older timer then ends the new
+            // party early — mid-plateau, so the rainbow vanishes in a frame
+            // rather than easing out. Every latch in this file that already
+            // does this (the badge, the petting release) does it the same way.
             if clicks >= 3 {
-                self.model.rainbowStartedAt = Date()
-                DispatchQueue.main.asyncAfter(deadline: .now() + CrabView.rainbowDuration) {
+                let started = Date()
+                self.model.rainbowStartedAt = started
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabView.rainbowDuration) { [weak self] in
+                    guard let self, self.model.rainbowStartedAt == started else { return }
                     self.model.rainbowStartedAt = nil
                 }
             }
@@ -153,11 +162,13 @@ final class PetInstance {
             if let zone = self.currentBugZone(),
                let cell = self.gridCell(for: location), zone.contains(cell) {
                 SoundBank.play(.pounce)
-                self.model.pouncedAt = Date()
+                let pouncedAt = Date()
+                self.model.pouncedAt = pouncedAt
                 let seed = Int(Date().timeIntervalSince1970)
                 self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
                                               Date().addingTimeInterval(2.4))
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+                    guard let self, self.model.pouncedAt == pouncedAt else { return }
                     self.model.pouncedAt = nil
                 }
                 return
@@ -169,8 +180,10 @@ final class PetInstance {
             // is sampled at mouseUp and can drift a few points off him.
             if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil,
                let cell = self.gridCell(for: location), CrabHitMask.body[cell.x, cell.y] {
-                self.model.snackStartedAt = Date()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) {
+                let snackAt = Date()
+                self.model.snackStartedAt = snackAt
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) { [weak self] in
+                    guard let self, self.model.snackStartedAt == snackAt else { return }
                     self.model.snackStartedAt = nil
                 }
                 return
@@ -180,11 +193,17 @@ final class PetInstance {
             // click, and the roster is what the click is for. The squeal
             // steps up with the click count into the triple-poke party.
             SoundBank.play(.squeal(step: min(clicks, 3)))
-            self.model.clickedAt = Date()
+            let clickedAt = Date()
+            self.model.clickedAt = clickedAt
             self.onRosterRequested?()
-            // Clear it once the animation is done so the view drops back to
-            // its mood frame rate instead of holding 30fps forever.
-            DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) {
+            // Clear it once the animation is done so the view drops back to its
+            // mood frame rate instead of holding 30fps forever — but only if it
+            // is still OUR click. A double-click delivers two mouseUps about
+            // 0.2s apart, each queuing a clear; unguarded, the first one fired
+            // while the second click's envelope was two-thirds through and cut
+            // it off in a single frame. Every double-click ended in a snap.
+            DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) { [weak self] in
+                guard let self, self.model.clickedAt == clickedAt else { return }
                 self.model.clickedAt = nil
             }
         }

@@ -266,19 +266,37 @@ struct FrozenSentinelTests {
         }
     }
 
-    /// The dissolve at full visibility must be the identity — the pre-dissolve
-    /// renderer byte for byte.
-    @Test func fullVisibilityCompositeIsIdentity() {
-        let pose = CrabAnimator.pose(mood: .working, t: 3)
-        var direct = CrabRig.render(pose)
-        var faded = pose
-        faded.propVisibility = 1
-        let rendered = CrabRig.render(faded)
-        #expect(direct.runs().count == rendered.runs().count)
-        for (a, b) in zip(direct.runs(), rendered.runs()) {
-            #expect(a.x == b.x && a.y == b.y && a.length == b.length && a.ink == b.ink)
+    /// A full dissolve draws the whole prop, a partial one draws part of it,
+    /// and nothing draws none.
+    ///
+    /// This replaces a test that could not fail. It rendered a `.working` pose
+    /// at t = 3, copied it, set `propVisibility = 1` on the copy, and compared
+    /// the two renders — but at t = 3 the pose is in cycle 0 with no boundary
+    /// nearby, so `propVisibility` was ALREADY exactly 1 and the assignment
+    /// changed nothing. It compared a render against itself and passed on any
+    /// dissolve behaviour whatsoever, including none.
+    @Test func theDissolveActuallyDissolves() {
+        func lit(_ buffer: PixelBuffer) -> Int {
+            var count = 0
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where buffer[x, y] != .clear { count += 1 }
+            }
+            return count
         }
-        _ = direct
+
+        var pose = CrabAnimator.pose(mood: .working, t: 3)
+        pose.prop = .terminal
+
+        pose.propVisibility = 0
+        let none = lit(CrabRig.render(pose))
+        pose.propVisibility = 0.5
+        let half = lit(CrabRig.render(pose))
+        pose.propVisibility = 1
+        let whole = lit(CrabRig.render(pose))
+
+        #expect(whole > none, "a fully visible prop drew nothing")
+        #expect(half > none, "a half dissolve drew no more than an absent prop")
+        #expect(half < whole, "a half dissolve drew the whole prop — \(none)/\(half)/\(whole)")
     }
 
     @Test("A hit holds at exactly one, and is its own frozen sentinel")
