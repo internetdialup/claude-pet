@@ -5,6 +5,47 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] — 2026-08-24
+
+### Fixed
+
+- **🔌 He notices the sessions you start while he's running.** The big one. He
+  watches each session's transcript, but Claude Code writes the session's
+  registry entry a second or two *before* that transcript exists — so he
+  reached for a file that wasn't there yet, gave up, and never tried again.
+  Every session you started while he was already on the desktop was invisible
+  to him for its whole life: no title, no tool, no mood, just idle. Relaunching
+  him "fixed" it only because by then the file existed. He now waits for it.
+- **📋 The near-done glow and the cooking card work again.** The same problem
+  wearing a different hat: your todo folder is created by the first TodoWrite,
+  so he watched the folder *above* it — which tells him the folder was created
+  and then nothing ever again. He heard about your todos exactly once per
+  session, while it was still empty, which quietly took the 80% glow and the
+  quarter-crossing milestones with it.
+- **🖱️ Double-clicks and repeat parties stop cutting themselves short.** Poking
+  him twice queued two timers, and the first one ended the second poke's
+  reaction two-thirds of the way through — so every double-click finished with
+  a visible jolt. A second triple-poke party died the same way, mid-rainbow.
+- **🎬 Green-screen plates line up with the titled cuts again.** Hiding the
+  titles removed them from the layout instead of just making them invisible, so
+  the plate's Claw'd sat ten rows higher than the master's. Keyed footage would
+  have drifted against its own titles.
+- **🟩 The vertical reel's pixels are square again.** At the 9:16 resting size
+  every fourth column of him was an eighth wider than its neighbours — on a
+  character whose whole look is square pixels, in the shot the vertical camera
+  holds most of the time.
+- **🏗️ It builds on a stock toolchain again.** An expression the newer Swift
+  resolves and the older one rejects had been failing every automated build
+  since 1.5.0 went out.
+
+### Changed
+
+- **👀 He bobs like he means the question.** The two states where he's waiting
+  on *you* were the easiest to miss: a plan awaiting your verdict moved a
+  single pixel every three and a half seconds, and the urgent one flickered
+  rather than bounced. Both now travel further and land on every pixel on the
+  way, so a question reads from across the room.
+
 ## [1.5.0] — 2026-08-21
 
 ### Added
@@ -423,6 +464,7 @@ First public release.
 - Reads your Claude Code data **read-only**, never over the network. The only
   write to anything Claude owns is the hook installer, and only when you ask.
 
+[1.5.1]: https://github.com/internetdialup/claude-pet/releases/tag/v1.5.1
 [1.5.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.5.0
 [1.4.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.4.0
 [1.3.0]: https://github.com/internetdialup/claude-pet/releases/tag/v1.3.0
