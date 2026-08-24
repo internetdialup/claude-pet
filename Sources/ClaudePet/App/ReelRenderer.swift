@@ -44,7 +44,9 @@ enum ReelRenderer {
     static let verticalFPS: Int32 = 30
     /// Bigger than the hero's: a reel is watched at thumb size on a phone, so
     /// the subject has to survive being a few centimetres tall.
-    static let verticalSpriteSide: CGFloat = 264
+    /// A whole number of cells at ×3 (256×3 = 768, a multiple of 32). 264 was
+    /// 8.25 points per cell and smeared every fourth column.
+    static let verticalSpriteSide: CGFloat = 256
 
     /// 16:9 in points; ×3 gives 1920×1080.
     static let landscapeCanvas = CGSize(width: 640, height: 360)
