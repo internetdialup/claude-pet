@@ -74,6 +74,98 @@ struct EaseTests {
 @Suite("Motion continuity")
 struct MotionContinuityTests {
 
+    /// The no-snap rule INSIDE a mood, which nothing checked.
+    ///
+    /// `blendStepsAreBounded` covers the cross-fade between two moods, so a
+    /// mood whose own steady-state motion teleported was invisible to the
+    /// suite — and `.needsAttention` did exactly that, flipping bob between 0
+    /// and -2 on a hard `sin > 0` threshold. Two pixels in one frame is a
+    /// snap, and at four radians a second it read as a flicker rather than a
+    /// bounce.
+    ///
+    /// Sampled at each mood's OWN frame rate, because that is the only rate
+    /// the operator ever sees, and with flourishes off: a jump is allowed to
+    /// leave the ground, and it is the resting behaviour under test here.
+    @Test func moodMotionNeverTeleports() {
+        for mood in PetMood.allCases {
+            let step = mood.style.frameInterval
+            var previous = CrabAnimator.pose(mood: mood, t: 0, flourishes: false)
+            var t = step
+            while t <= 12.0 {
+                let pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+                #expect(abs(pose.bob - previous.bob) <= 1,
+                        "\(mood) bob jumped \(pose.bob - previous.bob) at t=\(t)")
+                #expect(abs(pose.lean - previous.lean) <= 1,
+                        "\(mood) lean jumped \(pose.lean - previous.lean) at t=\(t)")
+                previous = pose
+                t += step
+            }
+        }
+    }
+
+    /// The celebration overlay is applied ON TOP of the done pose, so
+    /// `moodMotionNeverTeleports` never saw it — and its two re-armed hops kept
+    /// the very shape the base hop was rewritten to lose.
+    @Test func celebrationMotionNeverTeleports() {
+        let step = PetMood.done.style.frameInterval
+        for epic in [false, true] {
+            var previous: CrabPose?
+            var t = 0.0
+            while t <= 12.0 {
+                var pose = CrabAnimator.pose(mood: .done, t: t, flourishes: false)
+                CrabAnimator.applyCelebration(t: t, epic: epic, to: &pose)
+                if let previous {
+                    #expect(abs(pose.bob - previous.bob) <= 1,
+                            "celebration bob jumped \(pose.bob - previous.bob) at t=\(t) epic=\(epic)")
+                }
+                previous = pose
+                t += step
+            }
+        }
+    }
+
+    /// Arms are a Double channel, but `CrabRig.drawArm` quantises them to whole
+    /// cells — so the no-snap rule applies to the DRAWN reach, not to the raw
+    /// value. `.needsAttention` used to flip 0.7 to 1.0 on a hard threshold,
+    /// which is four cells to six in one frame, about three times a second.
+    @Test func armReachLandsOnEveryCell() {
+        func reach(_ value: Double) -> Int { Int((min(max(value, 0), 1) * 6).rounded()) }
+        for mood in PetMood.allCases {
+            let step = mood.style.frameInterval
+            let first = CrabAnimator.pose(mood: mood, t: 0, flourishes: false)
+            var left = reach(first.armLeft), right = reach(first.armRight)
+            var t = step
+            while t <= 12.0 {
+                let pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+                let nextLeft = reach(pose.armLeft), nextRight = reach(pose.armRight)
+                #expect(abs(nextLeft - left) <= 1,
+                        "\(mood) left arm skipped \(abs(nextLeft - left)) cells at t=\(t)")
+                #expect(abs(nextRight - right) <= 1,
+                        "\(mood) right arm skipped \(abs(nextRight - right)) cells at t=\(t)")
+                left = nextLeft
+                right = nextRight
+                t += step
+            }
+        }
+    }
+
+    /// The states that are asking you something have to be seen from across
+    /// the room, so they get real travel rather than a one-pixel twitch.
+    @Test func theAskingMoodsCarry() {
+        for mood in [PetMood.nudging, .needsAttention] {
+            var lowest = Int.max, highest = Int.min
+            var t = 0.0
+            while t <= 12.0 {
+                let bob = CrabAnimator.pose(mood: mood, t: t, flourishes: false).bob
+                lowest = min(lowest, bob)
+                highest = max(highest, bob)
+                t += mood.style.frameInterval
+            }
+            #expect(highest - lowest >= 2,
+                    "\(mood) travels \(highest - lowest)px — too small to notice")
+        }
+    }
+
     /// Every mood pair, blended over the crossfade duration at 30fps: no Int
     /// channel may jump more than one pixel between consecutive frames, and no
     /// Double channel more than 0.15.

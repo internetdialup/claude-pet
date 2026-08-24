@@ -283,7 +283,12 @@ public enum CrabAnimator {
             // Expectant: leaning your way, eyes wide, one arm out holding the
             // plan, tapping a foot. Pointedly not the frantic wave of
             // `.needsAttention` — he is waiting, not alarmed.
-            pose.bob = sin(t * 1.8) > 0 ? 0 : 1
+            // Two pixels of travel around the rest line rather than a single
+            // dip below it, and stepping through the middle pixel so it reads
+            // as a bob rather than a blink. A question deserves to be seen:
+            // one pixel, once every three and a half seconds, was a motion you
+            // had to already be looking at to notice.
+            pose.bob = Int((sin(t * 2.2) * 1.4).rounded())
             pose.lean = 1
             pose.eyes = .wide
             pose.blink = blink(at: t, period: 4.5)
@@ -305,7 +310,10 @@ public enum CrabAnimator {
         case .done:
             // Both arms up, holding the green check. One decaying hop.
             let hop = max(0, 1 - t / 1.2)
-            pose.bob = (sin(t * 5) > 0.3 && hop > 0) ? -2 : 0
+            // An arc, decaying, that touches every pixel it passes. The old
+            // form jumped straight to -2 and back on a threshold, which is a
+            // two-pixel snap — the one thing the rig is not allowed to do.
+            pose.bob = -Int((max(0, sin(t * 5)) * 2 * hop).rounded())
             pose.armLeft = 1
             pose.armRight = 1
             pose.mouth = .open
@@ -315,10 +323,22 @@ public enum CrabAnimator {
         case .needsAttention:
             // Waving, bouncing, and shouting. Has to read across a room, so
             // this one stays quick — it is the only state that wants urgency.
-            pose.bob = sin(t * 4.0) > 0 ? -2 : 0
-            pose.lean = sin(t * 3.2) > 0 ? -1 : 1
-            pose.armLeft = 0.7 + (sin(t * 5.5) > 0 ? 0.3 : 0)
-            pose.armRight = 1.0 - (sin(t * 5.5) > 0 ? 0.3 : 0)
+            // Three pixels of lift, and it LANDS on every pixel on the way up
+            // and down. The old form teleported between 0 and -2 on a hard
+            // threshold: two pixels in one frame is a snap, and a snap that
+            // fast reads as a flicker rather than a bounce — which is the
+            // opposite of carrying across a room.
+            pose.bob = -Int((((sin(t * 4.0) + 1) / 2) * 3).rounded())
+            // Through upright, not across it: flipping -1 to 1 moved him two
+            // pixels in a frame, so the "wave" was really a shudder.
+            pose.lean = Int((sin(t * 3.2) * 1.4).rounded())
+            // Eased, because `drawArm` quantises this to whole cells: a hard
+            // flip between 0.7 and 1.0 moves the drawn reach from four cells to
+            // six in a single frame, three times a second. The eased square
+            // keeps the impatient duty cycle and lands on five on the way.
+            let wave = Ease.square(t * 5.5)
+            pose.armLeft = 0.7 + 0.3 * wave
+            pose.armRight = 1.0 - 0.3 * wave
             pose.mouth = .open
             pose.prop = .bang
 
@@ -494,10 +514,15 @@ public enum CrabAnimator {
 
         pose.scale = min(pose.scale, 1 - 0.04 * envelope * (0.5 + 0.5 * sin(t * 2.5)))
 
+        // The two re-armed hops, on the same arc the base `.done` hop was
+        // rewritten to use. They kept the old shape — a threshold that put him
+        // two pixels off the floor in one frame and back the same way — which
+        // is the snap the rest of the rig is not allowed. A floor-merge still,
+        // so a poke or a greeting can deepen it.
         for start in [3.5, 7.0] {
             let hop = t - start
-            if hop >= 0, hop < 1.2, sin(hop * 5) > 0.3 {
-                pose.bob = min(pose.bob, -2)
+            if hop >= 0, hop < 1.2 {
+                pose.bob = min(pose.bob, -Int((max(0, sin(hop * 5)) * 2).rounded()))
             }
         }
 
