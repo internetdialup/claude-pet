@@ -114,6 +114,29 @@ struct SizzleScriptTests {
         }
     }
 
+    /// Every camera stop is a whole number of cells at its cut's scale.
+    ///
+    /// `PixelCanvasView` divides the side by 32 to get a cell, so a side that
+    /// is not a multiple of 32 device pixels renders some columns a pixel wider
+    /// than their neighbours — on a character whose whole read is that its
+    /// pixels are square. The 9:16 rest sat at 264 (8.25 points per cell) for
+    /// exactly this reason: nothing checked.
+    @Test("Every camera stop lands on whole cells")
+    func cameraStopsAreOnTheGrid() {
+        for cut in SizzleScript.cuts + SizzleScript.plates {
+            let fmt = SizzleRenderer.format(for: cut)
+            let stops: [(String, CGFloat)] = [
+                ("rest", fmt.spriteSide), ("punch", fmt.punchSide),
+                ("face", fmt.faceSide), ("duo", fmt.duoSide),
+            ]
+            for (name, side) in stops {
+                let devicePixels = side * cut.scale
+                #expect(devicePixels.truncatingRemainder(dividingBy: CGFloat(PixelBuffer.side)) == 0,
+                        "\(cut.name) \(name) is \(side)pt × \(cut.scale) = \(devicePixels)px, not whole cells")
+            }
+        }
+    }
+
     @Test("The dice bases fire on camera")
     func diceBases() {
         // The cooking shot: a clean lead-in, then disco and heat inside it.

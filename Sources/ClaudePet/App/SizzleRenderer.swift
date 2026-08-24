@@ -54,7 +54,14 @@ enum SizzleRenderer {
         switch cut.family {
         case .master, .meme, .plate, .showcase:
             let base: (side: CGFloat, punch: CGFloat, word: CGFloat, cap: CGFloat, tag: CGFloat) =
-                vertical ? (264, 288, 26, 15, 13) : (224, 256, 30, 16, 12)
+                // Every side is a whole number of cells at its cut's scale —
+                // 256×3 and 288×3 are both multiples of 32. The vertical rest
+                // used to be 264, which is 8.25 points per cell, so every
+                // fourth pixel column of Claw'd rendered an eighth wider than
+                // its neighbours. It was the only side in this table that was
+                // not on the grid, and it was the REST stop, where the vertical
+                // camera sits for most of every 9:16 frame.
+                vertical ? (256, 288, 26, 15, 13) : (224, 256, 30, 16, 12)
             let quiet = cut.family == .plate || cut.family == .showcase
             return Format(spriteSide: base.side, punchSide: base.punch, faceSide: 320,
                           duoSide: 160, wordmark: base.word, caption: base.cap, tag: base.tag,
