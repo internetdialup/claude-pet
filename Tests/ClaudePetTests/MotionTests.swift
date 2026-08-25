@@ -103,6 +103,48 @@ struct MotionContinuityTests {
         }
     }
 
+    /// The nudge beacon is an escalation with an end: silent for the first
+    /// eighteen seconds while his pose does the asking on its own, then a
+    /// breath every eighteen, then nothing at all after three minutes.
+    @Test("The waiting light escalates, then gives up")
+    func theWaitingLightKnowsWhenToStop() {
+        #expect(WaitingLight.breath(nudgeT: 0) == 0, "frozen sentinel")
+        for t in stride(from: 0.0, through: 17.9, by: 0.2) {
+            #expect(WaitingLight.breath(nudgeT: t) == 0,
+                    "it breathed at t=\(t), before his pose had a chance")
+        }
+
+        var breaths = 0
+        var t = 0.0
+        var lastStart = -100.0
+        while t < 600 {
+            if WaitingLight.breath(nudgeT: t) > 0 {
+                if t - lastStart > 5 { breaths += 1; lastStart = t }
+                t += 0.1
+            } else {
+                t += 0.1
+            }
+        }
+        #expect(breaths == 10, "expected ten asks, got \(breaths)")
+
+        // …and then it is done, for good.
+        for t in stride(from: 200.0, through: 3600.0, by: 1.7) {
+            #expect(WaitingLight.breath(nudgeT: t) == 0, "still breathing at t=\(t)")
+        }
+    }
+
+    @Test("The waiting light never snaps, and stays soft")
+    func theWaitingLightEasesBothWays() {
+        var previous = 0.0
+        for step in 0...(200 * 30) {
+            let value = WaitingLight.breath(nudgeT: Double(step) / 30)
+            #expect(value >= 0 && value <= 1)
+            #expect(abs(value - previous) < 0.15,
+                    "a \(abs(value - previous)) jump at step \(step) is a snap")
+            previous = value
+        }
+    }
+
     /// The frozen sentinel, checked on the BODY rather than on the props.
     /// `nothingFiresAtTimeZero` looks at prop visibility, heat and glyphs, so
     /// it never saw that idle's cycle-0 flourish was always a jump and always
