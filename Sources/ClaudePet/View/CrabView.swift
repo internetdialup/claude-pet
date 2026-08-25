@@ -916,12 +916,31 @@ public struct CrabView: View {
                                   amount: amount)
     }
 
-    /// The near-done glow: once the todo list is ≥80% complete, a soft white
-    /// pulse every 2.5s while he cooks — the sprint is almost home.
+    /// The near-done glow: once the todo list is ≥80% complete, he takes a
+    /// breath of white every forty seconds or so — the sprint is almost home.
+    ///
+    /// It used to be a 0.35 push toward white breathing every 2.5s with no
+    /// dice at all, for the ENTIRE tail of every sprint above 80%. A
+    /// ten-minute sprint was two hundred and forty consecutive pulses. That is
+    /// the same signal `celebrationBlanch`'s doc was written to condemn — a
+    /// partial push toward white over terracotta is a peach, and a peach held
+    /// long enough is a washed-out monitor. There it was held for ten seconds;
+    /// here it was held for minutes.
+    ///
+    /// It also snapped. `taskFraction` is quantised to 0.05 and moves live, so
+    /// the instant a list crossed 0.8 this went from nil to `0.35 * pulse(t)`
+    /// at whatever phase the sine happened to be at — worst case a jump
+    /// straight to full amplitude in one frame, and the same in reverse when
+    /// adding a task dropped the fraction back under. Now that it is dark 94%
+    /// of the time, almost every crossing lands on exact zero with nothing to
+    /// snap, and the worst survivor is bounded by the 0.28.
     nonisolated static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
         guard let fraction, fraction >= 0.8 else { return nil }
-        let pulse = Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 2.5))
-        let amount = 0.35 * pulse
+        let cycle = Int(floor(t / 20))
+        guard cycle > 0, CrabAnimator.noise(cycle &* 67 &+ 5) < 0.5 else { return nil }
+        let since = t - Double(cycle) * 20
+        guard since < 2.2 else { return nil }
+        let amount = 0.28 * Ease.window(since, duration: 2.2, edge: 0.8)
         guard amount > 0.01 else { return nil }
         return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
     }
