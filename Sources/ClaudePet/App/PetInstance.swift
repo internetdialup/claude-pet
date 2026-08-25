@@ -32,6 +32,8 @@ final class PetInstance {
     /// The Shift+click-then-K state, plus the timer that hands borrowed key
     /// focus back when the operator arms the gate and then wanders off.
     private var secretGate = SecretMenuGate()
+    /// This pet's draw counter for the bug-pounce line. See `LineCursor`.
+    private var bugCursor = LineCursor()
     private var secretDisarmTimer: Timer?
 
     // MARK: - Visibility policy
@@ -164,8 +166,12 @@ final class PetInstance {
                 SoundBank.play(.pounce)
                 let pouncedAt = Date()
                 self.model.pouncedAt = pouncedAt
-                let seed = Int(Date().timeIntervalSince1970)
-                self.model.transientBubble = (Vocab.line(for: .bugCaught, seed: seed) ?? "Bug fixed",
+                // A draw counter, not the wall clock: two pounces minutes
+                // apart jumped the seed by hundreds, which put the deck in an
+                // unrelated pass and repeated the line about one time in four.
+                let line = self.bugCursor.advance(Vocab.lines(for: .bugCaught),
+                                                  id: "bugCaught")
+                self.model.transientBubble = (line ?? "Bug fixed",
                                               Date().addingTimeInterval(2.4))
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                     guard let self, self.model.pouncedAt == pouncedAt else { return }

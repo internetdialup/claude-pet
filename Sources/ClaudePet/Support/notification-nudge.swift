@@ -93,8 +93,24 @@ public enum NotificationNudge {
     //  ⚙️  Below here is selection. You should not need to touch it.
     // ═════════════════════════════════════════════════════════════════════════
 
-    /// A title and body for `event`, dealt from the same shuffled-deck picker
-    /// the speech bubble uses — so repeated banners do not repeat their wording.
+    /// The next title and body for `event`, each dealt from its OWN counter.
+    ///
+    /// Separate cursors is the whole point. `copy(for:seed:)` below hands one
+    /// seed to both pools, so for the two-line pools it resolved both to the
+    /// same index and welded `"Plan's ready 👀"` permanently to
+    /// `"A plan is waiting for approval."` — two titles and two bodies
+    /// producing exactly one possible banner, forever. Drawing them
+    /// independently lets them recombine.
+    @MainActor private static var cursor = LineCursor()
+
+    @MainActor
+    public static func nextCopy(for event: NudgeEvent) -> (title: String, body: String) {
+        (cursor.advance(titles(for: event), id: "title:\(event.rawValue)") ?? event.rawValue,
+         cursor.advance(bodies(for: event), id: "body:\(event.rawValue)") ?? "")
+    }
+
+    /// A title and body for `event` at a given seed. Kept for the tests, which
+    /// need a pure function; the app uses `nextCopy(for:)`.
     public static func copy(for event: NudgeEvent, seed: Int) -> (title: String, body: String) {
         let title = Vocab.pick(from: titles(for: event), seed: seed) ?? event.rawValue
         let body = Vocab.pick(from: bodies(for: event), seed: seed) ?? ""

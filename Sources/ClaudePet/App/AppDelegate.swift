@@ -446,7 +446,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // Finishing is only worth a banner when you are looking elsewhere.
         if event == .finished, NSApp.isActive { return }
 
-        let copy = NotificationNudge.copy(for: event, seed: Int(Date().timeIntervalSince1970))
+        let copy = NotificationNudge.nextCopy(for: event)
         postNotification(title: copy.title,
                          body: "\(copy.body) — \(session.name)")
     }
@@ -471,7 +471,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         content.sound = nil
         switch milestone {
         case .started:
-            let copy = NotificationNudge.copy(for: .cooking, seed: Int(Date().timeIntervalSince1970))
+            let copy = NotificationNudge.nextCopy(for: .cooking)
             content.title = copy.title
             content.body = "\(copy.body) — \(session.name)"
             content.interruptionLevel = .active
