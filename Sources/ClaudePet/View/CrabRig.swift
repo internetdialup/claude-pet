@@ -298,7 +298,7 @@ public enum CrabRig {
             drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
         }
         if let bugX = pose.bugX { drawBug(&buffer, x: bugX, phase: pose.propPhase) }
-        if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts, dx: dx, dy: dy) }
+        if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts) }
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
         if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
 
@@ -383,26 +383,51 @@ public enum CrabRig {
         }
     }
 
-    /// Pink hearts rising from the crown while he is held, each spawning on
-    /// the petting clock, climbing a pixel at a time and dissolving as it
-    /// goes. Seeds 700-702.
-    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
-        let spawns = [0.3, 1.1, 1.9]
-        for (index, born) in spawns.enumerated() {
-            let age = (elapsed - born).truncatingRemainder(dividingBy: 2.4)
-            guard elapsed > born, age >= 0 else { continue }
-            let rise = Int(age / 0.15)
-            let y = 8 + dy - rise
-            guard y > 0 else { continue }
-            let x = 10 + index * 5 + dx
+    /// The columns a heart may rise in. Nine is the leftmost the drift can
+    /// reach, which keeps them clear of the service glyph's box at cols 1-8 —
+    /// `drawHearts` runs after `servicePass`, so an overlap would eat the mark.
+    private static let heartColumns = [10, 13, 16, 19, 22]
+
+    /// Pink hearts rising from the crown while he is held. `CrabAnimator`
+    /// owns when they are born; this owns what one looks like on its way up.
+    ///
+    /// Three things here are load-bearing, and each replaces something that
+    /// was quietly wrong:
+    ///
+    /// - **`Ease.pulse`, not a linear fade.** The old heart had an ease at
+    ///   neither end: `1 - age/1.6` is 1 at birth, so all seven cells
+    ///   appeared in a single frame, and a `guard y > 0` deleted it at age
+    ///   1.2s while the dissolve was still showing a quarter of it. `pulse`
+    ///   is zero outside its own window, so a heart now arrives and leaves
+    ///   under its own envelope and nothing has to kill it.
+    /// - **A rise slow enough to outlast the grid** — see
+    ///   `CrabAnimator.heartRow`. The old rate asked for 8.7 rows of travel
+    ///   out of seven rows of airspace, and that mismatch *was* the bug.
+    /// - **No `dx`/`dy`.** They were applied live rather than at birth, so
+    ///   `applyPetting`'s own purr wiggle shifted every heart already in the
+    ///   air one pixel sideways in lockstep. A heart he has let go of is not
+    ///   attached to him any more. `drawConfetti` takes neither, for the
+    ///   same reason.
+    ///
+    /// Seeds 700-702, cycling by ordinal.
+    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double) {
+        for (ordinal, born) in CrabAnimator.heartSpawns(elapsed: elapsed) {
+            let age = elapsed - born
+            let visibility = CrabAnimator.heartVisibility(age: age)
+            guard visibility > 0.001 else { continue }
+            let row = CrabAnimator.heartRow(age: age)
+            let pick = Int(CrabAnimator.noise(ordinal &* 59 &+ 7) * Double(heartColumns.count))
+            // A single-pixel lean part-way up, so it does not rise in a
+            // dead-straight line. One cell is the grid's own quantum.
+            let drift = row <= 5 ? (ordinal % 2 == 0 ? 1 : -1) : 0
             var heart = PixelBuffer()
             heart.stamp([
                 "p.p",
                 "ppp",
                 ".p.",
-            ], at: (x: x, y: y), key: ["p": .pink])
-            let fade = max(0, 1 - age / 1.6)
-            b.composite(heart, visibility: fade, seed: 700 + index)
+            ], at: (x: heartColumns[pick % heartColumns.count] + drift, y: row),
+               key: ["p": .pink])
+            b.composite(heart, visibility: visibility, seed: 700 + ordinal % 3)
         }
     }
 

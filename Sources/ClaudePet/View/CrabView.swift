@@ -484,6 +484,65 @@ public enum CrabAnimator {
         }
     }
 
+    /// A heart's whole life: `Ease.pulse`'s attack + hold + decay.
+    static let heartLife = 1.30
+
+    /// Two hearts greet the purr, then one every four seconds.
+    private static let heartOpening = [0.30, 1.20]
+    private static let heartRefrainStart = 5.20
+    private static let heartRefrain = 4.00
+
+    /// How visible a heart is `age` seconds after its birth.
+    ///
+    /// `Ease.pulse` rather than a linear fade because it is **zero outside
+    /// its own window**, at both ends. The old heart used `1 - age/1.6`,
+    /// which is 1 at age zero — every cell appeared in one frame — and was
+    /// then deleted by a bounds guard at 0.25 visibility. It had an ease at
+    /// neither end.
+    static func heartVisibility(age: Double) -> Double {
+        Ease.pulse(age, attack: 0.15, hold: 0.25, decay: 0.90)
+    }
+
+    /// Which row a heart of this age sits on. One row per 0.20s from the
+    /// crown at y=8, so a whole life is six rows and the last one is y=2 —
+    /// the envelope closes with two rows of grid still to spare. The old rate
+    /// asked for 8.7 rows of travel out of seven rows of airspace, and that
+    /// mismatch is what forced the bounds guard that did the deleting.
+    static func heartRow(age: Double) -> Int { 8 - Int(age / 0.20) }
+
+    /// Which hearts are in the air `elapsed` seconds into a hold, as
+    /// (ordinal, birth) pairs. The ordinal is permanent and unbounded — it
+    /// picks the column and the dissolve, so it must not recycle.
+    ///
+    /// The old table was three onsets on a 2.4s modulo: a heart every 0.8s,
+    /// forever, thirty-eight of them in a half-minute hold. It was the only
+    /// sprite overlay in the app with no gate of any kind, which is exactly
+    /// why it read as constant rather than as affection.
+    ///
+    /// The rarity here is spacing, not chance, and that is deliberate.
+    /// Petting is something you choose to do; a dice that answers a
+    /// three-second hold with nothing at all punishes the one interaction
+    /// the operator goes looking for. Dice belong on the things that happen
+    /// *to* you — the bug, the balloon, the telescope. So the first two
+    /// hearts are guaranteed and land inside a second and a half, and the
+    /// refrain that follows is what stops a long hold being a fountain:
+    /// 1s → 1 heart, 3s → 2, 10s → 4, 30s → 9.
+    static func heartSpawns(elapsed: Double) -> [(ordinal: Int, born: Double)] {
+        var spawns: [(ordinal: Int, born: Double)] = []
+        for (index, born) in heartOpening.enumerated() where born < elapsed {
+            spawns.append((index, born))
+        }
+        if elapsed > heartRefrainStart {
+            let beats = Int((elapsed - heartRefrainStart) / heartRefrain)
+            for beat in 0...beats {
+                spawns.append((heartOpening.count + beat,
+                               heartRefrainStart + Double(beat) * heartRefrain))
+            }
+        }
+        // Only the ones still in the air; the rest have finished dissolving.
+        return spawns.filter { elapsed - $0.born < heartLife }
+    }
+
     /// Being petted: eyes ease shut, a purr wiggle, and hearts. Applied after
     /// the greeting so a hold wins over a hover — you cannot pet him and be
     /// waved at simultaneously.

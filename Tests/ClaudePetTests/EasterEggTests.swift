@@ -166,6 +166,116 @@ struct EasterEggScheduleTests {
         #expect(midSnack.asleepOverride)
     }
 
+    @Test("Two hearts greet the purr, then one every four seconds")
+    func heartCadenceIsSparse() {
+        // The counts the operator will actually see. The old table was a
+        // heart every 0.8s forever — thirty-eight in a half-minute hold.
+        #expect(CrabAnimator.heartSpawns(elapsed: 0.2).isEmpty, "nothing before the first onset")
+        // `heartSpawns` answers "what is in the air now", so counting a hold
+        // means sweeping it — which is also what the operator does by eye.
+        var seen = Set<Int>()
+        var counted: [Double: Int] = [:]
+        let checkpoints = [1.0, 3.0, 10.0, 30.0, 60.0]
+        for step in 0...(60 * 60) {
+            let elapsed = Double(step) / 60
+            for heart in CrabAnimator.heartSpawns(elapsed: elapsed) { seen.insert(heart.ordinal) }
+            for mark in checkpoints where counted[mark] == nil && elapsed >= mark {
+                counted[mark] = seen.count
+            }
+        }
+        let expected: [Double: Int] = [1.0: 1, 3.0: 2, 10.0: 4, 30.0: 9, 60.0: 16]
+        for mark in checkpoints {
+            #expect(counted[mark] == expected[mark],
+                    "a \(mark)s hold should give \(expected[mark] ?? -1) hearts, got \(counted[mark] ?? -1)")
+        }
+    }
+
+    @Test("No two hearts crowd each other, and never more than two are airborne")
+    func heartsKeepTheirDistance() {
+        var onsets: [Double] = []
+        var seen = Set<Int>()
+        var peak = 0
+        for step in 0...(60 * 30) {
+            let elapsed = Double(step) / 30
+            let live = CrabAnimator.heartSpawns(elapsed: elapsed)
+            peak = max(peak, live.count)
+            for heart in live where !seen.contains(heart.ordinal) {
+                seen.insert(heart.ordinal)
+                onsets.append(heart.born)
+            }
+        }
+        #expect(peak <= 2, "\(peak) hearts in the air at once is a fountain, not affection")
+        for pair in zip(onsets, onsets.dropFirst()) {
+            #expect(pair.1 - pair.0 >= 0.85,
+                    "two hearts \(pair.1 - pair.0)s apart read as one event")
+        }
+    }
+
+    /// The pin for the bug that deleted a heart mid-fade: it used to be killed
+    /// by a bounds guard at rise 8, while its dissolve was still showing a
+    /// quarter of it. Nothing may remove a heart — it has to run out on its own.
+    @Test("A heart eases to nothing, and does it inside the grid")
+    func heartsEaseToNothing() {
+        #expect(CrabAnimator.heartVisibility(age: 0) == 0, "no pop at birth")
+        #expect(CrabAnimator.heartVisibility(age: CrabAnimator.heartLife) == 0, "no cut at death")
+
+        var previous = 0.0
+        var peaked = false
+        for step in 0...Int(CrabAnimator.heartLife * 30) + 2 {
+            let age = Double(step) / 30
+            let now = CrabAnimator.heartVisibility(age: age)
+            #expect(now >= 0 && now <= 1)
+            #expect(abs(now - previous) < 0.5, "a \(abs(now - previous)) jump at age \(age) is a snap")
+            if now < previous - 1e-9 { peaked = true }
+            #expect(!(peaked && now > previous + 1e-9), "the envelope must not rise again at age \(age)")
+            previous = now
+        }
+        #expect(previous < 0.02, "it must be dark by the end of its life")
+
+        // …and it is dark BEFORE it runs out of airspace. This is the number
+        // whose absence forced the bounds guard in the first place.
+        let topRow = CrabAnimator.heartRow(age: CrabAnimator.heartLife)
+        #expect(topRow > 0, "a heart must finish dissolving with grid to spare, not at the edge")
+    }
+
+    /// `dx`/`dy` used to be applied live rather than at birth, so the purr
+    /// wiggle dragged every heart already in the air sideways with him.
+    @Test("Hearts do not ride the purr")
+    func heartsDoNotRideThePurr() {
+        for elapsed in [0.5, 1.4, 6.0, 10.5] {
+            var left = CrabPose()
+            left.heartsElapsed = elapsed
+            left.lean = -1
+            var right = left
+            right.lean = 1
+            let a = CrabRig.render(left)
+            let b = CrabRig.render(right)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where a[x, y] == .pink || b[x, y] == .pink {
+                    #expect(a[x, y] == b[x, y],
+                            "a heart moved with his lean at (\(x),\(y)), elapsed \(elapsed)")
+                }
+            }
+        }
+    }
+
+    /// `drawHearts` runs after `servicePass`, so a heart drifting left into
+    /// cols 1-8 would eat the service mark's edge.
+    @Test("Hearts stay clear of the service glyph's airspace and the grid edge")
+    func heartsKeepOffTheGlyph() {
+        for step in 0...(60 * 30) {
+            var pose = CrabPose()
+            pose.heartsElapsed = Double(step) / 30
+            let buffer = CrabRig.render(pose)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .pink {
+                    #expect(x > 8, "a heart reached col \(x), inside the glyph box")
+                    #expect(y > 0 && y < PixelBuffer.side, "a heart reached row \(y)")
+                }
+            }
+        }
+    }
+
     @Test func pettingWinsOverTheGreeting() {
         var pose = CrabAnimator.pose(mood: .idle, t: 5)
         CrabAnimator.applyGreeting(elapsed: 1, seed: 3, amount: 1, to: &pose)
