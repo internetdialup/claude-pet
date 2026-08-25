@@ -527,13 +527,16 @@ public enum CrabAnimator {
     /// hearts are guaranteed and land inside a second and a half, and the
     /// refrain that follows is what stops a long hold being a fountain:
     /// 1s → 1 heart, 3s → 2, 10s → 4, 30s → 9.
-    static func heartSpawns(elapsed: Double) -> [(ordinal: Int, born: Double)] {
+    /// `until` is when the hold ended, if it has: no heart is born after it,
+    /// but the ones already climbing are still returned until they finish.
+    static func heartSpawns(elapsed: Double, until: Double? = nil) -> [(ordinal: Int, born: Double)] {
+        let lastBirth = min(elapsed, until ?? elapsed)
         var spawns: [(ordinal: Int, born: Double)] = []
-        for (index, born) in heartOpening.enumerated() where born < elapsed {
+        for (index, born) in heartOpening.enumerated() where born < lastBirth {
             spawns.append((index, born))
         }
-        if elapsed > heartRefrainStart {
-            let beats = Int((elapsed - heartRefrainStart) / heartRefrain)
+        if lastBirth > heartRefrainStart {
+            let beats = Int((lastBirth - heartRefrainStart) / heartRefrain)
             for beat in 0...beats {
                 spawns.append((heartOpening.count + beat,
                                heartRefrainStart + Double(beat) * heartRefrain))
@@ -546,7 +549,22 @@ public enum CrabAnimator {
     /// Being petted: eyes ease shut, a purr wiggle, and hearts. Applied after
     /// the greeting so a hold wins over a hover — you cannot pet him and be
     /// waved at simultaneously.
-    public static func applyPetting(elapsed: Double, amount: Double, to pose: inout CrabPose) {
+    public static func applyPetting(elapsed: Double, amount: Double,
+                                    until: Double? = nil, to pose: inout CrabPose) {
+        // The hearts run on the latch, NOT on the purr envelope, and they are
+        // written before the envelope guard on purpose. A heart born just
+        // before you let go still has a life to finish, and the envelope is
+        // closed 0.45s after the release — gating the hearts on it deleted
+        // every one in the air in a single frame.
+        if let until {
+            if elapsed - until < heartLife {
+                pose.heartsElapsed = elapsed
+                pose.heartsUntil = until
+            }
+        } else {
+            pose.heartsElapsed = elapsed
+        }
+
         guard amount > 0.001 else { return }
         if amount >= 0.5 {
             pose.blink = 1
@@ -554,7 +572,6 @@ public enum CrabAnimator {
             pose.winkEye = .none
             pose.mouth = .smile
             pose.lean += Ease.square(elapsed * 2.5) > 0.5 ? 1 : -1
-            pose.heartsElapsed = elapsed
         }
         pose.armLeft = max(pose.armLeft, 0.2 * amount)
         pose.armRight = max(pose.armRight, 0.2 * amount)
@@ -1128,6 +1145,7 @@ public struct CrabView: View {
                                       amount: Ease.amount(now: time,
                                                           since: petSince,
                                                           endedAt: petEndedAt),
+                                      until: petEndedAt.map { $0 - petSince },
                                       to: &pose)
         }
         if let clickedAt, frozenTime == nil {

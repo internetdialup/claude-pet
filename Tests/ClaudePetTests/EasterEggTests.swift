@@ -238,6 +238,53 @@ struct EasterEggScheduleTests {
         #expect(topRow > 0, "a heart must finish dissolving with grid to spare, not at the edge")
     }
 
+    /// Letting go used to delete every heart in the air in one frame, because
+    /// `heartsElapsed` was written only while the purr envelope was above 0.5
+    /// and that envelope closes 0.45s after the release — while a heart born
+    /// just before it still has 1.3s of climbing to do.
+    @Test("Letting go stops new hearts and lets the airborne ones finish")
+    func heartsSurviveTheRelease() {
+        // Released at 6.0s, just after the refrain heart born at 5.20.
+        let released = 6.0
+        let inFlight = CrabAnimator.heartSpawns(elapsed: released, until: released)
+        #expect(!inFlight.isEmpty, "a heart should still be climbing at the release")
+
+        // Half a second later it is still there…
+        let after = CrabAnimator.heartSpawns(elapsed: released + 0.5, until: released)
+        #expect(after.contains { $0.ordinal == inFlight[0].ordinal },
+                "the heart in the air at the release was deleted by it")
+
+        // …and nothing new was ever born after the release.
+        for step in 0...(20 * 30) {
+            let elapsed = released + Double(step) / 30
+            for heart in CrabAnimator.heartSpawns(elapsed: elapsed, until: released) {
+                #expect(heart.born < released,
+                        "a heart was born at \(heart.born), after the hold ended")
+            }
+        }
+
+        // And the whole thing is over within one life of the release.
+        #expect(CrabAnimator.heartSpawns(elapsed: released + CrabAnimator.heartLife,
+                                         until: released).isEmpty)
+    }
+
+    /// The pose must keep carrying the hearts through the release ramp, or the
+    /// deletion comes back from the other direction.
+    @Test("The petting pose keeps its hearts after the envelope has closed")
+    func poseKeepsHeartsPastTheEnvelope() {
+        var pose = CrabPose()
+        // amount 0 is the envelope fully closed — a second after letting go.
+        CrabAnimator.applyPetting(elapsed: 6.6, amount: 0, until: 6.0, to: &pose)
+        #expect(pose.heartsElapsed != nil, "the hearts went with the purr")
+        #expect(pose.heartsUntil == 6.0)
+
+        // …but not forever: once the last heart has finished, they stop.
+        var later = CrabPose()
+        CrabAnimator.applyPetting(elapsed: 6.0 + CrabAnimator.heartLife + 0.1,
+                                  amount: 0, until: 6.0, to: &later)
+        #expect(later.heartsElapsed == nil, "the hearts outstayed their own lifetime")
+    }
+
     /// `dx`/`dy` used to be applied live rather than at birth, so the purr
     /// wiggle dragged every heart already in the air sideways with him.
     @Test("Hearts do not ride the purr")

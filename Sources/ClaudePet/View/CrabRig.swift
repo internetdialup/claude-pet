@@ -97,6 +97,15 @@ public struct CrabPose: Sendable, Equatable {
     public var bugX: Int?
     /// Seconds into a petting session, for the floating hearts. nil = no hearts.
     public var heartsElapsed: Double?
+    /// When the hold ended, on the hearts' own clock. New hearts stop being
+    /// born there and the ones already climbing finish out. nil = still held.
+    ///
+    /// This exists because the purr envelope and a heart's life are different
+    /// lengths: the envelope closes 0.45s after you let go, and a heart born
+    /// just before that has 1.3s of climbing left. Tying them together is what
+    /// made letting go delete every heart in the air in a single frame. Same
+    /// contract as `heartsElapsed`: the blend never lerps it.
+    public var heartsUntil: Double?
     /// Seconds into the shrimp snack, for the shrinking 🍤. nil = no snack.
     public var snackElapsed: Double?
     /// The midnight telescope: envelope 0…1 and its own clock for twinkles.
@@ -298,7 +307,9 @@ public enum CrabRig {
             drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
         }
         if let bugX = pose.bugX { drawBug(&buffer, x: bugX, phase: pose.propPhase) }
-        if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts) }
+        if let hearts = pose.heartsElapsed {
+            drawHearts(&buffer, elapsed: hearts, until: pose.heartsUntil)
+        }
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
         if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
 
@@ -410,8 +421,8 @@ public enum CrabRig {
     ///   same reason.
     ///
     /// Seeds 700-702, cycling by ordinal.
-    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double) {
-        for (ordinal, born) in CrabAnimator.heartSpawns(elapsed: elapsed) {
+    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, until: Double?) {
+        for (ordinal, born) in CrabAnimator.heartSpawns(elapsed: elapsed, until: until) {
             let age = elapsed - born
             let visibility = CrabAnimator.heartVisibility(age: age)
             guard visibility > 0.001 else { continue }
