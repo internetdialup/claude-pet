@@ -241,6 +241,181 @@ public enum CrabAnimator {
         return (Ease.window(since, duration: 12, edge: 0.8), since)
     }
 
+    /// The rare scheduled effects, each forced on for review.
+    ///
+    /// The animation picker could only ever select a MOOD, which quietly meant
+    /// the things most worth reviewing were the things it could not show: an
+    /// effect gated on the wall clock and a dice is not reachable by choosing
+    /// `idle` and waiting. The patch of sun is the clearest case — it wants
+    /// daylight and a 1-in-4 roll on a seven-minute cycle, so at one in the
+    /// morning there is no sequence of clicks that produces it.
+    ///
+    /// A preview deliberately bypasses BOTH gates, the hour and the dice, and
+    /// loops. That is the whole point of it: the schedule is what you are
+    /// trying to see past.
+    public enum PreviewEffect: String, CaseIterable, Sendable {
+        case basking, glint, ting, hearts, beacon
+
+        /// How long this effect takes to let go, so a review that ends looks
+        /// like the effect ending rather than like a number changing. Zero for
+        /// the two that release by finishing what is already in flight, and
+        /// for the one that is exempt.
+        nonisolated var releaseDuration: Double {
+            switch self {
+            case .basking: 2.0      // its window's own edge
+            case .beacon: 1.3       // its window's own edge
+            case .glint, .hearts, .ting: 0
+            }
+        }
+    }
+
+    /// A preview's identity and its own two-ended latch — the house shape that
+    /// `hoverSince`/`hoverEndedAt` and `petSince`/`petEndedAt` already use.
+    ///
+    /// The effect and its epoch are bundled deliberately. An effect without an
+    /// epoch, or an epoch without an effect, is exactly the half-state the
+    /// two-clock bug lived in; bundling makes that unrepresentable rather than
+    /// merely fixed.
+    public struct PreviewLatch: Equatable, Sendable {
+        public var effect: PreviewEffect
+        /// Reference time the menu item was chosen.
+        public var since: Double
+        /// Reference time it was dismissed, while the release plays out.
+        public var endedAt: Double?
+
+        public init(effect: PreviewEffect, since: Double, endedAt: Double? = nil) {
+            self.effect = effect
+            self.since = since
+            self.endedAt = endedAt
+        }
+
+        nonisolated func frame(at time: Double) -> PreviewFrame {
+            PreviewFrame(effect: effect,
+                         t: max(0, time - since),
+                         endedT: endedAt.map { max(0, $0 - since) })
+        }
+    }
+
+    /// One preview's clock, resolved ONCE per frame and handed to every
+    /// consumer of it.
+    ///
+    /// Deriving it twice is the whole bug this replaces: the floor pool rode
+    /// the raw wall clock and the warm on his shell rode the mood clock, so
+    /// they sat `epoch mod 18` apart and about a third of the time exactly one
+    /// of the two was on screen — a gold crab standing on bare floor, or a
+    /// pool of light under a cold one.
+    public struct PreviewFrame: Equatable, Sendable {
+        public var effect: PreviewEffect
+        /// Seconds since it was chosen. Its own t=0, which is the single fact
+        /// that makes every branch ease in from nothing instead of joining
+        /// mid-cycle — and the reason the latch needs no attack envelope.
+        public var t: Double
+        /// `t` at the instant it was deselected, or nil while it is held.
+        public var endedT: Double?
+
+        public init(effect: PreviewEffect, t: Double, endedT: Double? = nil) {
+            self.effect = effect
+            self.t = t
+            self.endedT = endedT
+        }
+
+        /// The exit. 1 while held. The latch owns nothing else: each branch's
+        /// own envelope is already zero at t=0, so an attack on top would be
+        /// easing something that is not there yet.
+        var release: Double {
+            guard let endedT else { return 1 }
+            let duration = effect.releaseDuration
+            guard duration > 0 else { return t > endedT ? 0 : 1 }
+            return 1 - Ease.smoothstep((t - endedT) / duration)
+        }
+    }
+
+    /// The basking envelope for a preview, release included.
+    ///
+    /// One function of one argument, so the floor pool, the warm on his shell
+    /// and his shut eyes cannot diverge in clock *or* in arithmetic — the same
+    /// "one envelope, three consumers" contract the scheduled version states.
+    nonisolated static func previewBasking(_ frame: PreviewFrame) -> Double {
+        guard frame.effect == .basking else { return 0 }
+        let loop = frame.t.truncatingRemainder(dividingBy: 18)
+        return Ease.window(loop, duration: 14, edge: 2.0) * frame.release
+    }
+
+    /// Forces one effect on, on its own looping clock. Every branch mirrors the
+    /// scheduled version's SHAPE — same envelope, same durations — so what the
+    /// picker shows is what actually ships, minus the waiting.
+    nonisolated static func applyPreview(_ frame: PreviewFrame, to pose: inout CrabPose) {
+        switch frame.effect {
+        case .basking:
+            let amount = previewBasking(frame)
+            guard amount > 0.001 else { return }
+            pose.sunPatch = amount
+            pose.sunPatchPhase = frame.t.truncatingRemainder(dividingBy: 18)
+            // Gated on the release too, so the face comes back before the
+            // light has fully gone rather than after it. `applyPetting` uses
+            // the same 0.5 for the same reason. A blink is exempt from no-snap.
+            if amount > 0.55, frame.release >= 0.5 {
+                pose.blink = 1
+                pose.mouth = .smile
+            }
+
+        case .glint:
+            // 1.6s of travel every four seconds, rather than every 2.5 minutes.
+            // The `until` contract rather than an envelope: a pass already
+            // travelling when you let go finishes, and no new one starts. Its
+            // exit is off-shell by geometry, which is the defence `glintPass`
+            // already claims — and its entrance is too, now that travel starts
+            // at its own u=0 instead of wherever the wall clock was.
+            let passStart = (frame.t / 4).rounded(.down) * 4
+            if let endedT = frame.endedT, passStart > endedT { return }
+            let since = frame.t - passStart
+            pose.glint = since < 1.6 ? since / 1.6 : nil
+
+        case .ting:
+            // The wink's own 1.5s cycle, without needing a hover.
+            //
+            // Deliberately NOT eased at either end, and that is a decision
+            // rather than an oversight: a wink and a twinkle both snap in
+            // nature, which is the exemption `Ease`'s header and
+            // `drawWinkGlint` already grant. Winking on the first frame after
+            // you pick it is immediate feedback, which is the thing the
+            // beacon's rest had to be shortened to get.
+            guard frame.endedT == nil else { return }
+            let cycle = frame.t.truncatingRemainder(dividingBy: 1.5)
+            pose.winkEye = cycle < 0.22 ? .right : .none
+            pose.winkGlint = cycle >= 0.22 && cycle < 0.40
+            pose.mouth = .smile
+            pose.blink = 0
+
+        case .hearts:
+            // A twenty-second hold on repeat: the opening pair, then the
+            // refrain, which is the part worth judging. The wrap is silent —
+            // the last birth is at 17.20 and it is finished by 18.50 — so one
+            // loop of context is enough to carry a release.
+            let loop = 20.0
+            if let endedT = frame.endedT {
+                guard frame.t - endedT < heartLife else { return }
+                let base = (endedT / loop).rounded(.down) * loop
+                pose.heartsElapsed = frame.t - base
+                pose.heartsUntil = endedT - base
+            } else {
+                pose.heartsElapsed = frame.t.truncatingRemainder(dividingBy: loop)
+            }
+            // The face rides the same 0.35s attack the real hold does
+            // (`Ease.amount`'s default), so selecting this does not slam his
+            // eyes shut in the first frame. A blink is exempt from no-snap;
+            // arriving already blinking is not a blink, it is a jump cut.
+            let purr = Ease.smoothstep(frame.t / 0.35) * frame.release
+            if purr >= 0.5 {
+                pose.blink = 1
+                pose.mouth = .smile
+            }
+
+        case .beacon:
+            break       // composition layer; `PetRootView` draws it
+        }
+    }
+
     /// How far a glint has travelled across his shell, or nil. Idle only, on
     /// dice, 1.6 seconds of it about once every two and a half idle minutes.
     ///
@@ -930,6 +1105,12 @@ public struct CrabView: View {
     public var serviceGlyph: ServiceGlyph?
     public var serviceGlyphShownAt: Double?
     public var serviceGlyphEndedAt: Double?
+    /// One rare effect forced on for review, with its own epoch, or nil for
+    /// the real schedules. Defaulted so every offline renderer, test and
+    /// preview call is untouched — and a half-set latch is unrepresentable,
+    /// so the failure mode of this plumbing is "no preview", never "a preview
+    /// at the wrong time".
+    public var previewLatch: CrabAnimator.PreviewLatch?
     /// Frozen time, for deterministic screenshots in the debug picker.
     public var frozenTime: Double?
 
@@ -968,6 +1149,7 @@ public struct CrabView: View {
                 serviceGlyph: ServiceGlyph? = nil,
                 serviceGlyphShownAt: Double? = nil,
                 serviceGlyphEndedAt: Double? = nil,
+                previewLatch: CrabAnimator.PreviewLatch? = nil,
                 frozenTime: Double? = nil,
                 flashScale: Double = 1,
                 moodClock: MoodClock = .shared,
@@ -991,6 +1173,7 @@ public struct CrabView: View {
         self.serviceGlyph = serviceGlyph
         self.serviceGlyphShownAt = serviceGlyphShownAt
         self.serviceGlyphEndedAt = serviceGlyphEndedAt
+        self.previewLatch = previewLatch
         self.frozenTime = frozenTime
         self.flashScale = flashScale
         self.moodClock = moodClock
@@ -1087,7 +1270,7 @@ public struct CrabView: View {
     /// Deliberately non-nil across the whole window: it is what stops
     /// `composedTint` falling through into the plain-celebration branch
     /// mid-finale.
-    static func epicTint(doneT t: Double) -> Color? {
+    nonisolated static func epicTint(doneT t: Double) -> Color? {
         let envelope = Ease.window(t, duration: 10, edge: 0.6)
         guard envelope > 0.001 else { return nil }
         let hue = (t / 5).truncatingRemainder(dividingBy: 1)
@@ -1167,17 +1350,23 @@ public struct CrabView: View {
     /// - Parameter hourOfDay: the local hour, for the afternoon's warm.
     ///   Defaulted so every existing caller and test compiles untouched, and
     ///   so offline renderers — which pass nothing — stay cold.
-    static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
+    nonisolated static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
                              celebrating: Bool, epic: Bool = false,
-                             taskFraction: Double?, hourOfDay: Int? = nil) -> Color? {
+                                         taskFraction: Double?, hourOfDay: Int? = nil,
+                                         preview: CrabAnimator.PreviewFrame? = nil) -> Color? {
+        // First, and it wins outright — the same rule `currentPose` states for
+        // the pose. A preview exists to be seen past the schedules.
+        if let preview {
+            let amount = CrabAnimator.previewBasking(preview)
+            guard amount > 0.001 else { return nil }
+            return SpriteTint.towards(SpriteTint.goldRGB, amount: 0.26 * amount)
+        }
         if let rainbowElapsed, let party = rainbowTint(elapsed: rainbowElapsed) { return party }
         if mood == .done, celebrating, epic, let burst = epicTint(doneT: t) { return burst }
         if mood == .cooking {
             if let disco = discoTint(cookingT: t) { return disco }
             if let glow = nearDoneTint(cookingT: t, fraction: taskFraction) { return glow }
         }
-        // Ranked last, and it cannot actually contend: idle is not done, not
-        // cooking, and not partying.
         if mood == .idle, let sun = CrabAnimator.sunPatch(idleT: t, hourOfDay: hourOfDay) {
             return SpriteTint.towards(SpriteTint.goldRGB, amount: 0.26 * sun.amount)
         }
@@ -1238,9 +1427,14 @@ public struct CrabView: View {
     }
 
     private func render(at time: Double) -> some View {
+        // ONE derivation of the preview clock, handed to BOTH consumers.
+        // Deriving it twice is what put the floor pool and the warm on his
+        // shell `epoch mod 18` apart, so this line is the fix — not the
+        // arithmetic further down.
+        let preview = previewLatch?.frame(at: time)
         // Live: rebase onto the mood so one-shot motion (the `done` hop) starts
         // at its own t=0. Frozen: the caller's time is already relative.
-        var pose = currentPose(at: time)
+        var pose = currentPose(at: time, preview: preview)
         var ghostCostume = Costume.none
         var costumeProgress = 1.0
         if frozenTime == nil {
@@ -1265,7 +1459,8 @@ public struct CrabView: View {
                                          celebrating: celebrating,
                                          epic: epicCelebration,
                                          taskFraction: taskFraction,
-                                         hourOfDay: hourOfDay)
+                                         hourOfDay: hourOfDay,
+                                         preview: preview)
         let blanch = CrabView.composedBlanch(mood: mood, t: localT,
                                              celebrating: celebrating,
                                              epic: epicCelebration) * flashScale
@@ -1281,7 +1476,7 @@ public struct CrabView: View {
             .drawingGroup()
     }
 
-    private func currentPose(at time: Double) -> CrabPose {
+    private func currentPose(at time: Double, preview: CrabAnimator.PreviewFrame? = nil) -> CrabPose {
         let t = frozenTime == nil ? moodClock.age(of: mood, at: time) : time
 
         // During the party the pose cycles too. `MoodClock` is deliberately
@@ -1351,6 +1546,15 @@ public struct CrabView: View {
                                                       since: serviceGlyphShownAt,
                                                       endedAt: serviceGlyphEndedAt)
         }
+        // A forced effect is applied LAST and wins outright. The whole point
+        // of a preview is to see the thing regardless of what the schedules,
+        // the hour and the dice would otherwise have decided — and `frozenTime`
+        // is deliberately NOT consulted, because a frozen render is the other
+        // review mode and previews are the live one.
+        if let preview {
+            CrabAnimator.applyPreview(preview, to: &pose)
+        }
+
         return pose
     }
 

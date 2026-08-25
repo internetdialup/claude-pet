@@ -148,6 +148,167 @@ struct EasterEggScheduleTests {
         #expect(gazing!.amount > 0 && gazing!.amount <= 1)
     }
 
+    private func cellsDiffering(_ a: PixelBuffer, _ b: PixelBuffer) -> Int {
+        var n = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where a[x, y] != b[x, y] { n += 1 }
+        }
+        return n
+    }
+
+    private func frame(_ effect: CrabAnimator.PreviewEffect,
+                       _ t: Double, ended: Double? = nil) -> CrabAnimator.PreviewFrame {
+        CrabAnimator.PreviewFrame(effect: effect, t: t, endedT: ended)
+    }
+
+    /// The picker exists to see PAST the schedules, so a preview must ignore
+    /// both gates the real effect honours — the hour and the dice.
+    @Test("Every previewable effect actually renders, at any hour")
+    func previewsBypassTheirGates() {
+        let plain = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+        let baseline = CrabRig.render(plain)
+
+        for effect in CrabAnimator.PreviewEffect.allCases where effect != .beacon {
+            var everDrew = false
+            for step in 0...(24 * 30) {
+                var pose = plain
+                CrabAnimator.applyPreview(frame(effect, Double(step) / 30), to: &pose)
+                if cellsDiffering(CrabRig.render(pose), baseline) > 0 { everDrew = true; break }
+            }
+            #expect(everDrew, "\(effect) never drew anything in twenty-four seconds")
+        }
+
+        // Basking is the one that could not be reached at all before the
+        // picker existed: its real schedule wants daylight.
+        var basked = plain
+        CrabAnimator.applyPreview(frame(.basking, 7), to: &basked)
+        #expect(basked.sunPatch > 0.5, "the preview honoured the hour gate")
+        #expect(CrabAnimator.sunPatch(idleT: 7, hourOfDay: 1) == nil,
+                "…which the real schedule still does")
+    }
+
+    /// **The two-clock test.** The floor pool and the warm on his shell used to
+    /// be derived from different clocks — the pose from raw wall time, the tint
+    /// from the mood clock — leaving them `epoch mod 18` apart, so about a
+    /// third of the time exactly one of the two was on screen.
+    ///
+    /// The load-bearing move is passing a deliberately UNRELATED mood-clock
+    /// reading to both calls. If either consumer can find its own `t` anywhere,
+    /// it will disagree here; only the shared frame can make them agree.
+    @Test("The pool of light and the warm on his shell ride one clock")
+    func baskingPreviewCannotDrift() {
+        for step in 0...(18 * 20) {
+            let f = frame(.basking, Double(step) / 20)
+            var pose = CrabAnimator.pose(mood: .idle, t: 12_345, flourishes: false)
+            CrabAnimator.applyPreview(f, to: &pose)
+            let tint = CrabView.composedTint(mood: .idle, t: 12_345, rainbowElapsed: nil,
+                                             celebrating: false, taskFraction: nil,
+                                             hourOfDay: nil, preview: f)
+            if pose.sunPatch > 0.001 {
+                // The exact amount, not merely its presence — that catches a
+                // drift of any size, including a future one-frame skew.
+                #expect(tint == SpriteTint.towards(SpriteTint.goldRGB,
+                                                   amount: 0.26 * pose.sunPatch),
+                        "the warm and the pool disagree at t=\(f.t)")
+            } else {
+                #expect(tint == nil, "gold on bare floor at t=\(f.t)")
+            }
+        }
+    }
+
+    /// Selecting an effect used to start it at an arbitrary phase of its loop:
+    /// basking arrived at full strength 55% of the time — 84 lit cells, a gold
+    /// wash and his eyes slamming shut, in one frame.
+    @Test("Nothing is mid-flight in a preview's first frame")
+    func everyPreviewStartsFromNothing() {
+        let plain = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+        let baseline = CrabRig.render(plain)
+
+        // `.ting` is excluded on purpose: a wink and a twinkle both snap in
+        // nature, which is the exemption `Ease` and `drawWinkGlint` grant.
+        for effect in CrabAnimator.PreviewEffect.allCases where effect != .ting {
+            var pose = plain
+            CrabAnimator.applyPreview(frame(effect, 0), to: &pose)
+            #expect(cellsDiffering(CrabRig.render(pose), baseline) == 0,
+                    "\(effect) is already mid-flight on its first frame")
+        }
+        #expect(CrabView.composedTint(mood: .idle, t: 0, rainbowElapsed: nil,
+                                      celebrating: false, taskFraction: nil,
+                                      hourOfDay: nil,
+                                      preview: frame(.basking, 0)) == nil)
+        #expect(WaitingLight.previewBreath(t: 0) == 0)
+
+        // …and it does not reach full strength in two frames either.
+        var previous = baseline
+        for step in 0...30 {
+            var pose = plain
+            CrabAnimator.applyPreview(frame(.basking, Double(step) / 30), to: &pose)
+            let now = CrabRig.render(pose)
+            #expect(cellsDiffering(now, previous) < 30,
+                    "the light jumped at step \(step)")
+            previous = now
+        }
+    }
+
+    /// Letting go used to be a plain `if let` that stopped drawing — no release
+    /// at all. Worst case dropped a full-strength pool in a single frame.
+    @Test("Letting go of a preview eases out instead of cutting")
+    func everyPreviewReleasesUnderAnEnvelope() {
+        let plain = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+        let baseline = CrabRig.render(plain)
+        // 7.0 is mid-plateau: the worst instant to be dismissed at.
+        let ended = 7.0
+
+        var previous: PixelBuffer?
+        for step in 0...Int((ended + 3.0) * 30) {
+            let t = Double(step) / 30
+            guard t >= ended else { continue }
+            var pose = plain
+            CrabAnimator.applyPreview(frame(.basking, t, ended: ended), to: &pose)
+            let now = CrabRig.render(pose)
+            if let previous {
+                #expect(cellsDiffering(now, previous) < 30,
+                        "the light cut rather than eased at t=\(t)")
+            }
+            previous = now
+        }
+        // …and it reaches exactly nothing, on both channels together.
+        var done = plain
+        let over = frame(.basking, ended + 2.5, ended: ended)
+        CrabAnimator.applyPreview(over, to: &done)
+        #expect(cellsDiffering(CrabRig.render(done), baseline) == 0)
+        #expect(CrabView.composedTint(mood: .idle, t: 0, rainbowElapsed: nil,
+                                      celebrating: false, taskFraction: nil,
+                                      hourOfDay: nil, preview: over) == nil)
+    }
+
+    /// A defaulted parameter is only safe if it is genuinely inert. Every
+    /// offline renderer leaves it nil.
+    @Test("No preview means no change at all")
+    func noPreviewIsInert() {
+        for t in stride(from: 0.0, through: 40.0, by: 0.7) {
+            let pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: true)
+            #expect(pose.sunPatch == 0)
+            #expect(pose.glint == nil)
+            #expect(!pose.winkGlint)
+            #expect(pose.heartsElapsed == nil)
+            // The tint side, which the first version of this test omitted.
+            #expect(CrabView.composedTint(mood: .idle, t: t, rainbowElapsed: nil,
+                                          celebrating: false, taskFraction: nil,
+                                          hourOfDay: nil, preview: nil) == nil)
+        }
+    }
+
+    /// The hearts' 20s preview loop is only safe because nothing is airborne at
+    /// the wrap — the last birth is at 17.20 and it has finished by 18.50. That
+    /// is currently luck rather than design, so pin it: a future edit to the
+    /// refrain must not start deleting hearts in one frame at the seam.
+    @Test("The hearts' preview loop wraps on an empty sky")
+    func theHeartLoopSeamIsSilent() {
+        #expect(CrabAnimator.heartSpawns(elapsed: 19.99).isEmpty)
+        #expect(CrabAnimator.heartSpawns(elapsed: 19.5).isEmpty)
+    }
+
     @Test func theGlintIsScheduledNotConstant() {
         for step in stride(from: 0.0, through: 59.9, by: 0.5) {
             #expect(CrabAnimator.shellGlint(idleT: step) == nil,

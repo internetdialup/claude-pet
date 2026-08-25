@@ -179,8 +179,13 @@ public struct PetRootView: View {
 
                 // A plan is waiting on the operator. Gold breathes around him
                 // until it is answered, or until it has asked ten times.
-                if model.state.mood == .nudging,
-                   let epoch = model.moodClock.currentEpoch(for: .nudging) {
+                if let latch = model.previewLatch, latch.effect == .beacon {
+                    WaitingLight(since: latch.since, endedAt: latch.endedAt,
+                                 isPreview: true)
+                        .frame(width: spriteSize, height: spriteSize)
+                        .allowsHitTesting(false)
+                } else if model.state.mood == .nudging,
+                          let epoch = model.moodClock.currentEpoch(for: .nudging) {
                     WaitingLight(since: epoch)
                         .frame(width: spriteSize, height: spriteSize)
                         .allowsHitTesting(false)
@@ -216,6 +221,7 @@ public struct PetRootView: View {
                     serviceGlyph: model.serviceGlyphKind,
                     serviceGlyphShownAt: model.serviceGlyphShownAt?.timeIntervalSinceReferenceDate,
                     serviceGlyphEndedAt: model.serviceGlyphEndedAt?.timeIntervalSinceReferenceDate,
+                    previewLatch: model.previewLatch,
                     flashScale: flashScale,
                     moodClock: model.moodClock,
                     costumeClock: model.costumeClock
@@ -345,6 +351,34 @@ struct WaitingLight: View {
     /// runs on, so the light breathes with the words rather than beside them.
     let since: Double
 
+    /// Reference time it was dismissed, while the release plays out.
+    var endedAt: Double?
+
+    /// Review mode: the real breath on a short rest, from the selection's own
+    /// t=0, with no give-up cap. All three are things a preview has to see
+    /// past — an effect whose first breath is eighteen seconds out and whose
+    /// last is three minutes out is not reviewable on its real schedule.
+    var isPreview = false
+
+    /// The review loop's rest. **4.0s, not the live 18** — the rest is part of
+    /// the effect and has to be visible, but 3.4 seconds of nothing after
+    /// clicking a menu item reads as a broken menu rather than as a pause.
+    /// This was measured: the first version rested 3.4s and looked broken 57%
+    /// of the time.
+    nonisolated static let previewPeriod = 4.0
+
+    /// The preview's breath: the real 2.6s window on that shorter rest.
+    ///
+    /// `Ease.window`'s own `guard t > 0` is what makes it start dark and
+    /// breathe UP. The live light gets that from `cycle > 0`; the first
+    /// version of this preview hard-coded `t = 18 + now % 6`, which jumped
+    /// straight past it into an arbitrary point of cycle 1 — a full gold ring
+    /// arriving in one frame, 43% of the time.
+    nonisolated static func previewBreath(t: Double) -> Double {
+        Ease.window(t.truncatingRemainder(dividingBy: previewPeriod),
+                    duration: 2.6, edge: 1.3)
+    }
+
     /// No dice, deliberately. `.nudging`'s `BubbleCadence` is `chance: 1.0`,
     /// documented as "a heartbeat that never skips, for the states that exist
     /// to get you", and an 18s period matches it. A state that exists to be
@@ -358,8 +392,16 @@ struct WaitingLight: View {
     var body: some View {
         TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
             Canvas { context, size in
-                Self.draw(in: &context, size: size,
-                          t: timeline.date.timeIntervalSinceReferenceDate - since)
+                let t = timeline.date.timeIntervalSinceReferenceDate - since
+                // `draw` owns no schedule at all now — the body picks which one
+                // is running, which is also what lets the preview fold its
+                // release in before anything is drawn.
+                var breath = isPreview ? Self.previewBreath(t: t) : Self.breath(nudgeT: t)
+                if isPreview, let endedAt {
+                    let endedT = max(0, endedAt - since)
+                    breath *= 1 - Ease.smoothstep((t - endedT) / 1.3)
+                }
+                Self.draw(in: &context, size: size, breath: breath)
             }
         }
     }
@@ -368,8 +410,7 @@ struct WaitingLight: View {
     /// pixel-snapped ring over a soft bloom. Whole-point centre for the same
     /// reason it gives — a fractional centre antialiases the stroke and picks
     /// up run-to-run noise.
-    static func draw(in context: inout GraphicsContext, size: CGSize, t: Double) {
-        let breath = breath(nudgeT: t)
+    static func draw(in context: inout GraphicsContext, size: CGSize, breath: Double) {
         guard breath > 0.001 else { return }
 
         // Typed in small steps rather than one big mixed expression: CGFloat
@@ -546,6 +587,13 @@ public final class PetViewModel: ObservableObject {
     /// The wardrobe, mirrored from `Preferences` so the sprite re-renders on a
     /// costume change.
     @Published public var costume: Costume = .none
+    /// One rare effect forced on for review, with the instant it was chosen.
+    /// Nil in every normal run — this exists so the schedules can be seen past.
+    ///
+    /// The epoch travels WITH the effect rather than beside it, so a preview
+    /// always has its own t=0 to ease in from, and the render state can outlive
+    /// the operator's intent long enough to ease back out.
+    @Published public var previewLatch: CrabAnimator.PreviewLatch?
     /// Press-and-hold petting, same two-ended shape as hover.
     @Published public var pettingStartedAt: Date?
     @Published public var pettingEndedAt: Date?
