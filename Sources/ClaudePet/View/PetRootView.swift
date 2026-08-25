@@ -333,6 +333,13 @@ struct CelebrationGlow: View {
 /// menu bar and the notification carry the durable signal; the light stops.
 /// That cap, not the alpha, is what keeps this civil — it is the number to
 /// turn if it ever feels naggy.
+///
+/// `@MainActor` is written down for the reason `PetRootView`'s doc gives:
+/// `View` carries it, but 6.1 pushes the inference onto static members and
+/// 6.3 does not, so leaving it implicit means the local build and the CI
+/// runner disagree about `breath`. Spelled out, plus `nonisolated` on the
+/// schedule, both toolchains agree — and the local build actually checks it.
+@MainActor
 struct WaitingLight: View {
     /// `MoodClock`'s epoch for the nudge — the same clock the bubble's cadence
     /// runs on, so the light breathes with the words rather than beside them.
@@ -342,7 +349,7 @@ struct WaitingLight: View {
     /// documented as "a heartbeat that never skips, for the states that exist
     /// to get you", and an 18s period matches it. A state that exists to be
     /// noticed should not roll for whether it is noticed.
-    static func breath(nudgeT t: Double) -> Double {
+    nonisolated static func breath(nudgeT t: Double) -> Double {
         let cycle = Int(floor(t / 18))
         guard cycle > 0, cycle <= 10 else { return 0 }
         return Ease.window(t - Double(cycle) * 18, duration: 2.6, edge: 1.3)
