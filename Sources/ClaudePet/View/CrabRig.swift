@@ -95,6 +95,13 @@ public struct CrabPose: Sendable, Equatable {
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
+    /// How far a glint has travelled across the shell, 0…1, or nil for no
+    /// glint. A travel parameter, so the blend leaves it alone — averaging
+    /// two of them produces a third, unrelated one, which is the argument
+    /// this file already makes for `legPhase`.
+    public var glint: Double?
+    /// A four-pointed sparkle at the winking eye, on the frame it opens.
+    public var winkGlint: Bool = false
     /// How much of the afternoon's light is on him, 0…1. The floor patch, the
     /// warm on his shell and his shut eyes all ride this one envelope.
     public var sunPatch: Double = 0
@@ -284,7 +291,11 @@ public enum CrabRig {
 
         costumeLayer(.onBody)
         if pose.heat > 0.001 { heatPass(&buffer, pose: pose, dy: dy, squash: squash) }
+        if let glint = pose.glint { glintPass(&buffer, u: glint, dy: dy, squash: squash) }
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
+        // After the face, so it reads as light coming off the eye rather than
+        // as something behind it.
+        if pose.winkGlint { drawWinkGlint(&buffer, dx: dx, dy: dy) }
         costumeLayer(.front)
 
         // Ghost first, so an incoming prop paints over an outgoing one where
@@ -619,6 +630,67 @@ public enum CrabRig {
     /// through the shell rather than a whole-sprite recolour. Banded, never a
     /// gradient: the band's width is itself quantised by the heat envelope, so
     /// the cascade eases in as a growing band and out as a shrinking one.
+    /// A streak of light travelling diagonally across the shell, once in a
+    /// while, for a second and a half. It makes him feel like an object with a
+    /// hard surface rather than a flat sticker.
+    ///
+    /// Repaints only cells that are still `.body`, which is `heatPass`'s trick
+    /// directly above — so the face, the props, the costume accessories and
+    /// the matrix rain are all untouched **by construction** rather than by
+    /// keeping clear of coordinates.
+    ///
+    /// The no-snap rule is satisfied by GEOMETRY, not by a fade. The streak
+    /// enters from off-shell and leaves off-shell, so it paints nothing at
+    /// u=0 and nothing at u=1 and there is no edge to ease. Thirty-four cells
+    /// over 1.6s at idle's 20fps is almost exactly one cell per frame — the
+    /// grid's own quantum, and the one exemption the doctrine grants. That is
+    /// why the duration is 1.6 and not 0.6.
+    ///
+    /// This is the effect in the app closest to breaking the flat-palette
+    /// rule, and it is worth being honest about: a travelling highlight is a
+    /// specular, and specular is a cousin of shading. The defence is that it
+    /// is an EVENT rather than a state — two flat inks, no ramp, diagonal so
+    /// it cannot be read as a shading band, gone in 1.6s, and `BubbleShimmer`
+    /// already ships this exact shape on the bubble. If it ever reads as a
+    /// gradient sneaking in, delete it; do not soften it into one.
+    private static func glintPass(_ b: inout PixelBuffer, u: Double, dy: Int, squash: Int) {
+        let top = bodyY + dy + squash
+        let height = bodyH - squash
+        guard height > 0 else { return }
+        let head = Int((-4 + u * 34).rounded())
+        for y in max(0, top)..<min(PixelBuffer.side, top + height) {
+            // Two rows per column: a lean, not a vertical wipe.
+            let x = head + (y - top) / 2
+            if b[x, y] == .body { b[x, y] = .flameCore }
+            if b[x - 1, y] == .body { b[x - 1, y] = .yellow }
+        }
+    }
+
+    /// The ting: a four-pointed twinkle in the air above his winking eye, on
+    /// the frames the wink opens. A twinkle snaps in nature, which is the same
+    /// exemption the stargaze stars and the thinking sparkles already take.
+    ///
+    /// In the AIRSPACE rather than on the shell, and that is the second try.
+    /// On the shell it has to be masked to `.body` or it punches a hole in a
+    /// costume — but the eye moves with `gazeY`, so at the moment of the wink
+    /// one arm of the sparkle lands on `.eye`, gets masked out, and what
+    /// renders is a lopsided blob rather than a twinkle. Off the shell it is
+    /// symmetric, it reads as light rather than as a dent, and it needs no
+    /// mask at all.
+    ///
+    /// It paints only cells that are still clear, so it can never damage a
+    /// prop that happens to be passing — the same contract as the patch of
+    /// sun, stated inline because it is only five cells.
+    private static func drawWinkGlint(_ b: inout PixelBuffer, dx: Int, dy: Int) {
+        let x = eyeRightX + eyeSize + 2 + dx     // clear of the eye, over the shoulder
+        let y = bodyY - 2 + dy                   // in the air above the shell
+        b.pixel(x, y, .flameCore)
+        for arm in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
+        where b[arm.0, arm.1] == .clear {
+            b[arm.0, arm.1] = .yellow
+        }
+    }
+
     private static func heatPass(_ b: inout PixelBuffer, pose: CrabPose, dy: Int, squash: Int) {
         let top = bodyY + dy + squash
         let height = bodyH - squash

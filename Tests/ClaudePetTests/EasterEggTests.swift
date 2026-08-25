@@ -148,6 +148,115 @@ struct EasterEggScheduleTests {
         #expect(gazing!.amount > 0 && gazing!.amount <= 1)
     }
 
+    @Test func theGlintIsScheduledNotConstant() {
+        for step in stride(from: 0.0, through: 59.9, by: 0.5) {
+            #expect(CrabAnimator.shellGlint(idleT: step) == nil,
+                    "a glint in the first cycle at t=\(step)")
+        }
+        var lit = 0
+        var total = 0
+        for step in 0...(3600 * 5) {
+            total += 1
+            if CrabAnimator.shellGlint(idleT: Double(step) / 5) != nil { lit += 1 }
+        }
+        #expect(lit > 0, "an hour of idling deserves a few glints")
+        #expect(Double(lit) / Double(total) < 0.04,
+                "the shell is lit \(Double(lit) / Double(total) * 100)% of the time")
+    }
+
+    /// Two properties, both structural rather than incidental. The streak
+    /// repaints only cells that are still `.body`, so the face, props and
+    /// costume accessories survive by construction — and it enters and leaves
+    /// OFF the shell, which is how it satisfies no-snap without a fade.
+    @Test("The glint touches only the shell, and starts and ends on nothing")
+    func theGlintStaysOnTheShell() {
+        let base = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+        let plain = CrabRig.render(base)
+
+        for u in stride(from: 0.0, through: 1.0, by: 0.05) {
+            var pose = base
+            pose.glint = u
+            let lit = CrabRig.render(pose)
+            var changed = 0
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where lit[x, y] != plain[x, y] {
+                    changed += 1
+                    #expect(plain[x, y] == .body,
+                            "the glint repainted a \(plain[x, y]) cell at (\(x),\(y))")
+                    #expect(lit[x, y] == .flameCore || lit[x, y] == .yellow)
+                }
+            }
+            if u <= 0.001 || u >= 0.999 {
+                #expect(changed == 0, "the glint paints \(changed) cells at u=\(u)")
+            }
+        }
+    }
+
+    /// 34 cells over 1.6s at idle's 20fps is one cell per frame — the grid's
+    /// own quantum, and the reason the duration is 1.6 and not 0.6.
+    @Test("The glint travels a cell at a time")
+    func theGlintDoesNotJump() {
+        let base = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+        var previous: Int?
+        for frame in 0...32 {
+            var pose = base
+            pose.glint = Double(frame) / 32
+            let lit = CrabRig.render(pose)
+            var leading: Int?
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where lit[x, y] == .flameCore {
+                    leading = max(leading ?? x, x)
+                }
+            }
+            if let leading, let previous {
+                #expect(leading - previous <= 2,
+                        "the streak jumped \(leading - previous) cells at frame \(frame)")
+            }
+            if let leading { previous = leading }
+        }
+        #expect(previous != nil, "the streak never appeared at all")
+    }
+
+    /// The ting rides the wink's own 1.5s clock — no schedule of its own — and
+    /// fires on the OPEN, not the shut.
+    @Test("The wink tings as it opens")
+    func theWinkTings() {
+        let seed = (0..<500).first { CrabAnimator.greeting(forSeed: $0) == .wink }
+        let winkSeed = try! #require(seed, "some seed must select the wink")
+
+        func pose(at elapsed: Double) -> CrabPose {
+            var p = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+            CrabAnimator.applyGreeting(elapsed: elapsed, seed: winkSeed, amount: 1, to: &p)
+            return p
+        }
+        #expect(pose(at: 0.10).winkEye == .right, "the eye should be shut here")
+        #expect(!pose(at: 0.10).winkGlint, "it must ting on the open, not the shut")
+        #expect(pose(at: 0.30).winkGlint, "no ting on the open")
+        #expect(pose(at: 0.30).winkEye == .none)
+        #expect(!pose(at: 0.60).winkGlint, "the ting outstayed its welcome")
+
+        // Five cells, in the AIRSPACE — never on him, so it can never be
+        // masked into a lopsided blob by an eye that has moved with the gaze.
+        // Isolate the ting itself: one pose, rendered with the flag off and on.
+        // Comparing two different instants would sweep in everything else the
+        // greeting moves between them.
+        var lit = pose(at: 0.30)
+        var dark = lit
+        dark.winkGlint = false
+        lit.winkGlint = true
+        let plain = CrabRig.render(dark)
+        let tinged = CrabRig.render(lit)
+        var cells = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where tinged[x, y] != plain[x, y] {
+                cells += 1
+                #expect(plain[x, y] == .clear, "the ting painted over a \(plain[x, y]) cell")
+                #expect(tinged[x, y] == .flameCore || tinged[x, y] == .yellow)
+            }
+        }
+        #expect(cells == 5, "a four-pointed twinkle is five cells, got \(cells)")
+    }
+
     /// The twin of `stargazerNeedsTheSmallHours`, including the assertion that
     /// matters most: offline renderers pass no hour, so the hour gate is a
     /// second, independent lock on the frozen sentinel.
