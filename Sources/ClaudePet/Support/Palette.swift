@@ -28,7 +28,9 @@ public enum Palette {
     public static let bodyHot = Color(hex: 0xDE8A45)
     public static let bodyEmber = Color(hex: 0xD65B31)
 
-    /// Chrome colours for the bubble and roster (not part of the sprite).
+    /// Chrome colours for the bubble and roster. Mostly not part of the
+    /// sprite — `slateSoft` is the exception, promoted to `Ink.slate` for the
+    /// service marks' field.
     public static let slate = Color(hex: 0x141413)
     public static let slateSoft = Color(hex: 0x3D3D3A)
     /// The sizzle plates' keying field: dark red, on the operator's ruling —
