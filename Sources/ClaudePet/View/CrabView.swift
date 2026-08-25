@@ -237,28 +237,52 @@ public enum CrabAnimator {
                 apply(kind, progress: progress, t: t, to: &pose)
             }
 
-            if let float = idleBalloon(idleT: t) {
-                pose.prop = .balloon
-                pose.propVisibility = float
+            // Deep in the night, sometimes, the telescope comes out — and it
+            // is evaluated FIRST because it owns the spell it appears in.
+            //
+            // All three ambient treats start on cycle boundaries and their
+            // periods (90, 120, 150) share common multiples, so over a day
+            // they begin on the same instant 57 times, three of them all
+            // three at once. Most of those overlaps are harmless. Bug and
+            // telescope is not: the bug puts his eyes on the floor and the
+            // telescope puts them on the sky, and he cannot look at both.
+            // De-phasing the schedules only takes 57 collisions to 40 —
+            // with ~692 windows in a day the coincidence rate is intrinsic —
+            // so the biggest, rarest, most composed moment simply wins.
+            let gazing = stargaze(idleT: t, hourOfDay: hourOfDay)
+
+            if gazing == nil {
+                if let float = idleBalloon(idleT: t) {
+                    pose.prop = .balloon
+                    pose.propVisibility = float
+                }
+
+                // A visiting bug owns his attention: eyes drop to the floor
+                // and follow it across.
+                if let bug = bugPosition(idleT: t) {
+                    pose.bugX = bug
+                    pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
+                    pose.gazeY = 1
+                }
             }
 
-            // A visiting bug owns his attention: eyes drop to the floor and
-            // follow it across.
-            if let bug = bugPosition(idleT: t) {
-                pose.bugX = bug
-                pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
-                pose.gazeY = 1
-            }
-
-            // And deep in the night, sometimes, the telescope comes out.
-            if let gazing = stargaze(idleT: t, hourOfDay: hourOfDay) {
+            if let gazing {
                 pose.stargaze = gazing.amount
                 pose.stargazePhase = gazing.phase
-                if gazing.amount > 0.4 {
-                    pose.gazeY = -1
-                    pose.gazeX = 1
-                    pose.mouth = .open
-                }
+                // The gaze rides the envelope rather than a threshold. The
+                // old `if amount > 0.4 { gazeY = -1 }` crossed at since ≈
+                // 0.289, and because 120·cycle is divisible by three that
+                // instant always fell inside `gaze()`'s live window — so
+                // whenever the base roll had him looking DOWN, both eyes
+                // jumped two rows in a single frame. Measured over a day of
+                // idling: 81 of 244 firings, a third of them.
+                // `moodMotionNeverTeleports` could not see it because it
+                // checks only bob and lean and passes no hour, so the
+                // telescope never came out in the test.
+                let lead = Ease.smoothstep((gazing.amount - 0.25) / 0.45)
+                pose.gazeY = Int((Double(pose.gazeY) + (-1 - Double(pose.gazeY)) * lead).rounded())
+                pose.gazeX = Int((Double(pose.gazeX) + (1 - Double(pose.gazeX)) * lead).rounded())
+                if gazing.amount > 0.4 { pose.mouth = .open }
             }
 
         case .thinking:

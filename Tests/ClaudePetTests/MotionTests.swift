@@ -103,6 +103,54 @@ struct MotionContinuityTests {
         }
     }
 
+    /// `moodMotionNeverTeleports` checks bob and lean, and calls `pose(mood:t:)`
+    /// with no hour — so the telescope never comes out in it and the gaze
+    /// channels were never checked at all. Both eyes used to jump two rows in
+    /// one frame on a third of every stargaze firing.
+    @Test("The stargazer's gaze eases in and out instead of snapping")
+    func gazeOverridesNeverTeleport() {
+        // Every firing cycle in a day of night-time idling, at idle's 20fps.
+        var firings = 0
+        for cycle in 1...720 where CrabAnimator.noise(cycle &* 61 &+ 3) < 0.35 {
+            firings += 1
+            let base = Double(cycle) * 120
+            var previous = CrabAnimator.pose(mood: .idle, t: base - 0.05,
+                                             flourishes: false, hourOfDay: 1)
+            var step = 0
+            while step <= 13 * 20 {
+                let t = base + Double(step) / 20
+                let pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false, hourOfDay: 1)
+                #expect(abs(pose.gazeY - previous.gazeY) <= 1,
+                        "gazeY jumped \(pose.gazeY - previous.gazeY) at t=\(t)")
+                #expect(abs(pose.gazeX - previous.gazeX) <= 1,
+                        "gazeX jumped \(pose.gazeX - previous.gazeX) at t=\(t)")
+                previous = pose
+                step += 1
+            }
+        }
+        #expect(firings > 100, "a day of small-hours idling should fire plenty of telescopes")
+    }
+
+    /// The bug puts his eyes on the floor and the telescope puts them on the
+    /// sky. All three ambient treats start on cycle boundaries with periods
+    /// that share multiples, so they collide 57 times a day — and this is the
+    /// one pairing where he would have to look two ways at once.
+    @Test("The telescope and the floor bug are never out together")
+    func theTelescopeOwnsItsSpell() {
+        var sawTelescope = false
+        for cycle in 1...720 where CrabAnimator.noise(cycle &* 61 &+ 3) < 0.35 {
+            for step in 0...(12 * 5) {
+                let t = Double(cycle) * 120 + Double(step) / 5
+                let pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false, hourOfDay: 1)
+                guard pose.stargaze > 0 else { continue }
+                sawTelescope = true
+                #expect(pose.bugX == nil, "a bug visited mid-telescope at t=\(t)")
+                #expect(pose.prop != .balloon, "a balloon floated up mid-telescope at t=\(t)")
+            }
+        }
+        #expect(sawTelescope)
+    }
+
     /// The celebration overlay is applied ON TOP of the done pose, so
     /// `moodMotionNeverTeleports` never saw it — and its two re-armed hops kept
     /// the very shape the base hop was rewritten to lose.
