@@ -202,11 +202,14 @@ struct AnimationTests {
 
     @Test("A flourish's progress runs forward through 0…1")
     func flourishProgressIsMonotonic() {
-        // Sample within a single 7s window.
+        // Sample within a single 7s window — anchored on the first window that
+        // FIRES, because cycle 0 is now deliberately silent (the frozen
+        // sentinel: at t=0 he used to already be mid-jump).
+        let base = CrabAnimator.firstFlourishAt
         var lastProgress = -1.0
         var sawProgress = false
         for step in 0..<60 {
-            let t = Double(step) * 0.01
+            let t = base + Double(step) * 0.01
             guard let (_, progress) = CrabAnimator.flourish(at: t) else { continue }
             #expect(progress >= 0 && progress <= 1)
             #expect(progress >= lastProgress)

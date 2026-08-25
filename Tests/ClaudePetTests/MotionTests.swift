@@ -103,6 +103,45 @@ struct MotionContinuityTests {
         }
     }
 
+    /// The frozen sentinel, checked on the BODY rather than on the props.
+    /// `nothingFiresAtTimeZero` looks at prop visibility, heat and glyphs, so
+    /// it never saw that idle's cycle-0 flourish was always a jump and always
+    /// already underway — `pose(mood: .idle, t: 0)` came back crouched, and
+    /// `still-idle.png`, rendered at t = 0.4, was a crab five pixels up.
+    @Test("Nobody is mid-flourish at the frozen instant")
+    func idlePoseIsAtRestAtTimeZero() {
+        #expect(CrabAnimator.flourish(at: 0) == nil, "a flourish is playing at t=0")
+        for mood in PetMood.allCases {
+            let zero = CrabAnimator.pose(mood: mood, t: 0)
+            #expect(zero.squash == 0, "\(mood) is mid-squash at t=0")
+            #expect(zero.scale == 1, "\(mood) is mid-scale at t=0")
+        }
+        // …and the instant every marketing still is sampled at.
+        let still = CrabAnimator.pose(mood: .idle, t: 0.4)
+        #expect(still.squash == 0 && still.bob >= -1,
+                "still-idle.png is a crab in the air: bob=\(still.bob)")
+    }
+
+    /// The clip has to contain what it advertises. `idle`'s flourishes now
+    /// start at cycle 1, and the six-second clip is shorter than the
+    /// seven-second period, so an anchor at zero would capture nothing.
+    @Test("The idle clip still catches a flourish")
+    func idleClipContainsAFlourish() {
+        let begin = CrabAnimator.firstFlourishAt
+        #expect(begin > 0)
+        var seen = false
+        var t = begin
+        while t < begin + PetMood.idle.style.clipSeconds {
+            if CrabAnimator.flourish(at: t) != nil { seen = true; break }
+            t += 1.0 / 12
+        }
+        #expect(seen, "six seconds from \(begin) contains no flourish")
+        #expect(PetMood.idle.style.clipStart == begin)
+        for mood in PetMood.allCases where mood != .idle {
+            #expect(mood.style.clipStart == 0, "\(mood) should still start at zero")
+        }
+    }
+
     /// `moodMotionNeverTeleports` checks bob and lean, and calls `pose(mood:t:)`
     /// with no hour — so the telescope never comes out in it and the gaze
     /// channels were never checked at all. Both eyes used to jump two rows in

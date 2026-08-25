@@ -26,6 +26,12 @@ public struct MoodStyle: Sendable {
     /// How much of the cycle a README GIF captures — long enough to include the
     /// slowest thing this mood does.
     public let clipSeconds: Double
+    /// Where in the mood's own clock that capture starts. Zero for everything
+    /// whose motion is continuous; `idle` is the exception, because its
+    /// flourishes are dice-gated from cycle 1 and the seven-second period is
+    /// longer than the six-second clip — anchored at zero the clip would be
+    /// six seconds of a crab breathing.
+    public var clipStart: Double = 0
     /// Bubble text used by the debug mood preview.
     public let previewBubble: String?
 }
@@ -38,6 +44,7 @@ public extension PetMood {
             MoodStyle(accent: Palette.body, bubbleFill: Palette.green,
                       bubbleText: Palette.slate, glyph: "",
                       frameInterval: 1.0 / 20, clipSeconds: 6.0,
+                      clipStart: CrabAnimator.firstFlourishAt,
                       previewBubble: nil)          // filled from the vocabulary
 
         case .thinking:

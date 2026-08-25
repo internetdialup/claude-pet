@@ -96,18 +96,49 @@ public enum CrabAnimator {
         }
     }
 
-    /// One flourish per window, with a quiet stretch after it.
+    /// One flourish per window, on dice, with a quiet stretch after it.
     private static let flourishPeriod = 7.0
 
     /// Which flourish is playing, and how far into it we are (0…1).
+    ///
+    /// The dice used to pick *which* and nothing gated *whether*, so he
+    /// jumped, waved, stretched or scuttled every seven seconds, forever, on
+    /// a metronome. Two things fell out of that, and one line fixes both.
+    ///
+    /// `noise(3)` is 0.113, which selects `allCases[0]` — jump — so cycle 0
+    /// was **always** a jump, and it was already at progress 0 at t == 0.
+    /// That put idle in breach of the frozen sentinel: `pose(mood: .idle,
+    /// t: 0)` came back with `squash = 1`, a crouching crab, and
+    /// `nothingFiresAtTimeZero` could not see it because it checks props,
+    /// heat and glyphs rather than the body. Worse, `GifRenderer` samples
+    /// every still at t = 0.4, which for idle is jump-progress 0.44 — so
+    /// `still-idle.png`, the marketing still of him *at rest*, was a crab
+    /// five pixels in the air.
+    ///
+    /// Excluding cycle 0 fixes both. The 0.7 chance is the separate half:
+    /// 72% of cycles fire, gaps go irregular (7s, 14s, 7s, 21s…, longest 35s
+    /// over 600 cycles) and the quiet stretches rise from 80% to 86%.
+    /// "He should move sometimes, and be still most of the time."
     static func flourish(at t: Double) -> (Flourish, Double)? {
         let cycle = Int(floor(t / flourishPeriod))
+        guard cycle > 0, noise(cycle &* 89 &+ 11) < 0.7 else { return nil }
         let since = t - Double(cycle) * flourishPeriod
         let all = Flourish.allCases
         let choice = all[Int(noise(cycle &* 7 &+ 3) * Double(all.count)) % all.count]
         guard since < choice.duration else { return nil }
         return (choice, since / choice.duration)
     }
+
+    /// The first cycle that actually fires, as an instant. `idle`'s README
+    /// clip starts here: the clip is six seconds and the flourish period is
+    /// seven, so a clip anchored at zero would now contain nothing but
+    /// breathing.
+    static let firstFlourishAt: Double = {
+        for cycle in 1...64 where noise(cycle &* 89 &+ 11) < 0.7 {
+            return Double(cycle) * flourishPeriod
+        }
+        return flourishPeriod
+    }()
 
     /// The thinking spell's prop: sparkles first, then the Claude star, in
     /// strict 20s alternation — dice would be degenerate here (MoodClock
