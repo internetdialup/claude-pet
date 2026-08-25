@@ -359,7 +359,6 @@ public enum CrabRig {
         }
     }
 
-    /// Up to three pink hearts spawning at the crown every 0.8s, each rising a
     /// The party's confetti: six flecks falling from the crown on a
     /// deterministic spawn table, each fading as it falls, the whole shower
     /// eased by the party's own trapezoid so the ends never snap. Seeds
@@ -384,7 +383,9 @@ public enum CrabRig {
         }
     }
 
-    /// pixel every 0.15s and dissolving as it climbs.
+    /// Pink hearts rising from the crown while he is held, each spawning on
+    /// the petting clock, climbing a pixel at a time and dissolving as it
+    /// goes. Seeds 700-702.
     private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
         let spawns = [0.3, 1.1, 1.9]
         for (index, born) in spawns.enumerated() {
@@ -406,7 +407,9 @@ public enum CrabRig {
     }
 
     /// The 🍤: a small pink shrimp beside his mouth that loses a column per
-    /// munch beat, easing in at the start and gone by the last bite.
+    /// munch beat, easing in at the start. The last bite leaves a single pink
+    /// pixel rather than nothing — one cell is the grid's own quantum, so it
+    /// reads as a crumb and disappears with the envelope at 2.8s.
     private static func drawSnack(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
         // Three munch beats at 0.9, 1.5, 2.1s; a column disappears at each.
         let bites = [0.9, 1.5, 2.1].filter { elapsed >= $0 }.count

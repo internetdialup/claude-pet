@@ -17,6 +17,40 @@ public enum CrabAnimator {
     /// of its options. That silently narrowed the idle flourishes and the
     /// working props as well as the hover reactions. splitmix64's finaliser
     /// avalanches properly: one bit of input changes half the output bits.
+    ///
+    /// ## The salt registry
+    ///
+    /// Every dice gate in the app is `noise(cycle &* A &+ B)`. Two schedules
+    /// sharing an `A` over the same domain fire together forever, which reads
+    /// as one coincidence you can never explain. The registry lived inside
+    /// `bubbleBurst` and had gone stale — it listed six of the eleven — so it
+    /// lives here now, at the one function all of them pass through.
+    ///
+    /// Over a **cycle** domain:
+    ///
+    /// | salt | who |
+    /// | --- | --- |
+    /// | `7 &+ 3` | which idle flourish |
+    /// | `13 &+ 5` | the working prop re-roll |
+    /// | `19 &+ 13` | the bubble shimmer |
+    /// | `29 &+ 11` | the cooking heat cascade |
+    /// | `41 &+ 17` | the disco tint |
+    /// | `43 &+ 11` | the idle balloon |
+    /// | `53 &+ 7` | the floor bug |
+    /// | `59 &+ 7` | the petting hearts' column |
+    /// | `61 &+ 3` | the stargazer |
+    /// | `67 &+ 5` | the near-done glow |
+    /// | `71 &+ 29 &+ slot` | the bubble bursts |
+    /// | `73 &+ 5` | the patch of sun |
+    /// | `83 &+ 13` | the shell glint |
+    /// | `89 &+ 11` | whether an idle flourish plays at all |
+    ///
+    /// Over other domains, where a collision with the above is impossible
+    /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
+    /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
+    /// shot), `43 &+ 13` (idle chatter, per seed).
+    ///
+    /// **Free:** 17, 23, 79, 97.
     static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
