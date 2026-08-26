@@ -101,6 +101,19 @@ struct MoodDecayTests {
         try await body()
     }
 
+    /// Shrinks ONLY the wake window.
+    ///
+    /// Deliberately separate from `withFastDecay`, which sets `sleepAfter = 30`
+    /// on purpose so its tests can reach `.idle` without tripping the
+    /// display-time sleep. Shrinking it there would race them.
+    private func withShortWakeWindow(_ seconds: TimeInterval = 0.4,
+                                     _ body: () async throws -> Void) async rethrows {
+        let stored = ActivityCoordinator.sleepAfter
+        ActivityCoordinator.sleepAfter = seconds
+        defer { ActivityCoordinator.sleepAfter = stored }
+        try await body()
+    }
+
     /// `ingest` recomputes even when no event matches a known session, so this
     /// advances the reducer's clock without touching any session's state.
     private func tick(_ coordinator: ActivityCoordinator) {
@@ -325,21 +338,128 @@ struct MoodDecayTests {
         #expect(coordinator.states[0].focusedSessionID == loud)
     }
 
-    @Test("With one live session the second slot naps, roster intact")
-    func slotOneNapsWhenAlone() async throws {
-        let id = "s-solo"
-        let coordinator = try quietCoordinator([id])
-        coordinator.setSlots(2)
-        coordinator.ingest([ActivityEvent(sessionID: id, kind: .toolStarted(name: "Read", detail: nil))])
+    /// Summoning a pet is itself an interaction, so slot 1 arrives AWAKE and
+    /// naps only once its wake window lapses. It used to nap on arrival, which
+    /// meant clicking "Summon a second pet" handed you a corpse.
+    ///
+    /// The invariant this test really protects is the roster one, and it now
+    /// covers both phases rather than one.
+    @Test("The second slot wakes on arrival, then naps — roster intact throughout")
+    func slotOneWakesThenNapsWhenAlone() async throws {
+        try await withShortWakeWindow {
+            let id = "s-solo"
+            let coordinator = try quietCoordinator([id])
+            coordinator.setSlots(2)
+            coordinator.ingest([ActivityEvent(sessionID: id, kind: .toolStarted(name: "Read", detail: nil))])
 
-        #expect(coordinator.states[0].focusedSessionID == id)
-        #expect(coordinator.states[1].mood == .sleeping)
-        #expect(!coordinator.states[1].sessions.isEmpty,
-                "a napping slot 1 still carries the live roster — 'nothing running' would be a lie")
+            #expect(coordinator.states[0].focusedSessionID == id)
+            #expect(coordinator.states[1].mood == .idle, "a summoned pet arrives awake")
+            #expect(coordinator.states[1].focusedSessionID == nil,
+                    "…but with nothing under him — the one live session is slot 0's")
+            #expect(!coordinator.states[1].sessions.isEmpty,
+                    "an awake slot 1 still carries the live roster — 'nothing running' would be a lie")
 
-        // Dropping back to one slot forgets the second state entirely.
-        coordinator.setSlots(1)
-        #expect(coordinator.states.count == 1)
+            try await Task.sleep(nanoseconds: 700_000_000)
+            coordinator.ingest([ActivityEvent(sessionID: id, kind: .toolStarted(name: "Read", detail: nil))])
+            #expect(coordinator.states[1].mood == .sleeping, "the window has to lapse")
+            #expect(!coordinator.states[1].sessions.isEmpty,
+                    "and a napping slot 1 still carries it too")
+
+            // Dropping back to one slot forgets the second state entirely.
+            coordinator.setSlots(1)
+            #expect(coordinator.states.count == 1)
+        }
+    }
+
+    /// **The headline.** Kill every session and he used to be asleep within two
+    /// seconds, with no timer, forever — and no interaction could reach the
+    /// coordinator to wake him. This is the route that had no test at all.
+    @Test("With no sessions at all he stays up, then sleeps")
+    func wakeWindowHoldsHimUpWithNoSessions() async throws {
+        try await withShortWakeWindow {
+            let coordinator = try quietCoordinator([])
+            #expect(coordinator.state.mood == .idle, "he should be up, not asleep on arrival")
+            #expect(coordinator.state.sessions.isEmpty)
+            #expect(coordinator.state.focusedSessionID == nil)
+
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping, "the window has to lapse")
+        }
+    }
+
+    /// A poke has to land NOW. The assertion is the immediacy: `stir` recomputes
+    /// rather than waiting up to two seconds for the decay tick, and a poke that
+    /// takes two seconds to land does not read as a poke.
+    @Test("Interacting wakes him on the spot")
+    func interactionResetsTheWakeWindow() async throws {
+        try await withShortWakeWindow {
+            let coordinator = try quietCoordinator([])
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping)
+
+            coordinator.stir()
+            #expect(coordinator.state.mood == .idle, "the poke did not land immediately")
+
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping, "…and the window still lapses after")
+        }
+    }
+
+    /// The route that has existed since the beginning and never had a test:
+    /// `.sleeping` is DERIVED at display time from `lastActivity` and is never
+    /// stored on the session, which is what `quietLimit(for: .sleeping) == nil`
+    /// asserts abstractly.
+    @Test("A quiet session sleeps on the display clock, not the stored one")
+    func aQuietSessionStillSleepsOnTheSameClock() async throws {
+        try await withShortWakeWindow {
+            let id = "s-quiet"
+            let coordinator = try quietCoordinator([id])
+            coordinator.ingest([ActivityEvent(sessionID: id, kind: .turnEnded)])
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+
+            #expect(coordinator.state.mood == .sleeping)
+            #expect(try session(coordinator, id).mood != .sleeping,
+                    "the stored session mood is never .sleeping")
+        }
+    }
+
+    /// The one-mechanism proof: the same mark that holds him up with no
+    /// sessions also holds him up over a session that has gone quiet. If
+    /// someone later re-splits the predicate into per-route special cases,
+    /// this is what goes red.
+    @Test("A poke keeps a quiet session's pet awake too")
+    func interactionKeepsAQuietSessionAwake() async throws {
+        try await withShortWakeWindow {
+            let id = "s-quiet"
+            let coordinator = try quietCoordinator([id])
+            coordinator.ingest([ActivityEvent(sessionID: id, kind: .turnEnded)])
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping)
+
+            coordinator.stir()
+            #expect(coordinator.state.mood != .sleeping,
+                    "a poke has to outrank a quiet session's clock")
+        }
+    }
+
+    /// He flagged you and is blocked. The window must not put him to sleep on
+    /// top of that — `attentionStaleAfter` governs, as it always has.
+    @Test("Needing you outranks the wake window")
+    func needsAttentionOutranksTheWakeWindow() async throws {
+        try await withShortWakeWindow {
+            let id = "s-blocked"
+            let coordinator = try quietCoordinator([id])
+            coordinator.ingest([ActivityEvent(sessionID: id, kind: .needsAttention(reason: "waiting"))])
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .needsAttention,
+                    "a blocked session must never be slept through")
+        }
     }
 
     @Test("Stale thinking dots retire long before the mood does")

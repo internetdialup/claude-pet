@@ -51,9 +51,14 @@ public final class ActivityCoordinator {
         if clamped > states.count {
             states.append(.sleeping)
             chatterCache.append(SlotChatter(cursor: LineCursor(salt: chatterCache.count &* 7919)))
+            // Summoning a pet IS an interaction, so he arrives awake. The
+            // alternative — a second pet that is asleep on arrival — means
+            // clicking "Summon a second pet" hands you a corpse.
+            stirredAt.append(Date())
         } else {
             states.removeLast()
             chatterCache.removeLast()
+            stirredAt.removeLast()
         }
         recompute()
     }
@@ -300,6 +305,24 @@ public final class ActivityCoordinator {
     }
     private var chatterCache: [SlotChatter] = [SlotChatter(cursor: LineCursor())]
 
+    /// The last thing that could hold this slot's attention: the app starting
+    /// (or this pet being summoned), the focused session doing something, or
+    /// the operator laying hands on him. He is awake while this is younger
+    /// than `sleepAfter`.
+    ///
+    /// One mark rather than three special cases. Before it, there were three
+    /// independent routes into sleep and two of them had no timer at all —
+    /// kill your last session and he was asleep in two seconds, forever, and
+    /// poking him bought nothing because no interaction has ever reached this
+    /// file.
+    ///
+    /// **It only ever moves FORWARD**, and that is load-bearing rather than
+    /// tidy. `focus.lastActivity` is monotonic, `now` is monotonic, so a
+    /// running `max` of them crosses `sleepAfter` exactly once and never comes
+    /// back. A plain assignment would let slot 1's focus switching to an older
+    /// session drop the anchor and flap him in and out of sleep on the 2s tick.
+    private var stirredAt: [Date] = [Date()]
+
     public init() {}
 
     public func start() {
@@ -338,6 +361,17 @@ public final class ActivityCoordinator {
     }
 
     /// User pinned (or unpinned) a session from the roster (slot 0).
+    /// The operator laid hands on him — a click, a press-and-hold, a drag, or a
+    /// hover he actually rested on. Pushes the wake window out.
+    ///
+    /// Recomputes on the spot rather than waiting for the 2s decay tick,
+    /// because a poke that takes two seconds to land does not read as a poke.
+    public func stir(slot: Int = 0) {
+        guard slot < stirredAt.count else { return }
+        stirredAt[slot] = Date()
+        recompute()
+    }
+
     public func pin(sessionID: String?) {
         pin(slot: 0, sessionID: sessionID)
     }
@@ -728,35 +762,79 @@ public final class ActivityCoordinator {
     /// (its seed salt is zero). Slot 1 follows its own pin, else the busiest
     /// session slot 0 is not already showing; with no second session he naps —
     /// honestly, and still carrying the roster.
+    /// Awake with nothing to watch.
+    ///
+    /// Deliberately NOT a new `PetMood`. He is the same idle crab; the only new
+    /// fact is that no session sits under him, and `PetState` already says that
+    /// with `focusedSessionID: nil`. A new case would force entries in
+    /// `MoodStyle`, `ShoutoutOccasion`, `pose`, `urgency`, `NotificationNudge`
+    /// and two renderers, all of them to say nothing.
+    private func upAlone(slot: Int, seed: Int, roster: [ClaudeSession], now: Date) -> PetState {
+        var up = PetState.sleeping
+        up.mood = .idle
+        up.sessions = roster
+        // The same quiet gate the focused idle path uses — constant company for
+        // the first ninety seconds, intermittent after. Measured from the mark,
+        // which with no session under him IS how long he has been up.
+        let quietFor = now.timeIntervalSince(stirredAt[slot])
+        if Self.idleChatterShows(quietFor: quietFor, seed: seed) {
+            var snapshot = StatusTicker.Snapshot()
+            snapshot.sessionCount = roster.count
+            let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
+                                   subject: nil, now: now)
+            up.bubble = line.text
+            up.bubbleStyle = line.isMarquee ? .marquee : .plain
+        }
+        return up
+    }
+
+    /// Asleep with nothing to watch — the nap, still carrying the roster.
+    private func napping(slot: Int, seed: Int, roster: [ClaudeSession]) -> PetState {
+        var down = PetState.sleeping
+        down.sessions = roster
+        if seed % 4 == 0 {
+            down.bubble = chatterCache[slot].cursor
+                .line(for: .sleeping, token: "nap|\(seed)")
+        }
+        return down
+    }
+
     private func derive(slot: Int, excluding excludedID: String?,
                         ordered: [ClaudeSession], now: Date) -> PetState {
-        guard !ordered.isEmpty else { return .sleeping }
-
         // Salted per slot so two idle pets never speak in lockstep; additive,
         // so the split-dice property of the chatter gate survives.
         let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval) &+ slot &* 7919
 
         let focusOrNil: ClaudeSession?
-        if slot == 0 {
+        if ordered.isEmpty {
+            focusOrNil = nil
+        } else if slot == 0 {
             let pinned = Preferences.shared.pinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
             focusOrNil = pinned ?? ordered[0]
         } else {
             let pinned = Preferences.shared.pet2PinnedSessionID.flatMap { id in ordered.first { $0.id == id } }
             focusOrNil = pinned ?? ordered.first { $0.id != excludedID }
         }
+
+        // The focus's own clock folds into the mark, and THAT is what makes
+        // this one rule instead of three. Whichever route we are on, the mark
+        // is now the latest of everything that could interest this slot.
+        if let focus = focusOrNil {
+            stirredAt[slot] = max(stirredAt[slot], focus.lastActivity)
+        }
+        let awake = now.timeIntervalSince(stirredAt[slot]) <= Self.sleepAfter
+
+        // Nobody to watch: either no sessions at all, or slot 1 with only one
+        // session running. Awake he is the same idle crab with no session
+        // under him; asleep he naps — either way carrying the roster, because
+        // "nothing running" would be a lie whenever there is something.
         guard let focus = focusOrNil else {
-            var napping = PetState.sleeping
-            napping.sessions = ordered
-            if seed % 4 == 0 {
-                napping.bubble = chatterCache[slot].cursor
-                    .line(for: .sleeping, token: "nap|\(seed)")
-            }
-            return napping
+            return awake ? upAlone(slot: slot, seed: seed, roster: ordered, now: now)
+                         : napping(slot: slot, seed: seed, roster: ordered)
         }
 
         var mood = focus.mood
-        if mood != .needsAttention,
-           now.timeIntervalSince(focus.lastActivity) > Self.sleepAfter {
+        if mood != .needsAttention, !awake {
             mood = .sleeping
         }
 
