@@ -221,6 +221,7 @@ public struct PetRootView: View {
                     serviceGlyph: model.serviceGlyphKind,
                     serviceGlyphShownAt: model.serviceGlyphShownAt?.timeIntervalSinceReferenceDate,
                     serviceGlyphEndedAt: model.serviceGlyphEndedAt?.timeIntervalSinceReferenceDate,
+                    unseen: model.unseen,
                     previewLatch: model.previewLatch,
                     flashScale: flashScale,
                     moodClock: model.moodClock,
@@ -574,6 +575,15 @@ private struct RainbowTrails: View {
 @MainActor
 public final class PetViewModel: ObservableObject {
     @Published public var state: PetState = .sleeping
+    /// Nobody can see him: the display is asleep, or his window is fully
+    /// covered by another. The timeline drops to a crawl.
+    ///
+    /// **A rate input, never a pose input.** `render(at:)` stays a pure
+    /// function of `time`; this only changes how often it is asked. A slow
+    /// tick rather than `frozenTime`, which would also disable hover, the
+    /// click latches, the badge and the glyph — the point is to stop drawing,
+    /// not to stop being a pet.
+    @Published public var unseen = false
     /// When the pointer arrived on him, or nil if it is elsewhere. Stored as a
     /// start time rather than a flag so the greeting can play as a timeline.
     @Published public var hoverStartedAt: Date?

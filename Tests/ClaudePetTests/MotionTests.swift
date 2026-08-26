@@ -175,6 +175,39 @@ struct MotionContinuityTests {
                 "selecting the waiting light showed nothing for \(longestDark)s")
     }
 
+    /// A pet nobody can see should not be animating at twenty frames a second.
+    /// Nothing observed display sleep or occlusion before this, so the timeline
+    /// ticked at full rate with the screen off, all night.
+    @Test("An unseen pet stops animating, whatever else is true")
+    func unseenOutranksEverything() {
+        let idle = PetMood.idle.style.frameInterval
+        #expect(CrabView.tickInterval(unseen: false, reacting: false, mood: idle) == idle)
+        #expect(CrabView.tickInterval(unseen: false, reacting: true, mood: idle) == 1.0 / 30,
+                "a reaction still gets the smooth rate")
+        // …and unseen beats both, including a reaction — there is nobody there
+        // to react for.
+        #expect(CrabView.tickInterval(unseen: true, reacting: false, mood: idle) == 1.0)
+        #expect(CrabView.tickInterval(unseen: true, reacting: true, mood: idle) == 1.0)
+        for mood in PetMood.allCases {
+            #expect(CrabView.tickInterval(unseen: true, reacting: true,
+                                          mood: mood.style.frameInterval) == 1.0,
+                    "\(mood) kept animating unseen")
+        }
+    }
+
+    /// The hour memo has to answer the same thing `Calendar` does — it is the
+    /// gate on the telescope and the patch of sun, and a wrong hour there is a
+    /// schedule firing at the wrong time of day.
+    @Test("The cached hour agrees with the calendar")
+    @MainActor
+    func theHourCacheIsHonest() {
+        LocalHour.invalidate()
+        let fresh = Calendar.current.component(.hour, from: Date())
+        #expect(LocalHour.current == fresh, "the memo disagrees with the calendar")
+        // …and repeated reads, which is the whole point, keep agreeing.
+        for _ in 0..<50 { #expect(LocalHour.current == fresh) }
+    }
+
     /// The sleeping clip has to contain a whole breath and close on itself.
     ///
     /// This fails on the old pose: a 4.0s clip over a 6.98s cycle is 57% of a

@@ -1131,6 +1131,9 @@ public struct CrabView: View {
     public var serviceGlyph: ServiceGlyph?
     public var serviceGlyphShownAt: Double?
     public var serviceGlyphEndedAt: Double?
+    /// Nobody can see him — the display is asleep, or his window is covered.
+    /// Purely a frame-rate input; see `PetViewModel.unseen`.
+    public var unseen: Bool = false
     /// One rare effect forced on for review, with its own epoch, or nil for
     /// the real schedules. Defaulted so every offline renderer, test and
     /// preview call is untouched — and a half-set latch is unrepresentable,
@@ -1175,6 +1178,7 @@ public struct CrabView: View {
                 serviceGlyph: ServiceGlyph? = nil,
                 serviceGlyphShownAt: Double? = nil,
                 serviceGlyphEndedAt: Double? = nil,
+                unseen: Bool = false,
                 previewLatch: CrabAnimator.PreviewLatch? = nil,
                 frozenTime: Double? = nil,
                 flashScale: Double = 1,
@@ -1199,6 +1203,7 @@ public struct CrabView: View {
         self.serviceGlyph = serviceGlyph
         self.serviceGlyphShownAt = serviceGlyphShownAt
         self.serviceGlyphEndedAt = serviceGlyphEndedAt
+        self.unseen = unseen
         self.previewLatch = previewLatch
         self.frozenTime = frozenTime
         self.flashScale = flashScale
@@ -1433,7 +1438,8 @@ public struct CrabView: View {
             // release renders at the reaction rate too instead of at 6fps.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
                 || petSince != nil || pouncedAt != nil || snackSince != nil
-            let interval = reacting ? 1.0 / 30 : frameInterval
+            let interval = CrabView.tickInterval(unseen: unseen, reacting: reacting,
+                                                 mood: frameInterval)
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
                 render(at: timeline.date.timeIntervalSinceReferenceDate)
             }
@@ -1448,8 +1454,25 @@ public struct CrabView: View {
     ///
     /// One definition, read by both the pose and the tint, so they cannot
     /// disagree about what time it is.
+    /// How often to ask for a frame.
+    ///
+    /// Extracted and pure so the policy is testable — the same reason
+    /// `hoverCountsAsStir` and `idleChatterShows` are statics rather than
+    /// expressions buried in the thing they govern.
+    ///
+    /// **Unseen outranks reacting.** If the display is asleep or his window is
+    /// covered there is nobody to react for, and a pet nobody is looking at
+    /// should not be rebuilding a 1024-cell buffer twenty times a second. One
+    /// frame a second is enough to notice the moment he is visible again, and
+    /// unlike freezing time it keeps hover, the click latches, the badge and
+    /// the glyph all honest in the meantime.
+    nonisolated static func tickInterval(unseen: Bool, reacting: Bool, mood: Double) -> Double {
+        if unseen { return 1.0 }
+        return reacting ? 1.0 / 30 : mood
+    }
+
     private var hourOfDay: Int? {
-        frozenTime == nil ? Calendar.current.component(.hour, from: Date()) : nil
+        frozenTime == nil ? LocalHour.current : nil
     }
 
     private func render(at time: Double) -> some View {

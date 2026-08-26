@@ -85,6 +85,15 @@ final class PetInstance {
     private(set) var filmPlaying = false
     private var filmWatch: FilmWatch?
     private var screenObserver: NSObjectProtocol?
+    /// Display-sleep and window-occlusion watches. Nothing observed either
+    /// before, so the timeline ticked at full rate with the screen off — the
+    /// same waste `CrabView`'s frame-rate doc was written about, just from a
+    /// direction nobody had checked.
+    private var sleepObserver: NSObjectProtocol?
+    private var wakeObserver: NSObjectProtocol?
+    private var occlusionObserver: NSObjectProtocol?
+    private var displayAsleep = false
+    private var windowCovered = false
 
     init(slot: Int) {
         self.slot = slot
@@ -100,6 +109,13 @@ final class PetInstance {
         filmWatch = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = nil
+        let workspace = NSWorkspace.shared.notificationCenter
+        if let sleepObserver { workspace.removeObserver(sleepObserver) }
+        if let wakeObserver { workspace.removeObserver(wakeObserver) }
+        sleepObserver = nil
+        wakeObserver = nil
         controller?.close()
         controller = nil
     }
@@ -400,6 +416,44 @@ final class PetInstance {
             object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.filmWatch?.reconsider() }
         }
+
+        // Display sleep is on the WORKSPACE centre, not the default one — a
+        // notification posted to the wrong centre simply never arrives.
+        let workspace = NSWorkspace.shared.notificationCenter
+        sleepObserver = workspace.addObserver(
+            forName: NSWorkspace.screensDidSleepNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.displayAsleep = true; self?.publishVisibility() }
+        }
+        wakeObserver = workspace.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.displayAsleep = false; self?.publishVisibility() }
+        }
+        if let window = controller?.window {
+            occlusionObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didChangeOcclusionStateNotification,
+                object: window, queue: .main) { [weak self] note in
+                // Read the state HERE — the closure is already on the main
+                // queue, and a `Notification` is not `Sendable`, so only the
+                // resulting Bool may cross into the actor-isolated hop.
+                let covered = !((note.object as? NSWindow)?
+                    .occlusionState.contains(.visible) ?? true)
+                Task { @MainActor in
+                    self?.windowCovered = covered
+                    self?.publishVisibility()
+                }
+            }
+        }
+    }
+
+    /// Hands the view the one fact it needs: can anyone see him right now.
+    ///
+    /// A rate input only. The pose stays a pure function of time; this decides
+    /// how often it is asked for. A pet nobody is looking at should not be
+    /// rebuilding a 1024-cell buffer twenty times a second.
+    private func publishVisibility() {
+        model.unseen = displayAsleep || windowCovered
     }
 
     private func filmChanged(playing: Bool) {
