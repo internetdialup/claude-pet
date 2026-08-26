@@ -90,7 +90,7 @@ seconds he does something unprompted: a jump, a stretch, a look around.
 <tr><td><img src="docs/media/sleeping.gif" width="150"></td><td>
 
 ### Asleep
-Nothing is running. He breathes slowly with z's drifting up, and the render rate
+Nothing is running. He shuts his eyes, tips his head, and breathes — and the render rate
 drops so an idle pet costs an idle machine nothing.
 
 </td></tr>
@@ -389,7 +389,7 @@ few numbers rather than a new asset, and the app icon is rendered from the same
 rig so the two can never drift apart.
 
 <div align="center">
-  <img src="docs/media/props.png" width="768" alt="Every prop: sparkles, terminal, check, bang, z's, servers, balloon, plan, hard hat, phone, fire, glasses">
+  <img src="docs/media/props.png" width="768" alt="Every prop: sparkles, terminal, check, bang, servers, balloon, plan, hard hat, phone, fire, glasses, star">
 </div>
 
 <p align="center"><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>

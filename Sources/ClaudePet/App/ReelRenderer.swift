@@ -389,8 +389,8 @@ enum ReelRenderer {
 
     /// Every prop in one strip, so the README's list of them is concrete.
     ///
-    /// On slate rather than the ocean: five of the thirteen props are drawn in
-    /// `screenDark`/`screenLight` navy — the terminal, the servers, the z's, the
+    /// On slate rather than the ocean: four of the twelve props are drawn in
+    /// `screenDark`/`screenLight` navy — the terminal, the servers, the
     /// balloon, the phone — and navy on navy water runs about 1.4:1. This strip
     /// illustrates the rig, not the marketing scene, so it gets the ground that
     /// shows every prop rather than the one that matches the hero.

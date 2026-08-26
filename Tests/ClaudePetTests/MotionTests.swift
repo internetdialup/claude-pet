@@ -175,6 +175,58 @@ struct MotionContinuityTests {
                 "selecting the waiting light showed nothing for \(longestDark)s")
     }
 
+    /// The sleeping clip has to contain a whole breath and close on itself.
+    ///
+    /// This fails on the old pose: a 4.0s clip over a 6.98s cycle is 57% of a
+    /// breath, so `sleeping.gif` jumped at the loop — and 41 of its 48 frames
+    /// were pixel-identical, because a one-pixel square wave spends 85% of its
+    /// cycle on one value.
+    @Test("The sleeping clip is exactly one breath, and it closes")
+    func theSleepingClipIsOneWholeBreath() {
+        let clip = PetMood.sleeping.style.clipSeconds
+        #expect(clip == CrabAnimator.breathPeriod,
+                "the clip must be derived from the breath, not written down beside it")
+
+        let open = CrabAnimator.pose(mood: .sleeping, t: 0, flourishes: false)
+        let close = CrabAnimator.pose(mood: .sleeping, t: clip, flourishes: false)
+        #expect(open.bob == 0, "t=0 should be the top of the breath")
+
+        // Compare the RENDERED frames, not the poses. `propPhase` carries raw
+        // `t` whether or not there is a prop, so two poses a whole period apart
+        // differ in a field that draws nothing — the thing that has to loop is
+        // the picture.
+        let first = CrabRig.render(open)
+        let last = CrabRig.render(close)
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                #expect(first[x, y] == last[x, y],
+                        "the loop does not close: (\(x),\(y)) differs")
+            }
+        }
+
+        // Three depths, and it steps rather than jumping between them.
+        var depths = Set<Int>()
+        var previous = open.bob
+        for step in 0...Int(clip * 12) {          // the GIF's own rate
+            let bob = CrabAnimator.pose(mood: .sleeping, t: Double(step) / 12,
+                                        flourishes: false).bob
+            depths.insert(bob)
+            #expect(abs(bob - previous) <= 1, "the breath jumped \(bob - previous)")
+            previous = bob
+        }
+        #expect(depths.count >= 3, "a two-value breath reads as a twitch, not a breath")
+    }
+
+    /// The z's are gone; the tilt is what carries "asleep" in the still, where
+    /// the breath cannot help.
+    @Test("A sleeping crab wears no prop, and tips his head")
+    func theSleepingPoseCarriesNoProp() {
+        let pose = CrabAnimator.pose(mood: .sleeping, t: 2, flourishes: false)
+        #expect(pose.prop == .none)
+        #expect(pose.blink == 1, "his eyes stay shut")
+        #expect(pose.tilt != 0, "the tilt is the only thing left in the still")
+    }
+
     /// The frozen sentinel, checked on the BODY rather than on the props.
     /// `nothingFiresAtTimeZero` looks at prop visibility, heat and glyphs, so
     /// it never saw that idle's cycle-0 flourish was always a jump and always

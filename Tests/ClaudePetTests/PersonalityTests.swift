@@ -77,6 +77,29 @@ struct VocabShoutoutsTests {
     }
 }
 
+@Suite("Prop inventory")
+struct PropInventoryTests {
+    /// `props.png` is committed and published in the README as "every prop", and
+    /// it is rendered from `Prop.allCases`. It had been missing the Claude star
+    /// for weeks — appended to the enum, never re-rendered, nobody noticed.
+    ///
+    /// Pinning the count makes the next append or deletion surface the media
+    /// obligation at test time rather than at review time.
+    @Test("The prop strip publishes every prop")
+    func propCountIsPinned() {
+        // `.none` is a case but not a prop; the strip draws the rest.
+        let drawn = CrabPose.Prop.allCases.filter { $0 != .none }
+        #expect(drawn.count == 12,
+                "the prop count moved — docs/media/props.png needs re-rendering")
+        #expect(!CrabPose.Prop.allCases.contains { $0.rawValue == "zzz" },
+                "the sleeping z's were removed; the enum should not carry them")
+        // `stableSeed` is the allCases index and feeds the pixel dissolve, so
+        // the ordering has to stay collision-free.
+        let seeds = CrabPose.Prop.allCases.map(\.stableSeed)
+        #expect(Set(seeds).count == seeds.count, "two props share a dissolve seed")
+    }
+}
+
 @Suite("The draw counter")
 struct LineCursorTests {
 
