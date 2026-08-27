@@ -244,16 +244,24 @@ private struct PulsingDots: View {
 /// Driven by `TimelineView` rather than a repeating `withAnimation`, so it costs
 /// nothing when the bubble is not on screen and cannot leave a timer running
 /// after the view goes away.
+/// `@MainActor` is written down rather than inferred, for the reason
+/// `PetRootView`'s doc gives: `View` carries it, and Swift 6.1 pushes that
+/// inference onto STATIC members while 6.3 does not. Spelling it out means the
+/// local build checks the same thing CI does — without it, `readSeconds` was
+/// nonisolated here and main-actor isolated on the runner, and the mismatch
+/// only surfaced after a push.
+@MainActor
 struct MarqueeText: View {
     let text: String
     let font: Font
     let width: CGFloat
     let frozenTime: Double?
 
-    /// Points per second.
-    static let speed: CGFloat = 26
+    /// Points per second. `nonisolated` because `readSeconds` is, and a
+    /// nonisolated function cannot read a main-actor constant.
+    nonisolated static let speed: CGFloat = 26
     /// Blank space between the end of one pass and the start of the next.
-    static let gap: CGFloat = 34
+    nonisolated static let gap: CGFloat = 34
 
     /// When THIS utterance started scrolling.
     ///
