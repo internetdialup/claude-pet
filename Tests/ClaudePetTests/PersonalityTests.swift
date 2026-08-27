@@ -172,9 +172,13 @@ struct LineCursorTests {
         for seed in 0..<600 {
             guard ActivityCoordinator.idleChatterShows(quietFor: 600, seed: seed) else { continue }
             guard seed % 3 != 2 else { continue }        // that cycle is the ticker
+            // …and of what is left, a coin sends half to a fun fact. Without
+            // this third gate the test stops modelling the shipped path, which
+            // is the one thing its own name promises.
+            guard CrabAnimator.noise(seed &* 17 &+ 7) >= 0.5 else { continue }
             said.append(cursor.idleLine(about: nil, token: "\(seed)")!)
         }
-        #expect(said.count > 50, "the gate should let plenty through")
+        #expect(said.count > 25, "the gate should let plenty through")
         for (a, b) in zip(said, said.dropFirst()) {
             #expect(a != b, "\"\(a)\" twice in a row on the idle path")
         }

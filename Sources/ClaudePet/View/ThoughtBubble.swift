@@ -29,7 +29,7 @@ public struct ThoughtBubble: View {
 
     /// Width of the scrolling viewport. Fixed so the bubble does not resize as
     /// the ticker's content changes.
-    private static let marqueeWidth: CGFloat = 150
+    nonisolated static let marqueeWidth: CGFloat = 150
 
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.
@@ -244,25 +244,39 @@ private struct PulsingDots: View {
 /// Driven by `TimelineView` rather than a repeating `withAnimation`, so it costs
 /// nothing when the bubble is not on screen and cannot leave a timer running
 /// after the view goes away.
-private struct MarqueeText: View {
+struct MarqueeText: View {
     let text: String
     let font: Font
     let width: CGFloat
     let frozenTime: Double?
 
     /// Points per second.
-    private let speed: CGFloat = 26
+    static let speed: CGFloat = 26
     /// Blank space between the end of one pass and the start of the next.
-    private let gap: CGFloat = 34
+    static let gap: CGFloat = 34
+
+    /// When THIS utterance started scrolling.
+    ///
+    /// The offset used to come straight off the epoch, so a reader joined a
+    /// sentence at an arbitrary midpoint. That is survivable for a label like
+    /// `MODEL · Opus 5`, which has no grammar to lose, and useless for a fact.
+    ///
+    /// `PetRootView` tags the bubble `.id(text)`, so a new line re-mounts this
+    /// view and `@State` is re-seeded — which is the whole mechanism. No new
+    /// `PetState` field, nothing equality-gated churning on a 14s clock.
+    @State private var began = Date.timeIntervalSinceReferenceDate
 
     var body: some View {
-        Clocked(frozenTime: frozenTime) { elapsed in
-            let measured = Self.measure(text) + gap
+        Clocked(frozenTime: frozenTime) { now in
+            // Frozen renders keep taking the caller's instant verbatim, so
+            // offline output stays byte-deterministic.
+            let elapsed = frozenTime == nil ? max(0, now - began) : now
+            let measured = Self.measure(text) + Self.gap
             let offset = measured > 0
-                ? -CGFloat(elapsed * Double(speed)).truncatingRemainder(dividingBy: measured)
+                ? -CGFloat(elapsed * Double(Self.speed)).truncatingRemainder(dividingBy: measured)
                 : 0
 
-            HStack(spacing: gap) {
+            HStack(spacing: Self.gap) {
                 Text(text).font(font).fixedSize()
                 // Second copy trails the first so the loop has no visible seam.
                 Text(text).font(font).fixedSize()
@@ -275,7 +289,25 @@ private struct MarqueeText: View {
 
     /// Monospaced 11pt: every glyph is the same advance, so the width is
     /// countable rather than needing a layout pass.
-    private static func measure(_ text: String) -> CGFloat {
+    nonisolated static func measure(_ text: String) -> CGFloat {
         CGFloat(text.count) * 6.62
     }
+
+    /// How long until the LAST character has reached the viewport — i.e. how
+    /// long a reader needs to have seen the whole line, starting from phase 0.
+    ///
+    /// Not a full loop: a loop also carries the text back off the left edge
+    /// and through the gap, which is 184pt of travel nobody needs to wait for.
+    /// The difference is the entire length budget — a full loop allows ~44
+    /// characters inside the idle slot, this allows ~68.
+    ///
+    /// Exposed so the copy's length can be checked against a DURATION rather
+    /// than against a restated 6.62. A test that re-derives the constant keeps
+    /// passing forever after someone changes the renderer.
+    nonisolated static func readSeconds(for text: String, width: CGFloat) -> Double {
+        Double(max(0, measure(text) - width) / speed)
+    }
+
+    /// The viewport the bubble actually gives the ticker.
+    nonisolated static var viewport: CGFloat { ThoughtBubble.marqueeWidth }
 }
