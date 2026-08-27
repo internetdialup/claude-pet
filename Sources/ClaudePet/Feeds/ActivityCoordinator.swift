@@ -273,7 +273,10 @@ public final class ActivityCoordinator {
     /// longer, and those are genuine walk-aways.
     static var sleepAfter: TimeInterval = 900
     /// How long one idle line stays on screen before a new one is chosen.
-    private static let chatterInterval: TimeInterval = 14
+    /// `nonisolated`: a plain constant with no actor affinity, and the fun-fact
+    /// length guard reads it from a non-MainActor suite to compare a scroll
+    /// duration against the slot that has to contain it.
+    nonisolated static let chatterInterval: TimeInterval = 14
     /// How far back the tool-rate window looks.
     nonisolated static let toolRateWindow: TimeInterval = 60
     /// Tool calls within that window before he catches fire.
@@ -289,7 +292,7 @@ public final class ActivityCoordinator {
     /// Each pet keeps his own cached sentence — two idle pets sharing one
     /// cache would trade sentences out from under each other's readers.
     private struct SlotChatter {
-        var line: (text: String, isMarquee: Bool)?
+        var line: (text: String, style: PetState.BubbleStyle)?
         var chosenAt: Date = .distantPast
         /// The last thing that counted as news: the mood, the session, and the
         /// words themselves. A recompute that reproduces the same sentence is
@@ -302,6 +305,11 @@ public final class ActivityCoordinator {
         /// Bumped whenever `newsAt` moves, so an old burst index reached under
         /// a NEW epoch is a new utterance rather than the same one.
         var newsEpoch = 0
+        /// How many fun facts this slot has drawn — the index into the 20/60/20
+        /// mix. Per-slot for the same reason `cursor` is: two idle pets sharing
+        /// one counter would interleave each other's mixes and neither would
+        /// hold the ratio.
+        var factDraws = 0
     }
     private var chatterCache: [SlotChatter] = [SlotChatter(cursor: LineCursor())]
 
@@ -783,7 +791,7 @@ public final class ActivityCoordinator {
             let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
                                    subject: nil, now: now)
             up.bubble = line.text
-            up.bubbleStyle = line.isMarquee ? .marquee : .plain
+            up.bubbleStyle = line.style
         }
         return up
     }
@@ -903,7 +911,7 @@ public final class ActivityCoordinator {
                 let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
                                        subject: focus.title, now: now)
                 bubble = line.text
-                style = line.isMarquee ? .marquee : .plain
+                style = line.style
             } else {
                 bubble = nil
             }
@@ -1010,7 +1018,7 @@ public final class ActivityCoordinator {
     private func idleChatter(slot: Int, seed: Int,
                              snapshot: StatusTicker.Snapshot,
                              subject: String?,
-                             now: Date) -> (text: String, isMarquee: Bool) {
+                             now: Date) -> (text: String, style: PetState.BubbleStyle) {
         if let current = chatterCache[slot].line,
            now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterInterval {
             return current
@@ -1018,10 +1026,21 @@ public final class ActivityCoordinator {
 
         let status = StatusTicker.lines(for: snapshot, now: now)
 
-        // Roughly every third turn is a status ticker, when one is available.
-        let next: (String, Bool)
+        // Roughly every third turn is a status ticker, when one is available;
+        // of what is left, a coin decides between a fun fact and a line in his
+        // own voice.
+        //
+        // The fact die is NESTED inside the else on purpose, so the ticker's
+        // behaviour on the cycles it already owns is byte-identical. And it is
+        // a splitmix draw rather than another modulo: the note on
+        // `idleChatterShows` explains that a second modular gate on this seed
+        // starves whatever already modulos it, and that `(seed * k) % 3`
+        // collapses straight back into `seed % 3`.
+        let next: (String, PetState.BubbleStyle)
         if !status.isEmpty, seed % 3 == 2 {
-            next = (status[(seed / 3) % status.count], true)
+            next = (status[(seed / 3) % status.count], .marquee)
+        } else if let fact = funFact(slot: slot, seed: seed) {
+            next = (fact, .marquee)
         } else {
             // The shuffled cycle guarantees no immediate repeat — but only
             // through a cursor. It is reached on a subset of ticks (this very
@@ -1032,12 +1051,35 @@ public final class ActivityCoordinator {
             // seeing.
             let line = chatterCache[slot].cursor.idleLine(about: subject,
                                                           token: "\(seed)")
-            next = (line ?? "Ready when you are", false)
+            next = (line ?? "Ready when you are", .plain)
         }
 
         chatterCache[slot].line = next
         chatterCache[slot].chosenAt = now
         return next
+    }
+
+    /// A fun fact for this cycle, or nil when the coin says it is his turn to
+    /// speak in his own voice.
+    ///
+    /// **Only the winning category is drawn.** Pre-drawing all three and
+    /// discarding two would step all three counters, and a burned counter
+    /// skips a card in the deck — which is exactly the immediate-repeat bug
+    /// `LineCursor` exists to kill, one level up. `next` advances only for the
+    /// id it is called with, so a category that loses this cycle keeps its
+    /// place for free.
+    private func funFact(slot: Int, seed: Int) -> String? {
+        guard CrabAnimator.noise(seed &* 17 &+ 7) < 0.5 else { return nil }
+        let category = FunFacts.category(forDraw: chatterCache[slot].factDraws)
+        guard let fact = chatterCache[slot].cursor.next(
+            FunFacts.facts(in: category),
+            id: "fact:\(category.rawValue)",
+            token: "\(seed)") else { return nil }
+        // After the draw, and only here — this function is reached once per
+        // chosen line, never on the 2s recompute, because the cache above
+        // short-circuits first.
+        chatterCache[slot].factDraws &+= 1
+        return fact
     }
 
     private func publish(_ new: PetState, slot: Int) {

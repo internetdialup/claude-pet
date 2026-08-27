@@ -55,16 +55,25 @@ public enum StatusTicker {
     /// Turns a model id into something worth reading on a pet's forehead.
     /// Unknown ids are upper-cased rather than dropped, so a new model still
     /// displays instead of vanishing.
+    /// The generations this formatter knows how to name.
+    ///
+    /// Hoisted out of `displayName` so it has a second reader: `FunFactTests`
+    /// asserts that no fun fact names a generation, and points at THIS list to
+    /// decide what a generation is. One source, so adding a future model
+    /// automatically tightens the guard rather than leaving it stale — and the
+    /// fact that this table has already had to grow is exactly the argument
+    /// for the rule.
+    static let knownModels: [(prefix: String, name: String)] = [
+        ("claude-fable-5", "Fable 5"),
+        ("claude-opus-5", "Opus 5"),
+        ("claude-sonnet-5", "Sonnet 5"),
+        ("claude-haiku-4-5", "Haiku 4.5"),
+        ("claude-opus-4", "Opus 4"),
+        ("claude-sonnet-4", "Sonnet 4"),
+    ]
+
     public static func displayName(forModel id: String) -> String {
-        let known: [(prefix: String, name: String)] = [
-            ("claude-fable-5", "Fable 5"),
-            ("claude-opus-5", "Opus 5"),
-            ("claude-sonnet-5", "Sonnet 5"),
-            ("claude-haiku-4-5", "Haiku 4.5"),
-            ("claude-opus-4", "Opus 4"),
-            ("claude-sonnet-4", "Sonnet 4"),
-        ]
-        if let match = known.first(where: { id.hasPrefix($0.prefix) }) { return match.name }
+        if let match = knownModels.first(where: { id.hasPrefix($0.prefix) }) { return match.name }
         return id
             .replacingOccurrences(of: "claude-", with: "")
             .replacingOccurrences(of: "-", with: " ")
