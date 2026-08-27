@@ -46,10 +46,19 @@ import Foundation
 //
 public enum FunFacts {
 
-    /// The three pools, and the mix the operator asked for: 20% computer
-    /// science, 60% Claude, 20% AI.
+    /// The pools, and the mix the operator asked for.
+    ///
+    /// Claude keeps the 60% it was given in the first round. The 40% left over
+    /// used to be two pools at 20% and is now five at 8%, because the operator
+    /// asked for three more flavours rather than for a different balance — so
+    /// the flavours divide the remainder instead of taking a bite out of
+    /// Claude's share.
+    ///
+    /// `compSci101` is the odd one, and the difference is mechanical rather
+    /// than editorial: its lines are short enough to sit still in the plain
+    /// bubble. `ActivityCoordinator.bubbleStyle(for:)` says why that matters.
     public enum Category: String, Sendable, CaseIterable {
-        case computerScience, claude, ai
+        case computerScience, compSci101, claude, ai, aiEngineering, vibeCoding
     }
 
     /// A switch rather than a dictionary, for the reason `Vocab.lines(for:)`
@@ -239,24 +248,150 @@ public enum FunFacts {
             // deliver.
             "Temperature controls how much a model's output varies",
         ]
+
+        // 🎓 Computer science 101 — the short ones.
+        //
+        // Every line here fits the plain bubble, which is the whole point of
+        // the pool: it appears whole and holds still for its fourteen seconds
+        // instead of scrolling past. A line that outgrows the ceiling does not
+        // belong here — it belongs in `computerScience`, which scrolls.
+        case .compSci101: [
+            // Hedged deliberately. Eight bits is a CONVENTION with live
+            // exceptions, not a definition: 6- and 9-bit bytes were ordinary in
+            // the 1960s, C guarantees only CHAR_BIT >= 8, and TI's C2000 DSPs
+            // ship 16-bit chars today. ISO/IEC 80000-13 only *recommends*
+            // reserving "byte" for eight — which is why "octet" exists at all.
+            "A byte is usually eight bits",
+            // Definitional.
+            "Binary is base two",
+            // Definitional; the name says it (hexa- + decimal).
+            "Hexadecimal is base sixteen",
+            // LIFO is the stack ADT's defining discipline, not an
+            // implementation detail.
+            "A stack is last in, first out",
+            // FIFO likewise. Priority queues and deques are named variants, so
+            // they are not counterexamples.
+            "A queue: first in, first out",
+            // "Usually" is load-bearing: Fortran, MATLAB, R, Lua and Julia
+            // index from one, and Pascal and Ada take arbitrary bounds.
+            "Arrays usually start at zero",
+            // C11 6.2.5: a pointer's value is the address of an object or
+            // function.
+            "A pointer holds an address",
+            // "Bounds", not "measures". Big-O is an asymptotic UPPER bound —
+            // f is O(g) iff f(n) <= c*g(n) beyond some n0. The tight one is
+            // Theta, and an earlier draft said "measures", which claims
+            // Theta's job for it.
+            "Big-O bounds growth rates",
+            // The space-time tradeoff, in the right direction: storage spent
+            // to avoid a slower fetch or a recomputation.
+            "A cache trades space for time",
+            // Deliberately unspecific. "Compiles to machine code" would be
+            // false of every bytecode compiler and every transpiler.
+            "A compiler translates code",
+        ]
+
+        // 🛠️ AI and prompt engineering. Papers, mostly — the durable class.
+        case .aiEngineering: [
+            // Wei et al., "Chain-of-Thought Prompting Elicits Reasoning in
+            // Large Language Models", 2022. "Arrived in", not "was invented
+            // by": the paper is what the field dates it from.
+            "Chain-of-thought prompting arrived in a 2022 paper",
+            // Kojima et al., "Large Language Models are Zero-Shot Reasoners",
+            // 2022 — the zero-shot chain-of-thought trigger phrase.
+            "'Let's think step by step' came from a 2022 paper",
+            // Brown et al., "Language Models are Few-Shot Learners", 2020.
+            // DEMONSTRATED, not invented — in-context examples predate it.
+            "Few-shot prompting was demonstrated in the 2020 GPT-3 paper",
+            // Lewis et al., 2020, which is where the name comes from.
+            "Retrieval-augmented generation was named in a 2020 paper",
+            // Yao et al., "ReAct: Synergizing Reasoning and Acting in Language
+            // Models", 2022.
+            "ReAct interleaved reasoning and tool use in a 2022 paper",
+            // General and durable — true of every embedding model there is.
+            "An embedding turns text into a list of numbers",
+            // The settled framing: untrusted text reaching a model is an
+            // injection, not a mistake in the wording.
+            "Prompt injection is a security problem, not a typo",
+            // What an eval is FOR, stated as a mechanism rather than a boast.
+            "Evals tell a better prompt from a lucky one",
+            // The distinction that survives every generation of model.
+            "Fine-tuning changes the weights; prompting does not",
+            // Definitional: greedy decoding is argmax at every step.
+            "Greedy decoding always takes the likeliest next token",
+        ]
+
+        // 🎲 Vibe coding. The youngest pool and the thinnest, ON PURPOSE.
+        //
+        // Ten were drafted and four cut, all for the same reason: they were
+        // aphorisms wearing a fact's grammar ("the bug you did not write is
+        // still your bug"). Those belong in `vocab.swift`, in the operator's
+        // voice, where a line cannot be wrong. What survives here is the term's
+        // origin, its dating and its dictionary recognition — the only parts of
+        // a practice this young that a compiled binary can still vouch for in
+        // three years.
+        case .vibeCoding: [
+            // Karpathy's post, February 2025. The coinage is uncontested.
+            "Andrej Karpathy coined 'vibe coding' in February 2025",
+            // Attributed on purpose. The DICTIONARY sense (Collins,
+            // Merriam-Webster) is just prompting an AI in natural language and
+            // does not require skipping the read; not-reading is the coiner's
+            // stricter original sense, and it survives only with his name on it.
+            "As Karpathy defined it, you accept the code without reading it",
+            // Collins Dictionary's word of the year for 2025.
+            "Collins made 'vibe coding' its word of the year for 2025",
+            // Fixed history about where the phrase came from.
+            "The phrase 'vibe coding' started as a post, not a paper",
+            // "Published his essay", not "coined": Software 2.0 went up on
+            // Medium on 11 November 2017, and nothing establishes he was first
+            // to say the words — it is a generic version-number phrase.
+            "Karpathy published his 'Software 2.0' essay back in 2017",
+            // A category correction that stays true whatever the tooling does.
+            "'Vibe coding' names a workflow, not a language",
+        ]
         }
     }
 
     /// Every fact, for the tests and the length guard. Mirrors `Vocab.catalogue`.
     public static var all: [String] { Category.allCases.flatMap { facts(in: $0) } }
 
-    /// The ten-slot mix: exactly two computer-science, six Claude, two AI.
+    /// The twenty-five-slot mix: fifteen Claude, and two of each of the five
+    /// flavours — 60 / 8 / 8 / 8 / 8 / 8.
     ///
     /// Deterministic rather than diced, and that is a deliberate choice. Dice
-    /// give 20/60/20 only in EXPECTATION: at a fact every couple of minutes an
-    /// hour is about thirty draws, so the computer-science count would be
+    /// give the ratio only in EXPECTATION: at a fact every couple of minutes an
+    /// hour is about thirty draws, so a 20% pool's count would be
     /// Binomial(30, 0.2) — mean six, standard deviation 2.1. A perfectly
     /// ordinary hour would show three of them, or ten. This gives the ratio as
-    /// an equality per ten draws instead.
+    /// an equality per pass instead.
+    ///
+    /// It grew from ten slots to twenty-five when the flavours arrived, because
+    /// 8% cannot be written in tenths. The five groups below are each three
+    /// Claude and two flavours, so a pass reads as a rotation rather than as a
+    /// block of Claude with a tail — though `shuffled` reorders every pass
+    /// anyway, so this is legibility for whoever reads the file, not a
+    /// guarantee about what he says.
     private static let mix: [Category] = [
-        .computerScience, .claude, .claude, .ai, .claude,
-        .claude, .computerScience, .claude, .ai, .claude,
+        .claude, .computerScience, .claude, .compSci101, .claude,
+        .claude, .ai, .claude, .aiEngineering, .claude,
+        .claude, .vibeCoding, .claude, .computerScience, .claude,
+        .claude, .compSci101, .claude, .ai, .claude,
+        .claude, .aiEngineering, .claude, .vibeCoding, .claude,
     ]
+
+    /// How many of the mix's slots this category owns, and how many slots there
+    /// are. Derived from `mix` rather than written down beside it: a slot moved
+    /// is a share moved, and two numbers that have to agree by hand eventually
+    /// do not.
+    ///
+    /// Integers, not a fraction, because the staleness guard divides by this to
+    /// get a repeat period and wants an exact answer — 30 / 0.6 is not reliably
+    /// 50 in binary floating point, and a guard that trips on the last bit of a
+    /// double is a guard nobody trusts.
+    public static func slots(of category: Category) -> Int {
+        mix.filter { $0 == category }.count
+    }
+    public static var mixLength: Int { mix.count }
 
     /// Which category the `draw`-th fact comes from.
     ///
