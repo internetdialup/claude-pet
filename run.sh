@@ -49,17 +49,38 @@ for bundle in "$BUNDLE_DIR"/*.bundle; do
   cp -R "$bundle" "$APP/Contents/Resources/"
 done
 
-# Strip extended attributes first. `cp -R` carries them over from the build
-# directory, and codesign rejects a bundle with "resource fork, Finder
-# information, or similar detritus".
-xattr -cr "$APP" 2>/dev/null || true
+# Strip extended attributes, sign, and VERIFY — as one retried unit.
+#
+# codesign rejects a bundle carrying "resource fork, Finder information, or
+# similar detritus", and this repo lives inside iCloud Drive, whose file
+# provider stamps com.apple.FinderInfo and com.apple.fileprovider.fpfs#P back
+# onto directories moments after they are cleared. So a single `xattr -cr`
+# before signing is a race, and it is one this script used to lose silently:
+# the failure printed three lines nobody reads and carried on to launch an
+# UNSIGNED app, which works fine until launch-at-login or a notification
+# quietly does not.
+#
+# com.apple.provenance is left alone deliberately — macOS manages it, it cannot
+# be removed, and codesign does not object to it.
+signed=""
+for attempt in 1 2 3 4 5; do
+  xattr -cr "$APP" 2>/dev/null || true
+  if codesign --force --deep --sign - "$APP" 2>/dev/null \
+     && codesign --verify --deep "$APP" 2>/dev/null; then
+    signed="yes"
+    [ "$attempt" -gt 1 ] && echo "==> signed on attempt $attempt (iCloud re-stamp)"
+    break
+  fi
+done
 
-# Ad-hoc signature. Enough for local use and for SMAppService to see a stable
-# identity; not a distribution signature. --deep is required because the app
-# carries SwiftPM's nested resource bundle.
-if ! codesign --force --deep --sign - "$APP" 2>/dev/null; then
-  echo "   codesign FAILED — launch at login and notifications may not work:"
+if [ -z "$signed" ]; then
+  echo "   codesign FAILED after five attempts — launch at login and"
+  echo "   notifications may not work. Last error:"
+  xattr -cr "$APP" 2>/dev/null || true
   codesign --force --deep --sign - "$APP" 2>&1 | sed 's/^/   /'
+  echo "   Surviving attributes:"
+  xattr -r "$APP" 2>/dev/null | grep -v provenance | sed 's/^/     /'
+  exit 1
 fi
 
 if [ "${1:-}" = "--no-launch" ]; then

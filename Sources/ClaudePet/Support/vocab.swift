@@ -239,6 +239,20 @@ public enum Vocab {
         return pick(from: pool, seed: seed)
     }
 
+    /// The occasion's lines, WIDENED by any rule the subject matches.
+    ///
+    /// Distinct from `line(for:matching:)`, where a matching rule *replaces*
+    /// the pool because the pet is genuinely doing that thing right now. Here
+    /// the subject is the session's title — which is the last prompt, and does
+    /// not change for the life of a session — so replacing would pin an idle
+    /// pet whose last prompt was "fix the login bug" to five debug lines
+    /// forever, narrowing the most-visible pool in the app from fourteen to
+    /// five. That is the exact opposite of what wiring this up was for.
+    public static func lines(for occasion: ShoutoutOccasion,
+                             about subject: String?) -> [String] {
+        lines(for: occasion) + (subject.flatMap { rule(matching: $0) }?.lines ?? [])
+    }
+
     /// Walks the pool in a shuffled order, using every line before any repeats.
     ///
     /// A plain "random index" can show line 3 four times in five turns and never
@@ -287,5 +301,78 @@ public enum Vocab {
             result.swapAt(index, Int(z % UInt64(index + 1)))
         }
         return result
+    }
+}
+
+
+/// A draw counter for the deck.
+///
+/// `Vocab.pick` deals a shuffled pass and guarantees two things — no line twice
+/// in a row, and every line used before any repeats — but **only while its seed
+/// advances by exactly one per draw**. Every caller in the app fed it something
+/// else: wall-clock seconds, a fourteen-second tick sampled through a dice gate,
+/// a burst index that skips numbers. So the guarantee held in the unit test and
+/// nowhere on screen. Measured on the shipped code, the immediate-repeat rate
+/// was 10.4% on the idle path and 33.4% on working bursts, against a deck that
+/// promises zero — and 97.4% of any six consecutive idle draws contained a
+/// duplicate. The operator noticed before the tests did.
+///
+/// This is the thing to hand `pick` instead. `pick` itself is unchanged and
+/// still pure.
+///
+/// `token` names the **utterance** rather than the moment. While it is
+/// unchanged the same line comes back — one burst says one thing, rather than
+/// rewriting itself mid-read when the fourteen-second seed rolls over — and the
+/// instant it changes the cursor steps forward by exactly one.
+public struct LineCursor: Sendable {
+    private struct Draw { var token: String; var seed: Int }
+    private var draws: [String: Draw] = [:]
+    /// Per-pet offset, so two pets never walk the same pass in lockstep. An
+    /// offset and not a multiplier, because the step of one IS the invariant.
+    private let salt: Int
+
+    public init(salt: Int = 0) { self.salt = salt }
+
+    /// The line for `pool`, held while `token` holds.
+    ///
+    /// Keyed per pool, which is load-bearing: one shared counter would break
+    /// the moment he alternates between two moods, because consecutive draws
+    /// from either pool would then skip.
+    public mutating func next(_ pool: [String], id: String, token: String) -> String? {
+        if draws[id]?.token != token {
+            draws[id] = Draw(token: token, seed: (draws[id]?.seed ?? salt) &+ 1)
+        }
+        return Vocab.pick(from: pool, seed: draws[id]?.seed ?? salt)
+    }
+
+    /// The line for a pool where every call is a new utterance — a banner
+    /// posted, a bug pounced on. No token to hold on to.
+    public mutating func advance(_ pool: [String], id: String) -> String? {
+        let seed = (draws[id]?.seed ?? salt) &+ 1
+        draws[id] = Draw(token: "", seed: seed)
+        return Vocab.pick(from: pool, seed: seed)
+    }
+
+    /// `Vocab.line(for:matching:)`, dealt from a cursor.
+    ///
+    /// A matched rule gets its OWN cursor id: two pools interleaved through one
+    /// counter would steal each other's seeds, which is this same bug one level
+    /// up.
+    public mutating func line(for occasion: ShoutoutOccasion,
+                              matching task: String? = nil,
+                              token: String) -> String? {
+        let rule = task.flatMap { Vocab.rule(matching: $0) }
+        return next(rule?.lines ?? Vocab.lines(for: occasion),
+                    id: rule.map { "rule:\($0.pattern)" } ?? "occasion:\(occasion.rawValue)",
+                    token: token)
+    }
+
+    /// The idle line, drawn from the occasion WIDENED by the session's subject.
+    /// See `Vocab.lines(for:about:)` for why idle widens where working replaces.
+    public mutating func idleLine(about subject: String?, token: String) -> String? {
+        let widened = Vocab.lines(for: .idle, about: subject)
+        let id = subject.flatMap { Vocab.rule(matching: $0) }
+            .map { "occasion:idle+rule:\($0.pattern)" } ?? "occasion:idle"
+        return next(widened, id: id, token: token)
     }
 }

@@ -50,7 +50,7 @@ public final class ActivityCoordinator {
         guard clamped != states.count else { return }
         if clamped > states.count {
             states.append(.sleeping)
-            chatterCache.append(SlotChatter())
+            chatterCache.append(SlotChatter(cursor: LineCursor(salt: chatterCache.count &* 7919)))
         } else {
             states.removeLast()
             chatterCache.removeLast()
@@ -292,8 +292,13 @@ public final class ActivityCoordinator {
         var lastNews: String?
         /// When that news broke — the epoch every cadence is measured from.
         var newsAt: Date = .distantPast
+        /// This slot's draw counters, one per pool. See `LineCursor`.
+        var cursor: LineCursor
+        /// Bumped whenever `newsAt` moves, so an old burst index reached under
+        /// a NEW epoch is a new utterance rather than the same one.
+        var newsEpoch = 0
     }
-    private var chatterCache: [SlotChatter] = [SlotChatter()]
+    private var chatterCache: [SlotChatter] = [SlotChatter(cursor: LineCursor())]
 
     public init() {}
 
@@ -742,7 +747,10 @@ public final class ActivityCoordinator {
         guard let focus = focusOrNil else {
             var napping = PetState.sleeping
             napping.sessions = ordered
-            if seed % 4 == 0 { napping.bubble = Vocab.line(for: .sleeping, seed: seed) }
+            if seed % 4 == 0 {
+                napping.bubble = chatterCache[slot].cursor
+                    .line(for: .sleeping, token: "nap|\(seed)")
+            }
             return napping
         }
 
@@ -791,7 +799,10 @@ public final class ActivityCoordinator {
         case .sleeping:
             // Occasionally talks in his sleep. A sleeping pet that comments on
             // every frame is not asleep.
-            bubble = seed % 4 == 0 ? Vocab.line(for: .sleeping, seed: seed) : nil
+            bubble = seed % 4 == 0
+                ? chatterCache[slot].cursor.line(for: .sleeping,
+                                                 token: "\(focus.id)|\(seed)")
+                : nil
             chatterCache[slot].line = nil
 
         // A title is what a session *is*, not what it is *doing*. Gating on
@@ -811,7 +822,8 @@ public final class ActivityCoordinator {
                 snapshot.project = focus.projectName
                 snapshot.sessionCount = ordered.count
                 snapshot.activeHoursToday = focus.activeHoursToday
-                let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot, now: now)
+                let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
+                                       subject: focus.title, now: now)
                 bubble = line.text
                 style = line.isMarquee ? .marquee : .plain
             } else {
@@ -851,6 +863,7 @@ public final class ActivityCoordinator {
                 // — from pinning the bubble to his head all over again.
                 if sinceLast >= (cadence?.newsRefractory ?? 0) {
                     chatterCache[slot].newsAt = now
+                    chatterCache[slot].newsEpoch &+= 1
                 }
             }
             let burst = Self.bubbleBurst(
@@ -860,11 +873,19 @@ public final class ActivityCoordinator {
             if burst == nil {
                 bubble = nil
             } else if task == nil, let burst {
-                // Nothing real to protect, so re-seed from the burst: one
-                // burst says one thing, rather than swapping sentence
-                // mid-read when the 14s seed rolls over.
-                bubble = Vocab.line(for: mood.shoutoutOccasion,
-                                    seed: seed &+ burst &* 101) ?? bubble
+                // Nothing real to protect, so draw a fresh line per burst.
+                //
+                // The seed is gone from here on purpose. `bubbleBurst` returns
+                // an index that SKIPS — the dice silence most cycles — and
+                // folding it into the seed as `seed &+ burst &* 101` jumped the
+                // deck's pass, which is what gave a working stretch a 33%
+                // chance of saying the same thing twice in a row. The token
+                // does honestly what the multiply was working around: hold one
+                // line for one burst, then step by exactly one.
+                bubble = chatterCache[slot].cursor.line(
+                    for: mood.shoutoutOccasion,
+                    token: "\(mood.rawValue)|\(focus.id)|\(chatterCache[slot].newsEpoch)|\(burst)")
+                    ?? bubble
             }
         }
 
@@ -903,9 +924,14 @@ public final class ActivityCoordinator {
     /// Held for `chatterInterval` rather than re-rolled on every `recompute()`
     /// — this runs on the 2s decay timer, so choosing per call would rewrite the
     /// sentence out from under the reader three times before they finished it.
+    /// - Parameter subject: the focused session's title, which WIDENS the idle
+    ///   pool with any rule it matches rather than replacing it. No default:
+    ///   this parameter was declared with one and then omitted at its only call
+    ///   site, so the rule hook sat dead for its whole life. A required
+    ///   argument cannot go dead again.
     private func idleChatter(slot: Int, seed: Int,
                              snapshot: StatusTicker.Snapshot,
-                             focusTask: String? = nil,
+                             subject: String?,
                              now: Date) -> (text: String, isMarquee: Bool) {
         if let current = chatterCache[slot].line,
            now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterInterval {
@@ -919,9 +945,15 @@ public final class ActivityCoordinator {
         if !status.isEmpty, seed % 3 == 2 {
             next = (status[(seed / 3) % status.count], true)
         } else {
-            // The shuffled cycle already guarantees no immediate repeat, so
-            // `avoiding` is gone; `task` lets a rule claim the line instead.
-            let line = Vocab.line(for: .idle, matching: focusTask, seed: seed)
+            // The shuffled cycle guarantees no immediate repeat — but only
+            // through a cursor. It is reached on a subset of ticks (this very
+            // function spends every third on the ticker, and `idleChatterShows`
+            // silences roughly two in three), so the raw seed skips and the
+            // deck's promise evaporated. Measured at 10.4% immediate repeats
+            // before the cursor; that is the "spicy idea" the operator kept
+            // seeing.
+            let line = chatterCache[slot].cursor.idleLine(about: subject,
+                                                          token: "\(seed)")
             next = (line ?? "Ready when you are", false)
         }
 

@@ -77,6 +77,128 @@ struct VocabShoutoutsTests {
     }
 }
 
+@Suite("The draw counter")
+struct LineCursorTests {
+
+    /// **The regression, and the reason this pass exists.**
+    ///
+    /// `Vocab.pick` deals a deck, and a deck keeps its promise only while its
+    /// seed steps by exactly one. `bubbleBurst` returns an index that SKIPS —
+    /// the dice silence most cycles — and the old code folded it into the seed
+    /// as `seed &+ burst &* 101`, which jumped the pass. A working stretch drew
+    /// from a three-line pool at chance: one utterance in three was the
+    /// previous one repeated. The operator noticed before the tests did.
+    @Test("Skipping tokens still never repeat")
+    func cursorSurvivesSkippedTokens() {
+        var cursor = LineCursor()
+        let pool = ["a", "b", "c", "d", "e"]
+        // Exactly the shape `bubbleBurst` produces: monotonic, sparse, and
+        // restarting from zero whenever a news epoch breaks.
+        let tokens = [0, 1, 3, 4, 7, 11, 12, 20, 0, 1, 5, 9, 14, 15, 22, 30, 31, 40]
+        let said = tokens.compactMap { cursor.next(pool, id: "w", token: "\($0)") }
+        #expect(said.count == tokens.count)
+        for (a, b) in zip(said, said.dropFirst()) {
+            #expect(a != b, "\(a) twice in a row")
+        }
+        // …and the coverage half of the promise. Deliberately NOT sliced into
+        // fixed windows from index 0: the cursor's first seed is salt+1, so
+        // pass boundaries do not align to the start of the run. What matters
+        // is that the whole pool gets used rather than three of five lines
+        // carrying every utterance, which is the failure a plain random index
+        // produces and the deck exists to prevent.
+        #expect(Set(said).count == pool.count, "the deck never dealt the whole pool")
+    }
+
+    /// One burst says one thing. The cursor must NOT advance while the token
+    /// holds, or the bubble rewrites itself under the reader on the recompute.
+    @Test("A held token holds its line")
+    func cursorHoldsWithinAnUtterance() {
+        var cursor = LineCursor()
+        let pool = ["a", "b", "c", "d"]
+        let first = cursor.next(pool, id: "x", token: "one")
+        for _ in 0..<20 {
+            #expect(cursor.next(pool, id: "x", token: "one") == first)
+        }
+        #expect(cursor.next(pool, id: "x", token: "two") != first)
+    }
+
+    /// Two pools through one counter would steal each other's seeds — the same
+    /// bug one level up — so the cursor is keyed per pool.
+    @Test("Interleaved pools keep their own counters")
+    func cursorKeepsPoolsApart() {
+        var cursor = LineCursor()
+        let pool = ["a", "b", "c", "d"]
+        var mine: [String] = []
+        for step in 0..<12 {
+            // Alternating moods, as the pet actually does.
+            _ = cursor.next(pool, id: "other", token: "\(step)")
+            mine.append(cursor.next(pool, id: "mine", token: "\(step)")!)
+        }
+        for (a, b) in zip(mine, mine.dropFirst()) { #expect(a != b) }
+    }
+
+    /// The idle path is the one the operator is actually looking at, and its
+    /// seed is sampled through two independent gates — `idleChatterShows`, then
+    /// the every-third-cycle status ticker. Walk the real gates, not a clean
+    /// counter, because a clean counter is exactly what the old code assumed.
+    @Test("Idle chatter never repeats through its quiet gate")
+    @MainActor
+    func idleGateDoesNotRepeat() {
+        var cursor = LineCursor()
+        var said: [String] = []
+        for seed in 0..<600 {
+            guard ActivityCoordinator.idleChatterShows(quietFor: 600, seed: seed) else { continue }
+            guard seed % 3 != 2 else { continue }        // that cycle is the ticker
+            said.append(cursor.idleLine(about: nil, token: "\(seed)")!)
+        }
+        #expect(said.count > 50, "the gate should let plenty through")
+        for (a, b) in zip(said, said.dropFirst()) {
+            #expect(a != b, "\"\(a)\" twice in a row on the idle path")
+        }
+    }
+
+    /// The title and the body used to share one seed, so for a two-line pool
+    /// both resolved to the same index and each title was welded to one body
+    /// permanently. They draw from separate counters now.
+    ///
+    /// The assertion is deliberately weak, and the reason is worth writing
+    /// down: separate counters are **necessary but not sufficient**. Every
+    /// body pool is currently size 2, and `pick` short-circuits a two-line
+    /// pool to `pool[seed % 2]` — so two counters stepping by one alternate in
+    /// lockstep and still produce only two of the four pairs. No salt offset
+    /// fixes that; it just picks the other two. Recombination needs the pools
+    /// deeper than two, which is a separate change. What this pins today is
+    /// that the two draws are independent, so depth is all that is missing.
+    @Test("Banner titles and bodies draw from separate counters")
+    @MainActor
+    func bannerPairsAreNotWelded() {
+        var titles = Set<String>()
+        var bodies = Set<String>()
+        for _ in 0..<40 {
+            let c = NotificationNudge.nextCopy(for: .planReady)
+            titles.insert(c.title)
+            bodies.insert(c.body)
+        }
+        #expect(titles.count == NotificationNudge.titles(for: .planReady).count,
+                "the title pool is not being walked")
+        #expect(bodies.count == NotificationNudge.bodies(for: .planReady).count,
+                "the body pool is not being walked")
+    }
+
+    /// The subject WIDENS the idle pool rather than replacing it. Replacing
+    /// would pin an idle pet whose last prompt was "fix the login bug" to the
+    /// debug rule's few lines for the whole life of the session.
+    @Test("A session's subject widens idle rather than narrowing it")
+    func idleWidensOnTheSubject() {
+        let plain = Vocab.lines(for: .idle, about: nil)
+        let widened = Vocab.lines(for: .idle, about: "fix the login bug")
+        #expect(widened.count > plain.count, "the subject narrowed the pool")
+        for line in plain {
+            #expect(widened.contains(line), "widening dropped \"\(line)\"")
+        }
+    }
+}
+
 @Suite("Status ticker")
 struct StatusTickerTests {
 
