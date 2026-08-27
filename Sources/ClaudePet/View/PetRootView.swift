@@ -177,6 +177,15 @@ public struct PetRootView: View {
                         .allowsHitTesting(false)
                 }
 
+                // A plan is waiting on the operator. Gold breathes around him
+                // until it is answered, or until it has asked ten times.
+                if model.state.mood == .nudging,
+                   let epoch = model.moodClock.currentEpoch(for: .nudging) {
+                    WaitingLight(since: epoch)
+                        .frame(width: spriteSize, height: spriteSize)
+                        .allowsHitTesting(false)
+                }
+
                 if let party = model.rainbowStartedAt {
                     RainbowRays(since: party.timeIntervalSinceReferenceDate)
                         .frame(width: spriteSize, height: spriteSize)
@@ -297,6 +306,101 @@ struct CelebrationGlow: View {
                               width: half * 2, height: half * 2)
             context.stroke(Path(rect), with: .color(.white.opacity(alpha)), lineWidth: px)
         }
+    }
+}
+
+/// The waiting light: gold breathing around him while a plan sits unanswered.
+///
+/// `.nudging` is the only mood whose whole purpose is to be noticed, and
+/// `MoodStyle` already paints it gold everywhere — accent, bubble fill — except
+/// on him. This is that colour finally reaching the pet.
+///
+/// Live-only by construction, the same argument `FlashHalo` and `RainbowTrails`
+/// run on: offline renderers compose `CrabView` directly and never see this
+/// file, so the radial ramp can never reach a GIF's global palette. That is
+/// why a smooth gradient is allowed here and banned on the sprite.
+///
+/// Two decisions here are worth arguing with rather than reading past.
+///
+/// **The first breath is at eighteen seconds, not immediately.** The frozen
+/// sentinel's `cycle > 0` hands that over for free, and it turns the light
+/// into an escalation: he leans, bobs and holds the plan out on his own
+/// first, and the light only starts if that did not work.
+///
+/// **It gives up after three minutes.** An always-on-top pet must not breathe
+/// at an empty chair two hundred times, and if you are away from the desk that
+/// is exactly what a heartbeat with no cap does. The pose keeps asking; the
+/// menu bar and the notification carry the durable signal; the light stops.
+/// That cap, not the alpha, is what keeps this civil — it is the number to
+/// turn if it ever feels naggy.
+///
+/// `@MainActor` is written down for the reason `PetRootView`'s doc gives:
+/// `View` carries it, but 6.1 pushes the inference onto static members and
+/// 6.3 does not, so leaving it implicit means the local build and the CI
+/// runner disagree about `breath`. Spelled out, plus `nonisolated` on the
+/// schedule, both toolchains agree — and the local build actually checks it.
+@MainActor
+struct WaitingLight: View {
+    /// `MoodClock`'s epoch for the nudge — the same clock the bubble's cadence
+    /// runs on, so the light breathes with the words rather than beside them.
+    let since: Double
+
+    /// No dice, deliberately. `.nudging`'s `BubbleCadence` is `chance: 1.0`,
+    /// documented as "a heartbeat that never skips, for the states that exist
+    /// to get you", and an 18s period matches it. A state that exists to be
+    /// noticed should not roll for whether it is noticed.
+    nonisolated static func breath(nudgeT t: Double) -> Double {
+        let cycle = Int(floor(t / 18))
+        guard cycle > 0, cycle <= 10 else { return 0 }
+        return Ease.window(t - Double(cycle) * 18, duration: 2.6, edge: 1.3)
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: Date(), by: 1.0 / 30)) { timeline in
+            Canvas { context, size in
+                Self.draw(in: &context, size: size,
+                          t: timeline.date.timeIntervalSinceReferenceDate - since)
+            }
+        }
+    }
+
+    /// `CelebrationGlow`'s two halves at a fraction of the volume: one
+    /// pixel-snapped ring over a soft bloom. Whole-point centre for the same
+    /// reason it gives — a fractional centre antialiases the stroke and picks
+    /// up run-to-run noise.
+    static func draw(in context: inout GraphicsContext, size: CGSize, t: Double) {
+        let breath = breath(nudgeT: t)
+        guard breath > 0.001 else { return }
+
+        // Typed in small steps rather than one big mixed expression: CGFloat
+        // and Double are the same type here but not to a 6.1 type-checker,
+        // which abandons large mixed arithmetic as ambiguous.
+        let px: Double = size.width / Double(PixelBuffer.side)
+        let centre = CGPoint(x: (size.width / 2).rounded(),
+                             y: (size.height * 0.55).rounded())
+
+        // Every size below is bounded so the shape never meets the frame.
+        // `FlashHalo`'s doc has the argument: the window has almost no margin
+        // around the sprite, so anything that reaches the bound at non-zero
+        // alpha is clipped into a hard straight line rather than fading out.
+        // I drew it at CelebrationGlow's radii first and the ring's top edge
+        // was sliced flat at the peak of every breath.
+        let radius: Double = size.width * (0.22 + 0.12 * breath)
+        let bloom = Gradient(colors: [Palette.yellow.opacity(0.16 * breath), .clear])
+        context.fill(
+            Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius,
+                                   width: radius * 2, height: radius * 2)),
+            with: .radialGradient(bloom, center: centre, startRadius: 0, endRadius: radius))
+
+        // Half-width in cells, centred at 0.55 of the height: 12 keeps the
+        // lower edge at row 29.6 of 32, inside the frame at full breath.
+        let cells: Double = (7 + 5 * breath).rounded()
+        let half: Double = cells * px
+        let rect = CGRect(x: centre.x - half, y: centre.y - half,
+                          width: half * 2, height: half * 2)
+        context.stroke(Path(rect),
+                       with: .color(Palette.flameCore.opacity(0.22 * breath)),
+                       lineWidth: px)
     }
 }
 
