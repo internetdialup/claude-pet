@@ -241,6 +241,20 @@ public enum CrabAnimator {
         return (Ease.window(since, duration: 12, edge: 0.8), since)
     }
 
+    /// How far a glint has travelled across his shell, or nil. Idle only, on
+    /// dice, 1.6 seconds of it about once every two and a half idle minutes.
+    ///
+    /// Idle rather than any mood, for the reason `thinkingProp`'s doc already
+    /// gives: `MoodClock` rebases `t` on entry, so a cycle-0 dice roll in a
+    /// short-lived mood is a constant, not a dice. Duty cycle 1.1%.
+    static func shellGlint(idleT t: Double) -> Double? {
+        let cycle = Int(floor(t / 60))
+        guard cycle > 0, noise(cycle &* 83 &+ 13) < 0.4 else { return nil }
+        let since = t - Double(cycle) * 60
+        guard since < 1.6 else { return nil }
+        return since / 1.6
+    }
+
     /// The afternoon's light, and how far into its pass across the floor we
     /// are. Daylight only, and rarely — 14 seconds of it, eased two seconds at
     /// each end.
@@ -291,6 +305,12 @@ public enum CrabAnimator {
             if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
             }
+
+            // A second and a half of light across the shell. Not suppressed by
+            // the sun or the telescope the way the bug and the balloon are —
+            // it is a highlight ON him rather than a second thing to look at,
+            // so it composes with either instead of competing.
+            pose.glint = shellGlint(idleT: t)
 
             // Deep in the night, sometimes, the telescope comes out — and it
             // is evaluated FIRST because it owns the spell it appears in.
@@ -562,6 +582,10 @@ public enum CrabAnimator {
                 // wink, it reads as an eye that is stuck.
                 let cycle = elapsed.truncatingRemainder(dividingBy: 1.5)
                 pose.winkEye = cycle < 0.22 ? .right : .none
+                // …and the wink tings as it OPENS. No schedule of its own: it
+                // rides the cycle the wink already computes, on the far side
+                // of the shut.
+                pose.winkGlint = cycle >= 0.22 && cycle < 0.40
                 // No tilt here. Tilt offsets the two eyes by a pixel in opposite
                 // directions, and against a one-row shut eye that misalignment
                 // is exactly what made the wink look wonky.
