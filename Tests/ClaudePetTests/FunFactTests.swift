@@ -50,11 +50,15 @@ struct FunFactTests {
     /// Depth proportional to share, or the 20% pools repeat three times as
     /// often as the 60% one — the rare categories would be the ones you tire
     /// of first, which is the opposite of the intent.
+    ///
+    /// The floors are the pool depths themselves in 20/60/20, so a category
+    /// grown on its own — twelve more Claude facts with the short pools left
+    /// alone — fails here until the others keep up.
     @Test("The pools are deep enough, and proportional to their share")
     func poolsAreProportional() {
-        #expect(FunFacts.facts(in: .computerScience).count >= 6)
-        #expect(FunFacts.facts(in: .ai).count >= 6)
-        #expect(FunFacts.facts(in: .claude).count >= 16)
+        #expect(FunFacts.facts(in: .computerScience).count >= 10)
+        #expect(FunFacts.facts(in: .ai).count >= 10)
+        #expect(FunFacts.facts(in: .claude).count >= 30)
         for category in FunFacts.Category.allCases {
             // `Vocab.pick` short-circuits a two-entry pool to strict
             // alternation and a one-entry pool to a constant.
