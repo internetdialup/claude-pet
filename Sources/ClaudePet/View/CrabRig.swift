@@ -150,16 +150,29 @@ extension ServiceGlyph {
                 "rrrrrrr",
             ], ["r": .alert, "p": .paper])
         case .github:
-            // A round-eared silhouette on a paper disc.
+            // A cephalo-cat cut out of a charcoal tile. The dark is the
+            // FIELD and the creature is the paper, so the light spreads and
+            // the silhouette survives the badge's two points a cell.
+            //
+            // Three proportions carry the read, and all three were checked at
+            // 2pt rather than at sprite size: a small face set HIGH on a big
+            // body; ears one row deep, so they read as ears rather than as
+            // the antennae a two-row notch makes; and a body that flares
+            // wider than the head into four tentacle tips. A shape that
+            // narrows to a chin is a devil, which is what the mark this
+            // replaces was — its ears were two isolated 1x1 spikes with
+            // nothing joining them and its eye row was a gap-toothed grin.
+            // Evocative, never copied.
             return ([
-                ".pppppp.",
-                "pkpppkpp",
-                "pkkkkkpp",
-                "pkpkpkpp",
-                "pkkkkkpp",
-                "ppkkkppp",
-                ".pppppp.",
-            ], ["p": .paper, "k": .eye])
+                "dppddppd",
+                "dppppppd",
+                "dpdppdpd",
+                "dppppppd",
+                "dppppppd",
+                "pppppppp",
+                "pdppppdp",
+                "pddpdpdp",
+            ], ["d": .slate, "p": .paper])
         case .linear:
             // The ascending diamond, one notch of steel through it.
             return ([

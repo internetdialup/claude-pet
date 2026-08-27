@@ -43,6 +43,13 @@ public struct PixelBuffer: Sendable {
         case bodyEmber
         /// Alarm red — the npm cube; promoted from `Palette.alert` chrome.
         case alert
+        /// A costume-immune charcoal — the service marks' field.
+        ///
+        /// `.eye` and `.mouth` are the only inks that consult `inkOverrides`,
+        /// so a case with no override lookup **cannot** be recoloured by a
+        /// wardrobe. The GitHub mark used to be drawn in `.eye` and turned
+        /// pale green under the Matrix look and yellow under the Gundam.
+        case slate
     }
 
     private(set) var cells: [UInt8]
@@ -303,6 +310,10 @@ public struct PixelCanvasView: View {
         case .bodyHot: Palette.bodyHot
         case .bodyEmber: Palette.bodyEmber
         case .alert: Palette.alert
+        // Deliberately the SOFT slate, not `Palette.slate`: the sizzle's pixel
+        // cards ground this badge on `Palette.slate` itself, so a near-black
+        // field would be 1.05:1 against its own card and the tile would vanish.
+        case .slate: Palette.slateSoft
         }
     }
 }

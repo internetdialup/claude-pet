@@ -173,6 +173,47 @@ struct ServiceGlyphLatchTests {
 @Suite("Service glyph sprite pass")
 struct ServiceGlyphSpriteTests {
 
+    /// The badge draws from the same `art` bitmap as the sprite but through
+    /// its OWN colour table, and an unmapped character hits a `continue` —
+    /// those cells just quietly are not there. This is the guard that turns
+    /// that silence into a red test, and it is worth more than any one mark.
+    @Test("Every legend character has both an ink and a badge colour")
+    func badgeCoversTheLegend() {
+        for glyph in ServiceGlyph.allCases {
+            let art = glyph.art
+            let painted = Set(art.rows.joined()).subtracting(["."])
+            #expect(!painted.isEmpty, "\(glyph) paints nothing at all")
+            for char in painted {
+                #expect(art.key[char] != nil,
+                        "\(glyph) paints '\(char)' with no ink")
+                #expect(ThoughtBubble.ServiceBadge.colors[glyph]?[char] != nil,
+                        "\(glyph) paints '\(char)' with no badge colour — it vanishes in the bubble")
+            }
+            // …and nothing mapped that the art never paints, which is how a
+            // legend goes stale after a redraw.
+            for char in ThoughtBubble.ServiceBadge.colors[glyph]?.keys ?? [:].keys {
+                #expect(painted.contains(char),
+                        "\(glyph)'s badge maps '\(char)', which the art no longer paints")
+            }
+        }
+    }
+
+    /// `color(for:)` consults `inkOverrides` for exactly `.body`, `.eye`,
+    /// `.mouth` and the three costume slots. A mark drawn in one of those is
+    /// repainted by whatever he is wearing — the GitHub silhouette used to be
+    /// `.eye`, so it went pale green under the Matrix and yellow under the
+    /// Gundam. A service mark belongs to the service, not to the wardrobe.
+    @Test("No service mark is drawn in an ink a costume can repaint")
+    func marksAreCostumeImmune() {
+        let overridable: Set<PixelBuffer.Ink> = [.body, .eye, .mouth, .costumeA, .costumeB, .costumeC]
+        for glyph in ServiceGlyph.allCases {
+            for (char, ink) in glyph.art.key {
+                #expect(!overridable.contains(ink),
+                        "\(glyph) draws '\(char)' in \(ink), which a costume can recolour")
+            }
+        }
+    }
+
     @Test("Every glyph draws, and only inside the top-left airspace")
     func drawsInsideTheAirspace() {
         var basePose = CrabAnimator.pose(mood: .working, t: 3)

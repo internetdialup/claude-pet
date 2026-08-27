@@ -124,11 +124,16 @@ public struct ThoughtBubble: View {
     struct ServiceBadge: View {
         let kind: ServiceGlyph
 
-        private static let colors: [ServiceGlyph: [Character: Color]] = [
+        // Internal, not private: `badgeCoversTheLegend` reads it, because an
+        // art change that adds a legend character the badge does not map
+        // fails SILENTLY here (see the `guard let color` below) rather than
+        // loudly. The two renditions are separately tuned on purpose — npm's
+        // badge red is not `Palette.alert` either.
+        nonisolated static let colors: [ServiceGlyph: [Character: Color]] = [
             .npm: ["r": Color(red: 0.796, green: 0.220, blue: 0.216),   // npm red
                    "p": .white],
-            .github: ["p": Palette.kraft,
-                      "k": Color(red: 0.141, green: 0.161, blue: 0.184)], // github ink
+            .github: ["d": Palette.slateSoft,       // the tile
+                      "p": Palette.kraft],          // the creature
             .linear: ["l": Color(red: 0.369, green: 0.416, blue: 0.824), // linear violet
                       "s": .white],
             .deploy: ["s": Palette.steel, "l": Palette.screenLight,
@@ -153,7 +158,10 @@ public struct ThoughtBubble: View {
                     }
                 }
             }
-            .frame(width: side, height: CGFloat(art.rows.count) * cell)
+            // Square, matching the backing fill above — the old
+            // row-derived height clipped it for every glyph shorter than it
+            // is wide, and left the four badges disagreeing on size.
+            .frame(width: side, height: side)
         }
     }
 }

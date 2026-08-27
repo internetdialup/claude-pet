@@ -72,6 +72,37 @@ enum SpriteSheetRenderer {
                     }
                 }
 
+                // The sprite row above reviews the mark at `pixelSize`. The
+                // BINDING site is the bubble badge at two points a cell,
+                // which nothing rendered until now — so a mark could look
+                // fine here and mush into a smudge where it actually lives.
+                // The grounds are the REAL ones: the art covers all 64 cells
+                // opaquely, so the badge's own kraft wash never shows and what
+                // surrounds it is a bubble fill or the sizzle card. Reviewing
+                // it on kraft would be reviewing a ground it never sits on.
+                Text("badge @2pt — working / cooking / card, then 4x")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .frame(height: labelHeight, alignment: .leading)
+                ForEach(Array(ServiceGlyph.allCases.enumerated()), id: \.offset) { _, glyph in
+                    HStack(spacing: 10) {
+                        ForEach(Array([Palette.screenLight, Palette.flame, Palette.slate].enumerated()),
+                                id: \.offset) { _, ground in
+                            ThoughtBubble.ServiceBadge(kind: glyph)
+                                .padding(4)
+                                .background(ground)
+                        }
+                        ThoughtBubble.ServiceBadge(kind: glyph)
+                            .scaleEffect(4, anchor: .topLeading)
+                            .frame(width: 64, height: 64)
+                            .padding(4)
+                            .background(Palette.screenLight)
+                        Text(glyph.rawValue)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+
                 Text("jump")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white)
