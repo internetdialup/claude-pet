@@ -136,7 +136,16 @@ public enum FunFacts {
             // the field for a decade, but funding was thinning before it landed
             // and Amari, Grossberg, Fukushima and Werbos all worked on through
             // the 1970s.
-            "Minsky and Papert's 1969 book proved one layer can't compute XOR",
+            //
+            // **Scoped to the perceptron on review, and the reviewer was
+            // right.** "one layer can't compute XOR" reads as a theorem about
+            // any one-layer architecture; the actual result is narrower and
+            // sharper — a single-layer perceptron draws one hyperplane and XOR
+            // is not linearly separable. A multilayer perceptron computes it
+            // fine, which is the whole reason the field went that way. The line
+            // is displayed WITHOUT this comment, so the qualifier has to be in
+            // the sentence.
+            "Minsky and Papert, 1969: a single-layer perceptron can't do XOR",
         ]
 
         // 🧡 Claude and Anthropic. The riskiest pool — rule 4 especially.
@@ -217,8 +226,12 @@ public enum FunFacts {
             // "signed": the White House announced them as VOLUNTARY
             // commitments, not an instrument with signatories.
             "Anthropic joined the 2023 White House voluntary AI commitments",
-            // Anthropic's published usage policy.
-            "Anthropic's usage policy is public",
+            // **Past tense on review, and the reviewer was right.** "is
+            // public" is a present-tense claim about a document a company can
+            // rename, restrict or withdraw — precisely what rule 4 excludes,
+            // and it would go false inside binaries already shipped. That a
+            // policy WAS published is historical and cannot be taken back.
+            "Anthropic published a usage policy for Claude",
             // A decoding parameter, not a product detail — the same knob exists
             // wherever a model samples. It stands in for a cut line claiming
             // Claude "was trained to say when it does not know", which asserts
