@@ -99,6 +99,29 @@ final class PetWindowController: NSObject, NSWindowDelegate {
         return rect.intersection(CGRect(origin: .zero, size: window))
     }
 
+    /// Swap the clickable silhouette without tearing the window down.
+    ///
+    /// Rebuilding the window would also work and is what a costume change
+    /// does, but this fires when a second pet is summoned — and closing and
+    /// recreating pet ONE's window at that moment would blink him and re-run
+    /// his parking. He should not flinch because someone else arrived.
+    ///
+    /// Updates all three things that were derived from the old mask: the hit
+    /// region, the hover tracking box, and the tracking area itself. Missing
+    /// the third would leave his eyes following from the old, wider box —
+    /// which is the same halo wearing a different hat.
+    func updateHitMask(_ mask: SpriteMask) {
+        guard mask != hitRegion.mask else { return }
+        hitRegion = PetHitRegion(pixelSize: hitRegion.pixelSize, mask: mask)
+        hitRegion.liveZones = liveZones
+        hostView?.region = hitRegion
+        hostView?.hoverBounds = Self.hoverBounds(
+            mask: mask,
+            sprite: PetRootView.spriteFrame(pixelSize: hitRegion.pixelSize),
+            pixelSize: hitRegion.pixelSize, window: contentSize)
+        hostView?.updateTrackingAreas()
+    }
+
     /// Where this pet's position persists. Injected because pet 2 keeps his
     /// own home — the controller must not hardcode pet 1's keys.
     private let loadPosition: () -> CGPoint?

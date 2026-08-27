@@ -137,4 +137,91 @@ struct SilhouetteHitTests {
             }
         }
     }
+
+    // MARK: - Sharing the desk
+
+    /// The cells the union accepts and the resting crab does not draw. These
+    /// ARE the invisible territory — the thing that reaches over a neighbour
+    /// and eats presses meant for him.
+    private var halo: [(x: Int, y: Int)] {
+        var cells: [(x: Int, y: Int)] = []
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side
+            where CrabHitMask.body[x, y] && !CrabHitMask.resting[x, y] {
+                cells.append((x, y))
+            }
+        }
+        return cells
+    }
+
+    /// The halo is real and worth removing — if it were a cell or two this
+    /// whole change would be noise. Measured when the operator reported it:
+    /// 264 drawn against 410 accepted.
+    @Test("The generous mask really is much bigger than the crab")
+    func haloIsSubstantial() {
+        #expect(CrabHitMask.resting.cellCount < CrabHitMask.body.cellCount)
+        #expect(halo.count > 100, "only \(halo.count) spare cells — is the union still a union?")
+        // A subset, strictly: every cell he draws standing still must survive
+        // the narrowing, or sharing a desk would make parts of him unclickable.
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where CrabHitMask.resting[x, y] {
+                #expect(CrabHitMask.body[x, y], "cell \(x),\(y) drawn but outside the union")
+            }
+        }
+    }
+
+    /// **The bug, stated as a test.** A press on the halo is claimed by this
+    /// pet — and because only the torso drags, it finds no handle, moves
+    /// nothing, and cannot fall through to the pet it was meant for either.
+    /// With company, every one of those cells must let go.
+    @Test("In company, the halo stops claiming the pointer")
+    func haloReleasesThePointerWhenSharingADesk() {
+        let spare = halo
+        try! #require(!spare.isEmpty)
+        for px in Preferences.pixelSizes {
+            let alone = PetHitRegion(pixelSize: px, mask: CrabHitMask.mask(sharingDesk: false))
+            let together = PetHitRegion(pixelSize: px, mask: CrabHitMask.mask(sharingDesk: true))
+            for cell in spare {
+                let p = point(col: cell.x, row: cell.y, pixelSize: px)
+                #expect(alone.accepts(p), "alone he should still be generous at \(cell)")
+                #expect(!together.accepts(p),
+                        "cell \(cell) still eats the neighbour's press at pixel size \(px)")
+            }
+        }
+    }
+
+    /// Narrowing must not cost him himself: every cell he actually draws
+    /// standing still still takes a click, in company as when alone.
+    @Test("Narrowing never makes the crab himself unclickable")
+    func heIsStillFullyClickableInCompany() {
+        for px in Preferences.pixelSizes {
+            let together = PetHitRegion(pixelSize: px, mask: CrabHitMask.mask(sharingDesk: true))
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where CrabHitMask.resting[x, y] {
+                    #expect(together.accepts(point(col: x, row: y, pixelSize: px)),
+                            "cell \(x),\(y) is drawn but no longer clickable")
+                }
+            }
+        }
+    }
+
+    /// The eyes follow the hit box, which was the operator's other ruling. The
+    /// tracking area is derived from whichever mask is in force, so a narrower
+    /// silhouette narrows the box his gaze and his greeting answer to.
+    @Test("The hover box narrows with the silhouette")
+    func hoverBoxFollowsTheMask() {
+        for px in Preferences.pixelSizes {
+            let sprite = PetRootView.spriteFrame(pixelSize: px)
+            let window = PetRootView.windowSize(pixelSize: px)
+            let alone = PetWindowController.hoverBounds(
+                mask: CrabHitMask.mask(sharingDesk: false),
+                sprite: sprite, pixelSize: px, window: window)
+            let together = PetWindowController.hoverBounds(
+                mask: CrabHitMask.mask(sharingDesk: true),
+                sprite: sprite, pixelSize: px, window: window)
+            #expect(together.width < alone.width, "at pixel size \(px)")
+            #expect(together.height < alone.height, "at pixel size \(px)")
+            #expect(alone.contains(together))
+        }
+    }
 }

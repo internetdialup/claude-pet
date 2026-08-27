@@ -188,6 +188,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 return self.pets[1 - index].controller?.window.frame
             }
         }
+        // Both of them narrow their clickable silhouette now that they share a
+        // desk. Set BEFORE the rebuild so pet two is born with the right mask,
+        // and pet one applies it live rather than being torn down — he should
+        // not flinch because someone else arrived.
+        pets.forEach { $0.hasCompany = true }
         pet.model.costume = Preferences.shared.pet2Costume
         pet.rebuildWindow()
         pet.startFilmWatch()
@@ -200,6 +205,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         pets[1].teardown()
         pets.removeLast()
         primary.siblingFrame = nil
+        // Alone again, so he can afford the generous silhouette back.
+        primary.hasCompany = false
         coordinator.setSlots(1)
         Preferences.shared.pet2Enabled = false
     }

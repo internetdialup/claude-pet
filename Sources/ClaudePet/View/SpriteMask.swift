@@ -151,4 +151,32 @@ public enum CrabHitMask {
         }
         return mask
     }()
+
+    /// Exactly the cells he draws standing still — no union, no dilation.
+    ///
+    /// **What a pet uses once he is not alone on the desk.** `body` accepts 410
+    /// cells; he draws 264. Those 146 extra are free generosity while there is
+    /// nothing behind him but the desktop, and they stop being free the moment
+    /// a second pet is parked alongside: the band reaches about one cell to
+    /// each side and two above, and at his usual size that is 8pt of invisible
+    /// territory on the flanks and 16pt overhead sitting on top of his
+    /// neighbour.
+    ///
+    /// It is worse than a stolen poke, because only the TORSO drags. A press
+    /// meant for the other pet's torso is claimed by this pet's halo, finds no
+    /// drag handle under it, and moves nothing — and having been claimed, it
+    /// cannot fall through either. The operator's report was that two pets
+    /// standing close are hard to separate, which is exactly this.
+    ///
+    /// The cost is the one `body`'s own note already accepts twice over, for
+    /// the jump and for raised arms: mid-bounce, a poke at his extreme top edge
+    /// falls through instead of landing. A missed poke costs nothing. A
+    /// swallowed drag costs the thing the operator was trying to do.
+    public static let resting = SpriteMask(CrabRig.render(CrabPose()))
+
+    /// The mask a pet should be wearing. `sharingDesk` is the whole of the
+    /// decision — alone he can afford to be generous, in company he cannot.
+    public static func mask(sharingDesk: Bool) -> SpriteMask {
+        sharingDesk ? resting : body
+    }
 }
