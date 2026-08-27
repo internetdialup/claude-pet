@@ -95,6 +95,12 @@ public struct CrabPose: Sendable, Equatable {
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
+    /// How much of the afternoon's light is on him, 0…1. The floor patch, the
+    /// warm on his shell and his shut eyes all ride this one envelope.
+    public var sunPatch: Double = 0
+    /// Seconds into the basking window, for the patch's drift across the
+    /// floor. A travel parameter, so the blend leaves it alone.
+    public var sunPatchPhase: Double = 0
     /// Seconds into a petting session, for the floating hearts. nil = no hearts.
     public var heartsElapsed: Double?
     /// When the hold ended, on the hearts' own clock. New hearts stop being
@@ -313,6 +319,15 @@ public enum CrabRig {
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
         if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
 
+        // The patch of sun goes in LAST and yet ends up behind everything,
+        // because it preserves what is already painted. Ordering it here
+        // rather than hoisting it above the body keeps it with its siblings
+        // and states the intent in the call instead of in a comment about
+        // where the line has to sit.
+        if pose.sunPatch > 0.001 {
+            drawSunPatch(&buffer, amount: pose.sunPatch, phase: pose.sunPatchPhase)
+        }
+
         // Applied last so props scale with him rather than floating free.
         return abs(pose.scale - 1) > 0.001 ? buffer.scaled(pose.scale) : buffer
     }
@@ -392,6 +407,50 @@ public enum CrabRig {
             let fade = max(0, 1 - age / 1.6) * window
             b.composite(piece, visibility: fade, seed: 740 + index)
         }
+    }
+
+    /// The afternoon's patch of light on the floor, drifting across it.
+    ///
+    /// This is the only thing in the app that uses
+    /// `composite(preservingExisting:)`, which has existed and been documented
+    /// as the "ground object" mode since the badge went in and has never once
+    /// been called with `true`. It is what makes the effect work: the light
+    /// goes in BEHIND him, so his legs cut it and he is standing *in* the
+    /// patch rather than under a glow. A composition-layer halo cannot do
+    /// that, which is why this lives on the sprite.
+    ///
+    /// Two properties come free from the house dissolve and are worth naming,
+    /// because they are why this reads as light rather than as dirt. The
+    /// stipple is keyed on the absolute cell, so when the patch drifts a
+    /// column the dither pattern **stays put** — the shape moves and the
+    /// texture does not shimmer. And because visibility rises with the
+    /// envelope, the light *fills in* over two seconds instead of fading up
+    /// as a block.
+    ///
+    /// A pool, rows 21-27, so his legs are standing IN it rather than beside
+    /// it. Seed 764.
+    ///
+    /// The visibility is the raw envelope, deliberately reaching a **solid**
+    /// pool at peak, and that is the whole difference between this reading as
+    /// light and reading as dirt. The first draft held it at 0.45 across a
+    /// ten-row wedge and looked like someone had spilled sand on the floor: a
+    /// stipple is a *transition*, not a translucency, and a large area held
+    /// at partial visibility forever is just grain. Letting the envelope carry
+    /// visibility from 0 to 1 means the dither only ever appears during the
+    /// two-second fades at each end — which is what it is for — and the ten
+    /// seconds in between are a shape.
+    private static func drawSunPatch(_ b: inout PixelBuffer, amount: Double, phase: Double) {
+        // Three cells of travel over the fourteen seconds, one at a time, and
+        // starting a cell left of centre so the pass is centred on him.
+        let drift = Int((phase * 0.22).rounded()) - 1
+        // Half-widths per row: a pool, not a rectangle and not a wedge.
+        let halfWidths = [5, 7, 8, 8, 7, 5, 2]
+        var light = PixelBuffer()
+        for (row, half) in halfWidths.enumerated() {
+            light.rect(16 + drift - half, 21 + row, half * 2, 1, .yellow)
+        }
+        b.composite(light, visibility: Ease.clamp01(amount),
+                    seed: 764, preservingExisting: true)
     }
 
     /// The columns a heart may rise in. Nine is the leftmost the drift can

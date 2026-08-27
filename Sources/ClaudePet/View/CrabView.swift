@@ -241,6 +241,30 @@ public enum CrabAnimator {
         return (Ease.window(since, duration: 12, edge: 0.8), since)
     }
 
+    /// The afternoon's light, and how far into its pass across the floor we
+    /// are. Daylight only, and rarely — 14 seconds of it, eased two seconds at
+    /// each end.
+    ///
+    /// The hour gate is doing two jobs. It is the obvious one, that light in
+    /// the room happens in the daytime, and it is a **second independent lock
+    /// on the frozen sentinel**: offline renderers pass no hour at all, so
+    /// this cannot reach a committed asset even if its dice were to fire at
+    /// cycle zero. `stargaze` earned the same lock for the same reason, and
+    /// the two windows do not overlap — 8-17 against 23-04 — so the telescope
+    /// and the sun can never want the same spell.
+    ///
+    /// Duty cycle: 0.25 × 14/420, about 3.3% of daylight idling, or one
+    /// sighting every 28 minutes of it. Deliberately rarer than the bug (one
+    /// per five idle minutes) because it is very much bigger on screen.
+    static func sunPatch(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
+        guard let hourOfDay, hourOfDay >= 8, hourOfDay <= 17 else { return nil }
+        let cycle = Int(floor(t / 420))
+        guard cycle > 0, noise(cycle &* 73 &+ 5) < 0.25 else { return nil }
+        let since = t - Double(cycle) * 420
+        guard since < 14 else { return nil }
+        return (Ease.window(since, duration: 14, edge: 2.0), since)
+    }
+
     /// - Parameters:
     ///   - flourishes: when false the scheduled idle flourish is left off, so a
     ///     renderer can overlay one of its own choosing instead of whichever
@@ -281,8 +305,16 @@ public enum CrabAnimator {
             // with ~692 windows in a day the coincidence rate is intrinsic —
             // so the biggest, rarest, most composed moment simply wins.
             let gazing = stargaze(idleT: t, hourOfDay: hourOfDay)
+            // …and in the afternoon, rarely, the light comes round instead.
+            // The two cannot collide with each other — one wants 8-17 and the
+            // other 23-04 — but either of them owns the spell it appears in,
+            // for the same reason: he is absorbed in something, and a bug
+            // arriving on top of it is clutter rather than life. Basking also
+            // shuts his eyes, which a visitor he is supposed to be watching
+            // would flatly contradict.
+            let sun = sunPatch(idleT: t, hourOfDay: hourOfDay)
 
-            if gazing == nil {
+            if gazing == nil, sun == nil {
                 if let float = idleBalloon(idleT: t) {
                     pose.prop = .balloon
                     pose.propVisibility = float
@@ -294,6 +326,27 @@ public enum CrabAnimator {
                     pose.bugX = bug
                     pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
                     pose.gazeY = 1
+                }
+            }
+
+            if let sun {
+                pose.sunPatch = sun.amount
+                pose.sunPatchPhase = sun.phase
+                // One envelope, three consumers: the floor patch, the warm on
+                // his shell in `composedTint`, and this — eyes easing shut on
+                // a contented mouth.
+                //
+                // I tried the long-dead `Mouth.none` here, on the theory that
+                // shut eyes are the one context where an absent mouth reads as
+                // serenity rather than as a rendering fault. Rendered, it does
+                // not: closed eyes AND no mouth leaves the face with no
+                // information in it at all, and he reads as blank rather than
+                // as blissful. He keeps the smile. `Mouth.none` stays unused,
+                // which is the honest outcome — a slot with no use is better
+                // than a use that looks broken.
+                if sun.amount > 0.55 {
+                    pose.blink = 1
+                    pose.mouth = .smile
                 }
             }
 
@@ -1087,14 +1140,22 @@ public struct CrabView: View {
     ///
     /// The plain celebration has no tint of its own any more — between taps he
     /// is honest terracotta, and the colour event IS the bang.
+    /// - Parameter hourOfDay: the local hour, for the afternoon's warm.
+    ///   Defaulted so every existing caller and test compiles untouched, and
+    ///   so offline renderers — which pass nothing — stay cold.
     static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
                              celebrating: Bool, epic: Bool = false,
-                             taskFraction: Double?) -> Color? {
+                             taskFraction: Double?, hourOfDay: Int? = nil) -> Color? {
         if let rainbowElapsed, let party = rainbowTint(elapsed: rainbowElapsed) { return party }
         if mood == .done, celebrating, epic, let burst = epicTint(doneT: t) { return burst }
         if mood == .cooking {
             if let disco = discoTint(cookingT: t) { return disco }
             if let glow = nearDoneTint(cookingT: t, fraction: taskFraction) { return glow }
+        }
+        // Ranked last, and it cannot actually contend: idle is not done, not
+        // cooking, and not partying.
+        if mood == .idle, let sun = CrabAnimator.sunPatch(idleT: t, hourOfDay: hourOfDay) {
+            return SpriteTint.towards(SpriteTint.goldRGB, amount: 0.26 * sun.amount)
         }
         return nil
     }
@@ -1140,6 +1201,18 @@ public struct CrabView: View {
         }
     }
 
+    /// The local hour, for the two schedules that only happen at a particular
+    /// time of day — the telescope and the patch of sun. **Nil whenever time
+    /// is frozen**, which is what keeps both of them out of every offline
+    /// render, every GIF and every sprite sheet, regardless of what their dice
+    /// would have said.
+    ///
+    /// One definition, read by both the pose and the tint, so they cannot
+    /// disagree about what time it is.
+    private var hourOfDay: Int? {
+        frozenTime == nil ? Calendar.current.component(.hour, from: Date()) : nil
+    }
+
     private func render(at time: Double) -> some View {
         // Live: rebase onto the mood so one-shot motion (the `done` hop) starts
         // at its own t=0. Frozen: the caller's time is already relative.
@@ -1167,7 +1240,8 @@ public struct CrabView: View {
                                              ? rainbowSince.map { time - $0 } : nil,
                                          celebrating: celebrating,
                                          epic: epicCelebration,
-                                         taskFraction: taskFraction)
+                                         taskFraction: taskFraction,
+                                         hourOfDay: hourOfDay)
         let blanch = CrabView.composedBlanch(mood: mood, t: localT,
                                              celebrating: celebrating,
                                              epic: epicCelebration) * flashScale
@@ -1198,9 +1272,7 @@ public struct CrabView: View {
         }
 
         var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
-                                     hourOfDay: frozenTime == nil
-                                         ? Calendar.current.component(.hour, from: Date())
-                                         : nil)
+                                     hourOfDay: hourOfDay)
         if mood == .done, celebrating, frozenTime == nil {
             CrabAnimator.applyCelebration(t: t, epic: epicCelebration, to: &pose)
         }

@@ -148,6 +148,103 @@ struct EasterEggScheduleTests {
         #expect(gazing!.amount > 0 && gazing!.amount <= 1)
     }
 
+    /// The twin of `stargazerNeedsTheSmallHours`, including the assertion that
+    /// matters most: offline renderers pass no hour, so the hour gate is a
+    /// second, independent lock on the frozen sentinel.
+    @Test func theSunNeedsTheDaylight() {
+        var cycle = 0
+        for c in 1...400 where CrabAnimator.noise(c &* 73 &+ 5) < 0.25 { cycle = c; break }
+        #expect(cycle > 0, "the dice should hit within a couple of days of idling")
+        let t = Double(cycle) * 420 + 7
+
+        #expect(CrabAnimator.sunPatch(idleT: t, hourOfDay: 2) == nil, "not in the small hours")
+        #expect(CrabAnimator.sunPatch(idleT: t, hourOfDay: 21) == nil, "not in the evening")
+        #expect(CrabAnimator.sunPatch(idleT: t, hourOfDay: nil) == nil,
+                "offline renderers pass no hour and must never see the light")
+        let sun = CrabAnimator.sunPatch(idleT: t, hourOfDay: 13)
+        #expect(sun != nil)
+        #expect(sun!.amount > 0 && sun!.amount <= 1)
+
+        // Never in the first cycle, at any hour.
+        for step in stride(from: 0.0, through: 419.0, by: 3.0) {
+            #expect(CrabAnimator.sunPatch(idleT: step, hourOfDay: 13) == nil,
+                    "light in the first cycle at t=\(step)")
+        }
+        // And the telescope's window cannot overlap it — 8-17 against 23-04.
+        for hour in 0...23 {
+            let day = CrabAnimator.sunPatch(idleT: t, hourOfDay: hour) != nil
+            let night = CrabAnimator.stargaze(idleT: t, hourOfDay: hour) != nil
+            #expect(!(day && night), "hour \(hour) wants both the sun and the telescope")
+        }
+    }
+
+    /// The real test of `composite(preservingExisting:)`, and the one that
+    /// catches a future reordering that puts the light over his legs instead
+    /// of under them: he must be byte-identical with the patch and without it.
+    /// Standing IN the light is the entire read.
+    @Test("The patch of sun goes in behind him, never over him")
+    func theSunIsAGroundObject() {
+        var lit = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
+        var dark = lit
+        lit.sunPatch = 1
+        lit.sunPatchPhase = 6
+        let before = CrabRig.render(dark)
+        let after = CrabRig.render(lit)
+
+        var changed = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                if before[x, y] != .clear {
+                    #expect(after[x, y] == before[x, y],
+                            "the light painted over him at (\(x),\(y))")
+                } else if after[x, y] != .clear {
+                    changed += 1
+                    #expect(after[x, y] == .yellow)
+                    #expect(y >= 21, "the light climbed off the floor to row \(y)")
+                }
+            }
+        }
+        #expect(changed > 20, "the patch should actually be a patch")
+        _ = dark
+    }
+
+    /// Basking shuts his eyes. A bug he is meant to be watching arriving on
+    /// top of that would flatly contradict it, so the sun owns its spell —
+    /// the same rule the telescope gets, for the same reason.
+    @Test("Nothing else visits while he is basking")
+    func theSunOwnsItsSpell() {
+        var basked = false
+        for cycle in 1...400 where CrabAnimator.noise(cycle &* 73 &+ 5) < 0.25 {
+            for step in 0...(14 * 4) {
+                let t = Double(cycle) * 420 + Double(step) / 4
+                let pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false, hourOfDay: 13)
+                guard pose.sunPatch > 0 else { continue }
+                basked = true
+                #expect(pose.bugX == nil, "a bug visited mid-bask at t=\(t)")
+                #expect(pose.prop != .balloon, "a balloon floated up mid-bask at t=\(t)")
+            }
+            if basked { break }
+        }
+        #expect(basked)
+    }
+
+    /// "He should move sometimes, and be still most of the time" — the patch
+    /// of sun is much bigger on screen than the bug or the balloon, so it has
+    /// to be much rarer than either.
+    @Test("The light is rare even in daylight")
+    func theSunIsRare() {
+        var lit = 0
+        var total = 0
+        for step in 0...(86400 / 2) {           // 24h of idling, sampled every 2s
+            let t = Double(step) * 2
+            total += 1
+            if CrabAnimator.sunPatch(idleT: t, hourOfDay: 13) != nil { lit += 1 }
+        }
+        let duty = Double(lit) / Double(total)
+        #expect(duty < 0.02, "lit \(duty * 100)% of the day is not rare")
+        #expect(lit > 0, "and it does have to happen")
+    }
+
     @Test func snackAndPounceStayInsideTheirEnvelopes() {
         var pose = CrabAnimator.pose(mood: .sleeping, t: 4)
         let before = pose

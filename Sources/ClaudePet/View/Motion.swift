@@ -81,6 +81,10 @@ enum SpriteTint {
     /// Claw'd terracotta, `Palette.body`'s 0xCE7B5C, as components.
     static let bodyRGB = (r: 206.0 / 255, g: 123.0 / 255, b: 92.0 / 255)
 
+    /// Hot gold, `Palette.flameCore`'s 0xF7D046, as components — the warm the
+    /// afternoon puts on his shell while he stands in it.
+    static let goldRGB = (r: 247.0 / 255, g: 208.0 / 255, b: 70.0 / 255)
+
     /// Plain HSB→RGB, so a generated hue can be mixed without asking AppKit to
     /// introspect a SwiftUI `Color`.
     static func rgb(hue: Double, saturation: Double, brightness: Double) -> (r: Double, g: Double, b: Double) {
@@ -140,6 +144,7 @@ extension CrabPose {
         out.scale = lerp(from.scale, to.scale)
         out.heat = lerp(from.heat, to.heat)
         out.stargaze = lerp(from.stargaze, to.stargaze)
+        out.sunPatch = lerp(from.sunPatch, to.sunPatch)
 
         // `legPhase` is an angle; averaging two unrelated phases produces a
         // third, unrelated one. The incoming pose owns the walk.
