@@ -25,6 +25,39 @@ final class PetInstance {
     /// Opens the secret animation-testing menu anchored to this pet's window.
     /// Summoned by Shift+click, then K — see `SecretMenuGate`.
     var onSecretMenuRequested: (() -> Void)?
+    /// The operator did something deliberate to him. The app forwards it to the
+    /// coordinator, which is the only thing that owns the wake window.
+    ///
+    /// A closure rather than a coordinator reference, on purpose — everything
+    /// genuinely global stays in `AppDelegate` (see this class's own doc), and
+    /// handing a per-pet object the global reducer is how a second pet
+    /// eventually calls `setSlots`.
+    var onStir: (() -> Void)?
+
+    /// How long a pointer must rest on him before it counts as attention.
+    ///
+    /// A pointer crossing him on its way to the Dock must not buy fifteen
+    /// minutes. Long enough to exclude a transit, short enough that "he
+    /// noticed you" still feels causal.
+    static let hoverStirDwell: TimeInterval = 1.2
+
+    /// Whether a hover that started at `startedAt` still counts as attention
+    /// when its dwell timer fires at `queuedFor`.
+    ///
+    /// Both halves are load-bearing, and the second is easy to miss:
+    /// `hoverStartedAt` deliberately SURVIVES the release so the greeting can
+    /// ease out from where it was, and only clears 0.6s later. So a pointer
+    /// that crossed him in 0.3s still carries the same stamp when the 1.2s
+    /// timer fires — without the `endedAt == nil` half, every transit across
+    /// him would buy a wake window, which is the exact thing the dwell exists
+    /// to prevent.
+    ///
+    /// Pure and static so the policy is testable without a timer, the way
+    /// `idleChatterShows` and `bubbleBurst` already are.
+    nonisolated static func hoverCountsAsStir(startedAt: Date?, endedAt: Date?,
+                                              queuedFor: Date) -> Bool {
+        startedAt == queuedFor && endedAt == nil
+    }
     /// The other pet's window frame, for snap de-stacking. Wired by the app,
     /// which is the only thing that knows about siblings.
     var siblingFrame: (() -> CGRect?)?
@@ -132,6 +165,11 @@ final class PetInstance {
     private func wire(_ controller: PetWindowController) {
         controller.onClick = { [weak self] clicks, location in
             guard let self else { return }
+            // Any click is contact. First statement in the closure on purpose:
+            // the four paths below all return early (secret gate, triple-poke,
+            // bug pounce, sleeping snack), so stirring here is the one place
+            // that catches every one of them without repetition.
+            self.onStir?()
             // 🗝️ Shift+click is the arming half of the secret handshake, not
             // a poke: the window borrows key focus (the roster's dance) and
             // listens for a lone K. Modifier state is polled because it is
@@ -215,6 +253,10 @@ final class PetInstance {
         }
         controller.onPetStart = { [weak self] in
             SoundBank.play(.purr)
+            // The most deliberate gesture there is. Once per hold — `onPetEnd`
+            // does not re-stir, because a second stamp inside one gesture buys
+            // nothing against a fifteen-minute window.
+            self?.onStir?()
             self?.model.pettingStartedAt = Date()
             self?.model.pettingEndedAt = nil
         }
@@ -239,8 +281,20 @@ final class PetInstance {
         controller.onHover = { [weak self] hovering in
             guard let self else { return }
             if hovering {
-                self.model.hoverStartedAt = Date()
+                let started = Date()
+                self.model.hoverStartedAt = started
                 self.model.hoverEndedAt = nil
+                // A hover only counts once he has actually been rested on —
+                // see `hoverCountsAsStir` for why both halves of that check
+                // are needed.
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.hoverStirDwell) { [weak self] in
+                    guard let self,
+                          Self.hoverCountsAsStir(startedAt: self.model.hoverStartedAt,
+                                                 endedAt: self.model.hoverEndedAt,
+                                                 queuedFor: started)
+                    else { return }
+                    self.onStir?()
+                }
             } else {
                 // Keep the start time so the greeting eases out from where it
                 // was, then clear both once the release has played so the view
@@ -255,6 +309,8 @@ final class PetInstance {
             }
         }
         controller.onDragEnded = { [weak self] in
+            // Moving him around the desk is contact too.
+            self?.onStir?()
             // A step-aside deferred to a held crab gets its chance now, and
             // the watch re-reads a window that may have landed on another
             // display.

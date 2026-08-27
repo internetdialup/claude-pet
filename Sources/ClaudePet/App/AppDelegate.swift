@@ -65,6 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard let self, let pet else { return }
             self.toggleRoster(anchoredTo: pet)
         }
+        pet.onStir = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.coordinator.stir(slot: pet.slot)
+        }
         pet.onSecretMenuRequested = { [weak self, weak pet] in
             guard let self, let pet else { return }
             self.showSecretMenu(anchoredTo: pet)
@@ -166,6 +170,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         pet.onRosterRequested = { [weak self, weak pet] in
             guard let self, let pet else { return }
             self.toggleRoster(anchoredTo: pet)
+        }
+        pet.onStir = { [weak self, weak pet] in
+            guard let self, let pet else { return }
+            self.coordinator.stir(slot: pet.slot)
         }
         pet.onSecretMenuRequested = { [weak self, weak pet] in
             guard let self, let pet else { return }
