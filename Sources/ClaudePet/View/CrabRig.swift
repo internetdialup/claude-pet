@@ -57,7 +57,7 @@ public struct CrabPose: Sendable, Equatable {
     public enum Prop: String, Sendable, CaseIterable {
         case none
         // World props: drawn at a fixed spot in the frame.
-        case sparkles, terminal, check, bang, zzz, servers, balloon, plan
+        case sparkles, terminal, check, bang, servers, balloon, plan
         // Worn props: drawn on the body, and must travel with `bob` and `lean`.
         case hardHat, phone, fire, glasses
         // Appended (stableSeed is the allCases index — order is load-bearing):
@@ -879,14 +879,6 @@ public enum CrabRig {
             b.pixel(15, 1 + hop, .paper)
             b.rect(14, 8 + hop, 4, 2, .ember)
             b.rect(15, 8 + hop, 2, 1, .pink)
-
-        case .zzz:
-            let key: [Character: PixelBuffer.Ink] = ["z": .screenLight]
-            let drift = Int((sin(phase) * 1.5).rounded())
-            b.stamp(["zzz", "..z", ".z.", "zzz"], at: (x: 25, y: 3 + drift), key: key)
-            if sin(phase * 0.7) > 0 {
-                b.stamp(["zz", ".z", "zz"], at: (x: 22, y: 9 - drift), key: key)
-            }
 
         case .servers:
             // The blue rack he leans on in the sticker set. Status lights blink

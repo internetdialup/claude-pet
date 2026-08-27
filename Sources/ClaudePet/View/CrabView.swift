@@ -96,6 +96,16 @@ public enum CrabAnimator {
         }
     }
 
+    /// One slow breath, and the length of `sleeping`'s README clip.
+    ///
+    /// Named rather than written down twice, so the clip is exactly one breath
+    /// and closes seamlessly. It used to be a 4.0s clip over a 6.98s cycle —
+    /// 57% of a breath, so the GIF did not loop, it jumped.
+    ///
+    /// Five seconds rather than seven: seven is slower than anything that
+    /// breathes and reads as stopped.
+    static let breathPeriod = 5.0
+
     /// One flourish per window, on dice, with a quiet stretch after it.
     private static let flourishPeriod = 7.0
 
@@ -680,10 +690,26 @@ public enum CrabAnimator {
             pose.prop = .bang
 
         case .sleeping:
-            pose.bob = sin(t * 0.9) > 0 ? 0 : 1   // slow breathing
+            // A two-pixel breath, eased, so he HOLDS the top and the bottom
+            // and steps through the middle — three depths on a grid with one
+            // axis to spend. The old one-pixel square wave spent 85% of its
+            // cycle on a single value, which is why `sleeping.gif` was 41
+            // pixel-identical frames out of 48.
+            //
+            // Phase-shifted by a quarter turn so t=0 is the TOP of the breath
+            // rather than halfway down it. That instant is not arbitrary: it
+            // is where the sizzle's wake chapter opens, and t=0.4 is where
+            // `still-sleeping.png` is sampled.
+            pose.bob = Int((Ease.square(t * 2 * .pi / breathPeriod - .pi / 2,
+                                        soft: 1.0) * 2).rounded())
             pose.blink = 1                        // eyes shut
+            // One pixel of tilt, held. `drawFace` raises one eye and drops the
+            // other, so his two shut lids sit at different heights — the
+            // oldest "asleep, not switched off" signal there is, and it costs
+            // no motion at all. It is also the only thing carrying the read in
+            // the STILL, where the breath cannot help.
+            pose.tilt = 1
             pose.mouth = .flat
-            pose.prop = .zzz
         }
 
         return pose

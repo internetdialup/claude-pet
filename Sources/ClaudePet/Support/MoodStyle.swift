@@ -86,8 +86,8 @@ public extension PetMood {
         case .sleeping:
             MoodStyle(accent: Palette.slateSoft, bubbleFill: Palette.slateSoft,
                       bubbleText: Palette.white, glyph: "",
-                      frameInterval: 1.0 / 6,      // a breath and drifting z's
-                      clipSeconds: 4.0, previewBubble: nil)
+                      frameInterval: 1.0 / 6,      // one slow breath
+                      clipSeconds: CrabAnimator.breathPeriod, previewBubble: nil)
         }
     }
 
