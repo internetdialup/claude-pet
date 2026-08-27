@@ -433,15 +433,18 @@ final class PetInstance {
         if let window = controller?.window {
             occlusionObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didChangeOcclusionStateNotification,
-                object: window, queue: .main) { [weak self] note in
-                // Read the state HERE — the closure is already on the main
-                // queue, and a `Notification` is not `Sendable`, so only the
-                // resulting Bool may cross into the actor-isolated hop.
-                let covered = !((note.object as? NSWindow)?
-                    .occlusionState.contains(.visible) ?? true)
+                object: window, queue: .main) { [weak self] _ in
+                // NOTHING is read out of the notification, and that is the
+                // point. `occlusionState` is main-actor isolated and this
+                // closure is `@Sendable`, so touching the window here is
+                // illegal — Swift 6.1 says so and 6.3 does not, which is
+                // exactly the kind of disagreement that reaches CI green
+                // locally. Hop first, then re-read the window from `self`,
+                // where reading it is legal on either toolchain.
                 Task { @MainActor in
-                    self?.windowCovered = covered
-                    self?.publishVisibility()
+                    guard let self, let window = self.controller?.window else { return }
+                    self.windowCovered = !window.occlusionState.contains(.visible)
+                    self.publishVisibility()
                 }
             }
         }
