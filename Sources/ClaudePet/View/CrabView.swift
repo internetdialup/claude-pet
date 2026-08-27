@@ -34,6 +34,7 @@ public enum CrabAnimator {
     /// | `13 &+ 5` | the working prop re-roll |
     /// | `17 &+ 7` | whether an idle cycle is a fun fact |
     /// | `19 &+ 13` | the bubble shimmer |
+    /// | `23 &+ 19` | whether an informational cycle is a tip, not a fact |
     /// | `29 &+ 11` | the cooking heat cascade |
     /// | `41 &+ 17` | the disco tint |
     /// | `43 &+ 11` | the idle balloon |
@@ -51,7 +52,7 @@ public enum CrabAnimator {
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
     /// shot), `43 &+ 13` (idle chatter, per seed).
     ///
-    /// **Free:** 23, 79, 97.
+    /// **Free:** 79, 97.
     static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
