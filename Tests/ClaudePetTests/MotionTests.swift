@@ -103,6 +103,93 @@ struct MotionContinuityTests {
         }
     }
 
+    /// The frozen sentinel, checked on the BODY rather than on the props.
+    /// `nothingFiresAtTimeZero` looks at prop visibility, heat and glyphs, so
+    /// it never saw that idle's cycle-0 flourish was always a jump and always
+    /// already underway — `pose(mood: .idle, t: 0)` came back crouched, and
+    /// `still-idle.png`, rendered at t = 0.4, was a crab five pixels up.
+    @Test("Nobody is mid-flourish at the frozen instant")
+    func idlePoseIsAtRestAtTimeZero() {
+        #expect(CrabAnimator.flourish(at: 0) == nil, "a flourish is playing at t=0")
+        for mood in PetMood.allCases {
+            let zero = CrabAnimator.pose(mood: mood, t: 0)
+            #expect(zero.squash == 0, "\(mood) is mid-squash at t=0")
+            #expect(zero.scale == 1, "\(mood) is mid-scale at t=0")
+        }
+        // …and the instant every marketing still is sampled at.
+        let still = CrabAnimator.pose(mood: .idle, t: 0.4)
+        #expect(still.squash == 0 && still.bob >= -1,
+                "still-idle.png is a crab in the air: bob=\(still.bob)")
+    }
+
+    /// The clip has to contain what it advertises. `idle`'s flourishes now
+    /// start at cycle 1, and the six-second clip is shorter than the
+    /// seven-second period, so an anchor at zero would capture nothing.
+    @Test("The idle clip still catches a flourish")
+    func idleClipContainsAFlourish() {
+        let begin = CrabAnimator.firstFlourishAt
+        #expect(begin > 0)
+        var seen = false
+        var t = begin
+        while t < begin + PetMood.idle.style.clipSeconds {
+            if CrabAnimator.flourish(at: t) != nil { seen = true; break }
+            t += 1.0 / 12
+        }
+        #expect(seen, "six seconds from \(begin) contains no flourish")
+        #expect(PetMood.idle.style.clipStart == begin)
+        for mood in PetMood.allCases where mood != .idle {
+            #expect(mood.style.clipStart == 0, "\(mood) should still start at zero")
+        }
+    }
+
+    /// `moodMotionNeverTeleports` checks bob and lean, and calls `pose(mood:t:)`
+    /// with no hour — so the telescope never comes out in it and the gaze
+    /// channels were never checked at all. Both eyes used to jump two rows in
+    /// one frame on a third of every stargaze firing.
+    @Test("The stargazer's gaze eases in and out instead of snapping")
+    func gazeOverridesNeverTeleport() {
+        // Every firing cycle in a day of night-time idling, at idle's 20fps.
+        var firings = 0
+        for cycle in 1...720 where CrabAnimator.noise(cycle &* 61 &+ 3) < 0.35 {
+            firings += 1
+            let base = Double(cycle) * 120
+            var previous = CrabAnimator.pose(mood: .idle, t: base - 0.05,
+                                             flourishes: false, hourOfDay: 1)
+            var step = 0
+            while step <= 13 * 20 {
+                let t = base + Double(step) / 20
+                let pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false, hourOfDay: 1)
+                #expect(abs(pose.gazeY - previous.gazeY) <= 1,
+                        "gazeY jumped \(pose.gazeY - previous.gazeY) at t=\(t)")
+                #expect(abs(pose.gazeX - previous.gazeX) <= 1,
+                        "gazeX jumped \(pose.gazeX - previous.gazeX) at t=\(t)")
+                previous = pose
+                step += 1
+            }
+        }
+        #expect(firings > 100, "a day of small-hours idling should fire plenty of telescopes")
+    }
+
+    /// The bug puts his eyes on the floor and the telescope puts them on the
+    /// sky. All three ambient treats start on cycle boundaries with periods
+    /// that share multiples, so they collide 57 times a day — and this is the
+    /// one pairing where he would have to look two ways at once.
+    @Test("The telescope and the floor bug are never out together")
+    func theTelescopeOwnsItsSpell() {
+        var sawTelescope = false
+        for cycle in 1...720 where CrabAnimator.noise(cycle &* 61 &+ 3) < 0.35 {
+            for step in 0...(12 * 5) {
+                let t = Double(cycle) * 120 + Double(step) / 5
+                let pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false, hourOfDay: 1)
+                guard pose.stargaze > 0 else { continue }
+                sawTelescope = true
+                #expect(pose.bugX == nil, "a bug visited mid-telescope at t=\(t)")
+                #expect(pose.prop != .balloon, "a balloon floated up mid-telescope at t=\(t)")
+            }
+        }
+        #expect(sawTelescope)
+    }
+
     /// The celebration overlay is applied ON TOP of the done pose, so
     /// `moodMotionNeverTeleports` never saw it — and its two re-armed hops kept
     /// the very shape the base hop was rewritten to lose.

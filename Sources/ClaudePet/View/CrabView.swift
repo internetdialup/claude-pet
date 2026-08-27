@@ -96,18 +96,49 @@ public enum CrabAnimator {
         }
     }
 
-    /// One flourish per window, with a quiet stretch after it.
+    /// One flourish per window, on dice, with a quiet stretch after it.
     private static let flourishPeriod = 7.0
 
     /// Which flourish is playing, and how far into it we are (0…1).
+    ///
+    /// The dice used to pick *which* and nothing gated *whether*, so he
+    /// jumped, waved, stretched or scuttled every seven seconds, forever, on
+    /// a metronome. Two things fell out of that, and one line fixes both.
+    ///
+    /// `noise(3)` is 0.113, which selects `allCases[0]` — jump — so cycle 0
+    /// was **always** a jump, and it was already at progress 0 at t == 0.
+    /// That put idle in breach of the frozen sentinel: `pose(mood: .idle,
+    /// t: 0)` came back with `squash = 1`, a crouching crab, and
+    /// `nothingFiresAtTimeZero` could not see it because it checks props,
+    /// heat and glyphs rather than the body. Worse, `GifRenderer` samples
+    /// every still at t = 0.4, which for idle is jump-progress 0.44 — so
+    /// `still-idle.png`, the marketing still of him *at rest*, was a crab
+    /// five pixels in the air.
+    ///
+    /// Excluding cycle 0 fixes both. The 0.7 chance is the separate half:
+    /// 72% of cycles fire, gaps go irregular (7s, 14s, 7s, 21s…, longest 35s
+    /// over 600 cycles) and the quiet stretches rise from 80% to 86%.
+    /// "He should move sometimes, and be still most of the time."
     static func flourish(at t: Double) -> (Flourish, Double)? {
         let cycle = Int(floor(t / flourishPeriod))
+        guard cycle > 0, noise(cycle &* 89 &+ 11) < 0.7 else { return nil }
         let since = t - Double(cycle) * flourishPeriod
         let all = Flourish.allCases
         let choice = all[Int(noise(cycle &* 7 &+ 3) * Double(all.count)) % all.count]
         guard since < choice.duration else { return nil }
         return (choice, since / choice.duration)
     }
+
+    /// The first cycle that actually fires, as an instant. `idle`'s README
+    /// clip starts here: the clip is six seconds and the flourish period is
+    /// seven, so a clip anchored at zero would now contain nothing but
+    /// breathing.
+    static let firstFlourishAt: Double = {
+        for cycle in 1...64 where noise(cycle &* 89 &+ 11) < 0.7 {
+            return Double(cycle) * flourishPeriod
+        }
+        return flourishPeriod
+    }()
 
     /// The thinking spell's prop: sparkles first, then the Claude star, in
     /// strict 20s alternation — dice would be degenerate here (MoodClock
@@ -237,28 +268,52 @@ public enum CrabAnimator {
                 apply(kind, progress: progress, t: t, to: &pose)
             }
 
-            if let float = idleBalloon(idleT: t) {
-                pose.prop = .balloon
-                pose.propVisibility = float
+            // Deep in the night, sometimes, the telescope comes out — and it
+            // is evaluated FIRST because it owns the spell it appears in.
+            //
+            // All three ambient treats start on cycle boundaries and their
+            // periods (90, 120, 150) share common multiples, so over a day
+            // they begin on the same instant 57 times, three of them all
+            // three at once. Most of those overlaps are harmless. Bug and
+            // telescope is not: the bug puts his eyes on the floor and the
+            // telescope puts them on the sky, and he cannot look at both.
+            // De-phasing the schedules only takes 57 collisions to 40 —
+            // with ~692 windows in a day the coincidence rate is intrinsic —
+            // so the biggest, rarest, most composed moment simply wins.
+            let gazing = stargaze(idleT: t, hourOfDay: hourOfDay)
+
+            if gazing == nil {
+                if let float = idleBalloon(idleT: t) {
+                    pose.prop = .balloon
+                    pose.propVisibility = float
+                }
+
+                // A visiting bug owns his attention: eyes drop to the floor
+                // and follow it across.
+                if let bug = bugPosition(idleT: t) {
+                    pose.bugX = bug
+                    pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
+                    pose.gazeY = 1
+                }
             }
 
-            // A visiting bug owns his attention: eyes drop to the floor and
-            // follow it across.
-            if let bug = bugPosition(idleT: t) {
-                pose.bugX = bug
-                pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
-                pose.gazeY = 1
-            }
-
-            // And deep in the night, sometimes, the telescope comes out.
-            if let gazing = stargaze(idleT: t, hourOfDay: hourOfDay) {
+            if let gazing {
                 pose.stargaze = gazing.amount
                 pose.stargazePhase = gazing.phase
-                if gazing.amount > 0.4 {
-                    pose.gazeY = -1
-                    pose.gazeX = 1
-                    pose.mouth = .open
-                }
+                // The gaze rides the envelope rather than a threshold. The
+                // old `if amount > 0.4 { gazeY = -1 }` crossed at since ≈
+                // 0.289, and because 120·cycle is divisible by three that
+                // instant always fell inside `gaze()`'s live window — so
+                // whenever the base roll had him looking DOWN, both eyes
+                // jumped two rows in a single frame. Measured over a day of
+                // idling: 81 of 244 firings, a third of them.
+                // `moodMotionNeverTeleports` could not see it because it
+                // checks only bob and lean and passes no hour, so the
+                // telescope never came out in the test.
+                let lead = Ease.smoothstep((gazing.amount - 0.25) / 0.45)
+                pose.gazeY = Int((Double(pose.gazeY) + (-1 - Double(pose.gazeY)) * lead).rounded())
+                pose.gazeX = Int((Double(pose.gazeX) + (1 - Double(pose.gazeX)) * lead).rounded())
+                if gazing.amount > 0.4 { pose.mouth = .open }
             }
 
         case .thinking:
@@ -916,12 +971,31 @@ public struct CrabView: View {
                                   amount: amount)
     }
 
-    /// The near-done glow: once the todo list is ≥80% complete, a soft white
-    /// pulse every 2.5s while he cooks — the sprint is almost home.
+    /// The near-done glow: once the todo list is ≥80% complete, he takes a
+    /// breath of white every forty seconds or so — the sprint is almost home.
+    ///
+    /// It used to be a 0.35 push toward white breathing every 2.5s with no
+    /// dice at all, for the ENTIRE tail of every sprint above 80%. A
+    /// ten-minute sprint was two hundred and forty consecutive pulses. That is
+    /// the same signal `celebrationBlanch`'s doc was written to condemn — a
+    /// partial push toward white over terracotta is a peach, and a peach held
+    /// long enough is a washed-out monitor. There it was held for ten seconds;
+    /// here it was held for minutes.
+    ///
+    /// It also snapped. `taskFraction` is quantised to 0.05 and moves live, so
+    /// the instant a list crossed 0.8 this went from nil to `0.35 * pulse(t)`
+    /// at whatever phase the sine happened to be at — worst case a jump
+    /// straight to full amplitude in one frame, and the same in reverse when
+    /// adding a task dropped the fraction back under. Now that it is dark 94%
+    /// of the time, almost every crossing lands on exact zero with nothing to
+    /// snap, and the worst survivor is bounded by the 0.28.
     nonisolated static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
         guard let fraction, fraction >= 0.8 else { return nil }
-        let pulse = Ease.smoothstep(0.5 + 0.5 * sin(t * 2 * .pi / 2.5))
-        let amount = 0.35 * pulse
+        let cycle = Int(floor(t / 20))
+        guard cycle > 0, CrabAnimator.noise(cycle &* 67 &+ 5) < 0.5 else { return nil }
+        let since = t - Double(cycle) * 20
+        guard since < 2.2 else { return nil }
+        let amount = 0.28 * Ease.window(since, duration: 2.2, edge: 0.8)
         guard amount > 0.01 else { return nil }
         return SpriteTint.towards((r: 1, g: 1, b: 1), amount: amount)
     }

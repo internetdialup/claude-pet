@@ -22,6 +22,10 @@ enum GifRenderer {
 
     static func duration(for mood: PetMood) -> Double { mood.style.clipSeconds }
 
+    /// Where a mood's clip begins in its own clock — zero for all but `idle`,
+    /// whose flourishes no longer fire in the first cycle.
+    static func start(for mood: PetMood) -> Double { mood.style.clipStart }
+
     /// Large transparent assets for marketing, rendered from the rig rather than
     /// screen-captured — so they are crisp at any size and reproducible.
     ///
@@ -37,7 +41,9 @@ enum GifRenderer {
 
         // One loop per state.
         for mood in PetMood.allCases {
-            let frames = stride(from: 0.0, to: duration(for: mood), by: frameDelay).map {
+            let begin = start(for: mood)
+            let frames = stride(from: begin, to: begin + duration(for: mood),
+                                by: frameDelay).map {
                 CrabRig.render(CrabAnimator.pose(mood: mood, t: $0))
             }
             guard write(frames, to: root.appendingPathComponent("state-\(mood.rawValue).gif"),
@@ -47,7 +53,9 @@ enum GifRenderer {
         // One loop walking every state in sequence.
         var tour: [PixelBuffer] = []
         for mood in PetMood.allCases {
-            tour += stride(from: 0.0, to: min(3.0, duration(for: mood)), by: frameDelay).map {
+            let begin = start(for: mood)
+            tour += stride(from: begin, to: begin + min(3.0, duration(for: mood)),
+                           by: frameDelay).map {
                 CrabRig.render(CrabAnimator.pose(mood: mood, t: $0))
             }
         }
@@ -98,7 +106,9 @@ enum GifRenderer {
         }
 
         for mood in PetMood.allCases {
-            let frames = stride(from: 0.0, to: duration(for: mood), by: frameDelay).map { t in
+            let begin = start(for: mood)
+            let frames = stride(from: begin, to: begin + duration(for: mood),
+                                by: frameDelay).map { t in
                 CrabRig.render(CrabAnimator.pose(mood: mood, t: t))
             }
             guard write(frames, to: root.appendingPathComponent("\(mood.rawValue).gif")) else {

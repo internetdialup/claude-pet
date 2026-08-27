@@ -216,12 +216,53 @@ struct HeatAndDiscoScheduleTests {
     @Test func nearDoneGlowNeedsARealList() {
         #expect(CrabView.nearDoneTint(cookingT: 3, fraction: nil) == nil)
         #expect(CrabView.nearDoneTint(cookingT: 3, fraction: 0.5) == nil)
+        // Shaped like `discoNeverFiresEarlyAndKeepsItsGap`: never in the first
+        // cycle, and it does arrive on some later one.
+        for t in stride(from: 0.0, through: 19.9, by: 0.5) {
+            #expect(CrabView.nearDoneTint(cookingT: t, fraction: 0.9) == nil,
+                    "a glow in the first cycle at t=\(t)")
+        }
         var lit = false
-        for t in stride(from: 0.0, through: 3.0, by: 0.1) where CrabView.nearDoneTint(cookingT: t, fraction: 0.9) != nil {
+        for t in stride(from: 20.0, through: 600.0, by: 0.4)
+        where CrabView.nearDoneTint(cookingT: t, fraction: 0.9) != nil {
             lit = true
             break
         }
-        #expect(lit, "a 90% list should glow within one pulse period")
+        #expect(lit, "ten minutes above 80% deserves at least one breath")
+    }
+
+    /// The defect this replaced: a continuous 2.5s pulse with no dice, running
+    /// for the whole tail of every sprint. A ten-minute sprint was 240
+    /// consecutive pulses of white over terracotta, which is a peach held for
+    /// minutes — the exact thing the flashbang round deleted.
+    @Test("The near-done glow is mostly dark, and never two breaths in a row")
+    func nearDoneGlowIsAnEventNotFurniture() {
+        var lit = 0
+        var total = 0
+        for step in 0...(3600 * 5) {
+            let t = Double(step) / 5
+            total += 1
+            if CrabView.nearDoneTint(cookingT: t, fraction: 0.9) != nil { lit += 1 }
+        }
+        let duty = Double(lit) / Double(total)
+        #expect(duty < 0.12, "lit \(Int(duty * 100))% of an hour is furniture, not a signal")
+        #expect(duty > 0.01, "it has to actually happen")
+
+        // Every lit stretch sits inside its own 20s cycle, so two breaths are
+        // never closer than the cycle they each belong to.
+        var starts: [Double] = []
+        var t = 0.0
+        while t < 3600 {
+            if CrabView.nearDoneTint(cookingT: t, fraction: 0.9) != nil {
+                starts.append(t)
+                t += 3          // skip past this window
+            } else {
+                t += 0.2
+            }
+        }
+        for pair in zip(starts, starts.dropFirst()) {
+            #expect(pair.1 - pair.0 >= 17, "two breaths \(pair.1 - pair.0)s apart")
+        }
     }
 }
 
