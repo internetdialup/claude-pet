@@ -145,6 +145,36 @@ struct MotionContinuityTests {
         }
     }
 
+    /// The review loop had two opposite faults at once. It hard-coded
+    /// `t = 18 + now % 6`, jumping past the `guard cycle > 0` that gives the
+    /// live light its ease-from-zero — a full gold ring in one frame, 43% of
+    /// the time — and its 6s rest left 3.4s of nothing after clicking a menu
+    /// item, which reads as a broken menu rather than as a pause.
+    @Test("The waiting light's preview starts dark and never rests for long")
+    func thePreviewBreathStartsFromNothing() {
+        #expect(WaitingLight.previewBreath(t: 0) == 0, "it arrived mid-breath")
+
+        var previous = 0.0
+        var longestDark = 0.0
+        var darkSince: Double?
+        for step in 0...(Int(WaitingLight.previewPeriod * 4) * 30) {
+            let t = Double(step) / 30
+            let value = WaitingLight.previewBreath(t: t)
+            #expect(value >= 0 && value <= 1)
+            #expect(abs(value - previous) < 0.15,
+                    "a \(abs(value - previous)) jump at t=\(t) is a snap")
+            if value <= 0.001 {
+                if darkSince == nil { darkSince = t }
+            } else if let began = darkSince {
+                longestDark = max(longestDark, t - began)
+                darkSince = nil
+            }
+            previous = value
+        }
+        #expect(longestDark < 1.6,
+                "selecting the waiting light showed nothing for \(longestDark)s")
+    }
+
     /// The frozen sentinel, checked on the BODY rather than on the props.
     /// `nothingFiresAtTimeZero` looks at prop visibility, heat and glyphs, so
     /// it never saw that idle's cycle-0 flourish was always a jump and always

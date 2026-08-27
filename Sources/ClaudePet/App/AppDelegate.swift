@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     /// Overrides the live feed while the operator previews a mood from the menu.
     private var debugMood: PetMood?
+    /// One rare effect forced on for review, or nil. Separate from `debugMood`
+    /// because they compose: an effect is reviewed ON a mood, not instead of one.
+    private var debugEffect: CrabAnimator.PreviewEffect?
     /// `--demo`: run the scripted reel instead of real activity, for recording.
     private var demoTimer: Timer?
     private var demoStartedAt: Date?
@@ -75,7 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 // Preview and demo own pet 1's face; the coordinator resumes
                 // when they let go. Pet 2 is always live — freezing him was
                 // never the menu row's promise.
-                guard self.debugMood == nil, !self.demoMood else { return }
+                guard self.debugMood == nil, self.debugEffect == nil,
+                      !self.demoMood else { return }
                 self.primary.take(state: state)
                 self.menuBar?.update(state: state)
             } else if slot < self.pets.count {
@@ -239,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let live = NSMenuItem(title: "Live", action: #selector(secretMenuPick(_:)),
                               keyEquivalent: "")
         live.target = self
-        live.state = debugMood == nil ? .on : .off
+        live.state = debugMood == nil && debugEffect == nil ? .on : .off
         menu.addItem(live)
         menu.addItem(.separator())
         for mood in PetMood.allCases {
@@ -250,13 +254,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             item.state = debugMood == mood ? .on : .off
             menu.addItem(item)
         }
+        // The rare effects. Moods were the only thing this menu could ever
+        // select, which quietly meant the things most worth reviewing were the
+        // ones it could not reach: an effect gated on the wall clock and a
+        // dice does not appear just because you picked `idle` and waited. The
+        // patch of sun is the clearest case — daylight, plus a 1-in-4 roll on
+        // a seven-minute cycle — so at one in the morning there was no
+        // sequence of clicks that produced it.
+        menu.addItem(.separator())
+        let header = NSMenuItem(title: "Effects", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        for effect in CrabAnimator.PreviewEffect.allCases {
+            let item = NSMenuItem(title: Self.effectTitles[effect] ?? effect.rawValue,
+                                  action: #selector(secretMenuPick(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = effect
+            item.state = debugEffect == effect ? .on : .off
+            menu.addItem(item)
+        }
+
         menu.popUp(positioning: nil,
                    at: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.maxY),
                    in: contentView)
     }
 
+    /// What each effect is called in the menu — the name the operator uses for
+    /// it, not the enum case.
+    private static let effectTitles: [CrabAnimator.PreviewEffect: String] = [
+        .basking: "Patch of sun",
+        .glint: "Shell glint",
+        .ting: "Wink ting",
+        .hearts: "Petting hearts",
+        .beacon: "Waiting light",
+    ]
+
     @objc private func secretMenuPick(_ sender: NSMenuItem) {
+        if let effect = sender.representedObject as? CrabAnimator.PreviewEffect {
+            // Picking the one already on turns it off, so the menu is its own
+            // way back out — otherwise reviewing an effect is a one-way door.
+            previewEffect(debugEffect == effect ? nil : effect)
+            return
+        }
+        previewEffect(nil)
         previewMood(sender.representedObject as? PetMood)
+    }
+
+    /// Forces one rare effect on pet 1, bypassing its hour gate and its dice.
+    ///
+    /// `debugEffect` is the INTENT — it drives the menu checkmarks and the
+    /// coordinator gate, and it clears the instant you let go.
+    /// `model.previewLatch` is the RENDER STATE, and it deliberately outlives
+    /// the intent so the effect can ease back out instead of being cut. The
+    /// first version conflated the two, which is why letting go of the sun
+    /// dropped 84 lit cells and a gold wash in a single frame.
+    private func previewEffect(_ effect: CrabAnimator.PreviewEffect?) {
+        debugEffect = effect
+
+        guard let effect else {
+            guard var latch = primary.model.previewLatch, latch.endedAt == nil else {
+                primary.model.previewLatch = nil
+                return
+            }
+            let now = Date.timeIntervalSinceReferenceDate
+            latch.endedAt = now
+            primary.model.previewLatch = latch
+            // Cleared only once the release has finished, so the beacon's
+            // 30fps timeline stops running. Same shape as the petting
+            // clean-up in `PetInstance`, including the re-check on arrival.
+            let release = latch.effect.releaseDuration + 0.2
+            DispatchQueue.main.asyncAfter(deadline: .now() + release + 0.1) { [weak self] in
+                guard let self,
+                      let current = self.primary.model.previewLatch,
+                      let ended = current.endedAt, ended == now,
+                      Date.timeIntervalSinceReferenceDate - ended >= release else { return }
+                self.primary.model.previewLatch = nil
+            }
+            return
+        }
+
+        primary.model.previewLatch = CrabAnimator.PreviewLatch(
+            effect: effect, since: Date.timeIntervalSinceReferenceDate)
+        // Basking, the glint and the hearts all live in the idle branch, so a
+        // preview is only honest against an idle pose. Nudging the mood here
+        // rather than making the operator pick it separately is the difference
+        // between a menu that works and one that needs instructions.
+        if effect != .beacon, debugMood != .idle {
+            previewMood(.idle)
+        }
     }
 
     /// Freezes pet 1 in one mood so the art can be reviewed live. Selecting
@@ -264,6 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func previewMood(_ mood: PetMood?) {
         debugMood = mood
         guard let mood else {
+            previewEffect(nil)
             primary.model.state = coordinator.state
             return
         }
