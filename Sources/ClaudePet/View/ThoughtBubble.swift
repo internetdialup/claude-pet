@@ -198,7 +198,6 @@ private struct BubbleShimmer: View {
     }
 }
 
-/// Three squares filling in one at a time, then clearing — the universal
 /// Runs its content against the display link, or against a fixed instant when
 /// an offline renderer supplies one.
 private struct Clocked<Content: View>: View {
@@ -214,6 +213,7 @@ private struct Clocked<Content: View>: View {
     }
 }
 
+/// Three squares filling in one at a time, then clearing — the universal
 /// "still thinking" tell, with no words to go stale.
 private struct PulsingDots: View {
     let color: Color

@@ -97,6 +97,15 @@ public struct CrabPose: Sendable, Equatable {
     public var bugX: Int?
     /// Seconds into a petting session, for the floating hearts. nil = no hearts.
     public var heartsElapsed: Double?
+    /// When the hold ended, on the hearts' own clock. New hearts stop being
+    /// born there and the ones already climbing finish out. nil = still held.
+    ///
+    /// This exists because the purr envelope and a heart's life are different
+    /// lengths: the envelope closes 0.45s after you let go, and a heart born
+    /// just before that has 1.3s of climbing left. Tying them together is what
+    /// made letting go delete every heart in the air in a single frame. Same
+    /// contract as `heartsElapsed`: the blend never lerps it.
+    public var heartsUntil: Double?
     /// Seconds into the shrimp snack, for the shrinking 🍤. nil = no snack.
     public var snackElapsed: Double?
     /// The midnight telescope: envelope 0…1 and its own clock for twinkles.
@@ -298,7 +307,9 @@ public enum CrabRig {
             drawDoneBadge(&buffer, visibility: pose.doneBadge, pulse: pose.doneBadgePulse)
         }
         if let bugX = pose.bugX { drawBug(&buffer, x: bugX, phase: pose.propPhase) }
-        if let hearts = pose.heartsElapsed { drawHearts(&buffer, elapsed: hearts, dx: dx, dy: dy) }
+        if let hearts = pose.heartsElapsed {
+            drawHearts(&buffer, elapsed: hearts, until: pose.heartsUntil)
+        }
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
         if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
 
@@ -359,7 +370,6 @@ public enum CrabRig {
         }
     }
 
-    /// Up to three pink hearts spawning at the crown every 0.8s, each rising a
     /// The party's confetti: six flecks falling from the crown on a
     /// deterministic spawn table, each fading as it falls, the whole shower
     /// eased by the party's own trapezoid so the ends never snap. Seeds
@@ -384,29 +394,58 @@ public enum CrabRig {
         }
     }
 
-    /// pixel every 0.15s and dissolving as it climbs.
-    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
-        let spawns = [0.3, 1.1, 1.9]
-        for (index, born) in spawns.enumerated() {
-            let age = (elapsed - born).truncatingRemainder(dividingBy: 2.4)
-            guard elapsed > born, age >= 0 else { continue }
-            let rise = Int(age / 0.15)
-            let y = 8 + dy - rise
-            guard y > 0 else { continue }
-            let x = 10 + index * 5 + dx
+    /// The columns a heart may rise in. Nine is the leftmost the drift can
+    /// reach, which keeps them clear of the service glyph's box at cols 1-8 —
+    /// `drawHearts` runs after `servicePass`, so an overlap would eat the mark.
+    private static let heartColumns = [10, 13, 16, 19, 22]
+
+    /// Pink hearts rising from the crown while he is held. `CrabAnimator`
+    /// owns when they are born; this owns what one looks like on its way up.
+    ///
+    /// Three things here are load-bearing, and each replaces something that
+    /// was quietly wrong:
+    ///
+    /// - **`Ease.pulse`, not a linear fade.** The old heart had an ease at
+    ///   neither end: `1 - age/1.6` is 1 at birth, so all seven cells
+    ///   appeared in a single frame, and a `guard y > 0` deleted it at age
+    ///   1.2s while the dissolve was still showing a quarter of it. `pulse`
+    ///   is zero outside its own window, so a heart now arrives and leaves
+    ///   under its own envelope and nothing has to kill it.
+    /// - **A rise slow enough to outlast the grid** — see
+    ///   `CrabAnimator.heartRow`. The old rate asked for 8.7 rows of travel
+    ///   out of seven rows of airspace, and that mismatch *was* the bug.
+    /// - **No `dx`/`dy`.** They were applied live rather than at birth, so
+    ///   `applyPetting`'s own purr wiggle shifted every heart already in the
+    ///   air one pixel sideways in lockstep. A heart he has let go of is not
+    ///   attached to him any more. `drawConfetti` takes neither, for the
+    ///   same reason.
+    ///
+    /// Seeds 700-702, cycling by ordinal.
+    private static func drawHearts(_ b: inout PixelBuffer, elapsed: Double, until: Double?) {
+        for (ordinal, born) in CrabAnimator.heartSpawns(elapsed: elapsed, until: until) {
+            let age = elapsed - born
+            let visibility = CrabAnimator.heartVisibility(age: age)
+            guard visibility > 0.001 else { continue }
+            let row = CrabAnimator.heartRow(age: age)
+            let pick = Int(CrabAnimator.noise(ordinal &* 59 &+ 7) * Double(heartColumns.count))
+            // A single-pixel lean part-way up, so it does not rise in a
+            // dead-straight line. One cell is the grid's own quantum.
+            let drift = row <= 5 ? (ordinal % 2 == 0 ? 1 : -1) : 0
             var heart = PixelBuffer()
             heart.stamp([
                 "p.p",
                 "ppp",
                 ".p.",
-            ], at: (x: x, y: y), key: ["p": .pink])
-            let fade = max(0, 1 - age / 1.6)
-            b.composite(heart, visibility: fade, seed: 700 + index)
+            ], at: (x: heartColumns[pick % heartColumns.count] + drift, y: row),
+               key: ["p": .pink])
+            b.composite(heart, visibility: visibility, seed: 700 + ordinal % 3)
         }
     }
 
     /// The 🍤: a small pink shrimp beside his mouth that loses a column per
-    /// munch beat, easing in at the start and gone by the last bite.
+    /// munch beat, easing in at the start. The last bite leaves a single pink
+    /// pixel rather than nothing — one cell is the grid's own quantum, so it
+    /// reads as a crumb and disappears with the envelope at 2.8s.
     private static func drawSnack(_ b: inout PixelBuffer, elapsed: Double, dx: Int, dy: Int) {
         // Three munch beats at 0.9, 1.5, 2.1s; a column disappears at each.
         let bites = [0.9, 1.5, 2.1].filter { elapsed >= $0 }.count

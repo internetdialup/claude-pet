@@ -217,9 +217,15 @@ final class PetInstance {
             self.model.pettingEndedAt = Date()
             // A step-aside deferred to the hold gets its turn on release.
             self.stepAsideIfWanted()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            // Long enough to cover the purr's 0.45s release AND the life of a
+            // heart born just before the release (1.3s). Clearing at 0.6s
+            // re-introduced the very deletion `heartsUntil` exists to prevent:
+            // the pose would stop being petted while hearts were still
+            // climbing. The cost is that the view holds 30fps for two seconds
+            // after a pet rather than for half of one.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
                 guard let self, let ended = self.model.pettingEndedAt,
-                      Date().timeIntervalSince(ended) >= 0.55 else { return }
+                      Date().timeIntervalSince(ended) >= 1.95 else { return }
                 self.model.pettingStartedAt = nil
                 self.model.pettingEndedAt = nil
             }

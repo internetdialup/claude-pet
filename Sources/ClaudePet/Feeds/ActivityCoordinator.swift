@@ -209,8 +209,9 @@ public final class ActivityCoordinator {
         let cycle = Int(since / cadence.period) &+ 1        // never 0
         guard since.truncatingRemainder(dividingBy: cadence.period)
             >= cadence.period - cadence.dwell else { return nil }
-        // 71+29 is unused: 19+13, 41+17, 43+11, 43+13, 53+7 and 61+3 are taken
-        // by the shimmer, disco, balloon, chatter gate, bug and stargazer.
+        // 71+29, plus the slot so two pets never breathe in lockstep. The
+        // registry of who owns which salt is on `CrabAnimator.noise`; the copy
+        // that used to be here listed six of eleven and had stopped being true.
         guard CrabAnimator.noise(cycle &* 71 &+ 29 &+ salt) < cadence.chance
         else { return nil }
         return cycle

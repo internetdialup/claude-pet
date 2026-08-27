@@ -17,6 +17,40 @@ public enum CrabAnimator {
     /// of its options. That silently narrowed the idle flourishes and the
     /// working props as well as the hover reactions. splitmix64's finaliser
     /// avalanches properly: one bit of input changes half the output bits.
+    ///
+    /// ## The salt registry
+    ///
+    /// Every dice gate in the app is `noise(cycle &* A &+ B)`. Two schedules
+    /// sharing an `A` over the same domain fire together forever, which reads
+    /// as one coincidence you can never explain. The registry lived inside
+    /// `bubbleBurst` and had gone stale — it listed six of the eleven — so it
+    /// lives here now, at the one function all of them pass through.
+    ///
+    /// Over a **cycle** domain:
+    ///
+    /// | salt | who |
+    /// | --- | --- |
+    /// | `7 &+ 3` | which idle flourish |
+    /// | `13 &+ 5` | the working prop re-roll |
+    /// | `19 &+ 13` | the bubble shimmer |
+    /// | `29 &+ 11` | the cooking heat cascade |
+    /// | `41 &+ 17` | the disco tint |
+    /// | `43 &+ 11` | the idle balloon |
+    /// | `53 &+ 7` | the floor bug |
+    /// | `59 &+ 7` | the petting hearts' column |
+    /// | `61 &+ 3` | the stargazer |
+    /// | `67 &+ 5` | the near-done glow |
+    /// | `71 &+ 29 &+ slot` | the bubble bursts |
+    /// | `73 &+ 5` | the patch of sun |
+    /// | `83 &+ 13` | the shell glint |
+    /// | `89 &+ 11` | whether an idle flourish plays at all |
+    ///
+    /// Over other domains, where a collision with the above is impossible
+    /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
+    /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
+    /// shot), `43 &+ 13` (idle chatter, per seed).
+    ///
+    /// **Free:** 17, 23, 79, 97.
     static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
@@ -450,10 +484,87 @@ public enum CrabAnimator {
         }
     }
 
+    /// A heart's whole life: `Ease.pulse`'s attack + hold + decay.
+    static let heartLife = 1.30
+
+    /// Two hearts greet the purr, then one every four seconds.
+    private static let heartOpening = [0.30, 1.20]
+    private static let heartRefrainStart = 5.20
+    private static let heartRefrain = 4.00
+
+    /// How visible a heart is `age` seconds after its birth.
+    ///
+    /// `Ease.pulse` rather than a linear fade because it is **zero outside
+    /// its own window**, at both ends. The old heart used `1 - age/1.6`,
+    /// which is 1 at age zero — every cell appeared in one frame — and was
+    /// then deleted by a bounds guard at 0.25 visibility. It had an ease at
+    /// neither end.
+    static func heartVisibility(age: Double) -> Double {
+        Ease.pulse(age, attack: 0.15, hold: 0.25, decay: 0.90)
+    }
+
+    /// Which row a heart of this age sits on. One row per 0.20s from the
+    /// crown at y=8, so a whole life is six rows and the last one is y=2 —
+    /// the envelope closes with two rows of grid still to spare. The old rate
+    /// asked for 8.7 rows of travel out of seven rows of airspace, and that
+    /// mismatch is what forced the bounds guard that did the deleting.
+    static func heartRow(age: Double) -> Int { 8 - Int(age / 0.20) }
+
+    /// Which hearts are in the air `elapsed` seconds into a hold, as
+    /// (ordinal, birth) pairs. The ordinal is permanent and unbounded — it
+    /// picks the column and the dissolve, so it must not recycle.
+    ///
+    /// The old table was three onsets on a 2.4s modulo: a heart every 0.8s,
+    /// forever, thirty-eight of them in a half-minute hold. It was the only
+    /// sprite overlay in the app with no gate of any kind, which is exactly
+    /// why it read as constant rather than as affection.
+    ///
+    /// The rarity here is spacing, not chance, and that is deliberate.
+    /// Petting is something you choose to do; a dice that answers a
+    /// three-second hold with nothing at all punishes the one interaction
+    /// the operator goes looking for. Dice belong on the things that happen
+    /// *to* you — the bug, the balloon, the telescope. So the first two
+    /// hearts are guaranteed and land inside a second and a half, and the
+    /// refrain that follows is what stops a long hold being a fountain:
+    /// 1s → 1 heart, 3s → 2, 10s → 4, 30s → 9.
+    /// `until` is when the hold ended, if it has: no heart is born after it,
+    /// but the ones already climbing are still returned until they finish.
+    static func heartSpawns(elapsed: Double, until: Double? = nil) -> [(ordinal: Int, born: Double)] {
+        let lastBirth = min(elapsed, until ?? elapsed)
+        var spawns: [(ordinal: Int, born: Double)] = []
+        for (index, born) in heartOpening.enumerated() where born < lastBirth {
+            spawns.append((index, born))
+        }
+        if lastBirth > heartRefrainStart {
+            let beats = Int((lastBirth - heartRefrainStart) / heartRefrain)
+            for beat in 0...beats {
+                spawns.append((heartOpening.count + beat,
+                               heartRefrainStart + Double(beat) * heartRefrain))
+            }
+        }
+        // Only the ones still in the air; the rest have finished dissolving.
+        return spawns.filter { elapsed - $0.born < heartLife }
+    }
+
     /// Being petted: eyes ease shut, a purr wiggle, and hearts. Applied after
     /// the greeting so a hold wins over a hover — you cannot pet him and be
     /// waved at simultaneously.
-    public static func applyPetting(elapsed: Double, amount: Double, to pose: inout CrabPose) {
+    public static func applyPetting(elapsed: Double, amount: Double,
+                                    until: Double? = nil, to pose: inout CrabPose) {
+        // The hearts run on the latch, NOT on the purr envelope, and they are
+        // written before the envelope guard on purpose. A heart born just
+        // before you let go still has a life to finish, and the envelope is
+        // closed 0.45s after the release — gating the hearts on it deleted
+        // every one in the air in a single frame.
+        if let until {
+            if elapsed - until < heartLife {
+                pose.heartsElapsed = elapsed
+                pose.heartsUntil = until
+            }
+        } else {
+            pose.heartsElapsed = elapsed
+        }
+
         guard amount > 0.001 else { return }
         if amount >= 0.5 {
             pose.blink = 1
@@ -461,7 +572,6 @@ public enum CrabAnimator {
             pose.winkEye = .none
             pose.mouth = .smile
             pose.lean += Ease.square(elapsed * 2.5) > 0.5 ? 1 : -1
-            pose.heartsElapsed = elapsed
         }
         pose.armLeft = max(pose.armLeft, 0.2 * amount)
         pose.armRight = max(pose.armRight, 0.2 * amount)
@@ -1035,6 +1145,7 @@ public struct CrabView: View {
                                       amount: Ease.amount(now: time,
                                                           since: petSince,
                                                           endedAt: petEndedAt),
+                                      until: petEndedAt.map { $0 - petSince },
                                       to: &pose)
         }
         if let clickedAt, frozenTime == nil {
