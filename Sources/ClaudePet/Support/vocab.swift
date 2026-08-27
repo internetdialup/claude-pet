@@ -103,6 +103,11 @@ public enum Vocab {
             "I'm hungry for something new!",
             "Excited to see what you cook up",
             "Ooo that's a spicy idea 🌶️",
+            "What are we making?",
+            "Mise en place, chef",
+            "Give me something hard",
+            "Say the word",
+            "Burner's on",
         ]
 
         // 💭 Reasoning. Usually shown as pulsing dots instead, so these are rare.
@@ -110,6 +115,9 @@ public enum Vocab {
             "Thinking it through",
             "Give me a second",
             "Working out the shape of it",
+            "Turning it over",
+            "Not there yet",
+            "Let me sit with this",
         ]
 
         // ⚙️ A tool is running. The task text wins whenever there is one, so
@@ -118,6 +126,8 @@ public enum Vocab {
             "On it",
             "Making progress",
             "This is the fun part",
+            "Still here",
+            "Steady claws",
         ]
 
         // 🔥 Really going. Same rule — the task text wins when there is one.
@@ -127,6 +137,8 @@ public enum Vocab {
             "Do not disturb",
             "Full send",
             "In the zone",
+            "Both claws in",
+            "Every burner going",
         ]
 
         // ✅ A turn just finished.
@@ -137,6 +149,10 @@ public enum Vocab {
             "Shipped it!",
             "Chef's kiss",
             "Another one done",
+            "Order up 🔔",
+            "Plated and out",
+            "Done and dusted",
+            "That'll do",
         ]
 
         // 👀 A plan is up and he wants your verdict.
@@ -146,6 +162,8 @@ public enum Vocab {
             "Shall we?",
             "Waiting on your call",
             "Ready when you are",
+            "Menu's up",
+            "Your move",
         ]
 
         // ‼️ Claude is blocked on you.
@@ -154,6 +172,7 @@ public enum Vocab {
             "One quick question",
             "Waiting on you!",
             "Need a hand over here",
+            "Stuck without a yes",
         ]
 
         // 😴 Nothing running. Shown occasionally, not on every frame — a
@@ -162,6 +181,8 @@ public enum Vocab {
             "zzz…",
             "Wake me when it matters",
             "Resting my claws",
+            "Off the clock",
+            "Burners are cold",
         ]
 
         // 🐛 He caught the bug. The oldest joke in the trade, four ways.
@@ -170,6 +191,8 @@ public enum Vocab {
             "Zero known issues",
             "It was a race condition",
             "Closed as completed",
+            "Off-by-one, obviously",
+            "Delicious 😋",
         ]
         }
     }
@@ -185,19 +208,92 @@ public enum Vocab {
             "Writing tests, the good kind 🧪",
             "Red, green, refactor",
             "Proving it works",
+            "Red before green",
         ]),
         VocabRule(#"\b(commit|git)\b"#, [
             "Committing the good stuff 📦",
             "Writing a message you'll thank me for",
+            "Sealing the jar",
+            "Stamping it",
         ]),
         VocabRule(#"\b(fix|bug|debug)\b"#, [
             "On the hunt 🔍",
             "Found something suspicious",
             "Squashing it",
+            "Following the smell",
+            "It's always the cache",
         ]),
         VocabRule(#"\b(README|docs?|document)\b"#, [
             "Writing it down 📝",
             "Docs are a feature",
+            "Explaining the why",
+            "Words about the words",
+        ]),
+
+        // A build is running.
+        // `build\w*` rather than an alternation of forms: the first draft listed
+        // build|building|rebuild and silently missed "builds" and "rebuilding".
+        VocabRule(#"\b(build\w*|rebuild\w*|compil\w*)\b"#, [
+            "Warming up the oven",
+            "Cross your claws",
+            "Turning the crank",
+        ]),
+
+        // Pulling dependencies.
+        // Bare `npm`/`yarn` are deliberately absent so `npm run build` reaches
+        // the build rule above rather than being claimed here.
+        VocabRule(#"\b(install\w*|dependenc\w+|node_modules|package-lock)\b"#, [
+            "Fetching the ingredients",
+            "Downloading the internet",
+            "Groceries 🛒",
+        ]),
+
+        // A formatter or a type check.
+        // `prettier` was dropped from this list: it matched "Make the header
+        // prettier", which is not a formatter run.
+        VocabRule(#"\b(lint\w*|eslint|swiftlint|swiftformat|gofmt|typecheck|tsc)\b"#, [
+            "Making it pretty",
+            "Two spaces or four",
+            "The robot has opinions",
+            "Whitespace patrol",
+        ]),
+
+        // Moving code without changing it.
+        // `extract\w*` was dropped: it matched "Extract frames from the wink
+        // GIF", which is this repo's own media work and not a refactor.
+        VocabRule(#"\b(refactor\w*|renam\w*|tidy\w*|clean ?up)\b"#, [
+            "Moving furniture",
+            "Same dish, better recipe",
+            "Same behaviour, new shape",
+            "Rewiring, carefully",
+        ]),
+
+        // Making it faster.
+        // `profiling|profiler`, not `profil\w+`, which matched "Add a user
+        // profile page".
+        VocabRule(#"\b(perf|performance|benchmark\w*|profiling|profiler|optimi[sz]\w+)\b"#, [
+            "Chasing milliseconds",
+            "Measure, then cut",
+            "Trimming the fat",
+        ]),
+
+        // Reading a change.
+        // Bare `PR` was dropped: the matcher is case-insensitive, so it fired on
+        // any stray "pr".
+        VocabRule(#"\b(review\w*|pull request|diff)\b"#, [
+            "Reading it twice",
+            "Nitpicking, professionally",
+            "Looking for sharp edges",
+        ]),
+
+        // Searching the tree.
+        // Deliberately narrow. `search\w*` matched "Add search to the sidebar" —
+        // feature work, not searching — and for a real search the pattern IS
+        // the most interesting thing on screen, so this hides as little as it can.
+        VocabRule(#"\b(grep|rg|ripgrep)\b"#, [
+            "Somewhere in here",
+            "Pulling the thread",
+            "Combing through",
         ]),
     ]
 
@@ -237,20 +333,6 @@ public enum Vocab {
                             seed: Int) -> String? {
         let pool = task.flatMap { rule(matching: $0) }?.lines ?? lines(for: occasion)
         return pick(from: pool, seed: seed)
-    }
-
-    /// The occasion's lines, WIDENED by any rule the subject matches.
-    ///
-    /// Distinct from `line(for:matching:)`, where a matching rule *replaces*
-    /// the pool because the pet is genuinely doing that thing right now. Here
-    /// the subject is the session's title — which is the last prompt, and does
-    /// not change for the life of a session — so replacing would pin an idle
-    /// pet whose last prompt was "fix the login bug" to five debug lines
-    /// forever, narrowing the most-visible pool in the app from fourteen to
-    /// five. That is the exact opposite of what wiring this up was for.
-    public static func lines(for occasion: ShoutoutOccasion,
-                             about subject: String?) -> [String] {
-        lines(for: occasion) + (subject.flatMap { rule(matching: $0) }?.lines ?? [])
     }
 
     /// Walks the pool in a shuffled order, using every line before any repeats.
@@ -367,12 +449,4 @@ public struct LineCursor: Sendable {
                     token: token)
     }
 
-    /// The idle line, drawn from the occasion WIDENED by the session's subject.
-    /// See `Vocab.lines(for:about:)` for why idle widens where working replaces.
-    public mutating func idleLine(about subject: String?, token: String) -> String? {
-        let widened = Vocab.lines(for: .idle, about: subject)
-        let id = subject.flatMap { Vocab.rule(matching: $0) }
-            .map { "occasion:idle+rule:\($0.pattern)" } ?? "occasion:idle"
-        return next(widened, id: id, token: token)
-    }
 }

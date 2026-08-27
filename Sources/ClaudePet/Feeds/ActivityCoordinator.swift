@@ -789,7 +789,7 @@ public final class ActivityCoordinator {
             var snapshot = StatusTicker.Snapshot()
             snapshot.sessionCount = roster.count
             let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
-                                   subject: nil, now: now)
+                                   now: now)
             up.bubble = line.text
             up.bubbleStyle = line.style
         }
@@ -854,7 +854,21 @@ public final class ActivityCoordinator {
             mood = .cooking
         }
 
-        let task = focus.activeTaskLabel ?? focus.activity ?? focus.title
+        // What Claude is DOING right now, if anything — and the only thing a
+        // rule may claim.
+        //
+        // The distinction is load-bearing and its absence was a real defect.
+        // `focus.title` is the session's SUBJECT: it comes from the last
+        // prompt and does not change for the life of the session. Folding it
+        // in here meant `.done` — which nils `activity` and `tool` — fell
+        // through to the title and let a rule claim it, so a session titled
+        // "fix the login bug" announced the end of its turn with
+        // "It's always the cache" instead of a completion line.
+        //
+        // A rule's whole contract is that it replaces a label describing an
+        // action in flight. A subject is not an action.
+        let action = focus.activeTaskLabel ?? focus.activity
+        let task = action ?? focus.title
         var bubble = task.map { Self.condense($0) }
         var style = PetState.BubbleStyle.plain
         // Whether this mood rides the burst schedule. Set by the `default:`
@@ -909,7 +923,7 @@ public final class ActivityCoordinator {
                 snapshot.sessionCount = ordered.count
                 snapshot.activeHoursToday = focus.activeHoursToday
                 let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
-                                       subject: focus.title, now: now)
+                                       now: now)
                 bubble = line.text
                 style = line.style
             } else {
@@ -918,9 +932,10 @@ public final class ActivityCoordinator {
 
         default:
             chatterCache[slot].line = nil
-            if let task, Vocab.rule(matching: task) != nil {
-                // A rule claimed this task.
-                bubble = Vocab.line(for: mood.shoutoutOccasion, matching: task, seed: seed)
+            if let action, Vocab.rule(matching: action) != nil {
+                // A rule claimed this action. `action`, never `task`: see the
+                // note where they are derived.
+                bubble = Vocab.line(for: mood.shoutoutOccasion, matching: action, seed: seed)
             } else if let task {
                 bubble = Self.condense(task)
             } else {
@@ -1010,14 +1025,8 @@ public final class ActivityCoordinator {
     /// Held for `chatterInterval` rather than re-rolled on every `recompute()`
     /// — this runs on the 2s decay timer, so choosing per call would rewrite the
     /// sentence out from under the reader three times before they finished it.
-    /// - Parameter subject: the focused session's title, which WIDENS the idle
-    ///   pool with any rule it matches rather than replacing it. No default:
-    ///   this parameter was declared with one and then omitted at its only call
-    ///   site, so the rule hook sat dead for its whole life. A required
-    ///   argument cannot go dead again.
     private func idleChatter(slot: Int, seed: Int,
                              snapshot: StatusTicker.Snapshot,
-                             subject: String?,
                              now: Date) -> (text: String, style: PetState.BubbleStyle) {
         if let current = chatterCache[slot].line,
            now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterInterval {
@@ -1049,8 +1058,7 @@ public final class ActivityCoordinator {
             // deck's promise evaporated. Measured at 10.4% immediate repeats
             // before the cursor; that is the "spicy idea" the operator kept
             // seeing.
-            let line = chatterCache[slot].cursor.idleLine(about: subject,
-                                                          token: "\(seed)")
+            let line = chatterCache[slot].cursor.line(for: .idle, token: "\(seed)")
             next = (line ?? "Ready when you are", .plain)
         }
 

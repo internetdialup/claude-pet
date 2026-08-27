@@ -40,6 +40,7 @@ public enum NotificationNudge {
             "Done ✅",
             "That's a wrap 🎬",
             "Finished",
+            "Back to you",
         ]
 
         // ‼️ Blocked on you.
@@ -47,18 +48,23 @@ public enum NotificationNudge {
             "Claw'd needs you ‼️",
             "Waiting on you",
             "One quick thing",
+            "One yes away ‼️",
         ]
 
         // 👀 A plan wants a verdict.
         case .planReady: [
             "Plan's ready 👀",
             "Ready for your call",
+            "Plan's up",
+            "Your verdict?",
         ]
 
         // 🔥 Going hard.
         case .cooking: [
             "Cooking 🔥",
             "Full send",
+            "Both claws in",
+            "Every burner going",
         ]
         }
     }
@@ -70,21 +76,29 @@ public enum NotificationNudge {
         case .finished: [
             "Your turn.",
             "Come see what changed.",
+            "Plated and ready.",
+            "Nothing left running.",
         ]
 
         case .needsYou: [
             "Claude is waiting on a response.",
             "Nothing moves until you look.",
+            "Claude is waiting on one answer.",
+            "Claude needs a yes or a no.",
         ]
 
         case .planReady: [
             "A plan is waiting for approval.",
             "Take a look when you can.",
+            "Claude wants your verdict.",
+            "Approve it or send it back.",
         ]
 
         case .cooking: [
             "Tools are flying.",
             "Deep in it right now.",
+            "Rapid tool calls, back to back.",
+            "Several tools at once.",
         ]
         }
     }

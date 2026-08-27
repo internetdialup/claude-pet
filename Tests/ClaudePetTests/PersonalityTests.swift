@@ -176,7 +176,7 @@ struct LineCursorTests {
             // this third gate the test stops modelling the shipped path, which
             // is the one thing its own name promises.
             guard CrabAnimator.noise(seed &* 17 &+ 7) >= 0.5 else { continue }
-            said.append(cursor.idleLine(about: nil, token: "\(seed)")!)
+            said.append(cursor.line(for: .idle, token: "\(seed)")!)
         }
         #expect(said.count > 25, "the gate should let plenty through")
         for (a, b) in zip(said, said.dropFirst()) {
@@ -212,16 +212,74 @@ struct LineCursorTests {
                 "the body pool is not being walked")
     }
 
-    /// The subject WIDENS the idle pool rather than replacing it. Replacing
-    /// would pin an idle pet whose last prompt was "fix the login bug" to the
-    /// debug rule's few lines for the whole life of the session.
-    @Test("A session's subject widens idle rather than narrowing it")
-    func idleWidensOnTheSubject() {
-        let plain = Vocab.lines(for: .idle, about: nil)
-        let widened = Vocab.lines(for: .idle, about: "fix the login bug")
-        #expect(widened.count > plain.count, "the subject narrowed the pool")
-        for line in plain {
-            #expect(widened.contains(line), "widening dropped \"\(line)\"")
+    /// Deferred from the round that added `LineCursor`, and true at last:
+    /// `Vocab.pick` short-circuits a two-line pool to strict alternation and a
+    /// one-line pool to a constant, so a pool of two is not variety, it is a
+    /// metronome you cannot hear until you have watched it for a week.
+    @Test("No shipped pool is thin enough to only alternate")
+    func poolsAreDeepEnough() {
+        for occasion in ShoutoutOccasion.allCases {
+            #expect(Vocab.lines(for: occasion).count > 2,
+                    "\(occasion.rawValue) can only alternate")
+        }
+        for rule in Vocab.rules {
+            #expect(rule.lines.count > 2, "\(rule.pattern) can only alternate")
+        }
+        for event in NudgeEvent.allCases {
+            #expect(NotificationNudge.titles(for: event).count > 2, "\(event) titles")
+            #expect(NotificationNudge.bodies(for: event).count > 2, "\(event) bodies")
+        }
+    }
+
+    /// **Every case here was measured against the shipped patterns and failed.**
+    /// A rule REPLACES the real task label, so a false positive does not merely
+    /// mistime a joke — it deletes the one string on screen that said what was
+    /// happening.
+    @Test("No rule claims a label that is not its own")
+    func rulesDoNotFalsePositive() {
+        let mustNotMatch = [
+            "Make the header prettier",          // was claimed by lint
+            "Extract frames from the wink GIF",  // was claimed by refactor
+            "Add a user profile page",           // was claimed by performance
+            "Add search to the sidebar",         // was claimed by search
+            "Ship the new costume",              // was claimed by deploy
+            "press and release the key",         // was claimed by deploy
+        ]
+        for label in mustNotMatch {
+            let rule = Vocab.rule(matching: label)
+            #expect(rule == nil,
+                    "\"\(label)\" was claimed by \(rule?.pattern ?? "")")
+        }
+    }
+
+    /// The other half: two patterns silently MISSED labels they were written
+    /// for, which is a quieter failure — the rule simply never fires.
+    @Test("Rules match the labels they were written for")
+    func rulesMatchTheirOwnLabels() {
+        let mustMatch = [
+            "Rebuilding the parser", "Fix the builds", "Compiling",
+            "Run eslint", "Refactor the parser", "Profiling the render",
+            "Review the diff", "grep for the salt", "npm install",
+        ]
+        for label in mustMatch {
+            #expect(Vocab.rule(matching: label) != nil, "nothing claimed \"\(label)\"")
+        }
+    }
+
+    /// Rule lines are NOT idle lines.
+    ///
+    /// An earlier round widened the idle pool with any rule matching the
+    /// session's title, on the theory that a session about tests could say
+    /// test-flavoured things while idle. It was a category error: rule lines
+    /// narrate an action in flight ("Waiting on the compiler"), so they are
+    /// false at rest — and it put a rule's lines and idle's lines in one deck,
+    /// where they collided.
+    @Test("The idle pool is only the idle pool")
+    func idlePoolIsNotWidened() {
+        let idle = Vocab.lines(for: .idle)
+        let ruleLines = Set(Vocab.rules.flatMap(\.lines))
+        for line in idle {
+            #expect(!ruleLines.contains(line), "\"\(line)\" is in both idle and a rule")
         }
     }
 }
