@@ -44,6 +44,7 @@ public enum CrabAnimator {
     /// | `67 &+ 5` | the near-done glow |
     /// | `71 &+ 29 &+ slot` | the bubble bursts |
     /// | `73 &+ 5` | the patch of sun |
+    /// | `79 &+ 23` | whether a silent working beat carries a fact |
     /// | `83 &+ 13` | the shell glint |
     /// | `89 &+ 11` | whether an idle flourish plays at all |
     ///
@@ -52,7 +53,7 @@ public enum CrabAnimator {
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
     /// shot), `43 &+ 13` (idle chatter, per seed).
     ///
-    /// **Free:** 79, 97.
+    /// **Free:** 97.
     static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9

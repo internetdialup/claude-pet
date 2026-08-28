@@ -310,6 +310,9 @@ public final class ActivityCoordinator {
         /// one counter would interleave each other's mixes and neither would
         /// hold the ratio.
         var factDraws = 0
+        /// The seed the last fact was drawn for, so a path that recomputes
+        /// faster than the line changes cannot walk the deck.
+        var lastFactSeed: Int?
     }
     private var chatterCache: [SlotChatter] = [SlotChatter(cursor: LineCursor())]
 
@@ -972,7 +975,15 @@ public final class ActivityCoordinator {
                 cadence: cadence,
                 salt: slot &* 7919)
             if burst == nil {
-                bubble = nil
+                // The cadence chose silence. That is the one place a fact can
+                // go without displacing anything, so ask — and fall back to the
+                // silence it would have been.
+                if let known = quietBeatFact(mood: mood, slot: slot, seed: seed, now: now) {
+                    bubble = known
+                    style = Self.bubbleStyle(for: known)
+                } else {
+                    bubble = nil
+                }
             } else if task == nil, let burst {
                 // Nothing real to protect, so draw a fresh line per burst.
                 //
@@ -1111,10 +1122,25 @@ public final class ActivityCoordinator {
     ///
     /// A third rather than a half, because the facts are the thing the operator
     /// asked for first and there are seventy-six of them against sixteen tips.
+    /// Whether an idle cycle spends itself on something he KNOWS rather than on
+    /// something he feels. The fun facts' original gate, unchanged since they
+    /// shipped — named here rather than inlined so the suite can measure the
+    /// real rate instead of restating the arithmetic and drifting from it.
+    nonisolated static func informationalBeat(seed: Int) -> Bool {
+        CrabAnimator.noise(seed &* 17 &+ 7) < 0.5
+    }
+
+    /// Whether a beat the cadence SILENCED carries a fact anyway. Named for the
+    /// same reason, and separate because the two gates compound: this one, then
+    /// `informationalBeat` inside `factOrTip`.
+    nonisolated static func quietBeatSpeaks(seed: Int) -> Bool {
+        CrabAnimator.noise(seed &* 79 &+ 23) < 0.6
+    }
+
     private func factOrTip(slot: Int, seed: Int) -> String? {
         // Unchanged, and deliberately so: this is the gate the fun facts have
         // always answered to, so the cycles they own stay theirs.
-        guard CrabAnimator.noise(seed &* 17 &+ 7) < 0.5 else { return nil }
+        guard Self.informationalBeat(seed: seed) else { return nil }
         if CrabAnimator.noise(seed &* 23 &+ 19) < 0.34,
            let tip = chatterCache[slot].cursor.next(ClaudeTips.all, id: "tip",
                                                     token: "\(seed)") {
@@ -1124,16 +1150,70 @@ public final class ActivityCoordinator {
     }
 
     private func funFact(slot: Int, seed: Int) -> String? {
+        // ONCE PER SEED, not once per call — and the counter steps BEFORE the
+        // category is read from it, so both are stable for the whole fourteen
+        // seconds the line is on screen.
+        //
+        // The idle path reaches here at most once per line, because its cache
+        // short-circuits first; this function's own note used to lean on that.
+        // The working path has no such cache and recomputes every two seconds,
+        // which would step the mix seven times inside one window — and because
+        // the category is derived from the counter, the LINE would change under
+        // a reader mid-sentence.
+        if chatterCache[slot].lastFactSeed != seed {
+            chatterCache[slot].lastFactSeed = seed
+            chatterCache[slot].factDraws &+= 1
+        }
         let category = FunFacts.category(forDraw: chatterCache[slot].factDraws)
         guard let fact = chatterCache[slot].cursor.next(
             FunFacts.facts(in: category),
             id: "fact:\(category.rawValue)",
             token: "\(seed)") else { return nil }
-        // After the draw, and only here — this function is reached once per
-        // chosen line, never on the 2s recompute, because the cache above
-        // short-circuits first.
-        chatterCache[slot].factDraws &+= 1
         return fact
+    }
+
+    /// The moods a fact may fill a silent beat in.
+    ///
+    /// Working, cooking, and idle-holding-a-todo — the three where he has
+    /// something going on but nothing new to say about it. Deliberately NOT the
+    /// calls to action: `nudging` and `needsAttention` exist to be answered,
+    /// and trivia over the top of "he is blocked on you" is the one place this
+    /// would be actively wrong. `thinking` is out too, because it shows dots
+    /// rather than words and never reaches this gate at all.
+    static let factMoods: Set<PetMood> = [.working, .cooking, .idle]
+
+    /// A fact or a tip on a cycle the cadence chose to silence.
+    ///
+    /// **Only silent cycles.** The label has already had its moment — that is
+    /// what `bubbleCadences` means by news — and `PetState.bubbleContent` keeps
+    /// the live text for the tooltip whatever is on his head, so nothing real
+    /// is displaced. A cycle with something new to say never gets here.
+    ///
+    /// A die on top, rather than every silent cycle, because filling them all
+    /// rebuilds the furniture the cadence exists to prevent, just with better
+    /// words. `factOrTip` carries its own even gate, so the two compound to
+    /// roughly three quiet cycles in ten — a fact every three or four minutes
+    /// of working, which is the rate the idle path already runs at.
+    private func quietBeatFact(mood: PetMood, slot: Int, seed: Int, now: Date) -> String? {
+        guard Self.factMoods.contains(mood),
+              Self.quietBeatSpeaks(seed: seed) else { return nil }
+
+        // …and only the FIRST part of the window it won.
+        //
+        // Without this the fact answers every recompute for its whole fourteen
+        // seconds, so the bubble never goes out and he is pinned again — the
+        // exact failure the cadence exists to prevent, just with better words.
+        // `aChurningTaskLabelCannotPin…` caught it, and caught it
+        // intermittently, because whether the window's single die had landed
+        // decided the entire run.
+        //
+        // The dwell is the mood's OWN, not a new number: a fact should sit on
+        // his head for exactly as long as anything else that mood says.
+        let dwell = Self.bubbleCadences[mood]?.dwell ?? 6
+        let intoWindow = now.timeIntervalSince1970
+            .truncatingRemainder(dividingBy: Self.chatterInterval)
+        guard intoWindow < dwell else { return nil }
+        return factOrTip(slot: slot, seed: seed)
     }
 
     private func publish(_ new: PetState, slot: Int) {
