@@ -50,16 +50,51 @@ struct FunFactTests {
     /// Depth proportional to share, or the 20% pools repeat three times as
     /// often as the 60% one — the rare categories would be the ones you tire
     /// of first, which is the opposite of the intent.
+    ///
+    /// **Fixed minimums did not actually say that, and were replaced on
+    /// review.** `>= 10 / >= 10 / >= 30` is the 20/60/20 ratio only for as
+    /// long as all three pools sit exactly on their floors; add twelve Claude
+    /// facts and every `>=` still passes while the sentence above it quietly
+    /// goes false — which is the precise failure the doc comment claimed to
+    /// catch. The invariant is a category's REPEAT PERIOD, depth over share,
+    /// and it is MEASURED off `category(forDraw:)` rather than restated: a
+    /// copy of `mix` living in the test is one more thing that can drift from
+    /// the mix itself.
     @Test("The pools are deep enough, and proportional to their share")
     func poolsAreProportional() {
-        #expect(FunFacts.facts(in: .computerScience).count >= 6)
-        #expect(FunFacts.facts(in: .ai).count >= 6)
-        #expect(FunFacts.facts(in: .claude).count >= 16)
+        // 100 draws is ten whole turns of the mix, so these are exact counts
+        // and not a sample — and being percentages, they read directly.
+        var share: [FunFacts.Category: Int] = [:]
+        for draw in 0..<100 { share[FunFacts.category(forDraw: draw), default: 0] += 1 }
         for category in FunFacts.Category.allCases {
+            #expect(share[category, default: 0] > 0,
+                    "\(category.rawValue) never comes up in the mix at all")
+        }
+        // Nothing below divides by a share of zero.
+        guard FunFacts.Category.allCases.allSatisfy({ share[$0, default: 0] > 0 }) else { return }
+
+        // Cross-multiplied, so depth(a)/share(a) == depth(b)/share(b) stays
+        // integer arithmetic and an equality rather than a float tolerance.
+        for a in FunFacts.Category.allCases {
+            for b in FunFacts.Category.allCases where a != b {
+                let da = FunFacts.facts(in: a).count, db = FunFacts.facts(in: b).count
+                #expect(da * share[b, default: 0] == db * share[a, default: 0],
+                        "\(a.rawValue) has \(da) facts at \(share[a, default: 0])% and \(b.rawValue) has \(db) at \(share[b, default: 0])% — one comes back round sooner than the other; grow them together")
+            }
+        }
+
+        // Proportional is not the same as deep: 1/3/1 satisfies every ratio
+        // above and is five facts in total.
+        for category in FunFacts.Category.allCases {
+            let depth = FunFacts.facts(in: category).count
             // `Vocab.pick` short-circuits a two-entry pool to strict
             // alternation and a one-entry pool to a constant.
-            #expect(FunFacts.facts(in: category).count > 2, "\(category.rawValue) can only alternate")
+            #expect(depth > 2, "\(category.rawValue) can only alternate")
+            let period = depth * 100 / share[category, default: 1]
+            #expect(period >= 50,
+                    "\(category.rawValue) comes back round every \(period) draws")
         }
+
         #expect(Set(FunFacts.all).count == FunFacts.all.count, "a fact is duplicated")
     }
 

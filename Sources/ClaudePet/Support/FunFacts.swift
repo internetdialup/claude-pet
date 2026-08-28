@@ -81,6 +81,25 @@ public enum FunFacts {
             "'hello, world' comes from Kernighan's Bell Labs B tutorial",
             // "A Mathematical Theory of Communication", 1948.
             "Claude Shannon founded information theory in a 1948 paper",
+            // Engelbart's demo at the Fall Joint Computer Conference, San
+            // Francisco, 9 December 1968. "in public", not "first" — the mouse
+            // itself dates to 1963-64.
+            "The mouse was demonstrated in public in 1968",
+            // POSIX defines it as seconds since the Epoch, 1970-01-01 00:00:00
+            // UTC — and NON-LEAP seconds, which is why it already trails
+            // physically elapsed time by about half a minute.
+            "Unix time counts non-leap seconds since 1970-01-01 UTC",
+            // Dijkstra's own account, given decades later (the 2001 Frana
+            // interview, in CACM): about twenty minutes, no pencil, a cafe
+            // terrace in Amsterdam, 1956. "said he" because the only source for
+            // the twenty minutes is the man himself.
+            "Dijkstra said he designed his shortest-path algorithm in 20 minutes",
+            // Tomlinson's own account of BBN in 1971: two PDP-10s standing next
+            // to each other whose only link was the ARPANET. Pinned to him and
+            // to that network on purpose — mail between users of ONE
+            // time-shared machine predates it (CTSS, 1965), so a bare "the
+            // first email" is false and takes the joke down with it.
+            "In 1971 Tomlinson's ARPANET email went between machines side by side",
         ]
 
         // 🤖 AI, mostly its history — the part that will still be true later.
@@ -100,6 +119,33 @@ public enum FunFacts {
             // Described in the 1970s (Linnainmaa, Werbos), popularized by
             // Rumelhart, Hinton & Williams in 1986.
             "Backpropagation was described in the 1970s, popularized in 1986",
+            // The 1997 rematch in New York: Deep Blue took it 3.5-2.5 from
+            // Garry Kasparov. "a reigning world champion", indefinite, because
+            // the title was split at the time — Karpov held FIDE's.
+            "Deep Blue beat a reigning world chess champion in 1997",
+            // Fixed history: the hardware existed to rasterize triangles long
+            // before anyone ran a network on it.
+            "GPUs were built for graphics before they trained networks",
+            // The definitional claim, which is durable. An earlier draft ended
+            // "not in ideas" — a flourish stated as fact, and the half that is
+            // arguably false: the Lighthill report and the expert-system bust
+            // took the confidence along with the money.
+            "The AI winters were collapses in AI funding and interest",
+            // Minsky and Papert, "Perceptrons", 1969. The book's RESULT, not
+            // the folklore around it: it is routinely credited with stalling
+            // the field for a decade, but funding was thinning before it landed
+            // and Amari, Grossberg, Fukushima and Werbos all worked on through
+            // the 1970s.
+            //
+            // **Scoped to the perceptron on review, and the reviewer was
+            // right.** "one layer can't compute XOR" reads as a theorem about
+            // any one-layer architecture; the actual result is narrower and
+            // sharper — a single-layer perceptron draws one hyperplane and XOR
+            // is not linearly separable. A multilayer perceptron computes it
+            // fine, which is the whole reason the field went that way. The line
+            // is displayed WITHOUT this comment, so the qualifier has to be in
+            // the sentence.
+            "Minsky and Papert, 1969: a single-layer perceptron can't do XOR",
         ]
 
         // 🧡 Claude and Anthropic. The riskiest pool — rule 4 especially.
@@ -145,6 +191,53 @@ public enum FunFacts {
             // an earlier draft asserted the crab was Anthropic's intellectual
             // property, which is not something this project can vouch for.
             "Claw'd is unofficial fan art, not affiliated with Anthropic",
+            // The Constitutional AI paper, 2022 — subtitled "Harmlessness from
+            // AI Feedback". "as well as", because human preference data still
+            // supplies helpfulness.
+            "Constitutional AI uses AI feedback as well as human feedback",
+            // The Forum's founding announcement, July 2023.
+            "Anthropic co-founded the Frontier Model Forum in 2023",
+            // Perfect tense, and scoped to the apps: what appears in the release
+            // notes is the Claude app system prompts — not Claude Code's, and
+            // not the API's, which has no default system prompt at all. A
+            // present-tense claim about a practice ages the day it changes.
+            "Anthropic has published the system prompts for its Claude apps",
+            // Multimodal input. General and durable.
+            "Claude reads images as well as text",
+            // The correction of the popular retelling: in a BPE vocabulary
+            // common words like "the" and "and" ARE whole tokens, and a token
+            // can just as easily be punctuation or whitespace. "a piece of a
+            // word, not a whole one" is simply false.
+            "A token can be a whole word or just a piece of one",
+            // MCP's own announcement, November 2024.
+            "The Model Context Protocol was released in 2024",
+            // The RSP's actual mechanism, which an earlier draft had backwards:
+            // capability thresholds are what trigger a required safeguard
+            // standard, not the other way round.
+            "Anthropic's Responsible Scaling Policy sets capability thresholds",
+            // Superposition, stated generally rather than as a claim about what
+            // a whole field does — plenty of interpretability work studies
+            // single neurons, and the durable published finding is that one
+            // neuron carries several features at once.
+            "In neural nets, one neuron can encode several features",
+            // Durable: the API is the older of the two surfaces.
+            "Claude is reachable by API, not only a chat window",
+            // July 2023, in the first group of companies. "joined", not
+            // "signed": the White House announced them as VOLUNTARY
+            // commitments, not an instrument with signatories.
+            "Anthropic joined the 2023 White House voluntary AI commitments",
+            // **Past tense on review, and the reviewer was right.** "is
+            // public" is a present-tense claim about a document a company can
+            // rename, restrict or withdraw — precisely what rule 4 excludes,
+            // and it would go false inside binaries already shipped. That a
+            // policy WAS published is historical and cannot be taken back.
+            "Anthropic published a usage policy for Claude",
+            // A decoding parameter, not a product detail — the same knob exists
+            // wherever a model samples. It stands in for a cut line claiming
+            // Claude "was trained to say when it does not know", which asserts
+            // an outcome no primary source states and the model does not always
+            // deliver.
+            "Temperature controls how much a model's output varies",
         ]
         }
     }
