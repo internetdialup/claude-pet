@@ -282,12 +282,12 @@ struct MotionContinuityTests {
             // A hair before the landing the flourish must still be a kickflip,
             // and it must be at the very end of its run.
             let (kind, progress) = try! #require(CrabAnimator.flourish(at: landing - 0.02))
-            #expect(CrabAnimator.Flourish.skateTricks.contains(kind),
+            #expect(CrabAnimator.Flourish.skateBeats.contains(kind),
                     "predicted a landing during \(kind.rawValue), which is not a skate trick")
             #expect(progress > 0.98, "predicted the landing at \(progress) through it")
             // …and it is over by then.
             let after = CrabAnimator.flourish(at: landing + 0.02)?.0
-            #expect(after.map { !CrabAnimator.Flourish.skateTricks.contains($0) } ?? true,
+            #expect(after.map { !CrabAnimator.Flourish.skateBeats.contains($0) } ?? true,
                     "the trick was still running after its own landing")
             t = landing + 0.1
         }
@@ -352,23 +352,89 @@ struct MotionContinuityTests {
         #expect(thinnest == 1, "the deck was never flat on; thinnest was \(thinnest)")
     }
 
-    /// **And an impossible is the one that DOES go diagonal.**
-    ///
-    /// Pure pitch — the board wrapping end over end in the plane of the screen —
-    /// is the one rotation that legally draws a slanted deck, and the impossible
-    /// is the trick built from it. Asserted so the two tricks cannot quietly
-    /// converge into the same animation with two names.
-    @Test("An impossible wraps end over end, and a kickflip does not")
-    func impossibleIsTheDiagonalOne() {
-        let duration = CrabAnimator.Flourish.impossible.duration
-        var sawDiagonal = false
-        for step in stride(from: 0.05, through: duration - 0.05, by: 0.04) {
-            let deck = board(.impossible, at: step)
-            // A staircase: several rows of board, and no row holding more than
-            // a step or two of it.
-            if deck.height >= 4, deck.run <= 4 { sawDiagonal = true }
+    /// Where the board and its wheels sit in a frame.
+    private func rig(_ kind: CrabAnimator.Flourish, at t: Double)
+    -> (deckRow: Int, wheelRow: Int, deckLeft: Int, run: Int) {
+        let buffer = CrabRig.render(CrabAnimator.flourishPose(kind, at: t))
+        var longest = 0, deckRow = -1, deckLeft = -1
+        var wheelSum = 0, wheelCount = 0
+        for y in 0..<PixelBuffer.side {
+            var run = 0, start = 0
+            for x in 0..<PixelBuffer.side {
+                if buffer[x, y] == .yellow { wheelSum += y; wheelCount += 1 }
+                if buffer[x, y] == .slate {
+                    if run == 0 { start = x }
+                    run += 1
+                    if run > longest { longest = run; deckRow = y; deckLeft = start }
+                } else {
+                    run = 0
+                }
+            }
         }
-        #expect(sawDiagonal, "the impossible never tilted — it is a kickflip wearing another name")
+        return (deckRow, wheelCount > 0 ? wheelSum / wheelCount : -1, deckLeft, longest)
+    }
+
+    /// **The varial is the one whose deck narrows — and it lands the right way
+    /// up.**
+    ///
+    /// This is the operator's favourite of the three, restored from the first
+    /// draft with the two things the review found wrong with it fixed. Both
+    /// were bugs rather than taste, and both are pinned here.
+    ///
+    /// It must narrow, or it is just the kickflip again. It must NOT narrow to
+    /// nothing, because a board seen down its own length is as wide as the
+    /// deck, not invisible. And the wheels must come back underneath by the
+    /// end: the first draft swapped them and left them there, which is not a
+    /// landing, it is landing primo.
+    @Test("The varial narrows without vanishing, and lands wheels-down")
+    func varialNarrowsAndLandsUpright() {
+        let duration = CrabAnimator.Flourish.varialFlip.duration
+        var narrowest = 99, widest = 0
+        for step in stride(from: 0.5, through: duration * 0.78, by: 0.03) {
+            let r = rig(.varialFlip, at: step)
+            guard r.run > 0 else { continue }
+            narrowest = min(narrowest, r.run)
+            widest = max(widest, r.run)
+        }
+        #expect(widest == 17, "the varial never opened out flat; widest was \(widest)")
+        #expect(narrowest < 12, "the varial never narrowed — that is the kickflip, not a varial")
+        #expect(narrowest >= 5,
+                "the deck shrank to \(narrowest): a board seen down its length is as wide as the deck, not a closing door")
+
+        // Landed, not primo: wheels below the deck at the end.
+        let landed = rig(.varialFlip, at: duration - 0.05)
+        #expect(landed.wheelRow > landed.deckRow,
+                "he landed on the underside — wheels at row \(landed.wheelRow), deck at \(landed.deckRow)")
+    }
+
+    /// **The roll-away is the one where nothing is a trick and the board goes.**
+    ///
+    /// Its whole identity is travel: the deck has to actually leave. Pinned
+    /// because a board that drifts a few points and stops reads as a glitch
+    /// rather than as a departure.
+    @Test("The roll-away sends the board away")
+    func rollAwayDepartsWithTheBoard() {
+        let duration = CrabAnimator.Flourish.rollAway.duration
+        let early = rig(.rollAway, at: 0.05)
+        #expect(early.run == 17, "no board under him at the start of a roll-away")
+
+        let mid = rig(.rollAway, at: duration * 0.55)
+        #expect(mid.deckLeft > early.deckLeft + 4,
+                "the board only travelled \(mid.deckLeft - early.deckLeft) points by halfway — a twitch, not a departure")
+
+        // GONE by the end, not merely further along. That is the beat: it
+        // leaves. A board still sitting in frame when the flourish stops would
+        // pop out of existence on the last tick.
+        let late = rig(.rollAway, at: duration - 0.05)
+        #expect(late.run == 0, "the board was still on screen at the end, \(late.run) points of it")
+
+        // And while it IS on screen it stays a board — the deck never tilts,
+        // never narrows, never thickens. No trick means no trick.
+        for step in stride(from: 0.05, through: duration - 0.05, by: 0.05) {
+            let r = rig(.rollAway, at: step)
+            guard r.run > 0, r.deckLeft + 17 <= PixelBuffer.side else { continue }
+            #expect(r.run == 17, "the board changed shape mid-cruise at \(String(format: "%.2f", step))s")
+        }
     }
 
     /// **His eyes are level, in every mood, at every instant.**

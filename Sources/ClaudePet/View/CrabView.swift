@@ -84,15 +84,21 @@ public enum CrabAnimator {
     /// The little unprompted things he does while waiting. Scheduled rather
     /// than random per frame, so each one plays through instead of stuttering.
     enum Flourish: String, CaseIterable {
-        case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, impossible
+        case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, varialFlip,
+             rollAway
 
         /// The two skate tricks, so the line he shouts after one does not have
         /// to name them individually.
-        static let skateTricks: Set<Flourish> = [.kickflip, .impossible]
+        /// Everything he does on a board. Two are tricks and one is a cruise,
+        /// which is why this is not called `skateTricks` — he shouts after all
+        /// three, and "Do a Kickflip!" lands funnier over a roll-away than it
+        /// does over an actual kickflip.
+        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .rollAway]
 
         var duration: Double {
             switch self {
-            case .kickflip, .impossible: 2.8
+            case .kickflip, .varialFlip: 2.8
+            case .rollAway: 2.6
             case .jump: 0.9
             case .wave: 1.8
             case .wiggle: 1.0
@@ -158,7 +164,7 @@ public enum CrabAnimator {
         for cycle in first...(first + Int(horizon / flourishPeriod)) {
             let start = Double(cycle) * flourishPeriod
             guard let (kind, _) = flourish(at: start + 0.01),
-                  Flourish.skateTricks.contains(kind)
+                  Flourish.skateBeats.contains(kind)
             else { continue }
             let landed = start + kind.duration
             if landed > t { return landed }
@@ -1069,7 +1075,21 @@ public enum CrabAnimator {
     /// as a frequency.
     private static func apply(_ kind: Flourish, progress: Double, t: Double, to pose: inout CrabPose) {
         switch kind {
-        case .kickflip, .impossible:
+        case .rollAway:
+            // He does not jump. The board leaves and he watches it go, which
+            // is the whole joke — every other skate beat is him DOING
+            // something, and this one is him standing there while something
+            // happens to him.
+            pose.prop = .skateboardRoll
+            pose.propVisibility = 1
+            pose.propPhase = progress
+            if progress > 0.35 {
+                pose.gazeX = 1                        // eyes follow it out
+                pose.lean = 1
+            }
+            if progress > 0.55 { pose.mouth = .open }
+
+        case .kickflip, .varialFlip:
             // Roll, pop, one full turn of the board, land it.
             //
             // Two tricks, one shape: the airtime and the pop are identical and
@@ -1085,7 +1105,7 @@ public enum CrabAnimator {
             // `propPhase` carries the turn, 0 to 1 across the airtime, and one
             // whole turn lands deck-down — which is what a kickflip IS, and why
             // the phase must reach exactly 1 rather than stopping short.
-            pose.prop = kind == .kickflip ? .skateboard : .skateboardWrap
+            pose.prop = kind == .kickflip ? .skateboard : .skateboardVarial
             pose.propVisibility = 1
             // Set on EVERY branch, never left to the caller. The idle pose he
             // is layered onto carries its own `propPhase` for its own prop, and

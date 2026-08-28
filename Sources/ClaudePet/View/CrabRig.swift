@@ -83,11 +83,12 @@ public struct CrabPose: Sendable, Equatable {
         case star
         // Appended for the same reason, never inserted: the arcade stick, the
         // shades off the stickers, and the board he kickflips.
-        case joystick, shades, skateboard, skateboardWrap
+        case joystick, shades, skateboard, skateboardVarial, skateboardRoll
 
         var isWorn: Bool {
             switch self {
-            case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardWrap: true
+            case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
+             .skateboardRoll: true
             default: false
             }
         }
@@ -1072,38 +1073,82 @@ public enum CrabRig {
                 }
             }
 
-        case .skateboardWrap:
-            // A board doing an IMPOSSIBLE: wrapped end over end, in the plane
-            // of the screen. Pure pitch, which is the one rotation that legally
-            // draws a diagonal deck and stands it on end — and the one trick in
-            // the whole flip family that is built from it.
+        case .skateboardVarial:
+            // A VARIAL KICKFLIP: the board turns over AND swings round, both at
+            // once. This is the one the operator liked from the very first
+            // draft, restored — with the two things the review found wrong with
+            // it fixed, because both were bugs rather than style.
             //
-            // A real impossible wraps around the BACK FOOT, so its pivot sits
-            // at the tail and travels with that foot. This one pivots five
-            // points tail-ward of centre rather than at the tail itself, and
-            // that is a frame compromise rather than a claim: a true tail pivot
-            // swings the nose past x=0 at the halfway point, and a board that
-            // leaves the sprite reads as broken rather than as wrapped.
+            // FIRST: it used to narrow to NOTHING. A board seen straight down
+            // its own length is not invisible, it is as wide as the deck — five
+            // points here. Narrowing to zero is a door closing, not a board.
             //
-            // Swept as an ellipse, not a circle. A deck turning toward you
-            // foreshortens, and a true circle would stand seventeen points of
-            // board upright — taller than the crab.
-            let wrap = pose.propPhase.truncatingRemainder(dividingBy: 1)
-            let angle = wrap * 2 * .pi
-            let pivotX = 11 + dx, pivotY = 25 + dy
-            for step in 0...13 {
-                let u = Double(step) / 13
-                b.pixel(pivotX + Int((u * 13 * cos(angle)).rounded()),
-                        pivotY + Int((u * 5 * sin(angle)).rounded()), .slate)
+            // SECOND: the wheels used to swap sides and stay there, which meant
+            // he landed on the underside. That is not a trick, it is a bail
+            // (landing "primo"). They now orbit through a whole turn and come
+            // back underneath, which is what landing it means.
+            //
+            // The yaw does a half turn while the roll does a whole one, which
+            // is exactly a varial kickflip's budget — and it reads distinctly
+            // from the plain kickflip next door, whose deck never narrows at
+            // all.
+            let spin = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let yaw = spin * .pi                              // 180 across the trick
+            let roll = spin * 2 * .pi                         // a whole turn
+            let cx = 16 + dx, deckY = 25 + dy
+            // Eight points of half-length flat on, two and a half when you are
+            // looking straight down the nose-tail axis.
+            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
+            let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
+            b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, .slate)
+
+            let orbit = Int((3 * cos(roll)).rounded())
+            if sin(roll) >= 0 || abs(orbit) > thick / 2 {
+                let reach = max(1, half - 3)
+                for hub in [cx - reach - 1, cx + reach - 1] {
+                    b.rect(hub, deckY + orbit - 1, 3, 1, .yellow)
+                    b.pixel(hub, deckY + orbit, .yellow)
+                    b.pixel(hub + 1, deckY + orbit, .screenDark)
+                    b.pixel(hub + 2, deckY + orbit, .yellow)
+                    b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
+                }
             }
-            if abs(cos(angle)) > 0.78 {
-                let under = cos(angle) > 0 ? 1 : -1
-                for hub in [pivotX - 1, pivotX + 8] {
-                    b.rect(hub, pivotY + under, 3, 1, .yellow)
-                    b.pixel(hub, pivotY + under * 2, .yellow)
-                    b.pixel(hub + 1, pivotY + under * 2, .screenDark)
-                    b.pixel(hub + 2, pivotY + under * 2, .yellow)
-                    b.rect(hub, pivotY + under * 3, 3, 1, .yellow)
+
+        case .skateboardRoll:
+            // NO TRICK. He rides, the board rolls out from under him, and goes.
+            //
+            // The operator's own idea, and the reason it works next to two
+            // tricks is that it is not a third one: two tricks compete for the
+            // same attention, a trick and a cruise do not.
+            //
+            // The speed is carried by STREAKS, not by the wheels. A wheel here
+            // is three points across, so the only spin cue available is the
+            // bearing mark walking round the hub — about nine points of travel
+            // in total, against a board crossing twenty-six. Left to itself the
+            // eye reads the sliding and never notices the spinning, so the
+            // streaks do the work and the bearing is the grace note.
+            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let drift = Int((u * u * 26).rounded())       // accelerating away
+            let deckY = 25 + dy
+            let cx = 16 + dx + drift
+            b.rect(cx - 8, deckY, 17, 1, .slate)
+
+            // The bearing orbiting its own hub, four positions to the turn.
+            let tick = Int(u * 34) % 4
+            let mark = [(0, -1), (1, 0), (0, 1), (-1, 0)][tick]
+            for hub in [cx - 5, cx + 4] {
+                b.rect(hub, deckY + 1, 3, 1, .yellow)
+                b.pixel(hub, deckY + 2, .yellow)
+                b.pixel(hub + 2, deckY + 2, .yellow)
+                b.rect(hub, deckY + 3, 3, 1, .yellow)
+                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, .screenDark)
+            }
+
+            // Trailing streaks, staggered so they read as motion rather than
+            // as a second board.
+            if drift > 3 {
+                for k in 1...3 where cx - 10 - k * 4 > 0 {
+                    b.rect(cx - 10 - k * 4, deckY + (k % 2 == 0 ? 0 : 2), 3, 1, .steel)
                 }
             }
 
