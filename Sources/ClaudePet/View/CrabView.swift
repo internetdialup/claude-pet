@@ -298,6 +298,11 @@ public enum CrabAnimator {
     /// trying to see past.
     public enum PreviewEffect: String, CaseIterable, Sendable {
         case basking, glint, ting, hearts, beacon
+        // The skate beats. A trick needs the idle mood AND a dice that lands
+        // about every thirty seconds, so while any session is running there is
+        // no sequence of clicks that produces one — which is the exact case
+        // this menu's own note says it exists for.
+        case kickflip, varial, cruise
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -308,6 +313,8 @@ public enum CrabAnimator {
             case .basking: 2.0      // its window's own edge
             case .beacon: 1.3       // its window's own edge
             case .glint, .hearts, .ting: 0
+            // The tricks release by finishing the pass already in flight.
+            case .kickflip, .varial, .cruise: 0
             }
         }
     }
@@ -389,6 +396,26 @@ public enum CrabAnimator {
     /// picker shows is what actually ships, minus the waiting.
     nonisolated static func applyPreview(_ frame: PreviewFrame, to pose: inout CrabPose) {
         switch frame.effect {
+        case .kickflip, .varial, .cruise:
+            // Looped, with a beat of rest between passes so it reads as the
+            // trick repeating rather than as one long stutter — and so the
+            // landing, which is the part worth reviewing, is legible each time.
+            let kind: Flourish = switch frame.effect {
+            case .kickflip: .kickflip
+            case .varial: .varialFlip
+            default: .cruise
+            }
+            // The REST BEAT COMES FIRST, and that is the frozen sentinel rather
+            // than a stylistic choice: `nothingIsMidFlightInAPreviewsFirstFrame`
+            // requires a preview's t=0 to be indistinguishable from no preview
+            // at all. Starting the loop at the top of the trick put him already
+            // crouched on a board in the first frame, which is exactly the
+            // mid-flight opening that guard exists to forbid.
+            let rest = 0.8
+            let since = frame.t.truncatingRemainder(dividingBy: kind.duration + rest)
+            guard since >= rest else { return }
+            apply(kind, progress: (since - rest) / kind.duration, t: frame.t, to: &pose)
+
         case .basking:
             let amount = previewBasking(frame)
             guard amount > 0.001 else { return }
