@@ -10,6 +10,13 @@ import SwiftUI
 /// sprite, so the tail always points at his body no matter how long the text is.
 /// An edge-anchored tail drifted off his shoulder whenever the text changed
 /// length, which read as the bubble belonging to something beside him.
+///
+/// `@MainActor` is written down rather than inferred, for the same reason
+/// `MarqueeText`'s doc gives: `View` carries it, and Swift 6.1 pushes that
+/// inference onto STATIC members while 6.3 does not. `plainColumns` is read
+/// from the coordinator and from the suite, so leaving it to inference means
+/// the desk compiles something the runner rejects.
+@MainActor
 public struct ThoughtBubble: View {
     public var text: String
     public var tool: String?
@@ -30,6 +37,30 @@ public struct ThoughtBubble: View {
     /// Width of the scrolling viewport. Fixed so the bubble does not resize as
     /// the ticker's content changes.
     nonisolated static let marqueeWidth: CGFloat = 150
+
+    /// The widest the bubble is allowed to get, and the padding inside it.
+    /// Hoisted out of `body` so the column count below is derived from the same
+    /// numbers the layout actually uses rather than from a comment about them.
+    nonisolated static let maxWidth: CGFloat = 210
+    nonisolated static let insetX: CGFloat = 8
+
+    /// How many monospaced columns the PLAIN bubble can show.
+    ///
+    /// `maxWidth` less the padding on both sides, over the 6.62pt advance
+    /// `MarqueeText.measure` uses: 29.3. That is the number `bubbleLinesAreShort`
+    /// has carried by hand since it was measured, and it is derived here so a
+    /// change to the bubble's width moves the guard with it rather than leaving
+    /// a stale literal in a test — the same argument `readSeconds` makes.
+    ///
+    /// It assumes the glyph slot is empty, which is true of the case that
+    /// matters: `.idle`'s `MoodStyle.glyph` is "". A tool glyph still lingering
+    /// from the focused session, or a service badge inside its six seconds, does
+    /// take room and costs the last character or two. That exposure is not new
+    /// and it is not the facts' — every vocabulary line in this bubble has had
+    /// it since the 29 was measured, and a fact pool holding itself to a
+    /// stricter rule than his own voice would be an inconsistency, not a
+    /// safeguard.
+    nonisolated static var plainColumns: Int { Int((maxWidth - 2 * insetX) / 6.62) }
 
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.
@@ -94,9 +125,9 @@ public struct ThoughtBubble: View {
                 }
             }
             .foregroundStyle(foreground)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, Self.insetX)
             .padding(.vertical, 6)
-            .frame(maxWidth: 210, alignment: .leading)
+            .frame(maxWidth: Self.maxWidth, alignment: .leading)
             .background(Rectangle().fill(fill))
             .overlay {
                 // An occasional light sweep across the bubble when he is asking

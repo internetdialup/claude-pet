@@ -1049,7 +1049,7 @@ public final class ActivityCoordinator {
         if !status.isEmpty, seed % 3 == 2 {
             next = (status[(seed / 3) % status.count], .marquee)
         } else if let fact = funFact(slot: slot, seed: seed) {
-            next = (fact, .marquee)
+            next = (fact, Self.bubbleStyle(for: fact))
         } else {
             // The shuffled cycle guarantees no immediate repeat — but only
             // through a cursor. It is reached on a subset of ticks (this very
@@ -1065,6 +1065,27 @@ public final class ActivityCoordinator {
         chatterCache[slot].line = next
         chatterCache[slot].chosenAt = now
         return next
+    }
+
+    /// Scroll a line only if it has to scroll.
+    ///
+    /// `MarqueeText`'s offset advances whatever the text's width is — there is
+    /// no "it already fits" branch — so a twenty-character fact slides out of
+    /// the viewport and loops twice inside one fourteen-second slot. That is
+    /// motion with nothing left to reveal, and it costs the short line exactly
+    /// the thing that makes it worth having: you can take it in at a glance.
+    ///
+    /// The threshold comes from `ThoughtBubble` rather than from a number here,
+    /// because it IS a rendering fact — the bubble's width, its padding and the
+    /// monospaced advance are the whole of it, and a copy of that arithmetic in
+    /// this file would keep agreeing with itself long after the bubble changed.
+    /// `nonisolated` for the reason `chatterInterval` above is: the suite reads
+    /// it from a synchronous, non-MainActor test. Verified by removing the
+    /// keyword and watching the TEST target fail — the app target compiles
+    /// either way, which is precisely how the last round's check proved
+    /// nothing.
+    nonisolated static func bubbleStyle(for line: String) -> PetState.BubbleStyle {
+        line.count <= ThoughtBubble.plainColumns ? .plain : .marquee
     }
 
     /// A fun fact for this cycle, or nil when the coin says it is his turn to
