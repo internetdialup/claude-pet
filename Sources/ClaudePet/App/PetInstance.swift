@@ -177,7 +177,7 @@ final class PetInstance {
             // A summoned second pet must not park exactly under the first and
             // look like a no-op: his default home sits one window further
             // along the dock edge.
-            parkOffset: slot == 0 ? 0 : size.width + 12
+            parkOffset: slot == 0 ? 0 : size.width + DockMagnet.gutter
         )
         controller.avoidingFrame = { [weak self] in self?.siblingFrame?() }
         // The bug stands on cells the silhouette calls empty, so it publishes

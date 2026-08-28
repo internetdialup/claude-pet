@@ -285,9 +285,20 @@ final class PetWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - Dragging
 
+    /// Whether this press has actually moved the window yet.
+    ///
+    /// `endDrag` runs on a plain torso CLICK as well as on a drag — the host
+    /// view calls it for any press that armed the drag, and `mouseDragged`
+    /// returns early below `PressGesture`'s three-point threshold. Without this
+    /// flag, clicking a pet who happens to be parked within the pull's reach of
+    /// a slot would slide him into it, and a click that moves the thing you
+    /// clicked is not a click.
+    private var dragMoved = false
+
     fileprivate func beginDrag(at screenPoint: CGPoint) {
         let origin = window.frame.origin
         dragOffset = CGSize(width: screenPoint.x - origin.x, height: screenPoint.y - origin.y)
+        dragMoved = false
     }
 
     /// Follows the cursor with **no clamping**.
@@ -297,12 +308,41 @@ final class PetWindowController: NSObject, NSWindowDelegate {
     /// edge and stopped. Validity is resolved once, on release.
     fileprivate func continueDrag(to screenPoint: CGPoint) {
         guard let offset = dragOffset else { return }
-        window.setFrameOrigin(CGPoint(x: screenPoint.x - offset.width,
-                                      y: screenPoint.y - offset.height))
+        let raw = CGPoint(x: screenPoint.x - offset.width,
+                          y: screenPoint.y - offset.height)
+        dragMoved = true
+        window.setFrameOrigin(pulledTowardSibling(raw) ?? raw)
+    }
+
+    /// Where the other pet wants this one to stand, given where it is now.
+    ///
+    /// Nil when he is alone — one pet has nothing to line up with, and the
+    /// arrangement must cost nothing at all in the single-pet case.
+    private func slotTarget(for origin: CGPoint) -> CGPoint? {
+        guard let anchor = avoidingFrame() else { return nil }
+        let mover = CGRect(origin: origin, size: contentSize)
+        let delta = CGSize(width: mover.midX - anchor.midX,
+                           height: mover.midY - anchor.midY)
+        let step = PetArrangement.offset(PetArrangement.slot(forDelta: delta),
+                                         pixelSize: hitRegion.pixelSize)
+        return CGPoint(x: anchor.origin.x + step.width,
+                       y: anchor.origin.y + step.height)
+    }
+
+    /// The dragged origin, eased toward its slot as it comes within reach.
+    ///
+    /// Still no clamping, for the reason `continueDrag` never clamped: doing it
+    /// here is what once made a second display unreachable, because the window
+    /// stopped dead at the shared edge. Validity is resolved on release.
+    private func pulledTowardSibling(_ raw: CGPoint) -> CGPoint? {
+        guard let target = slotTarget(for: raw) else { return nil }
+        return PetArrangement.pull(from: raw, to: target,
+                                   radius: DockMagnet.snapDistance)
     }
 
     fileprivate func endDrag() {
         dragOffset = nil
+        defer { dragMoved = false }
         // Resolve against whichever display he actually landed on. With no
         // display at all, defer: leave the window where the hand let go, and
         // do not persist an origin resolved against nothing.
@@ -310,8 +350,20 @@ final class PetWindowController: NSObject, NSWindowDelegate {
             onDragEnded?()
             return
         }
-        let snapped = DockMagnet.snap(origin: window.frame.origin, size: contentSize,
-                                      visibleFrame: target, avoiding: avoidingFrame())
+        // A pet who came to rest inside a slot's reach is already standing in
+        // it — `continueDrag` pulled him there. Edge-snapping him now would
+        // drag him back out of the arrangement to hug the dock, which is the
+        // one move that undoes the alignment the operator just made. So an
+        // arranged landing is clamped only, and everything else takes the
+        // edge snap and the de-stack exactly as before.
+        let arranged = (dragMoved ? slotTarget(for: window.frame.origin) : nil).flatMap { slot -> CGPoint? in
+            let reach = hypot(slot.x - window.frame.origin.x, slot.y - window.frame.origin.y)
+            return reach < DockMagnet.snapDistance ? slot : nil
+        }
+        let snapped = arranged.map {
+            DockMagnet.clamp(origin: $0, size: contentSize, visibleFrame: target)
+        } ?? DockMagnet.snap(origin: window.frame.origin, size: contentSize,
+                             visibleFrame: target, avoiding: avoidingFrame())
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.16
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)

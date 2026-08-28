@@ -10,6 +10,15 @@ public enum DockMagnet {
     /// How close (in points) a dragged window must come to an edge before it snaps.
     public static let snapDistance: CGFloat = 60
 
+    /// The house gap between two pets.
+    ///
+    /// It was written down three times before it was named once — the de-stack
+    /// step below, the second pet's dock park in `PetInstance`, and now the
+    /// arrangement's diagonals. One of those drifting from the others is the
+    /// kind of thing nobody notices until two pets sit at two different
+    /// distances depending on how they got there.
+    public static let gutter: CGFloat = 12
+
     public enum Edge: Sendable, Equatable { case left, right, bottom, top, none }
 
     /// Which edge the dock occupies, and how thick it is.
@@ -78,7 +87,7 @@ public enum DockMagnet {
             if !overlap.isNull, overlap.width * overlap.height > size.width * size.height * 0.5 {
                 // Slide away from the occupied spot, along x (the shared edge
                 // is almost always the bottom), and stay on screen.
-                let step = size.width + 12
+                let step = size.width + gutter
                 result.x = snapped.midX <= avoiding.midX ? avoiding.minX - step : avoiding.maxX + 12
                 result = clamp(origin: result, size: size, visibleFrame: visibleFrame)
             }
