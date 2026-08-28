@@ -407,34 +407,49 @@ struct MotionContinuityTests {
                 "he landed on the underside — wheels at row \(landed.wheelRow), deck at \(landed.deckRow)")
     }
 
-    /// **The roll-away is the one where nothing is a trick and the board goes.**
+    /// **The cruise is the one where HE does not move and the ground does.**
     ///
-    /// Its whole identity is travel: the deck has to actually leave. Pinned
-    /// because a board that drifts a few points and stops reads as a glitch
-    /// rather than as a departure.
-    @Test("The roll-away sends the board away")
-    func rollAwayDepartsWithTheBoard() {
-        let duration = CrabAnimator.Flourish.rollAway.duration
-        let early = rig(.rollAway, at: 0.05)
-        #expect(early.run == 17, "no board under him at the start of a roll-away")
+    /// Its whole identity is that nothing about the board changes: it does not
+    /// flip, it does not narrow, and — the correction that produced this
+    /// version — it does not travel. An earlier draft accelerated the board out
+    /// of frame and left him standing, which reads as a crab losing his board
+    /// rather than as a crab going fast. The camera is on him, so he holds
+    /// still and the world streaks past.
+    @Test("The cruise holds the board still and streaks the ground")
+    func cruiseStreaksWithoutMoving() {
+        let duration = CrabAnimator.Flourish.cruise.duration
 
-        let mid = rig(.rollAway, at: duration * 0.55)
-        #expect(mid.deckLeft > early.deckLeft + 4,
-                "the board only travelled \(mid.deckLeft - early.deckLeft) points by halfway — a twitch, not a departure")
+        var deckLefts = Set<Int>(), runs = Set<Int>()
+        var streakPositions: [Set<Int>] = []
+        for step in stride(from: 0.05, through: duration - 0.05, by: 0.06) {
+            let r = rig(.cruise, at: step)
+            deckLefts.insert(r.deckLeft)
+            runs.insert(r.run)
 
-        // GONE by the end, not merely further along. That is the beat: it
-        // leaves. A board still sitting in frame when the flourish stops would
-        // pop out of existence on the last tick.
-        let late = rig(.rollAway, at: duration - 0.05)
-        #expect(late.run == 0, "the board was still on screen at the end, \(late.run) points of it")
-
-        // And while it IS on screen it stays a board — the deck never tilts,
-        // never narrows, never thickens. No trick means no trick.
-        for step in stride(from: 0.05, through: duration - 0.05, by: 0.05) {
-            let r = rig(.rollAway, at: step)
-            guard r.run > 0, r.deckLeft + 17 <= PixelBuffer.side else { continue }
-            #expect(r.run == 17, "the board changed shape mid-cruise at \(String(format: "%.2f", step))s")
+            let buffer = CrabRig.render(CrabAnimator.flourishPose(.cruise, at: step))
+            var streaks = Set<Int>()
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .steel {
+                    streaks.insert(y * PixelBuffer.side + x)
+                }
+            }
+            streakPositions.append(streaks)
         }
+
+        // One point of slack, and only one: he LEANS into the cruise, and a worn
+        // prop travels with the lean — a board that stayed rigidly put while he
+        // tipped over it would be the odd thing. What is forbidden is TRAVEL.
+        let drift = (deckLefts.max() ?? 0) - (deckLefts.min() ?? 0)
+        #expect(drift <= 1,
+                "the board travelled \(drift) points, sitting at \(deckLefts.sorted()) — on a fixed camera HE is what stays put")
+        #expect(runs == [17], "the board changed shape mid-cruise: \(runs.sorted())")
+
+        // The ground has to actually rush. Two samples a little apart must not
+        // show the same streaks in the same places.
+        #expect(streakPositions.contains { !$0.isEmpty }, "no speed lines at all")
+        let moved = zip(streakPositions, streakPositions.dropFirst()).filter { $0 != $1 }.count
+        #expect(moved > streakPositions.count / 2,
+                "the speed lines barely moved — \(moved) changes across \(streakPositions.count) samples")
     }
 
     /// **His eyes are level, in every mood, at every instant.**

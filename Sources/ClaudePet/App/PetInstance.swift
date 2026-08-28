@@ -85,8 +85,8 @@ final class PetInstance {
     private var secretGate = SecretMenuGate()
     /// This pet's draw counter for the bug-pounce line. See `LineCursor`.
     private var bugCursor = LineCursor()
-    /// …and for the line he shouts after landing a trick.
-    private var kickflipCursor = LineCursor()
+    /// …and for the line he shouts after a skate beat.
+    private var skateCursor = LineCursor()
     /// How long a skate line stays up. Exposed so the suite can check the
     /// longest line finishes scrolling inside it rather than restating 3.4.
     ///
@@ -95,10 +95,10 @@ final class PetInstance {
     /// nonisolated test. This class is `@MainActor`, so without the keyword the
     /// constant inherits an isolation it has no use for.
     nonisolated static let skateLineSeconds: TimeInterval = 3.4
-    /// Cancels a scheduled kickflip line that the mood outran. A generation
+    /// Cancels a scheduled skate line that the mood outran. A generation
     /// counter rather than a `Timer` handle, matching `fadeSeq`: the timer
     /// still fires, it just finds itself stale and does nothing.
-    private var kickflipSeq = 0
+    private var skateSeq = 0
     private var secretDisarmTimer: Timer?
 
     // MARK: - Visibility policy
@@ -428,47 +428,54 @@ final class PetInstance {
         model.state = state
         updateServiceGlyphLatches()
         updateBadgeLatches()
-        if state.mood == .idle, !wasIdle { armKickflipLine() }
+        if state.mood == .idle, !wasIdle { armSkateLine() }
     }
 
-    /// Meet the next kickflip at the moment it lands.
+    /// Meet the next skate beat at the moment it lands.
     ///
     /// **Scheduled, not detected.** The flourish schedule is pure in the mood
     /// clock, so given when idle began the exact landing instant is knowable —
     /// there is nothing to poll for and no frame to miss. The alternative was
-    /// watching the animation from the app layer, which would mean either a
-    /// callback out of a `TimelineView` body or the app keeping a second clock
-    /// beside the real one and hoping they agreed.
+    /// watching the animation from the app layer, which would mean a callback
+    /// out of a `TimelineView` body or a second clock kept beside the real one
+    /// and hoped to agree with it.
     ///
-    /// `MoodClock.reading()` is the whole reason this is honest: it reports the
-    /// clock the renderer is actually on, without rebasing it. Asking
-    /// `epoch(for:)` would have restarted the animation this is trying to meet.
-    private func armKickflipLine() {
-        kickflipSeq &+= 1
-        let seq = kickflipSeq
-        let clock = MoodClock.shared.reading()
-        guard clock.mood == .idle,
+    /// Through **`model.moodClock`**, never `MoodClock.shared`. Each pet owns
+    /// its clock — `currentBugZone` above already says why, in the same words:
+    /// the shared one is nobody's clock now. The first version of this read the
+    /// shared instance, which with two pets on the desk is a clock neither of
+    /// them renders from, and the line would have been scheduled against
+    /// nothing.
+    ///
+    /// `currentEpoch(for:)` is the non-mutating question. Asking `epoch(for:)`
+    /// would REBASE the clock — restarting the very animation this is trying to
+    /// meet.
+    private func armSkateLine() {
+        skateSeq &+= 1
+        let seq = skateSeq
+        guard model.state.mood == .idle,
+              let epoch = model.moodClock.currentEpoch(for: .idle),
               let landing = CrabAnimator.nextSkateTrickLanding(
-                after: Date.timeIntervalSinceReferenceDate - clock.since)
+                after: Date.timeIntervalSinceReferenceDate - epoch)
         else { return }
 
-        let wait = clock.since + landing - Date.timeIntervalSinceReferenceDate
+        let wait = epoch + landing - Date.timeIntervalSinceReferenceDate
         guard wait > 0 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
-            guard let self, self.kickflipSeq == seq else { return }
-            // He may have been given work in the meantime. The clock is the
-            // authority on whether the trick actually happened, not the timer.
-            let now = MoodClock.shared.reading()
-            guard now.mood == .idle, now.since == clock.since else { return }
-            let line = self.kickflipCursor.advance(Vocab.lines(for: .kickflip),
-                                                   id: "kickflip")
-            // Long enough for the longest line to finish SCROLLING, not just
-            // to appear: the Hall of Meat line is 31 columns, so it is handed
-            // to the marquee and needs about 2.1s to walk past. A window that
-            // only covered a plain line would cut it off mid-sentence.
+            guard let self, self.skateSeq == seq else { return }
+            // He may have been given work in the meantime, or the mood may have
+            // left and come back on a new epoch. The clock is the authority on
+            // whether the trick actually happened, not the timer.
+            guard self.model.state.mood == .idle,
+                  self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
+            let line = self.skateCursor.advance(Vocab.lines(for: .kickflip),
+                                                id: "kickflip")
+            // Long enough for the longest line to finish SCROLLING, not just to
+            // appear: the Hall of Meat line is 31 columns, so it goes to the
+            // marquee and needs about 2.1s to walk past.
             self.model.transientBubble = (line ?? "Kowbunga 🤙!",
                                           Date().addingTimeInterval(PetInstance.skateLineSeconds))
-            self.armKickflipLine()          // and meet the next one
+            self.armSkateLine()          // and meet the next one
         }
     }
 

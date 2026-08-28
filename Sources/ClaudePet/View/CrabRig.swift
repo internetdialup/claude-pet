@@ -1115,25 +1115,25 @@ public enum CrabRig {
             }
 
         case .skateboardRoll:
-            // NO TRICK. He rides, the board rolls out from under him, and goes.
+            // NO TRICK. He rides, fast, and stays exactly where he is while the
+            // ground rushes past underneath him.
             //
-            // The operator's own idea, and the reason it works next to two
-            // tricks is that it is not a third one: two tricks compete for the
-            // same attention, a trick and a cruise do not.
+            // The board used to accelerate out of frame and leave him behind.
+            // That was me reading "the board goes away" too literally: it made
+            // the BOARD the thing that moved, and a crab standing still while
+            // his board escapes reads as him losing it, not as speed. The
+            // camera is on him. He holds, the world streaks.
             //
-            // The speed is carried by STREAKS, not by the wheels. A wheel here
-            // is three points across, so the only spin cue available is the
-            // bearing mark walking round the hub — about nine points of travel
-            // in total, against a board crossing twenty-six. Left to itself the
-            // eye reads the sliding and never notices the spinning, so the
-            // streaks do the work and the bearing is the grace note.
+            // The speed is carried by the ground lines, not by the wheels, and
+            // that was measured rather than assumed: a wheel is three points
+            // across, so the bearing mark walking round its hub covers about
+            // nine points in total. Against anything else moving it is
+            // invisible. It stays as a grace note for anyone who looks closely.
             let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
-            let drift = Int((u * u * 26).rounded())       // accelerating away
             let deckY = 25 + dy
-            let cx = 16 + dx + drift
+            let cx = 16 + dx
             b.rect(cx - 8, deckY, 17, 1, .slate)
 
-            // The bearing orbiting its own hub, four positions to the turn.
             let tick = Int(u * 34) % 4
             let mark = [(0, -1), (1, 0), (0, 1), (-1, 0)][tick]
             for hub in [cx - 5, cx + 4] {
@@ -1144,11 +1144,19 @@ public enum CrabRig {
                 b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, .screenDark)
             }
 
-            // Trailing streaks, staggered so they read as motion rather than
-            // as a second board.
-            if drift > 3 {
-                for k in 1...3 where cx - 10 - k * 4 > 0 {
-                    b.rect(cx - 10 - k * 4, deckY + (k % 2 == 0 ? 0 : 2), 3, 1, .steel)
+            // Ground streaking past, in the floor band below him — the only
+            // part of the frame nothing else occupies. Four lanes at different
+            // phases so they never line up into a grid, easing in over the
+            // first beat so the speed arrives rather than switching on.
+            let arrive = Ease.smoothstep(u / 0.18)
+            if arrive > 0.05 {
+                for lane in 0..<4 {
+                    let y = 28 + lane % 3
+                    let travel = (u * 62 + Double(lane) * 7.5)
+                        .truncatingRemainder(dividingBy: 26)
+                    let x = 26 - Int(travel)
+                    let long = 3 + Int(arrive * 2)
+                    b.rect(x, y, long, 1, .steel)
                 }
             }
 

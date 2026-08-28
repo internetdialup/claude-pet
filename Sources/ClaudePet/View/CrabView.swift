@@ -85,7 +85,7 @@ public enum CrabAnimator {
     /// than random per frame, so each one plays through instead of stuttering.
     enum Flourish: String, CaseIterable {
         case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, varialFlip,
-             rollAway
+             cruise
 
         /// The two skate tricks, so the line he shouts after one does not have
         /// to name them individually.
@@ -93,12 +93,12 @@ public enum CrabAnimator {
         /// which is why this is not called `skateTricks` — he shouts after all
         /// three, and "Do a Kickflip!" lands funnier over a roll-away than it
         /// does over an actual kickflip.
-        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .rollAway]
+        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise]
 
         var duration: Double {
             switch self {
             case .kickflip, .varialFlip: 2.8
-            case .rollAway: 2.6
+            case .cruise: 2.6
             case .jump: 0.9
             case .wave: 1.8
             case .wiggle: 1.0
@@ -1075,19 +1075,21 @@ public enum CrabAnimator {
     /// as a frequency.
     private static func apply(_ kind: Flourish, progress: Double, t: Double, to pose: inout CrabPose) {
         switch kind {
-        case .rollAway:
-            // He does not jump. The board leaves and he watches it go, which
-            // is the whole joke — every other skate beat is him DOING
-            // something, and this one is him standing there while something
-            // happens to him.
+        case .cruise:
+            // He does not jump and he does not go anywhere. Every other skate
+            // beat is him doing something to the board; this one is him simply
+            // moving fast, which on a fixed camera means the GROUND moves and
+            // he does not.
             pose.prop = .skateboardRoll
             pose.propVisibility = 1
             pose.propPhase = progress
-            if progress > 0.35 {
-                pose.gazeX = 1                        // eyes follow it out
+            // Leaning into it, eyes forward. He is not watching anything leave
+            // any more — he is the one travelling.
+            if progress > 0.2 {
                 pose.lean = 1
+                pose.gazeX = 1
             }
-            if progress > 0.55 { pose.mouth = .open }
+            if progress > 0.4 { pose.mouth = .open }
 
         case .kickflip, .varialFlip:
             // Roll, pop, one full turn of the board, land it.
@@ -1735,17 +1737,6 @@ public final class MoodClock {
     private var lastDisplayed: CrabPose?
     private var blendFrom: CrabPose?
     private var blendStartedAt: Double = -.infinity
-
-    /// The mood on the clock right now, and when it started — WITHOUT
-    /// rebasing anything.
-    ///
-    /// `epoch(for:)` below is a mutating question: asking it about a mood the
-    /// clock is not on restarts the clock. That is exactly right for the render
-    /// loop, which asks once a frame about the mood it is drawing, and exactly
-    /// wrong for anyone else. The app layer needs to know when idle began so it
-    /// can meet a flourish that is already scheduled; if it asked `epoch` it
-    /// would restart the very animation it was trying to observe.
-    func reading() -> (mood: PetMood, since: Double) { (current, startedAt) }
 
     func epoch(for mood: PetMood) -> Double {
         if mood != current {
