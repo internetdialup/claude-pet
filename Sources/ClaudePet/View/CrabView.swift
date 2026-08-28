@@ -704,12 +704,18 @@ public enum CrabAnimator {
             pose.bob = Int((Ease.square(t * 2 * .pi / breathPeriod - .pi / 2,
                                         soft: 1.0) * 2).rounded())
             pose.blink = 1                        // eyes shut
-            // One pixel of tilt, held. `drawFace` raises one eye and drops the
-            // other, so his two shut lids sit at different heights — the
-            // oldest "asleep, not switched off" signal there is, and it costs
-            // no motion at all. It is also the only thing carrying the read in
-            // the STILL, where the breath cannot help.
-            pose.tilt = 1
+            // Lids at the floor of the socket rather than across its middle:
+            // "asleep, not switched off", costing no motion at all, and the
+            // only thing carrying the read in the STILL where the breath
+            // cannot help.
+            //
+            // This was a one-pixel head tilt until the operator reported it as
+            // a broken eye, and they were right. A shut lid is one pixel tall,
+            // so tilting the pair left two thin bars two rows apart — rendered
+            // and measured at rows 13 and 15, a two-pixel gap on a
+            // thirty-two-pixel sprite, in 100% of sleeping frames. Nothing
+            // about that reads as a tipped head. Both lids drop together now.
+            pose.lidsLowered = true
             pose.mouth = .flat
         }
 
