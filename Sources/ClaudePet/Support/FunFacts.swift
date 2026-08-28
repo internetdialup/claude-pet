@@ -268,7 +268,7 @@ public enum FunFacts {
             "Hexadecimal is base sixteen",
             // LIFO is the stack ADT's defining discipline, not an
             // implementation detail.
-            "A stack is last in, first out",
+            "A stack: last in, first out",
             // FIFO likewise. Priority queues and deques are named variants, so
             // they are not counterexamples.
             "A queue: first in, first out",
@@ -285,7 +285,7 @@ public enum FunFacts {
             "Big-O bounds growth rates",
             // The space-time tradeoff, in the right direction: storage spent
             // to avoid a slower fetch or a recomputation.
-            "A cache trades space for time",
+            "Caches trade space for time",
             // Deliberately unspecific. "Compiles to machine code" would be
             // false of every bytecode compiler and every transpiler.
             "A compiler translates code",

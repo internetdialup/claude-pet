@@ -1002,8 +1002,17 @@ struct EditableCopyTests {
     /// shortened. They are the operator's phrasing — a renderer discovering
     /// that a sentence is two characters too wide is not a reason to rewrite
     /// someone's voice. They truncate; that is theirs to decide about.
-    /// Authored before the 29-character limit was measured. Cut off on screen.
+    /// Authored before the limit was measured. Cut off on screen.
+    ///
+    /// The sixth was found by rendering a ruler through the bubble: the ceiling
+    /// is 28, not the 29 the arithmetic gives, because 6.62 is the marquee's
+    /// advance and runs under the real one. "I'm hungry for something new!" is
+    /// exactly 29 and has been losing its "!" since the day the guard was
+    /// written. It goes here rather than getting shortened, for the reason the
+    /// other five did: a renderer discovering that a sentence is one character
+    /// too wide is not a reason to rewrite someone's voice.
     static let knownLong: Set<String> = [
+        "I'm hungry for something new!",
         "Let's build something awesome!",
         "Now we're cooking with crisco 🍳",
         "Excited to see what you cook up",
@@ -1016,13 +1025,13 @@ struct EditableCopyTests {
         for occasion in ShoutoutOccasion.allCases {
             for line in Vocab.lines(for: occasion) {
                 guard !Self.knownLong.contains(line) else { continue }
-                #expect(line.count <= 29, "\(occasion.rawValue) line too long: \(line)")
+                #expect(line.count <= ThoughtBubble.plainColumns, "\(occasion.rawValue) line too long: \(line)")
             }
         }
         for rule in Vocab.rules {
             for line in rule.lines {
                 guard !Self.knownLong.contains(line) else { continue }
-                #expect(line.count <= 29, "rule line too long: \(line)")
+                #expect(line.count <= ThoughtBubble.plainColumns, "rule line too long: \(line)")
             }
         }
     }

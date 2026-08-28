@@ -44,23 +44,31 @@ public struct ThoughtBubble: View {
     nonisolated static let maxWidth: CGFloat = 210
     nonisolated static let insetX: CGFloat = 8
 
-    /// How many monospaced columns the PLAIN bubble can show.
+    /// How many monospaced columns the PLAIN bubble can show: **28**, READ off a
+    /// render rather than computed.
     ///
-    /// `maxWidth` less the padding on both sides, over the 6.62pt advance
-    /// `MarqueeText.measure` uses: 29.3. That is the number `bubbleLinesAreShort`
-    /// has carried by hand since it was measured, and it is derived here so a
-    /// change to the bubble's width moves the guard with it rather than leaving
-    /// a stale literal in a test — the same argument `readSeconds` makes.
+    /// The arithmetic says otherwise, and the arithmetic is wrong. `maxWidth`
+    /// less the padding on both sides, over the 6.62pt advance
+    /// `MarqueeText.measure` uses, is 29.3 — which is where the 29 in
+    /// `bubbleLinesAreShort` came from. But 6.62 is the MARQUEE's constant, a
+    /// figure chosen so a scrolling line could be measured without a layout
+    /// pass, and it runs a little under the real advance. A ruler rendered
+    /// through this very view — 24 to 32 columns, same bubble, same font —
+    /// shows 28 whole and 29 ending in an ellipsis.
+    ///
+    /// One column, and it had been quietly clipping the tail off any 29 for as
+    /// long as the guard has existed: one vocabulary line and, when this was
+    /// found, two of the short facts. Derivation is the right instinct and it
+    /// is not authority. The render is.
     ///
     /// It assumes the glyph slot is empty, which is true of the case that
     /// matters: `.idle`'s `MoodStyle.glyph` is "". A tool glyph still lingering
-    /// from the focused session, or a service badge inside its six seconds, does
-    /// take room and costs the last character or two. That exposure is not new
-    /// and it is not the facts' — every vocabulary line in this bubble has had
-    /// it since the 29 was measured, and a fact pool holding itself to a
-    /// stricter rule than his own voice would be an inconsistency, not a
-    /// safeguard.
-    nonisolated static var plainColumns: Int { Int((maxWidth - 2 * insetX) / 6.62) }
+    /// from the focused session, or a service badge inside its six seconds,
+    /// takes room and costs another character or two. That exposure is old and
+    /// is not the facts' alone — a fact pool holding itself to a stricter rule
+    /// than his own voice keeps in the same bubble would be an inconsistency
+    /// rather than a safeguard.
+    nonisolated static let plainColumns = 28
 
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.

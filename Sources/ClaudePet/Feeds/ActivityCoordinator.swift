@@ -1048,8 +1048,8 @@ public final class ActivityCoordinator {
         let next: (String, PetState.BubbleStyle)
         if !status.isEmpty, seed % 3 == 2 {
             next = (status[(seed / 3) % status.count], .marquee)
-        } else if let fact = funFact(slot: slot, seed: seed) {
-            next = (fact, Self.bubbleStyle(for: fact))
+        } else if let known = factOrTip(slot: slot, seed: seed) {
+            next = (known, Self.bubbleStyle(for: known))
         } else {
             // The shuffled cycle guarantees no immediate repeat — but only
             // through a cursor. It is reached on a subset of ticks (this very
@@ -1097,8 +1097,33 @@ public final class ActivityCoordinator {
     /// `LineCursor` exists to kill, one level up. `next` advances only for the
     /// id it is called with, so a category that loses this cycle keeps its
     /// place for free.
-    private func funFact(slot: Int, seed: Int) -> String? {
+    /// The informational half of an idle cycle: a fun fact, or a tip about the
+    /// tool the operator is holding.
+    ///
+    /// **The tip die sits INSIDE this branch, not beside it**, and that is the
+    /// whole design of the change. Nesting it next to the vocabulary would have
+    /// paid for tips out of his own voice — the ticker already takes a third
+    /// and the facts another third, so a fourth peer would have left his own
+    /// lines at one turn in six, which is not a pet, it is a feed. Nested here,
+    /// the vocabulary keeps every cycle it has today, byte for byte, and a tip
+    /// costs a fact instead. `PersonalityTests.idleGateDoesNotRepeat` walks the
+    /// real gates and needs no edit for exactly that reason.
+    ///
+    /// A third rather than a half, because the facts are the thing the operator
+    /// asked for first and there are seventy-six of them against sixteen tips.
+    private func factOrTip(slot: Int, seed: Int) -> String? {
+        // Unchanged, and deliberately so: this is the gate the fun facts have
+        // always answered to, so the cycles they own stay theirs.
         guard CrabAnimator.noise(seed &* 17 &+ 7) < 0.5 else { return nil }
+        if CrabAnimator.noise(seed &* 23 &+ 19) < 0.34,
+           let tip = chatterCache[slot].cursor.next(ClaudeTips.all, id: "tip",
+                                                    token: "\(seed)") {
+            return tip
+        }
+        return funFact(slot: slot, seed: seed)
+    }
+
+    private func funFact(slot: Int, seed: Int) -> String? {
         let category = FunFacts.category(forDraw: chatterCache[slot].factDraws)
         guard let fact = chatterCache[slot].cursor.next(
             FunFacts.facts(in: category),
