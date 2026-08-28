@@ -230,7 +230,7 @@ enum CrabCostume {
             break
 
         case .frankenstein:
-            guard layer == .onBody else { break }
+            if layer == .onBody {
             // A seam across the brow and two bolts at the temples.
             //
             // These were a D-pad and a pair of buttons, and they read as a scar
@@ -250,6 +250,25 @@ enum CrabCostume {
             // below his jaw would read as a dropped pixel.
             b.rect(bodyX + dx, brow + 4, 2, 2, .costumeB)
             b.rect(bodyX + bodyW + dx - 2, brow + 4, 2, 2, .costumeB)
+            }
+            guard layer == .front,
+                  let arc = Self.effectWindow(at: pose.propPhase, salt: 13,
+                                              period: 7, duration: 0.7, chance: 0.5)
+            else { break }
+            // The bolts crackle — and NOT an arc between them. They sit at eye
+            // height, so a bar joining them would be drawn straight across his
+            // eyes, which is the one thing the wardrobe may never do. The
+            // charge stays at each bolt and jitters, which is what a spark
+            // looks like from a distance anyway.
+            let sparkBrow = bodyY + dy + squash
+            let frame = Int(arc * 9)
+            for (index, hub) in [bodyX + dx, bodyX + bodyW + dx - 2].enumerated() {
+                for spark in 0..<3 {
+                    let ox = Int(CrabAnimator.noise(frame &* 31 &+ spark &* 7 &+ index &* 3) * 4) - 1
+                    let oy = Int(CrabAnimator.noise(frame &* 17 &+ spark &+ index) * 4) - 1
+                    b.pixel(hub + ox, sparkBrow + 4 + oy, .paper)
+                }
+            }
 
         case .arcade:
             guard layer == .onBody else { break }
@@ -261,9 +280,20 @@ enum CrabCostume {
             // Rows 19 and 20 are the only clear band below his mouth: two rows,
             // which is exactly a two-colour stripe and nothing more ambitious.
             // A cabinet is a dark box with a lit band on it, and so is he.
+            //
+            // And it CHASES. Two solid bars are a paint job; bulbs running
+            // along a cabinet's crown are what a marquee actually is, and the
+            // travel is the entire difference between a lit sign and a stripe.
+            // Continuous, because a marquee that only ran on a dice would look
+            // broken rather than restrained.
             let marquee = bodyY + dy + squash + 9
-            b.rect(bodyX + 2 + dx, marquee, bodyW - 4, 1, .costumeA)
-            b.rect(bodyX + 2 + dx, marquee + 1, bodyW - 4, 1, .costumeB)
+            let chase = Int(pose.propPhase * 7)
+            for step in 0..<(bodyW - 4) {
+                let x = bodyX + 2 + dx + step
+                let lit = (step + chase) % 4 < 2
+                b.pixel(x, marquee, lit ? .costumeA : .costumeB)
+                b.pixel(x, marquee + 1, lit ? .costumeB : .costumeA)
+            }
 
         case .ninja:
             let crown = bodyY + dy + squash
@@ -310,11 +340,36 @@ enum CrabCostume {
 
 
         case .retroBlack:
-            guard layer == .onBody else { break }
-            // Only the eye backing — the whole point of this look is what it
-            // leaves out. Charcoal behind the eyes, or black-on-black blinds him.
-            b.rect(bodyX + 2 + dx, 12 + dy, bodyW - 4, 5, .costumeB)
-
+            if layer == .onBody {
+                // Only the eye backing — the whole point of this look is what
+                // it leaves out. Charcoal behind the eyes, or black-on-black
+                // blinds him.
+                b.rect(bodyX + 2 + dx, 12 + dy, bodyW - 4, 5, .costumeB)
+            }
+            guard layer == .front,
+                  let sweep = Self.effectWindow(at: pose.propPhase, salt: 31,
+                                                period: 11, duration: 1.6, chance: 0.45)
+            else { break }
+            // Clearcoat catching a light as you walk past it. Diagonal on
+            // purpose: a vertical bar reads as a wipe and a horizontal one as a
+            // scanline, and neither of those is a reflection.
+            //
+            // Written only where the cell is still `.body` — the mask the
+            // matrix rain established. His eyes and mouth are their own inks by
+            // the `.front` pass, so the sheen cannot cross them however far it
+            // travels.
+            let lead = Int(sweep * Double(bodyW + bodyH + 10)) - 5 + bodyX + dx
+            for row in 0..<PixelBuffer.side {
+                for offset in 0..<2 {
+                    let x = lead - row + offset
+                    guard x >= 0, x < PixelBuffer.side, b[x, row] == .body else { continue }
+                    // `.steel`, not `.costumeB`. The costume slot here is the
+                    // charcoal eye backing — a highlight painted in it is a
+                    // shade of black on black and does not exist. A specular is
+                    // LIGHT; it has to out-rank the shell it is sliding over.
+                    b.pixel(x, row, .steel)
+                }
+            }
         case .matrix:
             // The rain runs on `.front`, i.e. AFTER `drawFace`, and writes
             // only where the cell is still `.body`. That mask is the whole
@@ -382,7 +437,7 @@ enum CrabCostume {
             }
 
         case .tiger:
-            guard layer == .onBody else { break }
+            if layer == .onBody {
             // Three bold 2-wide stripes per band, staggered — the first draft
             // ran twelve thin dashes and read cactus, not cat. Columns chosen
             // clear of the eye windows (10-12 and 19-21), where a stripe just
@@ -399,10 +454,45 @@ enum CrabCostume {
             for column in [10, 18] {
                 b.rect(column + dx, base + 7, 2, 3, .costumeA)
             }
+            }
+
+            guard layer == .behind else { break }
+            // A TAIL. He has none of his own, which is exactly why the costume
+            // may give him one — the ninja's ribbons set that precedent on this
+            // same layer, and behind him is where a tail goes, so it can never
+            // cross his face.
+            //
+            // Continuous, and slow. A tail that only swished on a dice would
+            // read as a twitch; the charm of one is that it never stops.
+            let swish = sin(pose.propPhase * 1.5)
+            let root = bodyX + bodyW + dx - 1
+            for segment in 0..<6 {
+                let x = root + segment
+                let y = bodyY + dy + 9 - Int((Double(segment) * 0.55 * swish).rounded())
+                guard x < PixelBuffer.side, y >= 1, y < PixelBuffer.side else { continue }
+                b.pixel(x, y, .body)
+                // Ticked with the stripes' own near-black every other segment,
+                // so it reads as a tiger's tail rather than as a wire.
+                if segment % 2 == 1 { b.pixel(x, y - 1, .costumeA) }
+            }
 
         case .white:
-            break   // the colourway IS the costume — no accessories
-
+            // The colourway is most of the costume; the weather is the rest.
+            guard layer == .front else { break }
+            // Snow, drawn ONLY where the cell is still clear. White flakes on
+            // an arctic-white shell would simply disappear — the mask makes
+            // that impossible rather than merely unlikely, and it puts the snow
+            // behind him instead of over him, which is where snow goes.
+            //
+            // Continuous rather than scheduled: weather does not take turns.
+            for (column, speed) in [(2, 0.62), (8, 0.9), (14, 0.5), (21, 0.78), (27, 1.05)] {
+                let fall = (pose.propPhase * speed * 5 + Double(column * 3))
+                    .truncatingRemainder(dividingBy: Double(PixelBuffer.side))
+                let drift = Int(sin(pose.propPhase * 0.8 + Double(column)) * 1.4)
+                let x = column + drift, y = Int(fall)
+                guard x >= 0, x < PixelBuffer.side, b[x, y] == .clear else { continue }
+                b.pixel(x, y, .paper)
+            }
         case .gundam:
             if layer == .onBody {
                 // The face is built on black: a visor recess across the eye
@@ -452,6 +542,24 @@ enum CrabCostume {
                 b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
             }
 
+            guard layer == .front,
+                  let scan = Self.effectWindow(at: pose.propPhase, salt: 19,
+                                               period: 6, duration: 1.1, chance: 0.7)
+            else { break }
+            // The camera sweeping: one bright column crossing his shell, drawn
+            // only where the cell is still `.body`. That mask puts it BEHIND
+            // the visor and the eyes rather than over them — a scan that
+            // blanked the eyes it is meant to be looking through would be the
+            // wardrobe covering a face, which is the one forbidden thing.
+            let column = bodyX + dx + Int(scan * Double(bodyW))
+            guard column >= 0, column < PixelBuffer.side else { break }
+            // `.paper` rather than a costume slot: `.costumeB` here is the
+            // sneaker red, and a red bar sweeping his chest reads as an alarm
+            // going off rather than as a camera looking around.
+            for row in 0..<PixelBuffer.side where b[column, row] == .body {
+                b.pixel(column, row, .paper)
+            }
+
         case .sonic:
             let crown = bodyY + dy + squash
             if layer == .onBody {
@@ -480,6 +588,32 @@ enum CrabCostume {
             b.pixel(3 + dx, 13 + dy, .costumeA)
             b.rect(26 + dx, 12 + dy, 3, 1, .costumeA)
             b.pixel(28 + dx, 13 + dy, .costumeA)
+
+            // No layer check here, and that is not an omission: the quills'
+            // `guard layer == .front` above already narrowed this case to the
+            // front pass, so everything below it is front-only. The first
+            // version asked for `.behind` and was simply unreachable — the
+            // render showed nothing at all and it took reading the case's
+            // shape, not the effect's code, to see why.
+            guard let dash = Self.effectWindow(at: pose.propPhase, salt: 23,
+                                               period: 5, duration: 0.75, chance: 0.5)
+            else { break }
+            // Speed lines, in the margins beside him. He is standing
+            // still, so the lines do all the work — the same trick the skate
+            // cruise uses and for the same reason: on a fixed camera the world
+            // moves and the character does not.
+            for lane in 0..<3 {
+                let y = bodyY + dy + 3 + lane * 5
+                let reach = Int(dash * 9)
+                // `.paper`, not `.costumeA`. That slot is his quill
+                // shadow-blue — a dark blue streak beside a blue crab on a dark
+                // desktop is three kinds of invisible, and the render proved it
+                // by showing nothing at all. Speed lines are white because
+                // speed lines have always been white.
+                b.rect(max(0, bodyX + dx - 4 - reach), y, 3, 1, .paper)
+                b.rect(min(PixelBuffer.side - 3, bodyX + bodyW + dx + 1 + reach), y, 3, 1, .paper)
+            }
+
         }
     }
 }
