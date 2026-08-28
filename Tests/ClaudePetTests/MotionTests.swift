@@ -389,7 +389,7 @@ struct MotionContinuityTests {
                 guard pose.stargaze > 0 else { continue }
                 sawTelescope = true
                 #expect(pose.bugX == nil, "a bug visited mid-telescope at t=\(t)")
-                #expect(pose.prop != .balloon, "a balloon floated up mid-telescope at t=\(t)")
+                #expect(pose.prop != .mug, "a balloon floated up mid-telescope at t=\(t)")
             }
         }
         #expect(sawTelescope)

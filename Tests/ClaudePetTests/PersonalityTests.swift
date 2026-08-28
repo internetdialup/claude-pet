@@ -85,11 +85,40 @@ struct PropInventoryTests {
     ///
     /// Pinning the count makes the next append or deletion surface the media
     /// obligation at test time rather than at review time.
+    /// **The joystick sits on the FLOOR, and stays there at every phase.**
+    ///
+    /// Its first draft floated beside him at his own height, where the base sat
+    /// on his flank and the whole thing read as a dark lump with a red dot stuck
+    /// to the crab. Rows 25 and below are the only ground in the frame nothing
+    /// else occupies; his ink stops at row 24, and rows 21 to 24 are only his
+    /// four legs — which is why this guard checks the whole silhouette rather
+    /// than a row number. A prop can miss the legs and still land on his shell.
+    ///
+    /// Checked against the RENDER rather than against the stamp coordinates,
+    /// because the lean moves it and a coordinate a test copies out of the
+    /// source cannot catch the frame where the lean pushed it somewhere new.
+    @Test("The joystick never stands on the crab")
+    func joystickStaysOnTheFloor() {
+        let bare = CrabRig.render(CrabPose())
+        for step in 0...40 {
+            var pose = CrabPose()
+            pose.prop = .joystick
+            pose.propPhase = Double(step) * 0.25
+            let drawn = CrabRig.render(pose)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where bare[x, y] != .clear {
+                    #expect(drawn[x, y] == bare[x, y],
+                            "the joystick painted over him at \(x),\(y) on phase \(pose.propPhase)")
+                }
+            }
+        }
+    }
+
     @Test("The prop strip publishes every prop")
     func propCountIsPinned() {
         // `.none` is a case but not a prop; the strip draws the rest.
         let drawn = CrabPose.Prop.allCases.filter { $0 != .none }
-        #expect(drawn.count == 12,
+        #expect(drawn.count == 13,
                 "the prop count moved — docs/media/props.png needs re-rendering")
         #expect(!CrabPose.Prop.allCases.contains { $0.rawValue == "zzz" },
                 "the sleeping z's were removed; the enum should not carry them")

@@ -37,7 +37,7 @@ public enum CrabAnimator {
     /// | `23 &+ 19` | whether an informational cycle is a tip, not a fact |
     /// | `29 &+ 11` | the cooking heat cascade |
     /// | `41 &+ 17` | the disco tint |
-    /// | `43 &+ 11` | the idle balloon |
+    /// | `43 &+ 11` | the idle mug |
     /// | `53 &+ 7` | the floor bug |
     /// | `59 &+ 7` | the petting hearts' column |
     /// | `61 &+ 3` | the stargazer |
@@ -523,7 +523,7 @@ public enum CrabAnimator {
 
             if gazing == nil, sun == nil {
                 if let float = idleBalloon(idleT: t) {
-                    pose.prop = .balloon
+                    pose.prop = .mug
                     pose.propVisibility = float
                 }
 

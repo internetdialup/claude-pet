@@ -75,12 +75,14 @@ public struct CrabPose: Sendable, Equatable {
     public enum Prop: String, Sendable, CaseIterable {
         case none
         // World props: drawn at a fixed spot in the frame.
-        case sparkles, terminal, check, bang, servers, balloon, plan
+        case sparkles, terminal, check, bang, servers, mug, plan
         // Worn props: drawn on the body, and must travel with `bob` and `lean`.
         case hardHat, phone, fire, glasses
         // Appended (stableSeed is the allCases index — order is load-bearing):
         // the 8-bit Claude star, the thinking spell's second wind.
         case star
+        // Appended for the same reason, never inserted: the arcade stick.
+        case joystick
 
         var isWorn: Bool {
             switch self {
@@ -90,7 +92,8 @@ public struct CrabPose: Sendable, Equatable {
         }
 
         /// The props Claw'd picks between while a tool is running.
-        static let working: [Prop] = [.terminal, .hardHat, .servers, .phone, .fire, .glasses]
+        static let working: [Prop] = [.terminal, .hardHat, .servers, .phone,
+                                      .fire, .glasses, .joystick]
     }
 
     /// Drives the prop's own animation (scrolling code, blinking cursor,
@@ -921,23 +924,75 @@ public enum CrabRig {
                 b.pixel(28, top + 1, lit ? .green : .screenDark)
             }
 
-        case .balloon:
-            // String first, so the knot sits under the balloon.
-            let sway = Int((sin(phase * 0.9) * 1.5).rounded())
-            for y in 9...14 {
-                b.pixel(4 + sway + (y > 11 ? 1 : 0), y, .steel)
-            }
-            let key: [Character: PixelBuffer.Ink] = ["g": .green, "b": .screenLight]
+        case .mug:
+            // A mug, because a five-year-old can name one.
+            //
+            // This slot used to hold a balloon: a seven-by-five green blob on a
+            // string that read as a lollipop, a sweet or a bush depending on who
+            // was looking. It was also the only prop in the app that signalled
+            // NOTHING — every other one tells you something about the session,
+            // and that one just floated. A mug says the thing the slot is
+            // actually for: he has been idle a while, he is on a break.
+            //
+            // The motion is unchanged and it still fits — `idleBalloon` HOLDS
+            // the prop for eight seconds rather than drifting it past, which is
+            // what you do with a mug and not what you do with a balloon.
+            //
+            // Drawn in `.slate` and `.paper`, both of which a costume cannot
+            // repaint, so it stays a white mug on the ninja and on the matrix.
+            let key: [Character: PixelBuffer.Ink] = [
+                "o": .slate, "w": .paper, "s": .screenLight,
+            ]
+            // Steam rises and resets — two wisps a half-cycle apart, so
+            // something is always moving without either one racing.
+            let lift = Int(phase * 3) % 3
             b.stamp([
-                ".ggggg.",
-                "ggbbbgg",
-                "gbbbbbg",
-                "ggbbbgg",
-                ".ggggg.",
-            ], at: (x: 1 + sway, y: 3), key: key)
+                "..s..s..",
+                ".s..s...",
+            ], at: (x: 1, y: 6 - lift), key: key)
+            b.stamp([
+                "oooooo..",
+                "owwwwoo.",
+                "owwwwo.o",
+                "owwwwoo.",
+                "oooooo..",
+            ], at: (x: 1, y: 9), key: key)
 
         case .hardHat:
             drawHardHat(&b, dx: dx, dy: dy, phase: phase)
+
+        case .joystick:
+            // An arcade stick: black base, black shaft, red ball on top, two
+            // red buttons on the deck. Chosen against the rule the mug is here
+            // for — a five-year-old can name a joystick, and cannot name a
+            // green blob on a string.
+            //
+            // ON THE FLOOR, at his feet, and that is not a detail. The first
+            // draft floated it beside him at his own height, where the base sat
+            // on his flank and the whole thing read as a dark lump with a red
+            // dot stuck to the crab. Rows 25 and below are the only ground in
+            // the frame nothing else occupies — his ink stops at row 24, and
+            // rows 21 to 24 are only his four legs. A stick that sits on
+            // something reads as a stick; one hanging in the air reads as a
+            // smudge.
+            //
+            // The lean is the point. A stick standing straight is a lamp; one
+            // that tips reads as being PUSHED, which is what makes it say "he
+            // is driving something" rather than "an object exists". Whole-pixel
+            // steps, which the grid's own quantum exempts from the no-snap rule.
+            let lean = Int((sin(phase * 2.2) * 1.4).rounded())
+            let key: [Character: PixelBuffer.Ink] = ["r": .alert, "o": .slate]
+            b.stamp([
+                ".rrr.",
+                ".rrr.",
+            ], at: (x: 2 + lean, y: 25), key: key)
+            b.pixel(4 + lean, 27, .slate)
+            b.stamp([
+                ".ooooo.",
+                "ooooooo",
+                "oroooro",
+                "ooooooo",
+            ], at: (x: 1, y: 28), key: key)
 
         case .star:
             // The Claude star, holding the top-right airspace (cols 20-28) —
@@ -1029,12 +1084,13 @@ public enum CrabRig {
         b.rect(centre - 4, hatY, 8, 1, .yellow)        // crown
         b.rect(centre - 7, hatY + 4, 14, 1, .yellow)   // brim
 
-        // Tools, bobbing gently so they read as held rather than glued on.
-        let jiggle = sin(phase * 2) > 0 ? 0 : 1
-        b.rect(2, 13 + jiggle, 2, 6, .steel)           // wrench shaft
-        b.rect(1, 12 + jiggle, 4, 2, .steel)           // wrench head
-        b.rect(29, 14 - jiggle, 2, 5, .steel)          // screwdriver shaft
-        b.rect(28, 12 - jiggle, 4, 2, .screenDark)     // screwdriver handle
+        // The wrench and screwdriver that used to float either side of him are
+        // gone, at the operator's call: "hardhat works but not the tools".
+        // They were two points wide, which is not enough to be a wrench — they
+        // read as two grey sticks hanging in the air beside his head. The hat
+        // alone says "working" perfectly well, and it says it on his head where
+        // a worn prop belongs.
+        _ = phase
     }
 
     /// Wire frames around both eyes.
