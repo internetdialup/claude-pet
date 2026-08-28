@@ -34,6 +34,17 @@ public enum SpriteImage {
     /// `png(of:)` would round-trip it via TIFF and PNG only for the GIF encoder
     /// to decode it again.
     ///
+    /// Draws into a context of our own rather than reading `ImageRenderer`'s
+    /// `cgImage`, which builds one with the machine's text-rasterisation
+    /// defaults — including the font smoothing that made `desktop.gif` differ
+    /// on every run.
+    ///
+    /// `scale` is still set on the renderer as well as passed to `render`.
+    /// Vector content only needs the context transform, but the bitmap glyphs
+    /// in Apple Color Emoji are chosen by the renderer's own scale: leave it at
+    /// 1 and the eyes in "Plan's ready 👀" come back rasterised for a 320-point
+    /// canvas and stretched over a 640-pixel one.
+    ///
     /// - Parameter isOpaque: true for a scene that fills its own frame, which
     ///   keeps the encoder off the transparent palette index entirely. The
     ///   `PixelBuffer` overload below deliberately does not expose this — it is
@@ -45,7 +56,52 @@ public enum SpriteImage {
         let renderer = ImageRenderer(content: view)
         renderer.scale = scale
         renderer.isOpaque = isOpaque
-        return renderer.cgImage
+
+        var image: CGImage?
+        renderer.render(rasterizationScale: scale) { size, draw in
+            let width = Int((size.width * scale).rounded())
+            let height = Int((size.height * scale).rounded())
+            guard width > 0, height > 0,
+                  let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(
+                    data: nil, width: width, height: height,
+                    bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                    bitmapInfo: (isOpaque ? CGImageAlphaInfo.noneSkipFirst
+                                          : CGImageAlphaInfo.premultipliedFirst).rawValue
+                        | CGBitmapInfo.byteOrder32Little.rawValue)
+            else { return }
+            pinTextRasterisation(context)
+            context.scaleBy(x: scale, y: scale)
+            draw(context)
+            image = context.makeImage()
+        }
+        return image
+    }
+
+    /// Pins the text-rasterisation switches Core Graphics would otherwise pick
+    /// per context.
+    ///
+    /// Font smoothing is the one that bit. It is applied out of a
+    /// process-global glyph cache, and a glyph's first few draws rasterise by a
+    /// different route than every draw after — so a 275-frame clip crosses that
+    /// boundary partway through, and *which* frame crosses it moves between
+    /// processes. One frame of `desktop.gif` came out different on every run,
+    /// and because the GIF quantiser builds its palette from the whole clip, a
+    /// few changed edge samples spread as a palette shift across the beat.
+    /// Turning it off costs nothing visible at 2× on flat colour and makes the
+    /// raster independent of how many frames have already been drawn.
+    ///
+    /// Subpixel positioning and quantization are pinned at their current
+    /// values alongside it — not because they drifted, but because they are
+    /// read from the machine, and a committed asset should not depend on the
+    /// operator's font settings.
+    private static func pinTextRasterisation(_ context: CGContext) {
+        context.setAllowsFontSmoothing(false)
+        context.setShouldSmoothFonts(false)
+        context.setAllowsFontSubpixelPositioning(true)
+        context.setShouldSubpixelPositionFonts(true)
+        context.setAllowsFontSubpixelQuantization(true)
+        context.setShouldSubpixelQuantizeFonts(true)
     }
 
     /// PNG data for an arbitrary view, sized in points equal to target pixels.

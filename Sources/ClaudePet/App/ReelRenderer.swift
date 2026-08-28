@@ -278,26 +278,6 @@ enum ReelRenderer {
 
     /// The demo script, rendered frame by frame.
     static func renderHero(to url: URL) -> Bool {
-        // A WARM-UP PASS, rendered and thrown away.
-        //
-        // This GIF came out different on every run from the same binary — two
-        // frames in two hundred and seventy-five, always inside a speech
-        // bubble. The cause is Core Graphics' glyph cache: a glyph's first
-        // draws do not match every draw after it, so whichever frames happened
-        // to contain a glyph's debut rendered differently from the rest, and
-        // the GIF quantiser spread the difference further.
-        //
-        // Drawing the whole sequence once first means every glyph in it is
-        // already warm before a single kept frame is made. It costs one extra
-        // pass and buys a file that can be byte-compared, which is the only
-        // way anyone can tell whether it is stale.
-        var warm = 0.0
-        while warm < DemoMode.totalSeconds {
-            _ = SpriteImage.cgImage(of: heroScene(at: warm),
-                                    scale: heroScale, isOpaque: true)
-            warm += heroFrameDelay
-        }
-
         var images: [CGImage] = []
         var elapsed = 0.0
         while elapsed < DemoMode.totalSeconds {
