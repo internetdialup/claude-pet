@@ -49,7 +49,13 @@ struct CostumeStyle {
         case .ninja:
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x47_4751),      // shadowed shell
+                    // Properly dark, at the operator's call. It was 0x474751,
+                    // a slate grey that read as "in shadow" rather than as
+                    // black. Not quite `retroBlack`'s 0x1C1C1E either: that
+                    // costume's whole identity is being black, and the ninja
+                    // needs somewhere to put a headband. A cool near-black
+                    // keeps the red legible on top of it.
+                    .body: rgb(0x23_232B),      // near-black, cool
                     .costumeA: rgb(0xC2_4141),  // headband + tails
                     .costumeB: rgb(0xCE_7B5C),  // the mask's eye window — his own terracotta
                 ],
@@ -167,6 +173,27 @@ enum CrabCostume {
     private static let bodyX = CrabRig.bodyX, bodyW = CrabRig.bodyW,
                        bodyY = CrabRig.bodyY, bodyH = CrabRig.bodyH
 
+    /// When a shuriken is in flight, and how far across it has got.
+    ///
+    /// Scheduled rather than constant: a star permanently spinning beside him
+    /// is a screensaver, and the point of a thrown one is that it goes. Never
+    /// in the first cycle, so a frozen render at t=0 is a clean crab — the same
+    /// sentinel every other dice in the app answers to.
+    ///
+    /// Salt `97 &+ 11`. 97 is the multiplier the COSTUME EFFECTS take as a
+    /// family, with the addend telling them apart — the pattern `71 &+ 29 &+
+    /// slot` already set for the bubble bursts. It was the last free multiplier
+    /// on the registry, and sharing it is what stops the next eight costumes
+    /// each wanting one.
+    static func shurikenFlight(at t: Double) -> (travel: Double, cycle: Int)? {
+        let period = 9.0, duration = 2.2
+        let cycle = Int(floor(t / period))
+        guard cycle > 0, CrabAnimator.noise(cycle &* 97 &+ 11) < 0.55 else { return nil }
+        let since = t - Double(cycle) * period
+        guard since >= 0, since < duration else { return nil }
+        return (since / duration, cycle)
+    }
+
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
                      dx: Int, dy: Int, squash: Int, pose: CrabPose) {
         switch costume {
@@ -209,7 +236,28 @@ enum CrabCostume {
                 b.rect(bodyX + dx - squash, crown + 1, bodyW + squash * 2, 2, .costumeA)
                 b.pixel(bodyX + bodyW + dx - 1, crown + 2, .costumeA)
             case .front:
-                break
+                // A shuriken, thrown. Enters from the right, spins across the
+                // airspace over his head, and is gone — rows 4 to 8 and the
+                // margins beyond his claws are the only ground in the frame
+                // nothing else occupies.
+                //
+                // The spin is two frames, a plus and a cross, alternating fast.
+                // That is the whole trick and it is the only one available: a
+                // five-point star cannot rotate on this grid by any amount
+                // other than 45 degrees, so it rotates by exactly that, which
+                // is what a spinning blade looks like anyway.
+                guard let flight = Self.shurikenFlight(at: pose.propPhase) else { break }
+                let x = 30 - Int(flight.travel * 38)
+                let cross = Int(flight.travel * 26) % 2 == 0
+                let art = cross
+                    ? ["s...s", ".s.s.", "..s..", ".s.s.", "s...s"]
+                    : ["..s..", "..s..", "sssss", "..s..", "..s.."]
+                // Steel, not the headband's red. `.costumeA` was to hand and
+                // wrong: a red star reads as a decoration, and a blade has to
+                // look like metal or it is bunting. `.steel` is also one of the
+                // inks a costume cannot repaint, so it stays a blade whatever
+                // else the wardrobe does.
+                b.stamp(art, at: (x: x, y: 4), key: ["s": .steel])
             }
 
 

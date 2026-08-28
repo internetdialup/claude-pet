@@ -53,7 +53,11 @@ public enum CrabAnimator {
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
     /// shot), `43 &+ 13` (idle chatter, per seed).
     ///
-    /// **Free:** 97.
+    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each (11 = the shuriken) |
+    ///
+    /// **Free:** none. 97 is the last multiplier and the costumes share it by
+    /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.
+    /// A tenth costume effect takes the next addend, not a new multiplier.
     static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
