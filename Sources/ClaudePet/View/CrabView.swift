@@ -1157,7 +1157,13 @@ public enum CrabAnimator {
                 pose.legAmplitude = 1.6               // legs tuck out of the way
                 pose.legPhase = .pi / 2
                 pose.blink = 0
-                pose.eyes = .squint                   // >_< , off the stickers
+                // The scrunch is the POP, not the whole trick. Held across the
+                // entire airtime it stopped being an expression and became his
+                // face — and it also hid the thing worth watching, since a crab
+                // squinting through his own kickflip is not looking at it. He
+                // screws his eyes up as he snaps the board, then opens them for
+                // the rotation and the landing.
+                if air < 0.25 { pose.eyes = .squint }  // >_< , off the stickers
                 pose.mouth = .open
                 pose.propPhase = air
             } else {
