@@ -84,10 +84,11 @@ public enum CrabAnimator {
     /// The little unprompted things he does while waiting. Scheduled rather
     /// than random per frame, so each one plays through instead of stuttering.
     enum Flourish: String, CaseIterable {
-        case jump, wave, wiggle, stretch, lookAround, scuttle
+        case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip
 
         var duration: Double {
             switch self {
+            case .kickflip: 2.4
             case .jump: 0.9
             case .wave: 1.8
             case .wiggle: 1.0
@@ -1044,6 +1045,44 @@ public enum CrabAnimator {
     /// as a frequency.
     private static func apply(_ kind: Flourish, progress: Double, t: Double, to pose: inout CrabPose) {
         switch kind {
+        case .kickflip:
+            // Roll, pop, one full turn of the board, land it.
+            //
+            // The board is a WORN prop, which is the whole trick: worn props
+            // travel with `bob`, so when he leaves the ground it goes with him.
+            // A board that stayed on the floor while he jumped would not be a
+            // kickflip, it would be him falling off.
+            //
+            // `propPhase` carries the turn, 0 to 1 across the airtime, and one
+            // whole turn lands deck-down — which is what a kickflip IS, and why
+            // the phase must reach exactly 1 rather than stopping short.
+            pose.prop = .skateboard
+            pose.propVisibility = 1
+            // Set on EVERY branch, never left to the caller. The idle pose he
+            // is layered onto carries its own `propPhase` for its own prop, and
+            // inheriting it renders the board at some arbitrary angle — which
+            // is exactly what the first contact sheet showed: a flat deck while
+            // rolling, then a sliver on the crouch, for no reason a viewer
+            // could see.
+            pose.propPhase = 0
+            if progress < 0.15 {
+                pose.squash = 1                       // load the pop
+                pose.bob = 1
+            } else if progress < 0.80 {
+                let air = (progress - 0.15) / 0.65
+                pose.bob = -Int((sin(air * .pi) * 6).rounded())
+                pose.legAmplitude = 1.6               // legs tuck out of the way
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.eyes = .squint                   // >_< , off the stickers
+                pose.mouth = .open
+                pose.propPhase = air
+            } else {
+                pose.squash = 1                       // stomp it
+                pose.bob = 1
+                pose.mouth = .open
+            }
+
         case .jump:
             // Crouch, launch, arc, land heavy.
             if progress < 0.16 {

@@ -21,7 +21,7 @@ public struct CrabPose: Sendable, Equatable {
     public enum EyeSide: Sendable { case none, left, right }
     /// Eye shape. `.determined` carves the inner-top corner into a focused slant.
     public var eyes: EyeStyle = .round
-    public enum EyeStyle: Sendable { case round, determined, wide }
+    public enum EyeStyle: Sendable { case round, determined, wide, squint }
     /// Whole-pixel vertical offset applied to the eyes in opposite directions —
     /// a head tilt, on a grid that cannot rotate.
     ///
@@ -81,12 +81,13 @@ public struct CrabPose: Sendable, Equatable {
         // Appended (stableSeed is the allCases index — order is load-bearing):
         // the 8-bit Claude star, the thinking spell's second wind.
         case star
-        // Appended for the same reason, never inserted: the arcade stick.
-        case joystick
+        // Appended for the same reason, never inserted: the arcade stick, the
+        // shades off the stickers, and the board he kickflips.
+        case joystick, shades, skateboard
 
         var isWorn: Bool {
             switch self {
-            case .hardHat, .phone, .fire, .glasses: true
+            case .hardHat, .phone, .fire, .glasses, .shades, .skateboard: true
             default: false
             }
         }
@@ -825,6 +826,17 @@ public enum CrabRig {
             case .wide:
                 // One row taller, for the expectant "well?" of the nudge.
                 b.rect(x, top - 1, eyeSize, eyeSize + 1, .eye)
+            case .squint:
+                // >_< . Two chevrons pointing at each other — the scrunched
+                // face off the stickers, which read at two centimetres with no
+                // motion and no context to help them. Mirrored per side, so
+                // the left eye opens outward and the right one does too.
+                let tip = side == .left ? x : x + eyeSize - 1
+                let mid = side == .left ? x + 1 : x + eyeSize - 2
+                b.pixel(tip, top, .eye)
+                b.pixel(mid, top + 1, .eye)
+                b.pixel(tip, top + 2, .eye)
+
             case .determined:
                 // Carve the inner-top corner so the brows slant toward the nose.
                 // drawFace runs after the body, so painting `.body` over a corner
@@ -998,6 +1010,62 @@ public enum CrabRig {
             // The Claude star, holding the top-right airspace (cols 20-28) —
             // clear of the service glyph box on the left and the body below.
             b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
+
+        case .shades:
+            // The meme shades, straight off the stickers: two solid lenses, a
+            // bridge, a brow bar, and a white glint stepping down each lens.
+            //
+            // Deliberately NOT the `glasses` prop with a new coat. Those are a
+            // wire outline and they say READING — you can see his eyes through
+            // them, which is the whole point of drawing them hollow. These are
+            // solid, and solid says something else entirely. Two props, two
+            // meanings, and the resolution is the same either way.
+            b.rect(9 + dx, 12 + dy, 15, 1, .slate)          // brow
+            b.rect(9 + dx, 13 + dy, 6, 2, .slate)           // left lens
+            b.rect(18 + dx, 13 + dy, 6, 2, .slate)          // right lens
+            b.rect(15 + dx, 13 + dy, 3, 1, .slate)          // bridge
+            b.pixel(10 + dx, 14 + dy, .paper)               // the glint, stepping
+            b.pixel(11 + dx, 13 + dy, .paper)
+            b.pixel(19 + dx, 14 + dy, .paper)
+            b.pixel(20 + dx, 13 + dy, .paper)
+
+        case .skateboard:
+            // A board under his feet, seen end-on, rolling through a kickflip.
+            //
+            // `propPhase` is the flip, 0…1 across one full turn about the deck's
+            // long axis. A grid cannot rotate, so the turn is spent on WIDTH:
+            // the deck reads nine wide flat on, narrows as it comes up on edge,
+            // passes through three wide edge-on, and opens back out. Wheels show
+            // only while the deck is near flat, because that is the only time
+            // you would see them.
+            //
+            // Worn, so it travels with `bob` — during the flip he is in the air
+            // and the board has to come with him or he is flipping a board that
+            // stayed on the ground.
+            let turn = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let face = cos(turn * 2 * .pi)                  // +1 deck up, -1 deck down
+            let openness = abs(face)                        // 1 flat on, 0 on edge
+            // Seventeen wide flat on, which is not a decoration: his legs stand
+            // at columns 7 to 25, and a board narrower than his stance reads as
+            // a stick lying near him rather than as something he is on.
+            let half = max(0, Int((openness * 8).rounded()))
+            let deckY = 25 + dy
+            b.rect(16 - half + dx, deckY, half * 2 + 1, 1, .slate)
+            if openness > 0.55 {
+                // Thickening the deck as it comes flat is what sells the turn:
+                // a one-row line is the same picture at every angle, so the
+                // width alone was doing all the work and none of it read.
+                b.rect(16 - half + 1 + dx, deckY + (face > 0 ? -1 : 1),
+                       max(1, half * 2 - 1), 1, .slate)
+            }
+            if openness > 0.8 {
+                // Trucks show only when you would actually see them, and they
+                // ride under the deck or on top of it depending on which face
+                // of the board is toward you.
+                let under = face > 0 ? 1 : -1
+                b.rect(11 + dx, deckY + under, 2, 1, .yellow)
+                b.rect(20 + dx, deckY + under, 2, 1, .yellow)
+            }
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)

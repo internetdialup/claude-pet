@@ -265,6 +265,37 @@ struct MotionContinuityTests {
         #expect(pose.tilt == 0, "a shut lid cannot carry a tilt")
     }
 
+    /// **A kickflip is a whole turn, and it lands deck-down.**
+    ///
+    /// Checked against the RENDER, by measuring how wide the board's row is:
+    /// widest when the deck faces you, narrowest on edge. A half-turn would
+    /// leave him standing on the underside, which is a different trick and a
+    /// worse one, and no assertion about `propPhase` alone would notice —
+    /// the phase could complete while the art did nothing.
+    @Test("The kickflip turns the board over and lands it flat")
+    func kickflipCompletesAWholeTurn() {
+        func deckWidth(_ t: Double) -> Int {
+            let buffer = CrabRig.render(CrabAnimator.flourishPose(.kickflip, at: t))
+            var widest = 0
+            for y in 0..<PixelBuffer.side {
+                var run = 0
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .slate { run += 1 }
+                widest = max(widest, run)
+            }
+            return widest
+        }
+
+        let duration = CrabAnimator.Flourish.kickflip.duration
+        let rolling = deckWidth(0.01)
+        let landed = deckWidth(duration - 0.01)
+        #expect(rolling >= 15, "the board should span his stance while rolling, not \(rolling)")
+        #expect(landed == rolling, "he landed on \(landed) points of board, took off from \(rolling)")
+
+        // …and it genuinely goes over: somewhere in the air the deck is edge-on.
+        let narrowest = stride(from: 0.0, through: duration, by: 0.02).map(deckWidth).min() ?? 0
+        #expect(narrowest <= 3, "the board never came up on edge — narrowest was \(narrowest)")
+    }
+
     /// **His eyes are level, in every mood, at every instant.**
     ///
     /// Rendered, not reasoned about. The bug this pins was invisible to every
