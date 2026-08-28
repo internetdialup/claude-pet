@@ -81,7 +81,7 @@ struct PetArrangementTests {
     @Test("Opposite slots are mirrors of each other")
     func oppositeSlotsMirror() {
         let opposites: [(PetArrangement.Slot, PetArrangement.Slot)] = [
-            (.north, .south), (.east, .west),
+            (.north, .south),
             (.northEast, .southWest), (.northWest, .southEast),
         ]
         for px in sizes {
@@ -96,22 +96,25 @@ struct PetArrangementTests {
 
     // MARK: - The crosshair
 
-    /// Total and deterministic: every direction lands in exactly one octant,
-    /// and turning right through a full circle visits all eight in order. A gap
-    /// or a repeat here would be a direction the pet could not be dragged to.
-    @Test("The crosshair covers every direction, once")
-    func crosshairIsTotal() {
-        var seen: [PetArrangement.Slot] = []
-        for degrees in stride(from: 0, to: 360, by: 1) {
-            let radians = Double(degrees) * .pi / 180
+    /// Total, deterministic, and EVEN: every direction lands in exactly one
+    /// sextant, a full turn visits all six, and each one owns 60° of the circle.
+    /// A gap would be a direction the pet could not be dragged to; an uneven
+    /// share would make some slots harder to hit than others for no reason the
+    /// operator could see.
+    @Test("The crosshair covers every direction once, in even sixths")
+    func crosshairIsTotalAndEven() {
+        var tally: [PetArrangement.Slot: Int] = [:]
+        for tenths in stride(from: 0, to: 3600, by: 1) {
+            let radians = Double(tenths) / 10 * .pi / 180
             let slot = PetArrangement.slot(forDelta: CGSize(width: cos(radians),
                                                             height: sin(radians)))
-            if seen.last != slot { seen.append(slot) }
+            tally[slot, default: 0] += 1
         }
-        // The sweep starts mid-east and ends mid-east, so east bookends it.
-        #expect(seen.first == .east && seen.last == .east)
-        #expect(Set(seen).count == PetArrangement.Slot.allCases.count,
-                "only reached \(Set(seen).count) of the eight: \(Set(seen).map(\.rawValue).sorted())")
+        #expect(tally.count == PetArrangement.Slot.allCases.count,
+                "only reached \(tally.count) of the six: \(tally.keys.map(\.rawValue).sorted())")
+        for (slot, share) in tally {
+            #expect(abs(share - 600) <= 1, "\(slot.rawValue) owns \(share / 10)° of the circle, not 60")
+        }
     }
 
     /// A delta and its negation must give opposite slots, or the crosshair is
@@ -119,11 +122,15 @@ struct PetArrangementTests {
     @Test("Reversing a direction reverses the slot")
     func crosshairIsSymmetric() {
         let opposites: [PetArrangement.Slot: PetArrangement.Slot] = [
-            .north: .south, .south: .north, .east: .west, .west: .east,
+            .north: .south, .south: .north,
             .northEast: .southWest, .southWest: .northEast,
             .northWest: .southEast, .southEast: .northWest,
         ]
-        for degrees in stride(from: 0, to: 360, by: 7) {
+        // Off the sextant boundaries: exactly due east is the seam between two
+        // diagonals, where a direction and its reverse both resolve upward by
+        // design, and asking for a mirror there would be asking the tie-break
+        // to be something other than a tie-break.
+        for degrees in stride(from: 5, to: 360, by: 7) where degrees % 60 != 0 {
             let radians = Double(degrees) * .pi / 180
             let delta = CGSize(width: cos(radians) * 137, height: sin(radians) * 137)
             let forward = PetArrangement.slot(forDelta: delta)
@@ -137,7 +144,7 @@ struct PetArrangementTests {
     /// stable, and it only lasts until the pointer moves a single point.
     @Test("A zero delta resolves without argument")
     func crosshairHandlesZero() {
-        #expect(PetArrangement.slot(forDelta: .zero) == .east)
+        #expect(PetArrangement.slot(forDelta: .zero) == .northEast)
     }
 
     // MARK: - The pull

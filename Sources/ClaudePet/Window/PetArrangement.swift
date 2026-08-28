@@ -36,9 +36,21 @@ import Foundation
 /// directly.
 public enum PetArrangement {
 
-    /// The eight places pet two can stand, as compass points from pet one.
+    /// The six places pet two can stand, as compass points from pet one.
+    ///
+    /// **East and west were dropped after the operator saw them.** They were
+    /// the only slots whose distance did not scale — 222pt at every pixel size,
+    /// because the bubble is capped by text metrics — which at the default size
+    /// left 150pt of bare desk between two 72pt crabs. They read as two
+    /// unrelated pets rather than as a pair, and there is no way to close the
+    /// gap while keeping them level: that is the same arithmetic this whole
+    /// file exists because of.
+    ///
+    /// Six also makes the crosshair better than eight did. Six directions are
+    /// six even sextants of 60°, where eight compass points around a rectangle
+    /// were never really even to begin with.
     public enum Slot: String, CaseIterable, Sendable {
-        case north, northEast, east, southEast, south, southWest, west, northWest
+        case north, northEast, southEast, south, southWest, northWest
 
         /// The direction, as whole steps. `y` runs UP, matching AppKit screen
         /// coordinates rather than the sprite grid.
@@ -46,11 +58,9 @@ public enum PetArrangement {
             switch self {
             case .north:     (0, 1)
             case .northEast: (1, 1)
-            case .east:      (1, 0)
             case .southEast: (1, -1)
             case .south:     (0, -1)
             case .southWest: (-1, -1)
-            case .west:      (-1, 0)
             case .northWest: (-1, 1)
             }
         }
@@ -144,21 +154,26 @@ public enum PetArrangement {
 
     /// Which slot a direction falls in.
     ///
-    /// This is the "invisible crosshair": the eight octants around pet one, with
-    /// boundaries every 45°, and nothing else — no hysteresis, no memory of the
-    /// last slot. Where the pointer is decides where he lands, and the same
-    /// delta always gives the same answer.
+    /// This is the "invisible crosshair": six even sextants around pet one,
+    /// centred on the six slots and 60° wide, with nothing else — no
+    /// hysteresis, no memory of the last slot. Where the pointer is decides
+    /// where he lands, and the same delta always gives the same answer.
+    ///
+    /// Dragging due east or due west lands on the boundary between two
+    /// diagonals, and resolves upward. That is not a compromise for the missing
+    /// slots so much as the honest answer: level is the one place a second pet
+    /// cannot stand, so the nearest place he can is a corner.
     ///
     /// A zero delta means the two windows are concentric, which is not a
-    /// direction; `.east` is the arbitrary tie-break, and it only lasts until
-    /// the pointer moves a single point.
+    /// direction at all; `.northEast` is the tie-break, and it lasts until the
+    /// pointer moves a single point.
     public nonisolated static func slot(forDelta delta: CGSize) -> Slot {
-        guard delta.width != 0 || delta.height != 0 else { return .east }
-        let turns = atan2(delta.height, delta.width) / (2 * .pi)
-        let octant = Int(((turns + 1) * 8).rounded()) % 8
-        let ring: [Slot] = [.east, .northEast, .north, .northWest,
-                            .west, .southWest, .south, .southEast]
-        return ring[octant]
+        guard delta.width != 0 || delta.height != 0 else { return .northEast }
+        let turns = atan2(delta.height, delta.width) / (2 * .pi)   // -0.5…0.5
+        let sextant = Int(((turns + 1) * 6).rounded(.down)) % 6
+        let ring: [Slot] = [.northEast, .north, .northWest,
+                            .southWest, .south, .southEast]
+        return ring[sextant]
     }
 
     // MARK: - The pull
