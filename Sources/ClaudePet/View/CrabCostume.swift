@@ -173,6 +173,28 @@ enum CrabCostume {
     private static let bodyX = CrabRig.bodyX, bodyW = CrabRig.bodyW,
                        bodyY = CrabRig.bodyY, bodyH = CrabRig.bodyH
 
+    /// A costume effect's window: nil when it is not playing, else 0…1 through
+    /// it.
+    ///
+    /// One helper for all of them, because seven copies of "cycle, dice, since"
+    /// is seven chances to forget `cycle > 0` — and a costume effect that fires
+    /// in cycle zero puts something mid-flight into every frozen render the
+    /// project makes.
+    ///
+    /// The multiplier is always 97: costume effects are a FAMILY on the salt
+    /// registry and the addend is what tells them apart, the way `71 &+ 29 &+
+    /// slot` already works for the bubble bursts. 97 was the last free
+    /// multiplier, so this is the scheme that stops the eighth costume needing
+    /// a tenth one.
+    static func effectWindow(at t: Double, salt: Int, period: Double,
+                             duration: Double, chance: Double) -> Double? {
+        let cycle = Int(floor(t / period))
+        guard cycle > 0, CrabAnimator.noise(cycle &* 97 &+ salt) < chance else { return nil }
+        let since = t - Double(cycle) * period
+        guard since >= 0, since < duration else { return nil }
+        return since / duration
+    }
+
     /// When a shuriken is in flight, and how far across it has got.
     ///
     /// Scheduled rather than constant: a star permanently spinning beside him
@@ -185,13 +207,8 @@ enum CrabCostume {
     /// slot` already set for the bubble bursts. It was the last free multiplier
     /// on the registry, and sharing it is what stops the next eight costumes
     /// each wanting one.
-    static func shurikenFlight(at t: Double) -> (travel: Double, cycle: Int)? {
-        let period = 9.0, duration = 2.2
-        let cycle = Int(floor(t / period))
-        guard cycle > 0, CrabAnimator.noise(cycle &* 97 &+ 11) < 0.55 else { return nil }
-        let since = t - Double(cycle) * period
-        guard since >= 0, since < duration else { return nil }
-        return (since / duration, cycle)
+    static func shurikenFlight(at t: Double) -> Double? {
+        effectWindow(at: t, salt: 11, period: 9, duration: 2.2, chance: 0.55)
     }
 
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
@@ -246,9 +263,9 @@ enum CrabCostume {
                 // five-point star cannot rotate on this grid by any amount
                 // other than 45 degrees, so it rotates by exactly that, which
                 // is what a spinning blade looks like anyway.
-                guard let flight = Self.shurikenFlight(at: pose.propPhase) else { break }
-                let x = 30 - Int(flight.travel * 38)
-                let cross = Int(flight.travel * 26) % 2 == 0
+                guard let travel = Self.shurikenFlight(at: pose.propPhase) else { break }
+                let x = 30 - Int(travel * 38)
+                let cross = Int(travel * 26) % 2 == 0
                 let art = cross
                     ? ["s...s", ".s.s.", "..s..", ".s.s.", "s...s"]
                     : ["..s..", "..s..", "sssss", "..s..", "..s.."]
