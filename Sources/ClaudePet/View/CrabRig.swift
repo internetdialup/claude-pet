@@ -1084,13 +1084,31 @@ public enum CrabRig {
         b.rect(centre - 4, hatY, 8, 1, .yellow)        // crown
         b.rect(centre - 7, hatY + 4, 14, 1, .yellow)   // brim
 
-        // The wrench and screwdriver that used to float either side of him are
-        // gone, at the operator's call: "hardhat works but not the tools".
-        // They were two points wide, which is not enough to be a wrench — they
-        // read as two grey sticks hanging in the air beside his head. The hat
-        // alone says "working" perfectly well, and it says it on his head where
-        // a worn prop belongs.
-        _ = phase
+        // ONE tool, and it is a hammer.
+        //
+        // There used to be two: a wrench on his left and a screwdriver on his
+        // right, each two points wide. At that width neither had a jaw or a
+        // blade to read, so they were a pair of grey rods standing either side
+        // of him — the operator's word was "lightsaber", which is exactly what
+        // a glowing-length-of-nothing looks like.
+        //
+        // A hammer survives the resolution where those did not, because its
+        // whole silhouette is two solid masses: a heavy head and a thin handle.
+        // The claw — the notch in the head's top-left — is the one detail that
+        // separates "hammer" from "mallet", and it costs a single pixel.
+        //
+        // Held on one side only. Two objects read as scenery; one reads as
+        // being carried, and the bob sells it.
+        let jiggle = sin(phase * 2) > 0 ? 0 : 1
+        let key: [Character: PixelBuffer.Ink] = ["h": .slate, "s": .ember]
+        b.stamp([
+            "hh.hh",
+            "hhhhh",
+            "..s..",
+            "..s..",
+            "..s..",
+            "..s..",
+        ], at: (x: 27, y: 11 + jiggle), key: key)
     }
 
     /// Wire frames around both eyes.
