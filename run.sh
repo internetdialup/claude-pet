@@ -10,6 +10,32 @@ cd "$(dirname "$0")"
 CONFIG="${CONFIG:-release}"
 APP="build/ClaudePet.app"
 
+# Refuse to build over an iCloud sync duplicate.
+#
+# The repo lives in iCloud Drive, and when the file provider resolves a
+# conflict it leaves a second copy beside the original named "Motion 2.swift".
+# SwiftPM globs every .swift under Sources, so the copy is compiled too, and
+# every type in it is declared twice. What you get is
+#
+#     error: invalid redeclaration of 'Ease'
+#
+# which names a symbol and not the cause, and sends you looking through a file
+# that is perfectly fine. This is the same provider that re-stamps FinderInfo
+# onto the bundle and breaks codesign further down; that one is retried, this
+# one cannot be — a duplicate source is not a race, it is a file that has to go.
+#
+# Not deleted automatically. A duplicate is USUALLY a stale snapshot with
+# nothing unique in it, and "usually" is not good enough to delete somebody's
+# source with. Compare it against git and remove it yourself.
+duplicates="$(find Sources Tests -name "* [0-9].swift" 2>/dev/null || true)"
+if [ -n "$duplicates" ]; then
+  echo "==> iCloud left duplicate sources behind. They will be compiled and"
+  echo "    every type in them declared twice. Check each against git, then"
+  echo "    delete it:"
+  echo "$duplicates" | sed 's/^/      /'
+  exit 1
+fi
+
 # Build somewhere neutral, without debug info.
 #
 # Both halves are anonymity, not tidiness. SwiftPM bakes the absolute build path
