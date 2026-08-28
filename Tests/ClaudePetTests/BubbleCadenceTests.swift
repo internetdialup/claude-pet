@@ -36,6 +36,73 @@ struct BubbleCadenceTests {
         return out
     }
 
+    // MARK: - Facts in the silence
+
+    /// **The change this suite exists to bound.**
+    ///
+    /// Every one of the seventy-six facts used to live on the idle path, and a
+    /// probe of the real app explained why the operator had never seen one: he
+    /// focuses the most active session, so while anyone is working with Claude
+    /// Code the pet is `working` too. Idle barely happens.
+    ///
+    /// So a fact may now fill a beat the cadence chose to silence — and ONLY
+    /// such a beat, and only some of them. Filling every silent beat would
+    /// rebuild the furniture this whole suite was written against, with better
+    /// words but the same failure.
+    @Test("A fact takes some silent working beats, and leaves most of them silent")
+    func factsFillSomeSilenceAndNotAllOfIt() {
+        var quiet = 0, spoken = 0, factual = 0
+        for step in 0..<4000 {
+            let elapsed = Double(step) * 0.5
+            let seed = Int(elapsed / ActivityCoordinator.chatterInterval)
+            if ActivityCoordinator.bubbleBurst(elapsed: elapsed, cadence: working, salt: 0) != nil {
+                spoken += 1
+                continue
+            }
+            quiet += 1
+            // The coordinator's OWN gates, called rather than restated — a copy
+            // of the arithmetic here would keep agreeing with itself long after
+            // somebody changed the salt or the threshold. Both dice, and then
+            // the dwell, which is the part that stops a won window becoming a
+            // banner for its full fourteen seconds.
+            let intoWindow = elapsed
+                .truncatingRemainder(dividingBy: ActivityCoordinator.chatterInterval)
+            if ActivityCoordinator.quietBeatSpeaks(seed: seed),
+               ActivityCoordinator.informationalBeat(seed: seed),
+               intoWindow < working.dwell { factual += 1 }
+        }
+
+        #expect(factual > 0, "no fact ever reached a working stretch — the whole point of this")
+        let share = Double(factual) / Double(quiet)
+        // Two dice at 0.6 and 0.5, then six seconds of dwell in a fourteen
+        // second window: about an eighth of the silent beats.
+        #expect(share > 0.04 && share < 0.25,
+                "facts took \(Int(share * 100))% of the silent beats; the intent is about an eighth")
+
+        // And he is still mostly quiet across the whole stretch, which is the
+        // property the cadence exists to protect.
+        let silent = quiet - factual
+        #expect(Double(silent) / Double(quiet + spoken) > 0.5,
+                "only \(silent) of \(quiet + spoken) beats are still silent — that is furniture again")
+    }
+
+    /// **Never over a call to action.**
+    ///
+    /// `nudging` and `needsAttention` exist to be answered. Trivia on top of
+    /// "he is blocked on you" is the one place this feature would be actively
+    /// harmful, so the mood set is asserted rather than left to a reader of the
+    /// switch to notice.
+    @Test("Facts never speak over a mood that wants an answer")
+    func factsStayOutOfTheAlerts() {
+        for mood in [PetMood.nudging, .needsAttention, .done, .thinking, .sleeping] {
+            #expect(!ActivityCoordinator.factMoods.contains(mood),
+                    "\(mood.rawValue) would let trivia sit on top of something that needs answering")
+        }
+        for mood in [PetMood.working, .cooking, .idle] {
+            #expect(ActivityCoordinator.factMoods.contains(mood))
+        }
+    }
+
     @Test("Work speaks in bursts, not in a banner")
     func workBurstsAndGoesQuiet() {
         let samples = timeline(working, seconds: 600)
