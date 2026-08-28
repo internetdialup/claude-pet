@@ -62,6 +62,24 @@ final class PetInstance {
     /// which is the only thing that knows about siblings.
     var siblingFrame: (() -> CGRect?)?
 
+    /// Whether another pet is on the desk.
+    ///
+    /// The only thing that decides how generous his clickable silhouette is
+    /// allowed to be. Alone, he accepts the union of every pose he can hold, so
+    /// a poke lands even mid-bounce and the spare cells cost nothing but
+    /// desktop. In company that same band sits over his neighbour and swallows
+    /// presses meant for him — see `CrabHitMask.resting`.
+    ///
+    /// Set by the app, which is the only thing that knows about siblings, and
+    /// applied live: pet one must not have to be rebuilt because pet two
+    /// arrived.
+    var hasCompany = false {
+        didSet {
+            guard hasCompany != oldValue else { return }
+            controller?.updateHitMask(CrabHitMask.mask(sharingDesk: hasCompany))
+        }
+    }
+
     /// The Shift+click-then-K state, plus the timer that hands borrowed key
     /// focus back when the operator arms the gate and then wanders off.
     private var secretGate = SecretMenuGate()
@@ -137,7 +155,10 @@ final class PetInstance {
         // Only HE accepts clicks — his silhouette, not the square he is drawn
         // in. Everything else in the window is transparent and click-through,
         // so the desktop and whatever app is under him keep their own mouse.
-        let region = PetHitRegion(pixelSize: pixelSize, mask: CrabHitMask.body)
+        // Narrower once he has company: his halo would otherwise sit over the
+        // other pet and eat presses meant for that pet's drag handle.
+        let region = PetHitRegion(pixelSize: pixelSize,
+                                  mask: CrabHitMask.mask(sharingDesk: hasCompany))
 
         let slot = self.slot
         let controller = PetWindowController(
