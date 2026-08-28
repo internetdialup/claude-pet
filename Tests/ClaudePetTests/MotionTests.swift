@@ -272,55 +272,103 @@ struct MotionContinuityTests {
     /// lookup and the flourish agree, and the failure mode if they drift is him
     /// shouting KOWABUNGA about a trick he did not do. So: every instant the
     /// lookup returns must be a moment when a kickflip is genuinely ending.
-    @Test("Every predicted kickflip landing is a real one")
-    func kickflipLandingsAreReal() {
+    @Test("Every predicted trick landing is a real one")
+    func skateTrickLandingsAreReal() {
         var t = 0.0
         var found = 0
         while found < 12, t < 3000 {
-            guard let landing = CrabAnimator.nextKickflipLanding(after: t) else { break }
+            guard let landing = CrabAnimator.nextSkateTrickLanding(after: t) else { break }
             found += 1
             // A hair before the landing the flourish must still be a kickflip,
             // and it must be at the very end of its run.
             let (kind, progress) = try! #require(CrabAnimator.flourish(at: landing - 0.02))
-            #expect(kind == .kickflip, "predicted a landing during \(kind.rawValue)")
+            #expect(CrabAnimator.Flourish.skateTricks.contains(kind),
+                    "predicted a landing during \(kind.rawValue), which is not a skate trick")
             #expect(progress > 0.98, "predicted the landing at \(progress) through it")
             // …and it is over by then.
-            #expect(CrabAnimator.flourish(at: landing + 0.02)?.0 != .kickflip,
-                    "the flourish was still running after its own landing")
+            let after = CrabAnimator.flourish(at: landing + 0.02)?.0
+            #expect(after.map { !CrabAnimator.Flourish.skateTricks.contains($0) } ?? true,
+                    "the trick was still running after its own landing")
             t = landing + 0.1
         }
-        #expect(found >= 5, "only found \(found) kickflips in 3000s — is it scheduled at all?")
+        #expect(found >= 5, "only found \(found) skate tricks in 3000s — are they scheduled at all?")
     }
 
-    /// **A kickflip is a whole turn, and it lands deck-down.**
+    /// The board in a frame: the longest unbroken run of deck in any single
+    /// row, and the height of everything the deck covers.
     ///
-    /// Checked against the RENDER, by measuring how wide the board's row is:
-    /// widest when the deck faces you, narrowest on edge. A half-turn would
-    /// leave him standing on the underside, which is a different trick and a
-    /// worse one, and no assertion about `propPhase` alone would notice —
-    /// the phase could complete while the art did nothing.
-    @Test("The kickflip turns the board over and lands it flat")
-    func kickflipCompletesAWholeTurn() {
-        func deckWidth(_ t: Double) -> Int {
-            let buffer = CrabRig.render(CrabAnimator.flourishPose(.kickflip, at: t))
-            var widest = 0
-            for y in 0..<PixelBuffer.side {
-                var run = 0
-                for x in 0..<PixelBuffer.side where buffer[x, y] == .slate { run += 1 }
-                widest = max(widest, run)
+    /// The run is the measure that matters, and it is chosen to survive
+    /// OCCLUSION. A level deck always lays its whole length along some row, so
+    /// its longest run is its full width no matter what is drawn over parts of
+    /// it — and the wheels genuinely are drawn over it, riding on the slab at
+    /// the quarter turns. A tilted deck is a staircase and never gets more than
+    /// a step or two in a row. An earlier version of this asked whether the
+    /// deck's bounding box was completely FILLED, which the wheels broke every
+    /// time and which said nothing about tilt anyway.
+    private func board(_ kind: CrabAnimator.Flourish, at t: Double)
+    -> (run: Int, height: Int) {
+        let buffer = CrabRig.render(CrabAnimator.flourishPose(kind, at: t))
+        var longest = 0, minY = PixelBuffer.side, maxY = -1
+        for y in 0..<PixelBuffer.side {
+            var run = 0
+            for x in 0..<PixelBuffer.side {
+                if buffer[x, y] == .slate {
+                    run += 1
+                    longest = max(longest, run)
+                    minY = min(minY, y); maxY = max(maxY, y)
+                } else {
+                    run = 0
+                }
             }
-            return widest
         }
+        return (longest, maxY >= minY ? maxY - minY + 1 : 0)
+    }
 
+    /// **A kickflip's deck never changes width and is never diagonal.**
+    ///
+    /// This is the invariant two earlier attempts broke, and it is not taste.
+    /// The deck's long axis runs left-right across a face-on view and a
+    /// kickflip rotates about exactly that axis — so the axis of rotation is
+    /// the one direction that cannot change on screen. An attempt that narrowed
+    /// the width was drawing yaw, which is a shove-it; one that tilted the deck
+    /// was drawing pitch, which is an impossible. The operator named both
+    /// before any test could catch them, because no test was looking.
+    ///
+    /// What may change is THICKNESS: flat on you see a line, a quarter turn on
+    /// you are looking at the whole underside.
+    @Test("A kickflip's deck holds its width, stays level, and pumps thickness")
+    func kickflipRotatesAboutItsOwnLength() {
         let duration = CrabAnimator.Flourish.kickflip.duration
-        let rolling = deckWidth(0.01)
-        let landed = deckWidth(duration - 0.01)
-        #expect(rolling >= 15, "the board should span his stance while rolling, not \(rolling)")
-        #expect(landed == rolling, "he landed on \(landed) points of board, took off from \(rolling)")
+        var tallest = 0, thinnest = Int.max
+        for step in stride(from: 0.05, through: duration - 0.05, by: 0.04) {
+            let deck = board(.kickflip, at: step)
+            guard deck.height > 0 else { continue }
+            #expect(deck.run == 17,
+                    "at \(String(format: "%.2f", step))s the deck's longest row was \(deck.run), not 17 — it narrowed (yaw) or tilted (pitch)")
+            tallest = max(tallest, deck.height)
+            thinnest = min(thinnest, deck.height)
+        }
+        #expect(tallest >= 6, "the deck never showed its underside; thickest was \(tallest)")
+        #expect(thinnest == 1, "the deck was never flat on; thinnest was \(thinnest)")
+    }
 
-        // …and it genuinely goes over: somewhere in the air the deck is edge-on.
-        let narrowest = stride(from: 0.0, through: duration, by: 0.02).map(deckWidth).min() ?? 0
-        #expect(narrowest <= 3, "the board never came up on edge — narrowest was \(narrowest)")
+    /// **And an impossible is the one that DOES go diagonal.**
+    ///
+    /// Pure pitch — the board wrapping end over end in the plane of the screen —
+    /// is the one rotation that legally draws a slanted deck, and the impossible
+    /// is the trick built from it. Asserted so the two tricks cannot quietly
+    /// converge into the same animation with two names.
+    @Test("An impossible wraps end over end, and a kickflip does not")
+    func impossibleIsTheDiagonalOne() {
+        let duration = CrabAnimator.Flourish.impossible.duration
+        var sawDiagonal = false
+        for step in stride(from: 0.05, through: duration - 0.05, by: 0.04) {
+            let deck = board(.impossible, at: step)
+            // A staircase: several rows of board, and no row holding more than
+            // a step or two of it.
+            if deck.height >= 4, deck.run <= 4 { sawDiagonal = true }
+        }
+        #expect(sawDiagonal, "the impossible never tilted — it is a kickflip wearing another name")
     }
 
     /// **His eyes are level, in every mood, at every instant.**

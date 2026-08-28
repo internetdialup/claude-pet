@@ -124,7 +124,15 @@ public struct PetRootView: View {
                         text: text,
                         tool: transient == nil ? model.state.tool : nil,
                         mood: transient == nil ? model.state.mood : .done,
-                        style: transient == nil ? model.state.bubbleStyle : .plain,
+                        // A transient used to be forced `.plain`, which was
+                        // fine while every one of them was a short pounce line.
+                        // The skate lines are not: one of them is 31 columns
+                        // and the plain bubble stops at 28. Routed by length,
+                        // through the same call the facts and tips use, so
+                        // there is one rule about when a line scrolls rather
+                        // than three.
+                        style: transient.map { ActivityCoordinator.bubbleStyle(for: $0) }
+                            ?? model.state.bubbleStyle,
                         service: transient == nil ? model.state.serviceGlyph : nil
                     )
                     // Asymmetric on purpose: he now speaks and goes quiet

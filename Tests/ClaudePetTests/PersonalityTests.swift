@@ -118,7 +118,7 @@ struct PropInventoryTests {
     func propCountIsPinned() {
         // `.none` is a case but not a prop; the strip draws the rest.
         let drawn = CrabPose.Prop.allCases.filter { $0 != .none }
-        #expect(drawn.count == 15,
+        #expect(drawn.count == 16,
                 "the prop count moved — docs/media/props.png needs re-rendering")
         #expect(!CrabPose.Prop.allCases.contains { $0.rawValue == "zzz" },
                 "the sleeping z's were removed; the enum should not carry them")
@@ -1052,6 +1052,11 @@ struct EditableCopyTests {
     @Test("Bubble lines fit in the bubble")
     func bubbleLinesAreShort() {
         for occasion in ShoutoutOccasion.allCases {
+            // The skate lines are ROUTED by length rather than forced into the
+            // plain bubble, so the ceiling does not apply to them — what does
+            // apply is that they finish scrolling inside the window they are
+            // shown for, which `skateLinesFitTheirWindow` checks instead.
+            guard occasion != .kickflip else { continue }
             for line in Vocab.lines(for: occasion) {
                 guard !Self.knownLong.contains(line) else { continue }
                 #expect(line.count <= ThoughtBubble.plainColumns, "\(occasion.rawValue) line too long: \(line)")
@@ -1061,6 +1066,28 @@ struct EditableCopyTests {
             for line in rule.lines {
                 guard !Self.knownLong.contains(line) else { continue }
                 #expect(line.count <= ThoughtBubble.plainColumns, "rule line too long: \(line)")
+            }
+        }
+    }
+
+    /// The skate lines are the first transient long enough to need the marquee,
+    /// so they are the first that can be CUT OFF by their own window rather
+    /// than by the bubble's width. Two ways to fail: a line too wide for the
+    /// plain bubble that was not routed to the marquee, or one routed there
+    /// that the window closes on mid-scroll.
+    @Test("Every skate line finishes inside the window it gets")
+    func skateLinesFitTheirWindow() {
+        for line in Vocab.lines(for: .kickflip) {
+            switch ActivityCoordinator.bubbleStyle(for: line) {
+            case .plain:
+                #expect(line.count <= ThoughtBubble.plainColumns,
+                        "\"\(line)\" was left in the plain bubble and does not fit it")
+            case .marquee:
+                let read = MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+                #expect(read <= PetInstance.skateLineSeconds - 0.8,
+                        "\"\(line)\" needs \(String(format: "%.1f", read))s and the window is \(PetInstance.skateLineSeconds)s")
+            case .dots:
+                Issue.record("a skate line should never be dots")
             }
         }
     }

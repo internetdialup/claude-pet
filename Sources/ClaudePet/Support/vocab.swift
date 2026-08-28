@@ -97,12 +97,19 @@ public enum Vocab {
     public static func lines(for occasion: ShoutoutOccasion) -> [String] {
         switch occasion {
 
-        // 🛹 He just landed a kickflip. Three lines, dealt from a cursor like
-        // the pounce is, so the same one never lands twice running.
+        // 🛹 He just landed a trick. Dealt from a cursor like the pounce is, so
+        // the same one never lands twice running.
+        //
+        // The Hall of Meat line is 31 columns and does not fit the plain
+        // bubble. It is not shortened and it is not in `knownLong`: the
+        // transient bubble routes by length now, so it scrolls, and it finishes
+        // scrolling well inside the window it is shown for.
+        // `skateLinesFitTheirWindow` pins that.
         case .kickflip: [
-            "KOWABUNGA",
-            "Do a Kickflip! 🛹",
-            "Lord of Clawdtown",
+            "Kowbunga 🤙!",
+            "Do a Kickflip 🛹!",
+            "See you at the Hall of Meat 🍖!",
+            "Tony Clawd 900 🦅",
         ]
 
         // 💬 Between tasks. Encouragement, mostly.

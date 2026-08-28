@@ -83,11 +83,11 @@ public struct CrabPose: Sendable, Equatable {
         case star
         // Appended for the same reason, never inserted: the arcade stick, the
         // shades off the stickers, and the board he kickflips.
-        case joystick, shades, skateboard
+        case joystick, shades, skateboard, skateboardWrap
 
         var isWorn: Bool {
             switch self {
-            case .hardHat, .phone, .fire, .glasses, .shades, .skateboard: true
+            case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardWrap: true
             default: false
             }
         }
@@ -1030,52 +1030,80 @@ public enum CrabRig {
             b.pixel(20 + dx, 13 + dy, .paper)
 
         case .skateboard:
-            // A board under his feet, turning over.
+            // A board doing a KICKFLIP, and the shape of it is the opposite of
+            // what it looks like it should be.
             //
-            // THE FIRST VERSION WAS A POP SHOVE-IT, and the operator named it.
-            // It kept the deck horizontal and narrowed its WIDTH, which is
-            // rotation about the vertical axis — the board spinning flat under
-            // him. That is a shove-it. A kickflip turns the deck OVER, and the
-            // only way to show that on a grid that cannot rotate is to spend
-            // the turn in the picture plane: the deck tilts through diagonal,
-            // stands on end, and comes back down the other way.
+            // The deck's long axis runs left-right across this face-on view,
+            // and a kickflip rotates about exactly that axis. So the axis of
+            // rotation is the one direction that CANNOT change on screen: the
+            // deck is seventeen points wide in every single frame, it is never
+            // diagonal, and it never shortens. Two earlier attempts got this
+            // backwards — one narrowed the width (that is yaw, a shove-it) and
+            // one tilted it (that is pitch, an impossible).
             //
-            // Swept as an ellipse rather than a circle — eight points of reach
-            // across, three up. A true circle would put a seventeen-point board
-            // on end and stand it taller than the crab, which is both out of
-            // frame and wrong: as the deck turns toward you it foreshortens.
+            // What actually changes is THICKNESS. Flat on you see a one-point
+            // line; a quarter turn later you are looking at the whole underside
+            // and it is a seven-point slab. It pumps 1-7-1-7-1 across the turn.
             //
-            // Worn, so it travels with `bob`. When he leaves the ground it goes
-            // with him; a board that stayed put would be him falling off.
+            // The wheels orbit rather than swap: three points below at rest,
+            // level with the deck at the quarter turns, three above when the
+            // board is inverted. They vanish behind the slab on the far half of
+            // the turn, and that occlusion is not a nicety — it is the only
+            // thing distinguishing a kickflip from a heelflip at this size.
             let turn = pose.propPhase.truncatingRemainder(dividingBy: 1)
             let theta = turn * 2 * .pi
-            let cx = 16 + dx, cy = 25 + dy
-            let reachX = 8.0 * cos(theta), reachY = 3.0 * sin(theta)
+            let cx = 16 + dx, deckY = 25 + dy
+            let thick = max(1, Int((7 * abs(sin(theta))).rounded()))
+            b.rect(cx - 8, deckY - thick / 2, 17, thick, .slate)
 
-            // The deck, stepped along its own length so a diagonal is a
-            // staircase rather than a dotted line.
-            for step in 0...16 {
-                let u = Double(step) / 16 * 2 - 1          // -1…1 along the deck
-                b.pixel(cx + Int((u * reachX).rounded()),
-                        cy + Int((u * reachY).rounded()), .slate)
+            let orbit = Int((3 * cos(theta)).rounded())     // + is below: y grows down
+            if sin(theta) >= 0 || abs(orbit) > thick / 2 {
+                for hub in [cx - 5, cx + 4] {
+                    b.rect(hub, deckY + orbit - 1, 3, 1, .yellow)
+                    b.pixel(hub, deckY + orbit, .yellow)
+                    // The bearing is `.screenDark`, not slate. Slate is the
+                    // DECK's ink and nothing else's, which is what lets the
+                    // suite measure the deck by looking for it — a bearing in
+                    // the same ink put the wheel inside the deck's bounding box
+                    // and made every frame look diagonal to the test.
+                    b.pixel(hub + 1, deckY + orbit, .screenDark)   // the bearing
+                    b.pixel(hub + 2, deckY + orbit, .yellow)
+                    b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
+                }
             }
 
-            // Wheels, with a bearing. Only while the deck is near enough to
-            // flat that you would actually see them, and on whichever face is
-            // toward you — above the deck once it has gone past vertical,
-            // because by then you are looking at its underside.
-            if abs(cos(theta)) > 0.78 {
-                let under = cos(theta) > 0 ? 1 : -1
-                for hub in [cx - 5, cx + 4] {
-                    // Three by three, with the bearing dead centre. Two rows
-                    // put the bearing on an edge, where it reads as a chip out
-                    // of the wheel rather than as the hole through it.
-                    let top = cy + under
-                    b.rect(hub, top, 3, 1, .yellow)
-                    b.pixel(hub, top + under, .yellow)
-                    b.pixel(hub + 1, top + under, .slate)      // the bearing
-                    b.pixel(hub + 2, top + under, .yellow)
-                    b.rect(hub, top + under * 2, 3, 1, .yellow)
+        case .skateboardWrap:
+            // A board doing an IMPOSSIBLE: wrapped end over end, in the plane
+            // of the screen. Pure pitch, which is the one rotation that legally
+            // draws a diagonal deck and stands it on end — and the one trick in
+            // the whole flip family that is built from it.
+            //
+            // A real impossible wraps around the BACK FOOT, so its pivot sits
+            // at the tail and travels with that foot. This one pivots five
+            // points tail-ward of centre rather than at the tail itself, and
+            // that is a frame compromise rather than a claim: a true tail pivot
+            // swings the nose past x=0 at the halfway point, and a board that
+            // leaves the sprite reads as broken rather than as wrapped.
+            //
+            // Swept as an ellipse, not a circle. A deck turning toward you
+            // foreshortens, and a true circle would stand seventeen points of
+            // board upright — taller than the crab.
+            let wrap = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let angle = wrap * 2 * .pi
+            let pivotX = 11 + dx, pivotY = 25 + dy
+            for step in 0...13 {
+                let u = Double(step) / 13
+                b.pixel(pivotX + Int((u * 13 * cos(angle)).rounded()),
+                        pivotY + Int((u * 5 * sin(angle)).rounded()), .slate)
+            }
+            if abs(cos(angle)) > 0.78 {
+                let under = cos(angle) > 0 ? 1 : -1
+                for hub in [pivotX - 1, pivotX + 8] {
+                    b.rect(hub, pivotY + under, 3, 1, .yellow)
+                    b.pixel(hub, pivotY + under * 2, .yellow)
+                    b.pixel(hub + 1, pivotY + under * 2, .screenDark)
+                    b.pixel(hub + 2, pivotY + under * 2, .yellow)
+                    b.rect(hub, pivotY + under * 3, 3, 1, .yellow)
                 }
             }
 

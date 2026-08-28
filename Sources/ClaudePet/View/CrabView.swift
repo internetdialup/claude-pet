@@ -84,11 +84,15 @@ public enum CrabAnimator {
     /// The little unprompted things he does while waiting. Scheduled rather
     /// than random per frame, so each one plays through instead of stuttering.
     enum Flourish: String, CaseIterable {
-        case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip
+        case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, impossible
+
+        /// The two skate tricks, so the line he shouts after one does not have
+        /// to name them individually.
+        static let skateTricks: Set<Flourish> = [.kickflip, .impossible]
 
         var duration: Double {
             switch self {
-            case .kickflip: 2.8
+            case .kickflip, .impossible: 2.8
             case .jump: 0.9
             case .wave: 1.8
             case .wiggle: 1.0
@@ -142,18 +146,19 @@ public enum CrabAnimator {
         return (choice, since / choice.duration)
     }
 
-    /// When the next kickflip LANDS, in mood-clock seconds, or nil if none is
-    /// scheduled inside the horizon.
+    /// When the next SKATE TRICK lands, in mood-clock seconds, or nil if none
+    /// is scheduled inside the horizon.
     ///
     /// Asks `flourish(at:)` rather than restating its dice. The schedule is
     /// already written down once; a second copy here would agree with it right
     /// up until somebody changed one of them, and the symptom would be him
     /// shouting about a trick he did not do.
-    static func nextKickflipLanding(after t: Double, horizon: Double = 900) -> Double? {
+    static func nextSkateTrickLanding(after t: Double, horizon: Double = 900) -> Double? {
         let first = max(1, Int(floor(t / flourishPeriod)))
         for cycle in first...(first + Int(horizon / flourishPeriod)) {
             let start = Double(cycle) * flourishPeriod
-            guard let (kind, _) = flourish(at: start + 0.01), kind == .kickflip
+            guard let (kind, _) = flourish(at: start + 0.01),
+                  Flourish.skateTricks.contains(kind)
             else { continue }
             let landed = start + kind.duration
             if landed > t { return landed }
@@ -1064,8 +1069,13 @@ public enum CrabAnimator {
     /// as a frequency.
     private static func apply(_ kind: Flourish, progress: Double, t: Double, to pose: inout CrabPose) {
         switch kind {
-        case .kickflip:
+        case .kickflip, .impossible:
             // Roll, pop, one full turn of the board, land it.
+            //
+            // Two tricks, one shape: the airtime and the pop are identical and
+            // only the board differs, which is exactly right — a kickflip and
+            // an impossible are the same jump with the deck doing something
+            // else underneath you.
             //
             // The board is a WORN prop, which is the whole trick: worn props
             // travel with `bob`, so when he leaves the ground it goes with him.
@@ -1075,7 +1085,7 @@ public enum CrabAnimator {
             // `propPhase` carries the turn, 0 to 1 across the airtime, and one
             // whole turn lands deck-down — which is what a kickflip IS, and why
             // the phase must reach exactly 1 rather than stopping short.
-            pose.prop = .skateboard
+            pose.prop = kind == .kickflip ? .skateboard : .skateboardWrap
             pose.propVisibility = 1
             // Set on EVERY branch, never left to the caller. The idle pose he
             // is layered onto carries its own `propPhase` for its own prop, and

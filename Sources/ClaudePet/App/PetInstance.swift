@@ -85,8 +85,16 @@ final class PetInstance {
     private var secretGate = SecretMenuGate()
     /// This pet's draw counter for the bug-pounce line. See `LineCursor`.
     private var bugCursor = LineCursor()
-    /// …and for the line he shouts after landing a kickflip.
+    /// …and for the line he shouts after landing a trick.
     private var kickflipCursor = LineCursor()
+    /// How long a skate line stays up. Exposed so the suite can check the
+    /// longest line finishes scrolling inside it rather than restating 3.4.
+    ///
+    /// `nonisolated` for the reason `chatterInterval` and `plainColumns` are:
+    /// it is a constant, not state, and the suite reads it from a synchronous
+    /// nonisolated test. This class is `@MainActor`, so without the keyword the
+    /// constant inherits an isolation it has no use for.
+    nonisolated static let skateLineSeconds: TimeInterval = 3.4
     /// Cancels a scheduled kickflip line that the mood outran. A generation
     /// counter rather than a `Timer` handle, matching `fadeSeq`: the timer
     /// still fires, it just finds itself stale and does nothing.
@@ -440,7 +448,7 @@ final class PetInstance {
         let seq = kickflipSeq
         let clock = MoodClock.shared.reading()
         guard clock.mood == .idle,
-              let landing = CrabAnimator.nextKickflipLanding(
+              let landing = CrabAnimator.nextSkateTrickLanding(
                 after: Date.timeIntervalSinceReferenceDate - clock.since)
         else { return }
 
@@ -454,8 +462,12 @@ final class PetInstance {
             guard now.mood == .idle, now.since == clock.since else { return }
             let line = self.kickflipCursor.advance(Vocab.lines(for: .kickflip),
                                                    id: "kickflip")
-            self.model.transientBubble = (line ?? "KOWABUNGA",
-                                          Date().addingTimeInterval(2.6))
+            // Long enough for the longest line to finish SCROLLING, not just
+            // to appear: the Hall of Meat line is 31 columns, so it is handed
+            // to the marquee and needs about 2.1s to walk past. A window that
+            // only covered a plain line would cut it off mid-sentence.
+            self.model.transientBubble = (line ?? "Kowbunga 🤙!",
+                                          Date().addingTimeInterval(PetInstance.skateLineSeconds))
             self.armKickflipLine()          // and meet the next one
         }
     }
