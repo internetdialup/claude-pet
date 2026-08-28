@@ -37,7 +37,7 @@ public enum CrabAnimator {
     /// | `23 &+ 19` | whether an informational cycle is a tip, not a fact |
     /// | `29 &+ 11` | the cooking heat cascade |
     /// | `41 &+ 17` | the disco tint |
-    /// | `43 &+ 11` | the idle balloon |
+    /// | `43 &+ 11` | the idle mug |
     /// | `53 &+ 7` | the floor bug |
     /// | `59 &+ 7` | the petting hearts' column |
     /// | `61 &+ 3` | the stargazer |
@@ -84,10 +84,21 @@ public enum CrabAnimator {
     /// The little unprompted things he does while waiting. Scheduled rather
     /// than random per frame, so each one plays through instead of stuttering.
     enum Flourish: String, CaseIterable {
-        case jump, wave, wiggle, stretch, lookAround, scuttle
+        case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, varialFlip,
+             cruise
+
+        /// The two skate tricks, so the line he shouts after one does not have
+        /// to name them individually.
+        /// Everything he does on a board. Two are tricks and one is a cruise,
+        /// which is why this is not called `skateTricks` — he shouts after all
+        /// three, and "Do a Kickflip!" lands funnier over a roll-away than it
+        /// does over an actual kickflip.
+        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise]
 
         var duration: Double {
             switch self {
+            case .kickflip, .varialFlip: 2.8
+            case .cruise: 2.6
             case .jump: 0.9
             case .wave: 1.8
             case .wiggle: 1.0
@@ -139,6 +150,26 @@ public enum CrabAnimator {
         let choice = all[Int(noise(cycle &* 7 &+ 3) * Double(all.count)) % all.count]
         guard since < choice.duration else { return nil }
         return (choice, since / choice.duration)
+    }
+
+    /// When the next SKATE TRICK lands, in mood-clock seconds, or nil if none
+    /// is scheduled inside the horizon.
+    ///
+    /// Asks `flourish(at:)` rather than restating its dice. The schedule is
+    /// already written down once; a second copy here would agree with it right
+    /// up until somebody changed one of them, and the symptom would be him
+    /// shouting about a trick he did not do.
+    static func nextSkateTrickLanding(after t: Double, horizon: Double = 900) -> Double? {
+        let first = max(1, Int(floor(t / flourishPeriod)))
+        for cycle in first...(first + Int(horizon / flourishPeriod)) {
+            let start = Double(cycle) * flourishPeriod
+            guard let (kind, _) = flourish(at: start + 0.01),
+                  Flourish.skateBeats.contains(kind)
+            else { continue }
+            let landed = start + kind.duration
+            if landed > t { return landed }
+        }
+        return nil
     }
 
     /// The first cycle that actually fires, as an instant. `idle`'s README
@@ -267,6 +298,11 @@ public enum CrabAnimator {
     /// trying to see past.
     public enum PreviewEffect: String, CaseIterable, Sendable {
         case basking, glint, ting, hearts, beacon
+        // The skate beats. A trick needs the idle mood AND a dice that lands
+        // about every thirty seconds, so while any session is running there is
+        // no sequence of clicks that produces one — which is the exact case
+        // this menu's own note says it exists for.
+        case kickflip, varial, cruise
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -277,6 +313,8 @@ public enum CrabAnimator {
             case .basking: 2.0      // its window's own edge
             case .beacon: 1.3       // its window's own edge
             case .glint, .hearts, .ting: 0
+            // The tricks release by finishing the pass already in flight.
+            case .kickflip, .varial, .cruise: 0
             }
         }
     }
@@ -358,6 +396,26 @@ public enum CrabAnimator {
     /// picker shows is what actually ships, minus the waiting.
     nonisolated static func applyPreview(_ frame: PreviewFrame, to pose: inout CrabPose) {
         switch frame.effect {
+        case .kickflip, .varial, .cruise:
+            // Looped, with a beat of rest between passes so it reads as the
+            // trick repeating rather than as one long stutter — and so the
+            // landing, which is the part worth reviewing, is legible each time.
+            let kind: Flourish = switch frame.effect {
+            case .kickflip: .kickflip
+            case .varial: .varialFlip
+            default: .cruise
+            }
+            // The REST BEAT COMES FIRST, and that is the frozen sentinel rather
+            // than a stylistic choice: `nothingIsMidFlightInAPreviewsFirstFrame`
+            // requires a preview's t=0 to be indistinguishable from no preview
+            // at all. Starting the loop at the top of the trick put him already
+            // crouched on a board in the first frame, which is exactly the
+            // mid-flight opening that guard exists to forbid.
+            let rest = 0.8
+            let since = frame.t.truncatingRemainder(dividingBy: kind.duration + rest)
+            guard since >= rest else { return }
+            apply(kind, progress: (since - rest) / kind.duration, t: frame.t, to: &pose)
+
         case .basking:
             let amount = previewBasking(frame)
             guard amount > 0.001 else { return }
@@ -523,7 +581,7 @@ public enum CrabAnimator {
 
             if gazing == nil, sun == nil {
                 if let float = idleBalloon(idleT: t) {
-                    pose.prop = .balloon
+                    pose.prop = .mug
                     pose.propVisibility = float
                 }
 
@@ -1044,6 +1102,65 @@ public enum CrabAnimator {
     /// as a frequency.
     private static func apply(_ kind: Flourish, progress: Double, t: Double, to pose: inout CrabPose) {
         switch kind {
+        case .cruise:
+            // He does not jump and he does not go anywhere. Every other skate
+            // beat is him doing something to the board; this one is him simply
+            // moving fast, which on a fixed camera means the GROUND moves and
+            // he does not.
+            pose.prop = .skateboardRoll
+            pose.propVisibility = 1
+            pose.propPhase = progress
+            // Leaning into it, eyes forward. He is not watching anything leave
+            // any more — he is the one travelling.
+            if progress > 0.2 {
+                pose.lean = 1
+                pose.gazeX = 1
+            }
+            if progress > 0.4 { pose.mouth = .open }
+
+        case .kickflip, .varialFlip:
+            // Roll, pop, one full turn of the board, land it.
+            //
+            // Two tricks, one shape: the airtime and the pop are identical and
+            // only the board differs, which is exactly right — a kickflip and
+            // an impossible are the same jump with the deck doing something
+            // else underneath you.
+            //
+            // The board is a WORN prop, which is the whole trick: worn props
+            // travel with `bob`, so when he leaves the ground it goes with him.
+            // A board that stayed on the floor while he jumped would not be a
+            // kickflip, it would be him falling off.
+            //
+            // `propPhase` carries the turn, 0 to 1 across the airtime, and one
+            // whole turn lands deck-down — which is what a kickflip IS, and why
+            // the phase must reach exactly 1 rather than stopping short.
+            pose.prop = kind == .kickflip ? .skateboard : .skateboardVarial
+            pose.propVisibility = 1
+            // Set on EVERY branch, never left to the caller. The idle pose he
+            // is layered onto carries its own `propPhase` for its own prop, and
+            // inheriting it renders the board at some arbitrary angle — which
+            // is exactly what the first contact sheet showed: a flat deck while
+            // rolling, then a sliver on the crouch, for no reason a viewer
+            // could see.
+            pose.propPhase = 0
+            if progress < 0.15 {
+                pose.squash = 1                       // load the pop
+                pose.bob = 1
+            } else if progress < 0.80 {
+                let air = (progress - 0.15) / 0.65
+                pose.bob = -Int((sin(air * .pi) * 9).rounded())
+                pose.legAmplitude = 1.6               // legs tuck out of the way
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.eyes = .squint                   // >_< , off the stickers
+                pose.mouth = .open
+                pose.propPhase = air
+            } else {
+                pose.squash = 1                       // stomp it
+                pose.bob = 1
+                pose.mouth = .open
+            }
+
         case .jump:
             // Crouch, launch, arc, land heavy.
             if progress < 0.16 {

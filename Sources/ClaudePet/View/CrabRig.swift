@@ -21,7 +21,7 @@ public struct CrabPose: Sendable, Equatable {
     public enum EyeSide: Sendable { case none, left, right }
     /// Eye shape. `.determined` carves the inner-top corner into a focused slant.
     public var eyes: EyeStyle = .round
-    public enum EyeStyle: Sendable { case round, determined, wide }
+    public enum EyeStyle: Sendable { case round, determined, wide, squint }
     /// Whole-pixel vertical offset applied to the eyes in opposite directions —
     /// a head tilt, on a grid that cannot rotate.
     ///
@@ -75,22 +75,27 @@ public struct CrabPose: Sendable, Equatable {
     public enum Prop: String, Sendable, CaseIterable {
         case none
         // World props: drawn at a fixed spot in the frame.
-        case sparkles, terminal, check, bang, servers, balloon, plan
+        case sparkles, terminal, check, bang, servers, mug, plan
         // Worn props: drawn on the body, and must travel with `bob` and `lean`.
         case hardHat, phone, fire, glasses
         // Appended (stableSeed is the allCases index — order is load-bearing):
         // the 8-bit Claude star, the thinking spell's second wind.
         case star
+        // Appended for the same reason, never inserted: the arcade stick, the
+        // shades off the stickers, and the board he kickflips.
+        case joystick, shades, skateboard, skateboardVarial, skateboardRoll
 
         var isWorn: Bool {
             switch self {
-            case .hardHat, .phone, .fire, .glasses: true
+            case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
+             .skateboardRoll: true
             default: false
             }
         }
 
         /// The props Claw'd picks between while a tool is running.
-        static let working: [Prop] = [.terminal, .hardHat, .servers, .phone, .fire, .glasses]
+        static let working: [Prop] = [.terminal, .hardHat, .servers, .phone,
+                                      .fire, .glasses, .joystick]
     }
 
     /// Drives the prop's own animation (scrolling code, blinking cursor,
@@ -822,6 +827,17 @@ public enum CrabRig {
             case .wide:
                 // One row taller, for the expectant "well?" of the nudge.
                 b.rect(x, top - 1, eyeSize, eyeSize + 1, .eye)
+            case .squint:
+                // >_< . Two chevrons pointing at each other — the scrunched
+                // face off the stickers, which read at two centimetres with no
+                // motion and no context to help them. Mirrored per side, so
+                // the left eye opens outward and the right one does too.
+                let tip = side == .left ? x : x + eyeSize - 1
+                let mid = side == .left ? x + 1 : x + eyeSize - 2
+                b.pixel(tip, top, .eye)
+                b.pixel(mid, top + 1, .eye)
+                b.pixel(tip, top + 2, .eye)
+
             case .determined:
                 // Carve the inner-top corner so the brows slant toward the nose.
                 // drawFace runs after the body, so painting `.body` over a corner
@@ -921,28 +937,228 @@ public enum CrabRig {
                 b.pixel(28, top + 1, lit ? .green : .screenDark)
             }
 
-        case .balloon:
-            // String first, so the knot sits under the balloon.
-            let sway = Int((sin(phase * 0.9) * 1.5).rounded())
-            for y in 9...14 {
-                b.pixel(4 + sway + (y > 11 ? 1 : 0), y, .steel)
-            }
-            let key: [Character: PixelBuffer.Ink] = ["g": .green, "b": .screenLight]
+        case .mug:
+            // A mug, because a five-year-old can name one.
+            //
+            // This slot used to hold a balloon: a seven-by-five green blob on a
+            // string that read as a lollipop, a sweet or a bush depending on who
+            // was looking. It was also the only prop in the app that signalled
+            // NOTHING — every other one tells you something about the session,
+            // and that one just floated. A mug says the thing the slot is
+            // actually for: he has been idle a while, he is on a break.
+            //
+            // The motion is unchanged and it still fits — `idleBalloon` HOLDS
+            // the prop for eight seconds rather than drifting it past, which is
+            // what you do with a mug and not what you do with a balloon.
+            //
+            // Drawn in `.slate` and `.paper`, both of which a costume cannot
+            // repaint, so it stays a white mug on the ninja and on the matrix.
+            let key: [Character: PixelBuffer.Ink] = [
+                "o": .slate, "w": .paper, "s": .screenLight,
+            ]
+            // Steam rises and resets — two wisps a half-cycle apart, so
+            // something is always moving without either one racing.
+            let lift = Int(phase * 3) % 3
             b.stamp([
-                ".ggggg.",
-                "ggbbbgg",
-                "gbbbbbg",
-                "ggbbbgg",
-                ".ggggg.",
-            ], at: (x: 1 + sway, y: 3), key: key)
+                "..s..s..",
+                ".s..s...",
+            ], at: (x: 1, y: 6 - lift), key: key)
+            b.stamp([
+                "oooooo..",
+                "owwwwoo.",
+                "owwwwo.o",
+                "owwwwoo.",
+                "oooooo..",
+            ], at: (x: 1, y: 9), key: key)
 
         case .hardHat:
             drawHardHat(&b, dx: dx, dy: dy, phase: phase)
+
+        case .joystick:
+            // An arcade stick: black base, black shaft, red ball on top, two
+            // red buttons on the deck. Chosen against the rule the mug is here
+            // for — a five-year-old can name a joystick, and cannot name a
+            // green blob on a string.
+            //
+            // ON THE FLOOR, at his feet, and that is not a detail. The first
+            // draft floated it beside him at his own height, where the base sat
+            // on his flank and the whole thing read as a dark lump with a red
+            // dot stuck to the crab. Rows 25 and below are the only ground in
+            // the frame nothing else occupies — his ink stops at row 24, and
+            // rows 21 to 24 are only his four legs. A stick that sits on
+            // something reads as a stick; one hanging in the air reads as a
+            // smudge.
+            //
+            // The lean is the point. A stick standing straight is a lamp; one
+            // that tips reads as being PUSHED, which is what makes it say "he
+            // is driving something" rather than "an object exists". Whole-pixel
+            // steps, which the grid's own quantum exempts from the no-snap rule.
+            let lean = Int((sin(phase * 2.2) * 1.4).rounded())
+            let key: [Character: PixelBuffer.Ink] = ["r": .alert, "o": .slate]
+            b.stamp([
+                ".rrr.",
+                ".rrr.",
+            ], at: (x: 2 + lean, y: 25), key: key)
+            b.pixel(4 + lean, 27, .slate)
+            b.stamp([
+                ".ooooo.",
+                "ooooooo",
+                "oroooro",
+                "ooooooo",
+            ], at: (x: 1, y: 28), key: key)
 
         case .star:
             // The Claude star, holding the top-right airspace (cols 20-28) —
             // clear of the service glyph box on the left and the body below.
             b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
+
+        case .shades:
+            // The meme shades, straight off the stickers: two solid lenses, a
+            // bridge, a brow bar, and a white glint stepping down each lens.
+            //
+            // Deliberately NOT the `glasses` prop with a new coat. Those are a
+            // wire outline and they say READING — you can see his eyes through
+            // them, which is the whole point of drawing them hollow. These are
+            // solid, and solid says something else entirely. Two props, two
+            // meanings, and the resolution is the same either way.
+            b.rect(9 + dx, 12 + dy, 15, 1, .slate)          // brow
+            b.rect(9 + dx, 13 + dy, 6, 2, .slate)           // left lens
+            b.rect(18 + dx, 13 + dy, 6, 2, .slate)          // right lens
+            b.rect(15 + dx, 13 + dy, 3, 1, .slate)          // bridge
+            b.pixel(10 + dx, 14 + dy, .paper)               // the glint, stepping
+            b.pixel(11 + dx, 13 + dy, .paper)
+            b.pixel(19 + dx, 14 + dy, .paper)
+            b.pixel(20 + dx, 13 + dy, .paper)
+
+        case .skateboard:
+            // A board doing a KICKFLIP, and the shape of it is the opposite of
+            // what it looks like it should be.
+            //
+            // The deck's long axis runs left-right across this face-on view,
+            // and a kickflip rotates about exactly that axis. So the axis of
+            // rotation is the one direction that CANNOT change on screen: the
+            // deck is seventeen points wide in every single frame, it is never
+            // diagonal, and it never shortens. Two earlier attempts got this
+            // backwards — one narrowed the width (that is yaw, a shove-it) and
+            // one tilted it (that is pitch, an impossible).
+            //
+            // What actually changes is THICKNESS. Flat on you see a one-point
+            // line; a quarter turn later you are looking at the whole underside
+            // and it is a seven-point slab. It pumps 1-7-1-7-1 across the turn.
+            //
+            // The wheels orbit rather than swap: three points below at rest,
+            // level with the deck at the quarter turns, three above when the
+            // board is inverted. They vanish behind the slab on the far half of
+            // the turn, and that occlusion is not a nicety — it is the only
+            // thing distinguishing a kickflip from a heelflip at this size.
+            let turn = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let theta = turn * 2 * .pi
+            let cx = 16 + dx, deckY = 25 + dy
+            let thick = max(1, Int((7 * abs(sin(theta))).rounded()))
+            b.rect(cx - 8, deckY - thick / 2, 17, thick, .slate)
+
+            let orbit = Int((3 * cos(theta)).rounded())     // + is below: y grows down
+            if sin(theta) >= 0 || abs(orbit) > thick / 2 {
+                for hub in [cx - 5, cx + 4] {
+                    b.rect(hub, deckY + orbit - 1, 3, 1, .yellow)
+                    b.pixel(hub, deckY + orbit, .yellow)
+                    // The bearing is `.screenDark`, not slate. Slate is the
+                    // DECK's ink and nothing else's, which is what lets the
+                    // suite measure the deck by looking for it — a bearing in
+                    // the same ink put the wheel inside the deck's bounding box
+                    // and made every frame look diagonal to the test.
+                    b.pixel(hub + 1, deckY + orbit, .screenDark)   // the bearing
+                    b.pixel(hub + 2, deckY + orbit, .yellow)
+                    b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
+                }
+            }
+
+        case .skateboardVarial:
+            // A VARIAL KICKFLIP: the board turns over AND swings round, both at
+            // once. This is the one the operator liked from the very first
+            // draft, restored — with the two things the review found wrong with
+            // it fixed, because both were bugs rather than style.
+            //
+            // FIRST: it used to narrow to NOTHING. A board seen straight down
+            // its own length is not invisible, it is as wide as the deck — five
+            // points here. Narrowing to zero is a door closing, not a board.
+            //
+            // SECOND: the wheels used to swap sides and stay there, which meant
+            // he landed on the underside. That is not a trick, it is a bail
+            // (landing "primo"). They now orbit through a whole turn and come
+            // back underneath, which is what landing it means.
+            //
+            // The yaw does a half turn while the roll does a whole one, which
+            // is exactly a varial kickflip's budget — and it reads distinctly
+            // from the plain kickflip next door, whose deck never narrows at
+            // all.
+            let spin = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let yaw = spin * .pi                              // 180 across the trick
+            let roll = spin * 2 * .pi                         // a whole turn
+            let cx = 16 + dx, deckY = 25 + dy
+            // Eight points of half-length flat on, two and a half when you are
+            // looking straight down the nose-tail axis.
+            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
+            let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
+            b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, .slate)
+
+            let orbit = Int((3 * cos(roll)).rounded())
+            if sin(roll) >= 0 || abs(orbit) > thick / 2 {
+                let reach = max(1, half - 3)
+                for hub in [cx - reach - 1, cx + reach - 1] {
+                    b.rect(hub, deckY + orbit - 1, 3, 1, .yellow)
+                    b.pixel(hub, deckY + orbit, .yellow)
+                    b.pixel(hub + 1, deckY + orbit, .screenDark)
+                    b.pixel(hub + 2, deckY + orbit, .yellow)
+                    b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
+                }
+            }
+
+        case .skateboardRoll:
+            // NO TRICK. He rides, fast, and stays exactly where he is while the
+            // ground rushes past underneath him.
+            //
+            // The board used to accelerate out of frame and leave him behind.
+            // That was me reading "the board goes away" too literally: it made
+            // the BOARD the thing that moved, and a crab standing still while
+            // his board escapes reads as him losing it, not as speed. The
+            // camera is on him. He holds, the world streaks.
+            //
+            // The speed is carried by the ground lines, not by the wheels, and
+            // that was measured rather than assumed: a wheel is three points
+            // across, so the bearing mark walking round its hub covers about
+            // nine points in total. Against anything else moving it is
+            // invisible. It stays as a grace note for anyone who looks closely.
+            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let deckY = 25 + dy
+            let cx = 16 + dx
+            b.rect(cx - 8, deckY, 17, 1, .slate)
+
+            let tick = Int(u * 34) % 4
+            let mark = [(0, -1), (1, 0), (0, 1), (-1, 0)][tick]
+            for hub in [cx - 5, cx + 4] {
+                b.rect(hub, deckY + 1, 3, 1, .yellow)
+                b.pixel(hub, deckY + 2, .yellow)
+                b.pixel(hub + 2, deckY + 2, .yellow)
+                b.rect(hub, deckY + 3, 3, 1, .yellow)
+                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, .screenDark)
+            }
+
+            // Ground streaking past, in the floor band below him — the only
+            // part of the frame nothing else occupies. Four lanes at different
+            // phases so they never line up into a grid, easing in over the
+            // first beat so the speed arrives rather than switching on.
+            let arrive = Ease.smoothstep(u / 0.18)
+            if arrive > 0.05 {
+                for lane in 0..<4 {
+                    let y = 28 + lane % 3
+                    let travel = (u * 62 + Double(lane) * 7.5)
+                        .truncatingRemainder(dividingBy: 26)
+                    let x = 26 - Int(travel)
+                    let long = 3 + Int(arrive * 2)
+                    b.rect(x, y, long, 1, .steel)
+                }
+            }
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)
@@ -1029,12 +1245,31 @@ public enum CrabRig {
         b.rect(centre - 4, hatY, 8, 1, .yellow)        // crown
         b.rect(centre - 7, hatY + 4, 14, 1, .yellow)   // brim
 
-        // Tools, bobbing gently so they read as held rather than glued on.
+        // ONE tool, and it is a hammer.
+        //
+        // There used to be two: a wrench on his left and a screwdriver on his
+        // right, each two points wide. At that width neither had a jaw or a
+        // blade to read, so they were a pair of grey rods standing either side
+        // of him — the operator's word was "lightsaber", which is exactly what
+        // a glowing-length-of-nothing looks like.
+        //
+        // A hammer survives the resolution where those did not, because its
+        // whole silhouette is two solid masses: a heavy head and a thin handle.
+        // The claw — the notch in the head's top-left — is the one detail that
+        // separates "hammer" from "mallet", and it costs a single pixel.
+        //
+        // Held on one side only. Two objects read as scenery; one reads as
+        // being carried, and the bob sells it.
         let jiggle = sin(phase * 2) > 0 ? 0 : 1
-        b.rect(2, 13 + jiggle, 2, 6, .steel)           // wrench shaft
-        b.rect(1, 12 + jiggle, 4, 2, .steel)           // wrench head
-        b.rect(29, 14 - jiggle, 2, 5, .steel)          // screwdriver shaft
-        b.rect(28, 12 - jiggle, 4, 2, .screenDark)     // screwdriver handle
+        let key: [Character: PixelBuffer.Ink] = ["h": .slate, "s": .ember]
+        b.stamp([
+            "hh.hh",
+            "hhhhh",
+            "..s..",
+            "..s..",
+            "..s..",
+            "..s..",
+        ], at: (x: 27, y: 11 + jiggle), key: key)
     }
 
     /// Wire frames around both eyes.

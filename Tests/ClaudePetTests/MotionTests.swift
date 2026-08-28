@@ -265,6 +265,193 @@ struct MotionContinuityTests {
         #expect(pose.tilt == 0, "a shut lid cannot carry a tilt")
     }
 
+    /// **The landing lookup agrees with the schedule it is asking about.**
+    ///
+    /// The line he shouts is SCHEDULED rather than detected — the app computes
+    /// when the next kickflip lands and meets it. That only works while the
+    /// lookup and the flourish agree, and the failure mode if they drift is him
+    /// shouting KOWABUNGA about a trick he did not do. So: every instant the
+    /// lookup returns must be a moment when a kickflip is genuinely ending.
+    @Test("Every predicted trick landing is a real one")
+    func skateTrickLandingsAreReal() {
+        var t = 0.0
+        var found = 0
+        while found < 12, t < 3000 {
+            guard let landing = CrabAnimator.nextSkateTrickLanding(after: t) else { break }
+            found += 1
+            // A hair before the landing the flourish must still be a kickflip,
+            // and it must be at the very end of its run.
+            let (kind, progress) = try! #require(CrabAnimator.flourish(at: landing - 0.02))
+            #expect(CrabAnimator.Flourish.skateBeats.contains(kind),
+                    "predicted a landing during \(kind.rawValue), which is not a skate trick")
+            #expect(progress > 0.98, "predicted the landing at \(progress) through it")
+            // …and it is over by then.
+            let after = CrabAnimator.flourish(at: landing + 0.02)?.0
+            #expect(after.map { !CrabAnimator.Flourish.skateBeats.contains($0) } ?? true,
+                    "the trick was still running after its own landing")
+            t = landing + 0.1
+        }
+        #expect(found >= 5, "only found \(found) skate tricks in 3000s — are they scheduled at all?")
+    }
+
+    /// The board in a frame: the longest unbroken run of deck in any single
+    /// row, and the height of everything the deck covers.
+    ///
+    /// The run is the measure that matters, and it is chosen to survive
+    /// OCCLUSION. A level deck always lays its whole length along some row, so
+    /// its longest run is its full width no matter what is drawn over parts of
+    /// it — and the wheels genuinely are drawn over it, riding on the slab at
+    /// the quarter turns. A tilted deck is a staircase and never gets more than
+    /// a step or two in a row. An earlier version of this asked whether the
+    /// deck's bounding box was completely FILLED, which the wheels broke every
+    /// time and which said nothing about tilt anyway.
+    private func board(_ kind: CrabAnimator.Flourish, at t: Double)
+    -> (run: Int, height: Int) {
+        let buffer = CrabRig.render(CrabAnimator.flourishPose(kind, at: t))
+        var longest = 0, minY = PixelBuffer.side, maxY = -1
+        for y in 0..<PixelBuffer.side {
+            var run = 0
+            for x in 0..<PixelBuffer.side {
+                if buffer[x, y] == .slate {
+                    run += 1
+                    longest = max(longest, run)
+                    minY = min(minY, y); maxY = max(maxY, y)
+                } else {
+                    run = 0
+                }
+            }
+        }
+        return (longest, maxY >= minY ? maxY - minY + 1 : 0)
+    }
+
+    /// **A kickflip's deck never changes width and is never diagonal.**
+    ///
+    /// This is the invariant two earlier attempts broke, and it is not taste.
+    /// The deck's long axis runs left-right across a face-on view and a
+    /// kickflip rotates about exactly that axis — so the axis of rotation is
+    /// the one direction that cannot change on screen. An attempt that narrowed
+    /// the width was drawing yaw, which is a shove-it; one that tilted the deck
+    /// was drawing pitch, which is an impossible. The operator named both
+    /// before any test could catch them, because no test was looking.
+    ///
+    /// What may change is THICKNESS: flat on you see a line, a quarter turn on
+    /// you are looking at the whole underside.
+    @Test("A kickflip's deck holds its width, stays level, and pumps thickness")
+    func kickflipRotatesAboutItsOwnLength() {
+        let duration = CrabAnimator.Flourish.kickflip.duration
+        var tallest = 0, thinnest = Int.max
+        for step in stride(from: 0.05, through: duration - 0.05, by: 0.04) {
+            let deck = board(.kickflip, at: step)
+            guard deck.height > 0 else { continue }
+            #expect(deck.run == 17,
+                    "at \(String(format: "%.2f", step))s the deck's longest row was \(deck.run), not 17 — it narrowed (yaw) or tilted (pitch)")
+            tallest = max(tallest, deck.height)
+            thinnest = min(thinnest, deck.height)
+        }
+        #expect(tallest >= 6, "the deck never showed its underside; thickest was \(tallest)")
+        #expect(thinnest == 1, "the deck was never flat on; thinnest was \(thinnest)")
+    }
+
+    /// Where the board and its wheels sit in a frame.
+    private func rig(_ kind: CrabAnimator.Flourish, at t: Double)
+    -> (deckRow: Int, wheelRow: Int, deckLeft: Int, run: Int) {
+        let buffer = CrabRig.render(CrabAnimator.flourishPose(kind, at: t))
+        var longest = 0, deckRow = -1, deckLeft = -1
+        var wheelSum = 0, wheelCount = 0
+        for y in 0..<PixelBuffer.side {
+            var run = 0, start = 0
+            for x in 0..<PixelBuffer.side {
+                if buffer[x, y] == .yellow { wheelSum += y; wheelCount += 1 }
+                if buffer[x, y] == .slate {
+                    if run == 0 { start = x }
+                    run += 1
+                    if run > longest { longest = run; deckRow = y; deckLeft = start }
+                } else {
+                    run = 0
+                }
+            }
+        }
+        return (deckRow, wheelCount > 0 ? wheelSum / wheelCount : -1, deckLeft, longest)
+    }
+
+    /// **The varial is the one whose deck narrows — and it lands the right way
+    /// up.**
+    ///
+    /// This is the operator's favourite of the three, restored from the first
+    /// draft with the two things the review found wrong with it fixed. Both
+    /// were bugs rather than taste, and both are pinned here.
+    ///
+    /// It must narrow, or it is just the kickflip again. It must NOT narrow to
+    /// nothing, because a board seen down its own length is as wide as the
+    /// deck, not invisible. And the wheels must come back underneath by the
+    /// end: the first draft swapped them and left them there, which is not a
+    /// landing, it is landing primo.
+    @Test("The varial narrows without vanishing, and lands wheels-down")
+    func varialNarrowsAndLandsUpright() {
+        let duration = CrabAnimator.Flourish.varialFlip.duration
+        var narrowest = 99, widest = 0
+        for step in stride(from: 0.5, through: duration * 0.78, by: 0.03) {
+            let r = rig(.varialFlip, at: step)
+            guard r.run > 0 else { continue }
+            narrowest = min(narrowest, r.run)
+            widest = max(widest, r.run)
+        }
+        #expect(widest == 17, "the varial never opened out flat; widest was \(widest)")
+        #expect(narrowest < 12, "the varial never narrowed — that is the kickflip, not a varial")
+        #expect(narrowest >= 5,
+                "the deck shrank to \(narrowest): a board seen down its length is as wide as the deck, not a closing door")
+
+        // Landed, not primo: wheels below the deck at the end.
+        let landed = rig(.varialFlip, at: duration - 0.05)
+        #expect(landed.wheelRow > landed.deckRow,
+                "he landed on the underside — wheels at row \(landed.wheelRow), deck at \(landed.deckRow)")
+    }
+
+    /// **The cruise is the one where HE does not move and the ground does.**
+    ///
+    /// Its whole identity is that nothing about the board changes: it does not
+    /// flip, it does not narrow, and — the correction that produced this
+    /// version — it does not travel. An earlier draft accelerated the board out
+    /// of frame and left him standing, which reads as a crab losing his board
+    /// rather than as a crab going fast. The camera is on him, so he holds
+    /// still and the world streaks past.
+    @Test("The cruise holds the board still and streaks the ground")
+    func cruiseStreaksWithoutMoving() {
+        let duration = CrabAnimator.Flourish.cruise.duration
+
+        var deckLefts = Set<Int>(), runs = Set<Int>()
+        var streakPositions: [Set<Int>] = []
+        for step in stride(from: 0.05, through: duration - 0.05, by: 0.06) {
+            let r = rig(.cruise, at: step)
+            deckLefts.insert(r.deckLeft)
+            runs.insert(r.run)
+
+            let buffer = CrabRig.render(CrabAnimator.flourishPose(.cruise, at: step))
+            var streaks = Set<Int>()
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .steel {
+                    streaks.insert(y * PixelBuffer.side + x)
+                }
+            }
+            streakPositions.append(streaks)
+        }
+
+        // One point of slack, and only one: he LEANS into the cruise, and a worn
+        // prop travels with the lean — a board that stayed rigidly put while he
+        // tipped over it would be the odd thing. What is forbidden is TRAVEL.
+        let drift = (deckLefts.max() ?? 0) - (deckLefts.min() ?? 0)
+        #expect(drift <= 1,
+                "the board travelled \(drift) points, sitting at \(deckLefts.sorted()) — on a fixed camera HE is what stays put")
+        #expect(runs == [17], "the board changed shape mid-cruise: \(runs.sorted())")
+
+        // The ground has to actually rush. Two samples a little apart must not
+        // show the same streaks in the same places.
+        #expect(streakPositions.contains { !$0.isEmpty }, "no speed lines at all")
+        let moved = zip(streakPositions, streakPositions.dropFirst()).filter { $0 != $1 }.count
+        #expect(moved > streakPositions.count / 2,
+                "the speed lines barely moved — \(moved) changes across \(streakPositions.count) samples")
+    }
+
     /// **His eyes are level, in every mood, at every instant.**
     ///
     /// Rendered, not reasoned about. The bug this pins was invisible to every
@@ -389,7 +576,7 @@ struct MotionContinuityTests {
                 guard pose.stargaze > 0 else { continue }
                 sawTelescope = true
                 #expect(pose.bugX == nil, "a bug visited mid-telescope at t=\(t)")
-                #expect(pose.prop != .balloon, "a balloon floated up mid-telescope at t=\(t)")
+                #expect(pose.prop != .mug, "a balloon floated up mid-telescope at t=\(t)")
             }
         }
         #expect(sawTelescope)

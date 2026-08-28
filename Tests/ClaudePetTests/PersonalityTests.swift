@@ -85,11 +85,40 @@ struct PropInventoryTests {
     ///
     /// Pinning the count makes the next append or deletion surface the media
     /// obligation at test time rather than at review time.
+    /// **The joystick sits on the FLOOR, and stays there at every phase.**
+    ///
+    /// Its first draft floated beside him at his own height, where the base sat
+    /// on his flank and the whole thing read as a dark lump with a red dot stuck
+    /// to the crab. Rows 25 and below are the only ground in the frame nothing
+    /// else occupies; his ink stops at row 24, and rows 21 to 24 are only his
+    /// four legs — which is why this guard checks the whole silhouette rather
+    /// than a row number. A prop can miss the legs and still land on his shell.
+    ///
+    /// Checked against the RENDER rather than against the stamp coordinates,
+    /// because the lean moves it and a coordinate a test copies out of the
+    /// source cannot catch the frame where the lean pushed it somewhere new.
+    @Test("The joystick never stands on the crab")
+    func joystickStaysOnTheFloor() {
+        let bare = CrabRig.render(CrabPose())
+        for step in 0...40 {
+            var pose = CrabPose()
+            pose.prop = .joystick
+            pose.propPhase = Double(step) * 0.25
+            let drawn = CrabRig.render(pose)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where bare[x, y] != .clear {
+                    #expect(drawn[x, y] == bare[x, y],
+                            "the joystick painted over him at \(x),\(y) on phase \(pose.propPhase)")
+                }
+            }
+        }
+    }
+
     @Test("The prop strip publishes every prop")
     func propCountIsPinned() {
         // `.none` is a case but not a prop; the strip draws the rest.
         let drawn = CrabPose.Prop.allCases.filter { $0 != .none }
-        #expect(drawn.count == 12,
+        #expect(drawn.count == 17,
                 "the prop count moved — docs/media/props.png needs re-rendering")
         #expect(!CrabPose.Prop.allCases.contains { $0.rawValue == "zzz" },
                 "the sleeping z's were removed; the enum should not carry them")
@@ -1023,6 +1052,11 @@ struct EditableCopyTests {
     @Test("Bubble lines fit in the bubble")
     func bubbleLinesAreShort() {
         for occasion in ShoutoutOccasion.allCases {
+            // The skate lines are ROUTED by length rather than forced into the
+            // plain bubble, so the ceiling does not apply to them — what does
+            // apply is that they finish scrolling inside the window they are
+            // shown for, which `skateLinesFitTheirWindow` checks instead.
+            guard occasion != .kickflip else { continue }
             for line in Vocab.lines(for: occasion) {
                 guard !Self.knownLong.contains(line) else { continue }
                 #expect(line.count <= ThoughtBubble.plainColumns, "\(occasion.rawValue) line too long: \(line)")
@@ -1032,6 +1066,28 @@ struct EditableCopyTests {
             for line in rule.lines {
                 guard !Self.knownLong.contains(line) else { continue }
                 #expect(line.count <= ThoughtBubble.plainColumns, "rule line too long: \(line)")
+            }
+        }
+    }
+
+    /// The skate lines are the first transient long enough to need the marquee,
+    /// so they are the first that can be CUT OFF by their own window rather
+    /// than by the bubble's width. Two ways to fail: a line too wide for the
+    /// plain bubble that was not routed to the marquee, or one routed there
+    /// that the window closes on mid-scroll.
+    @Test("Every skate line finishes inside the window it gets")
+    func skateLinesFitTheirWindow() {
+        for line in Vocab.lines(for: .kickflip) {
+            switch ActivityCoordinator.bubbleStyle(for: line) {
+            case .plain:
+                #expect(line.count <= ThoughtBubble.plainColumns,
+                        "\"\(line)\" was left in the plain bubble and does not fit it")
+            case .marquee:
+                let read = MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+                #expect(read <= PetInstance.skateLineSeconds - 0.8,
+                        "\"\(line)\" needs \(String(format: "%.1f", read))s and the window is \(PetInstance.skateLineSeconds)s")
+            case .dots:
+                Issue.record("a skate line should never be dots")
             }
         }
     }

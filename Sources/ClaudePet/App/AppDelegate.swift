@@ -302,6 +302,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         .ting: "Wink ting",
         .hearts: "Petting hearts",
         .beacon: "Waiting light",
+        .kickflip: "🛹 Kickflip",
+        .varial: "🛹 Varial flip",
+        .cruise: "🛹 Cruise",
     ]
 
     @objc private func secretMenuPick(_ sender: NSMenuItem) {

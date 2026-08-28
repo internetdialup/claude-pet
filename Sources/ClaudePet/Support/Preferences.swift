@@ -198,7 +198,12 @@ public final class Preferences {
         set { store.set(newValue, forKey: Key.scale) }
     }
 
-    public static let pixelSizes: [Double] = [2.5, 3, 3.5, 4, 5, 6, 8]
+    /// `nonisolated` because it is a constant, not state — the same reason
+    /// `ActivityCoordinator.chatterInterval` is. A geometry suite that has no
+    /// business hopping to the main actor still needs to know every size the
+    /// operator can pick, and hard-coding the list into the test would be one
+    /// more copy to drift.
+    public nonisolated static let pixelSizes: [Double] = [2.5, 3, 3.5, 4, 5, 6, 8]
 
     /// The character's rendered size in points, for menu labels — the sprite
     /// frame includes transparent margin, so quoting the frame would overstate

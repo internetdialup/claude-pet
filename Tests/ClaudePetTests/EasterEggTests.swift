@@ -491,7 +491,7 @@ struct EasterEggScheduleTests {
                 guard pose.sunPatch > 0 else { continue }
                 basked = true
                 #expect(pose.bugX == nil, "a bug visited mid-bask at t=\(t)")
-                #expect(pose.prop != .balloon, "a balloon floated up mid-bask at t=\(t)")
+                #expect(pose.prop != .mug, "a balloon floated up mid-bask at t=\(t)")
             }
             if basked { break }
         }
