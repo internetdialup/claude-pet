@@ -19,30 +19,42 @@ struct CostumeStyle {
         switch costume {
         case .none:
             return CostumeStyle(inks: [:], yieldsCrownToProps: false)
-        case .arcade:
-            // The four-tone LCD ramp a handheld of that era printed everything
-            // in: one green for the ground, one for the ink, and two between.
-            // Not a brand and not named as one — the palette is the whole
-            // reference, which is what makes it read instantly without
-            // borrowing anybody's mark.
-            //
-            // The buttons are magenta on purpose. The ramp alone is four greens
-            // and reads flat at 32x32; the one non-green in the picture is what
-            // says CONTROLS rather than "he is green today".
+        case .frankenstein:
+            // Named for what it turned out to be. It was built as a handheld's
+            // four-tone LCD ramp, and the operator took one look and said it
+            // looked like Frankenstein — correctly, because the recipe for a
+            // monster is green skin plus a mark on the forehead, and a control
+            // panel on his brow is a mark on the forehead. The palette stayed,
+            // the name changed, and the marks became what they were already
+            // reading as.
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x8B_AC0F),      // mid green, the shell
-                    .eye: rgb(0x0F_380F),       // the ramp's darkest stop
-                    // DARK, not the ramp's lightest. The lightest stop against
-                    // the mid stop is barely a shade apart at this size and his
-                    // smile disappeared into his own shell — which is the exact
-                    // failure the matrix costume's note already warns about:
-                    // the face has to out-rank the field or he loses it to his
-                    // wardrobe. Dark-on-green is also how a handheld of that era
-                    // drew everything anyway.
-                    .mouth: rgb(0x0F_380F),
-                    .costumeA: rgb(0x30_6230),  // the D-pad
-                    .costumeB: rgb(0xA0_2A50),  // the buttons
+                    .body: rgb(0x8B_AC0F),      // the same green, now a complexion
+                    .eye: rgb(0x0F_380F),
+                    .mouth: rgb(0x0F_380F),     // dark, or his face vanishes into it
+                    .costumeA: rgb(0x30_6230),  // the seam
+                    .costumeB: rgb(0x6E_6E78),  // the bolts, iron rather than magenta
+                ],
+                yieldsCrownToProps: false)
+
+        case .arcade:
+            // THE CABINET, not the handheld. The first attempt at this was
+            // green and put its controls on his brow, which is the recipe for a
+            // monster — so it kept that job under a new name and this one goes
+            // somewhere green cannot follow.
+            //
+            // A cabinet is a dark box with a lit screen in it. So: near-black
+            // shell, and his eyes and mouth in phosphor cyan, which is the one
+            // move that says MACHINE rather than "a crab painted black" — the
+            // glow has to come from inside him or he is just `retroBlack` with
+            // extra steps.
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x1A_1A22),      // cabinet black
+                    .eye: rgb(0x4D_F2FF),       // phosphor, lit from within
+                    .mouth: rgb(0x4D_F2FF),
+                    .costumeA: rgb(0xFF_2E88),  // the marquee
+                    .costumeB: rgb(0xFF_C20E),  // and its second stripe
                 ],
                 yieldsCrownToProps: false)
 
@@ -173,24 +185,41 @@ enum CrabCostume {
         case .none:
             break
 
+        case .frankenstein:
+            guard layer == .onBody else { break }
+            // A seam across the brow and two bolts at the temples.
+            //
+            // These were a D-pad and a pair of buttons, and they read as a scar
+            // and a bolt anyway — so they are a scar and a bolt now. The brow is
+            // still the only free band on him: his body is solid from row 10 to
+            // 20, eyes at 13-15, mouth at 16-18, which leaves rows 10 to 12 and
+            // nothing else. That constraint is what made the handheld version
+            // look like a monster, and it is what makes this one work.
+            let brow = bodyY + dy + squash
+            let seam = bodyX + 3 + dx
+            b.rect(seam, brow + 1, 9, 1, .costumeA)         // the stitch line
+            for tick in [0, 4, 8] {                         // and its sutures
+                b.pixel(seam + tick, brow, .costumeA)
+                b.pixel(seam + tick, brow + 2, .costumeA)
+            }
+            // Bolts at the temples, not the neck — he has no neck, and a bolt
+            // below his jaw would read as a dropped pixel.
+            b.rect(bodyX + dx, brow + 4, 2, 2, .costumeB)
+            b.rect(bodyX + bodyW + dx - 2, brow + 4, 2, 2, .costumeB)
+
         case .arcade:
             guard layer == .onBody else { break }
-            // A control panel across his brow: D-pad left, two buttons right.
+            // A marquee across his lower body, and NOTHING on his face — which
+            // is the whole reason this costume exists separately. Every mark up
+            // there reads as a feature, and that is how the first attempt at
+            // this became Frankenstein.
             //
-            // The brow is the only band of him that is free. His body is a
-            // solid block from row 10 to 20, his eyes sit at 13-15 and his
-            // mouth at 16-18 — so rows 10 to 12 are the whole budget, and a
-            // panel anywhere lower would be drawn across his face. Three rows
-            // is exactly enough for a cross and two buttons, and not enough for
-            // anything more, which is why this is a panel and not a cabinet.
-            let brow = bodyY + dy + squash
-            let pad = bodyX + 2 + dx
-            b.rect(pad + 1, brow, 1, 3, .costumeA)          // the cross, upright
-            b.rect(pad, brow + 1, 3, 1, .costumeA)          // and across
-            // Offset the way a handheld's two buttons are, rather than level —
-            // level reads as a pair of eyes, and he already has those.
-            b.rect(bodyX + bodyW - 6 + dx, brow + 1, 2, 2, .costumeB)
-            b.rect(bodyX + bodyW - 3 + dx, brow, 2, 2, .costumeB)
+            // Rows 19 and 20 are the only clear band below his mouth: two rows,
+            // which is exactly a two-colour stripe and nothing more ambitious.
+            // A cabinet is a dark box with a lit band on it, and so is he.
+            let marquee = bodyY + dy + squash + 9
+            b.rect(bodyX + 2 + dx, marquee, bodyW - 4, 1, .costumeA)
+            b.rect(bodyX + 2 + dx, marquee + 1, bodyW - 4, 1, .costumeB)
 
         case .ninja:
             let crown = bodyY + dy + squash
