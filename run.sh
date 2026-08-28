@@ -89,6 +89,39 @@ if [ "${1:-}" = "--no-launch" ]; then
 fi
 
 echo "==> launching"
+
+# Retire the running instance, WAIT for it to actually go, then retry the open.
+#
+# `open` fired straight after `pkill` races LaunchServices: it still has the
+# dying process registered and answers -600, procNotFound. Measured, not
+# theoretical — and under `set -e` that failure takes the whole script down
+# after a clean build and a good signature, which reads as "the app is broken"
+# when nothing is wrong but the timing. Two seconds later the same command
+# works.
+#
+# Same lesson as the codesign block above, and it is the reason this is a loop
+# rather than a `sleep 1`: one shot at a system service that needs a moment is
+# a coin flip, and the fix is to keep asking until it answers.
 pkill -f "ClaudePet.app/Contents/MacOS/ClaudePet" 2>/dev/null || true
-open "$APP"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  pgrep -f "ClaudePet.app/Contents/MacOS/ClaudePet" >/dev/null 2>&1 || break
+  sleep 0.2
+done
+
+launched=""
+for attempt in 1 2 3; do
+  if open "$APP" 2>/dev/null; then
+    launched="yes"
+    [ "$attempt" -gt 1 ] && echo "==> launched on attempt $attempt (LaunchServices race)"
+    break
+  fi
+  sleep 1
+done
+
+if [ -z "$launched" ]; then
+  echo "   open FAILED after three attempts. Last error:"
+  open "$APP" 2>&1 | sed 's/^/   /'
+  exit 1
+fi
+
 echo "Running. Menu bar icon is a small crab; click the pet for the session roster."
