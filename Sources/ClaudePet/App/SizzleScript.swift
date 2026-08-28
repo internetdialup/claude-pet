@@ -72,7 +72,8 @@ enum SizzleScript {
     /// The montage's running order — ends on Classic so the README GIF's
     /// loop seam is a mood-only cut.
     static let montageOrder: [Costume] =
-        [.ninja, .retroBlack, .matrix, .tiger, .white, .gundam, .sonic, .arcade, .none]
+        [.ninja, .retroBlack, .matrix, .tiger, .white, .gundam, .sonic, .frankenstein,
+         .arcade, .none]
 
     /// The glyph chapter shows every service, one eased beat each.
     static let glyphBeats: [(glyph: ServiceGlyph, bubble: String)] = [

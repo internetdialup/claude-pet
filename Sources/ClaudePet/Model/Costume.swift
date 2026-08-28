@@ -27,6 +27,7 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
     case white
     case gundam
     case sonic
+    case frankenstein
     case arcade
 
     /// The menu label.
@@ -40,6 +41,7 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .white: "Arctic White"
         case .gundam: "Gundam"
         case .sonic: "Sonic"
+        case .frankenstein: "Frankenstein"
         case .arcade: "Arcade"
         }
     }
