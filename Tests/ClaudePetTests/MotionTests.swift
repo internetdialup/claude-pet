@@ -250,14 +250,62 @@ struct MotionContinuityTests {
         #expect(depths.count >= 3, "a two-value breath reads as a twitch, not a breath")
     }
 
-    /// The z's are gone; the tilt is what carries "asleep" in the still, where
-    /// the breath cannot help.
-    @Test("A sleeping crab wears no prop, and tips his head")
+    /// The z's are gone; the lowered lids are what carry "asleep" in the still,
+    /// where the breath cannot help.
+    ///
+    /// It was a head tilt until the operator reported it as a broken eye. They
+    /// were right, and the reason is measurable rather than a matter of taste
+    /// — see `eyesAreNeverUneven` below.
+    @Test("A sleeping crab wears no prop, and lowers his lids")
     func theSleepingPoseCarriesNoProp() {
         let pose = CrabAnimator.pose(mood: .sleeping, t: 2, flourishes: false)
         #expect(pose.prop == .none)
         #expect(pose.blink == 1, "his eyes stay shut")
-        #expect(pose.tilt != 0, "the tilt is the only thing left in the still")
+        #expect(pose.lidsLowered, "the lowered lids are the only thing left in the still")
+        #expect(pose.tilt == 0, "a shut lid cannot carry a tilt")
+    }
+
+    /// **His eyes are level, in every mood, at every instant.**
+    ///
+    /// Rendered, not reasoned about. The bug this pins was invisible to every
+    /// existing test because nothing looked at the OUTPUT: the sleeping pose
+    /// set a one-pixel tilt, `drawFace` raised one eye and dropped the other,
+    /// and the two shut lids came out on rows 13 and 15 — a two-pixel gap on a
+    /// thirty-two-pixel sprite, in 100% of sleeping frames. Every awake mood
+    /// measured 0%.
+    ///
+    /// A tilt is still legal and the sizzle still uses it: at `eyeSize` 3 the
+    /// two blocks overlap by a row and the head reads as tipped. What this
+    /// forbids is the case where it cannot read — eyes so thin that an offset
+    /// is the only thing you see.
+    @Test("His eyes are never uneven")
+    func eyesAreNeverUneven() {
+        func eyeRows(_ buffer: PixelBuffer) -> (left: Int?, right: Int?) {
+            var left: Int?, right: Int?
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .eye {
+                    if x < PixelBuffer.side / 2 { left = left ?? y } else { right = right ?? y }
+                }
+            }
+            return (left, right)
+        }
+
+        for mood in PetMood.allCases {
+            var t = 0.0
+            while t < 20.0 {
+                let pose = CrabAnimator.pose(mood: mood, t: t)
+                // A wink is one eye shut on purpose — the asymmetry IS the
+                // gesture, and it is the only one allowed.
+                if pose.winkEye == .none {
+                    let rows = eyeRows(CrabRig.render(pose))
+                    if let l = rows.left, let r = rows.right {
+                        #expect(l == r,
+                                "\(mood.rawValue) at t=\(String(format: "%.2f", t)): left eye on row \(l), right on \(r)")
+                    }
+                }
+                t += 0.25
+            }
+        }
     }
 
     /// The frozen sentinel, checked on the BODY rather than on the props.

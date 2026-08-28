@@ -24,7 +24,25 @@ public struct CrabPose: Sendable, Equatable {
     public enum EyeStyle: Sendable { case round, determined, wide }
     /// Whole-pixel vertical offset applied to the eyes in opposite directions —
     /// a head tilt, on a grid that cannot rotate.
+    ///
+    /// **Ignored while the lids are shut**, and that is not a special case, it
+    /// is the channel's limit. A tilt is read from the two eyes' relative
+    /// height, which needs eyes tall enough to overlap: at `eyeSize` 3 a
+    /// one-pixel tilt puts blocks on rows 13 and 15 that still share a row, and
+    /// the head reads as tipped. A shut lid is ONE pixel, so the same tilt
+    /// leaves two thin bars two rows apart with nothing between them — which
+    /// reads as a broken eye, not a tipped head. See `drawFace`.
     public var tilt: Int = 0
+
+    /// The lids sit at the bottom of the socket rather than across its middle:
+    /// asleep, as against mid-blink.
+    ///
+    /// The z's were removed at the operator's request and the head tilt was
+    /// what replaced them — the one thing carrying "asleep" in a STILL, where
+    /// the breath cannot help. The tilt turned out to be the wrong instrument
+    /// for the job for the reason above, so this is the replacement's
+    /// replacement, and it is symmetric: both lids drop together.
+    public var lidsLowered = false
     /// Eye offset in whole pixels.
     public var gazeX: Int = 0
     public var gazeY: Int = 0
@@ -777,15 +795,24 @@ public enum CrabRig {
         // head tilt is expressed entirely in the face.
         for (side, baseX) in [(CrabPose.EyeSide.left, eyeLeftX), (.right, eyeRightX)] {
             let x = baseX + dx + pose.gazeX
-            let top = eyeTop + (side == .left ? -pose.tilt : pose.tilt)
 
             // A wink is checked independently of `blink`, and deliberately not
             // gated on `asleepOverride` — the hover greeting sets that flag on
             // every frame, so routing a wink through `blink` renders two open
             // eyes and nothing else.
             let shut = (pose.blink > 0.5 && !pose.asleepOverride) || pose.winkEye == side
+
+            // The tilt is dropped for a shut lid. A one-pixel bar cannot
+            // express a tipped head — offset, it just reads as one eye sitting
+            // wrong. See the note on `CrabPose.tilt`. This is the general rule
+            // rather than a fix to the sleeping pose alone, so a tilt arriving
+            // over a blink from anywhere else cannot reintroduce it.
+            let top = eyeTop + (shut ? 0 : (side == .left ? -pose.tilt : pose.tilt))
+
             guard !shut else {
-                b.rect(x, top + 1, eyeSize, 1, .eye)
+                // Lowered lids sit at the socket's floor: asleep reads
+                // differently from a blink, and reads it symmetrically.
+                b.rect(x, top + (pose.lidsLowered ? 2 : 1), eyeSize, 1, .eye)
                 continue
             }
 

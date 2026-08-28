@@ -153,6 +153,7 @@ extension CrabPose {
             out.eyes = from.eyes
             out.mouth = from.mouth
             out.winkEye = from.winkEye
+            out.lidsLowered = from.lidsLowered
         }
 
         if from.prop != to.prop {
