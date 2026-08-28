@@ -19,6 +19,33 @@ struct CostumeStyle {
         switch costume {
         case .none:
             return CostumeStyle(inks: [:], yieldsCrownToProps: false)
+        case .arcade:
+            // The four-tone LCD ramp a handheld of that era printed everything
+            // in: one green for the ground, one for the ink, and two between.
+            // Not a brand and not named as one — the palette is the whole
+            // reference, which is what makes it read instantly without
+            // borrowing anybody's mark.
+            //
+            // The buttons are magenta on purpose. The ramp alone is four greens
+            // and reads flat at 32x32; the one non-green in the picture is what
+            // says CONTROLS rather than "he is green today".
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x8B_AC0F),      // mid green, the shell
+                    .eye: rgb(0x0F_380F),       // the ramp's darkest stop
+                    // DARK, not the ramp's lightest. The lightest stop against
+                    // the mid stop is barely a shade apart at this size and his
+                    // smile disappeared into his own shell — which is the exact
+                    // failure the matrix costume's note already warns about:
+                    // the face has to out-rank the field or he loses it to his
+                    // wardrobe. Dark-on-green is also how a handheld of that era
+                    // drew everything anyway.
+                    .mouth: rgb(0x0F_380F),
+                    .costumeA: rgb(0x30_6230),  // the D-pad
+                    .costumeB: rgb(0xA0_2A50),  // the buttons
+                ],
+                yieldsCrownToProps: false)
+
         case .ninja:
             return CostumeStyle(
                 inks: [
@@ -145,6 +172,25 @@ enum CrabCostume {
         switch costume {
         case .none:
             break
+
+        case .arcade:
+            guard layer == .onBody else { break }
+            // A control panel across his brow: D-pad left, two buttons right.
+            //
+            // The brow is the only band of him that is free. His body is a
+            // solid block from row 10 to 20, his eyes sit at 13-15 and his
+            // mouth at 16-18 — so rows 10 to 12 are the whole budget, and a
+            // panel anywhere lower would be drawn across his face. Three rows
+            // is exactly enough for a cross and two buttons, and not enough for
+            // anything more, which is why this is a panel and not a cabinet.
+            let brow = bodyY + dy + squash
+            let pad = bodyX + 2 + dx
+            b.rect(pad + 1, brow, 1, 3, .costumeA)          // the cross, upright
+            b.rect(pad, brow + 1, 3, 1, .costumeA)          // and across
+            // Offset the way a handheld's two buttons are, rather than level —
+            // level reads as a pair of eyes, and he already has those.
+            b.rect(bodyX + bodyW - 6 + dx, brow + 1, 2, 2, .costumeB)
+            b.rect(bodyX + bodyW - 3 + dx, brow, 2, 2, .costumeB)
 
         case .ninja:
             let crown = bodyY + dy + squash

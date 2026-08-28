@@ -975,37 +975,40 @@ public enum CrabRig {
             drawHardHat(&b, dx: dx, dy: dy, phase: phase)
 
         case .joystick:
-            // An arcade stick: black base, black shaft, red ball on top, two
-            // red buttons on the deck. Chosen against the rule the mug is here
-            // for — a five-year-old can name a joystick, and cannot name a
-            // green blob on a string.
+            // An arcade stick, HELD — up at his claw, not sitting on the floor.
             //
-            // ON THE FLOOR, at his feet, and that is not a detail. The first
-            // draft floated it beside him at his own height, where the base sat
-            // on his flank and the whole thing read as a dark lump with a red
-            // dot stuck to the crab. Rows 25 and below are the only ground in
-            // the frame nothing else occupies — his ink stops at row 24, and
-            // rows 21 to 24 are only his four legs. A stick that sits on
-            // something reads as a stick; one hanging in the air reads as a
-            // smudge.
+            // It used to stand on the ground beside him, which was a fix for a
+            // worse first draft that floated it at his own height where it
+            // looked stuck to his flank. The floor solved the sticking and
+            // created a different problem: a stick on the ground is scenery. He
+            // is meant to be USING it, so it comes up to where his claw is and
+            // overlaps him deliberately — the overlap is what says "held".
             //
             // The lean is the point. A stick standing straight is a lamp; one
-            // that tips reads as being PUSHED, which is what makes it say "he
-            // is driving something" rather than "an object exists". Whole-pixel
+            // that tips reads as being pushed, which is what makes it say he is
+            // driving something rather than that an object exists. Whole-pixel
             // steps, which the grid's own quantum exempts from the no-snap rule.
             let lean = Int((sin(phase * 2.2) * 1.4).rounded())
             let key: [Character: PixelBuffer.Ink] = ["r": .alert, "o": .slate]
+            // Outboard of his right CLAW, which is the nub at columns 26-27 on
+            // rows 14-16. His body is a solid block from column 6 to 25, so
+            // anything placed over that is on his face, not in his grip — a
+            // first attempt at "held" put the base across his cheek. The base
+            // overlaps the claw and nothing else, and that single column of
+            // contact is what reads as holding.
             b.stamp([
                 ".rrr.",
                 ".rrr.",
-            ], at: (x: 2 + lean, y: 25), key: key)
-            b.pixel(4 + lean, 27, .slate)
+            ], at: (x: 27 + lean, y: 10), key: key)
+            b.pixel(29 + lean, 12, .slate)
+            b.pixel(29, 13, .slate)
+            b.pixel(29, 14, .slate)
             b.stamp([
-                ".ooooo.",
-                "ooooooo",
-                "oroooro",
-                "ooooooo",
-            ], at: (x: 1, y: 28), key: key)
+                ".ooo.",
+                "ooooo",
+                "ororo",
+                "ooooo",
+            ], at: (x: 27, y: 15), key: key)
 
         case .star:
             // The Claude star, holding the top-right airspace (cols 20-28) —

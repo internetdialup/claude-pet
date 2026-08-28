@@ -85,32 +85,38 @@ struct PropInventoryTests {
     ///
     /// Pinning the count makes the next append or deletion surface the media
     /// obligation at test time rather than at review time.
-    /// **The joystick sits on the FLOOR, and stays there at every phase.**
+    /// **The joystick is HELD, at every phase.**
     ///
-    /// Its first draft floated beside him at his own height, where the base sat
-    /// on his flank and the whole thing read as a dark lump with a red dot stuck
-    /// to the crab. Rows 25 and below are the only ground in the frame nothing
-    /// else occupies; his ink stops at row 24, and rows 21 to 24 are only his
-    /// four legs — which is why this guard checks the whole silhouette rather
-    /// than a row number. A prop can miss the legs and still land on his shell.
+    /// It has been in three places. First it floated beside him at his own
+    /// height and read as stuck to his flank. Then it stood on the floor, which
+    /// fixed the sticking and made it scenery — a stick on the ground is not a
+    /// stick anyone is using. Now it is up at his claw, overlapping him on
+    /// purpose, because the overlap is the thing that says "held".
     ///
-    /// Checked against the RENDER rather than against the stamp coordinates,
-    /// because the lean moves it and a coordinate a test copies out of the
-    /// source cannot catch the frame where the lean pushed it somewhere new.
-    @Test("The joystick never stands on the crab")
-    func joystickStaysOnTheFloor() {
+    /// So this asserts the opposite of what it used to: the joystick's own
+    /// pixels must live at BODY height and never drift down into the floor
+    /// band, which is rows 25 and below and belongs to nothing.
+    @Test("The joystick is held, never left on the floor")
+    func joystickIsHeldAtClawHeight() {
         let bare = CrabRig.render(CrabPose())
         for step in 0...40 {
             var pose = CrabPose()
             pose.prop = .joystick
             pose.propPhase = Double(step) * 0.25
             let drawn = CrabRig.render(pose)
+
+            var lowest = -1, highest = PixelBuffer.side
             for y in 0..<PixelBuffer.side {
-                for x in 0..<PixelBuffer.side where bare[x, y] != .clear {
-                    #expect(drawn[x, y] == bare[x, y],
-                            "the joystick painted over him at \(x),\(y) on phase \(pose.propPhase)")
+                for x in 0..<PixelBuffer.side where drawn[x, y] != bare[x, y] {
+                    lowest = max(lowest, y)
+                    highest = min(highest, y)
                 }
             }
+            #expect(lowest >= 0, "the joystick drew nothing at phase \(pose.propPhase)")
+            #expect(lowest < 25,
+                    "the joystick reached row \(lowest) — that is the floor, not his claw")
+            #expect(highest >= 8,
+                    "the joystick reached row \(highest), up over his head rather than in his grip")
         }
     }
 
