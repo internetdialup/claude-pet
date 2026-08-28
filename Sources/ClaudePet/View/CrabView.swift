@@ -88,7 +88,7 @@ public enum CrabAnimator {
 
         var duration: Double {
             switch self {
-            case .kickflip: 2.4
+            case .kickflip: 2.8
             case .jump: 0.9
             case .wave: 1.8
             case .wiggle: 1.0
@@ -140,6 +140,25 @@ public enum CrabAnimator {
         let choice = all[Int(noise(cycle &* 7 &+ 3) * Double(all.count)) % all.count]
         guard since < choice.duration else { return nil }
         return (choice, since / choice.duration)
+    }
+
+    /// When the next kickflip LANDS, in mood-clock seconds, or nil if none is
+    /// scheduled inside the horizon.
+    ///
+    /// Asks `flourish(at:)` rather than restating its dice. The schedule is
+    /// already written down once; a second copy here would agree with it right
+    /// up until somebody changed one of them, and the symptom would be him
+    /// shouting about a trick he did not do.
+    static func nextKickflipLanding(after t: Double, horizon: Double = 900) -> Double? {
+        let first = max(1, Int(floor(t / flourishPeriod)))
+        for cycle in first...(first + Int(horizon / flourishPeriod)) {
+            let start = Double(cycle) * flourishPeriod
+            guard let (kind, _) = flourish(at: start + 0.01), kind == .kickflip
+            else { continue }
+            let landed = start + kind.duration
+            if landed > t { return landed }
+        }
+        return nil
     }
 
     /// The first cycle that actually fires, as an instant. `idle`'s README
@@ -1070,7 +1089,7 @@ public enum CrabAnimator {
                 pose.bob = 1
             } else if progress < 0.80 {
                 let air = (progress - 0.15) / 0.65
-                pose.bob = -Int((sin(air * .pi) * 6).rounded())
+                pose.bob = -Int((sin(air * .pi) * 9).rounded())
                 pose.legAmplitude = 1.6               // legs tuck out of the way
                 pose.legPhase = .pi / 2
                 pose.blink = 0
@@ -1686,6 +1705,17 @@ public final class MoodClock {
     private var lastDisplayed: CrabPose?
     private var blendFrom: CrabPose?
     private var blendStartedAt: Double = -.infinity
+
+    /// The mood on the clock right now, and when it started — WITHOUT
+    /// rebasing anything.
+    ///
+    /// `epoch(for:)` below is a mutating question: asking it about a mood the
+    /// clock is not on restarts the clock. That is exactly right for the render
+    /// loop, which asks once a frame about the mood it is drawing, and exactly
+    /// wrong for anyone else. The app layer needs to know when idle began so it
+    /// can meet a flourish that is already scheduled; if it asked `epoch` it
+    /// would restart the very animation it was trying to observe.
+    func reading() -> (mood: PetMood, since: Double) { (current, startedAt) }
 
     func epoch(for mood: PetMood) -> Double {
         if mood != current {

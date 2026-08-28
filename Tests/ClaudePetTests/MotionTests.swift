@@ -265,6 +265,33 @@ struct MotionContinuityTests {
         #expect(pose.tilt == 0, "a shut lid cannot carry a tilt")
     }
 
+    /// **The landing lookup agrees with the schedule it is asking about.**
+    ///
+    /// The line he shouts is SCHEDULED rather than detected — the app computes
+    /// when the next kickflip lands and meets it. That only works while the
+    /// lookup and the flourish agree, and the failure mode if they drift is him
+    /// shouting KOWABUNGA about a trick he did not do. So: every instant the
+    /// lookup returns must be a moment when a kickflip is genuinely ending.
+    @Test("Every predicted kickflip landing is a real one")
+    func kickflipLandingsAreReal() {
+        var t = 0.0
+        var found = 0
+        while found < 12, t < 3000 {
+            guard let landing = CrabAnimator.nextKickflipLanding(after: t) else { break }
+            found += 1
+            // A hair before the landing the flourish must still be a kickflip,
+            // and it must be at the very end of its run.
+            let (kind, progress) = try! #require(CrabAnimator.flourish(at: landing - 0.02))
+            #expect(kind == .kickflip, "predicted a landing during \(kind.rawValue)")
+            #expect(progress > 0.98, "predicted the landing at \(progress) through it")
+            // …and it is over by then.
+            #expect(CrabAnimator.flourish(at: landing + 0.02)?.0 != .kickflip,
+                    "the flourish was still running after its own landing")
+            t = landing + 0.1
+        }
+        #expect(found >= 5, "only found \(found) kickflips in 3000s — is it scheduled at all?")
+    }
+
     /// **A kickflip is a whole turn, and it lands deck-down.**
     ///
     /// Checked against the RENDER, by measuring how wide the board's row is:

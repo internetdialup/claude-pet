@@ -85,6 +85,12 @@ final class PetInstance {
     private var secretGate = SecretMenuGate()
     /// This pet's draw counter for the bug-pounce line. See `LineCursor`.
     private var bugCursor = LineCursor()
+    /// …and for the line he shouts after landing a kickflip.
+    private var kickflipCursor = LineCursor()
+    /// Cancels a scheduled kickflip line that the mood outran. A generation
+    /// counter rather than a `Timer` handle, matching `fadeSeq`: the timer
+    /// still fires, it just finds itself stale and does nothing.
+    private var kickflipSeq = 0
     private var secretDisarmTimer: Timer?
 
     // MARK: - Visibility policy
@@ -410,9 +416,48 @@ final class PetInstance {
         } else if !state.celebrating, model.celebrationStartedAt != nil {
             model.celebrationStartedAt = nil
         }
+        let wasIdle = model.state.mood == .idle
         model.state = state
         updateServiceGlyphLatches()
         updateBadgeLatches()
+        if state.mood == .idle, !wasIdle { armKickflipLine() }
+    }
+
+    /// Meet the next kickflip at the moment it lands.
+    ///
+    /// **Scheduled, not detected.** The flourish schedule is pure in the mood
+    /// clock, so given when idle began the exact landing instant is knowable —
+    /// there is nothing to poll for and no frame to miss. The alternative was
+    /// watching the animation from the app layer, which would mean either a
+    /// callback out of a `TimelineView` body or the app keeping a second clock
+    /// beside the real one and hoping they agreed.
+    ///
+    /// `MoodClock.reading()` is the whole reason this is honest: it reports the
+    /// clock the renderer is actually on, without rebasing it. Asking
+    /// `epoch(for:)` would have restarted the animation this is trying to meet.
+    private func armKickflipLine() {
+        kickflipSeq &+= 1
+        let seq = kickflipSeq
+        let clock = MoodClock.shared.reading()
+        guard clock.mood == .idle,
+              let landing = CrabAnimator.nextKickflipLanding(
+                after: Date.timeIntervalSinceReferenceDate - clock.since)
+        else { return }
+
+        let wait = clock.since + landing - Date.timeIntervalSinceReferenceDate
+        guard wait > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self, self.kickflipSeq == seq else { return }
+            // He may have been given work in the meantime. The clock is the
+            // authority on whether the trick actually happened, not the timer.
+            let now = MoodClock.shared.reading()
+            guard now.mood == .idle, now.since == clock.since else { return }
+            let line = self.kickflipCursor.advance(Vocab.lines(for: .kickflip),
+                                                   id: "kickflip")
+            self.model.transientBubble = (line ?? "KOWABUNGA",
+                                          Date().addingTimeInterval(2.6))
+            self.armKickflipLine()          // and meet the next one
+        }
     }
 
     // MARK: - Films

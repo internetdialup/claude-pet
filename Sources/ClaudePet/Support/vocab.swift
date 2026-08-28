@@ -58,6 +58,8 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case sleeping
     /// 🐛 The operator clicked the visiting floor bug and he pounced on it.
     case bugCaught
+    /// 🛹 He just landed a kickflip.
+    case kickflip
 }
 
 /// A line he says when the current task matches a pattern.
@@ -94,6 +96,14 @@ public enum Vocab {
     /// would silently say nothing.
     public static func lines(for occasion: ShoutoutOccasion) -> [String] {
         switch occasion {
+
+        // 🛹 He just landed a kickflip. Three lines, dealt from a cursor like
+        // the pounce is, so the same one never lands twice running.
+        case .kickflip: [
+            "KOWABUNGA",
+            "Do a Kickflip! 🛹",
+            "Lord of Clawdtown",
+        ]
 
         // 💬 Between tasks. Encouragement, mostly.
         case .idle: [

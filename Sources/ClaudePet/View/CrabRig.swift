@@ -1030,41 +1030,53 @@ public enum CrabRig {
             b.pixel(20 + dx, 13 + dy, .paper)
 
         case .skateboard:
-            // A board under his feet, seen end-on, rolling through a kickflip.
+            // A board under his feet, turning over.
             //
-            // `propPhase` is the flip, 0…1 across one full turn about the deck's
-            // long axis. A grid cannot rotate, so the turn is spent on WIDTH:
-            // the deck reads nine wide flat on, narrows as it comes up on edge,
-            // passes through three wide edge-on, and opens back out. Wheels show
-            // only while the deck is near flat, because that is the only time
-            // you would see them.
+            // THE FIRST VERSION WAS A POP SHOVE-IT, and the operator named it.
+            // It kept the deck horizontal and narrowed its WIDTH, which is
+            // rotation about the vertical axis — the board spinning flat under
+            // him. That is a shove-it. A kickflip turns the deck OVER, and the
+            // only way to show that on a grid that cannot rotate is to spend
+            // the turn in the picture plane: the deck tilts through diagonal,
+            // stands on end, and comes back down the other way.
             //
-            // Worn, so it travels with `bob` — during the flip he is in the air
-            // and the board has to come with him or he is flipping a board that
-            // stayed on the ground.
+            // Swept as an ellipse rather than a circle — eight points of reach
+            // across, three up. A true circle would put a seventeen-point board
+            // on end and stand it taller than the crab, which is both out of
+            // frame and wrong: as the deck turns toward you it foreshortens.
+            //
+            // Worn, so it travels with `bob`. When he leaves the ground it goes
+            // with him; a board that stayed put would be him falling off.
             let turn = pose.propPhase.truncatingRemainder(dividingBy: 1)
-            let face = cos(turn * 2 * .pi)                  // +1 deck up, -1 deck down
-            let openness = abs(face)                        // 1 flat on, 0 on edge
-            // Seventeen wide flat on, which is not a decoration: his legs stand
-            // at columns 7 to 25, and a board narrower than his stance reads as
-            // a stick lying near him rather than as something he is on.
-            let half = max(0, Int((openness * 8).rounded()))
-            let deckY = 25 + dy
-            b.rect(16 - half + dx, deckY, half * 2 + 1, 1, .slate)
-            if openness > 0.55 {
-                // Thickening the deck as it comes flat is what sells the turn:
-                // a one-row line is the same picture at every angle, so the
-                // width alone was doing all the work and none of it read.
-                b.rect(16 - half + 1 + dx, deckY + (face > 0 ? -1 : 1),
-                       max(1, half * 2 - 1), 1, .slate)
+            let theta = turn * 2 * .pi
+            let cx = 16 + dx, cy = 25 + dy
+            let reachX = 8.0 * cos(theta), reachY = 3.0 * sin(theta)
+
+            // The deck, stepped along its own length so a diagonal is a
+            // staircase rather than a dotted line.
+            for step in 0...16 {
+                let u = Double(step) / 16 * 2 - 1          // -1…1 along the deck
+                b.pixel(cx + Int((u * reachX).rounded()),
+                        cy + Int((u * reachY).rounded()), .slate)
             }
-            if openness > 0.8 {
-                // Trucks show only when you would actually see them, and they
-                // ride under the deck or on top of it depending on which face
-                // of the board is toward you.
-                let under = face > 0 ? 1 : -1
-                b.rect(11 + dx, deckY + under, 2, 1, .yellow)
-                b.rect(20 + dx, deckY + under, 2, 1, .yellow)
+
+            // Wheels, with a bearing. Only while the deck is near enough to
+            // flat that you would actually see them, and on whichever face is
+            // toward you — above the deck once it has gone past vertical,
+            // because by then you are looking at its underside.
+            if abs(cos(theta)) > 0.78 {
+                let under = cos(theta) > 0 ? 1 : -1
+                for hub in [cx - 5, cx + 4] {
+                    // Three by three, with the bearing dead centre. Two rows
+                    // put the bearing on an edge, where it reads as a chip out
+                    // of the wheel rather than as the hole through it.
+                    let top = cy + under
+                    b.rect(hub, top, 3, 1, .yellow)
+                    b.pixel(hub, top + under, .yellow)
+                    b.pixel(hub + 1, top + under, .slate)      // the bearing
+                    b.pixel(hub + 2, top + under, .yellow)
+                    b.rect(hub, top + under * 2, 3, 1, .yellow)
+                }
             }
 
         case .glasses:
