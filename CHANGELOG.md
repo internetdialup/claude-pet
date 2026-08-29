@@ -175,8 +175,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   the small hours only — a telescope.
 - **✨ Attention, eased.** The bubble sweeps an occasional light band and
   pulses a slow check when a plan awaits your verdict.
-- **🎨 A vector bridge.** `--render-vectors` exports the base body and every
-  prop as layered SVGs for design review. Code stays the source of truth.
 - **🦀🦀 A second pet.** Summon him from the menu ("Second pet") and a
   second Claw'd joins the desk — following the busiest session the first
   isn't showing (or any session you pin him to), wearing his own costume,

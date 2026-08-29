@@ -98,8 +98,10 @@ drops so an idle pet costs an idle machine nothing.
 
 ### Idle flourishes
 
-Every seven seconds, one of six unprompted little things — picked per window and
-played through as a shape rather than a frequency, so it never stutters halfway.
+Nine unprompted little things, on a seven-second cycle — but only about seven
+cycles in ten fire, so the gaps stay irregular and he is still most of the time.
+Each one is picked per window and played through as a shape rather than a
+frequency, so it never stutters halfway.
 
 <table>
 <tr>
@@ -112,7 +114,14 @@ played through as a shape rather than a frequency, so it never stutters halfway.
   <td align="center"><img src="docs/media/flourish-wave.gif" width="140"><br><strong>Wave</strong></td>
   <td align="center"><img src="docs/media/flourish-wiggle.gif" width="140"><br><strong>Wiggle</strong></td>
 </tr>
+<tr>
+  <td align="center"><img src="docs/media/flourish-kickflip.gif" width="140"><br><strong>Kickflip</strong></td>
+  <td align="center"><img src="docs/media/flourish-varialFlip.gif" width="140"><br><strong>Varial flip</strong></td>
+  <td align="center"><img src="docs/media/flourish-cruise.gif" width="140"><br><strong>Cruise</strong></td>
+</tr>
 </table>
+
+Land a trick and he says something about it.
 
 ## Interactions
 
@@ -163,16 +172,23 @@ Download the **`.dmg`** from
 [Releases](https://github.com/internetdialup/claude-pet/releases), open it, and
 drag Claw'd to Applications.
 
+**Requires macOS 14 or later on Apple silicon.** The build is arm64-only —
+there is no Intel binary.
+
 > **First launch shows "unidentified developer".** This is expected. The app is
 > ad-hoc signed and deliberately **not** notarized — notarizing would publish the
-> author's legal name and Apple Team ID inside every copy. To open it:
+> author's legal name and Apple Team ID inside every copy.
 >
-> **Right-click the app → Open → Open.** Once only.
->
-> Or, if you prefer the terminal:
+> The one command that works on every version of macOS:
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/ClaudePet.app
 > ```
+>
+> Prefer to stay in the UI? Open it once and dismiss the warning, then go to
+> **System Settings → Privacy & Security** and click **Open Anyway** next to the
+> message about ClaudePet. On **macOS 14** you can instead right-click the app →
+> **Open** → **Open**; macOS 15 removed that shortcut, so on Sequoia and later
+> use one of the two above.
 >
 > If you would rather not run someone else's binary at all — completely fair —
 > [build it yourself](#building-it-yourself). It takes about thirty seconds.
@@ -191,7 +207,8 @@ cd claude-pet
 ```
 
 That builds the executable, assembles `build/ClaudePet.app`, ad-hoc signs it, and
-launches it. Requires macOS 14+ and a Swift 6 toolchain (Xcode 16 or newer).
+launches it. Requires macOS 14+ on Apple silicon and a Swift 6 toolchain
+(Xcode 16.4 or newer).
 
 ```bash
 swift build --product ClaudePet    # build just the app
@@ -200,13 +217,14 @@ swift test                          # unit tests; synthetic fixtures, never touc
 ./scripts/make-dmg.sh               # build the installer
 ```
 
-Three offline modes are useful when working on it:
+The offline render modes, useful when working on it:
 
 ```bash
 .build/debug/ClaudePet --render-sheet out.png   # contact sheet of every mood and prop
 .build/debug/ClaudePet --render-gif docs/media  # the GIFs above
 .build/debug/ClaudePet --probe                  # print the PetState from your real sessions
 .build/debug/ClaudePet --probe 320               # ...after watching for 320s, past the decay horizons
+.build/debug/ClaudePet --render-reel docs/media # the hero GIF, roster, bubbles and props
 .build/debug/ClaudePet --render-marketing out/  # large transparent stills and loops
 ```
 
@@ -302,7 +320,7 @@ nothing at runtime.
 
 | | |
 | :--- | :--- |
-| **Keep it short** | The bubble cuts off at **29 characters** — it caps at 210pt, the font advances 6.62pt per character, and 194 ÷ 6.62 ≈ 29. A test enforces it. |
+| **Keep it short** | The bubble cuts off at **28 characters** — it caps at 210pt, and 28 is what fits, measured by rendering a ruler rather than divided out of the nominal advance. A test enforces it, with a short allowlist of existing lines that run one or two over: a renderer deciding a sentence is a character too wide is not a reason to rewrite someone's voice. |
 | **Emoji are welcome** | They render fine — but count each as **two** characters, since they draw about twice as wide. 🍳 🌶️ 🎬 all ship by default. |
 | **He deals a deck** | Lines are dealt like a shuffled deck: every line is used once before any repeats, and the shuffle is reseeded each pass. A plain random pick would show one line four times and another never. |
 
@@ -389,17 +407,18 @@ few numbers rather than a new asset, and the app icon is rendered from the same
 rig so the two can never drift apart.
 
 <div align="center">
-  <img src="docs/media/props.png" width="768" alt="Every prop: sparkles, terminal, check, bang, servers, balloon, plan, hard hat, phone, fire, glasses, star">
+  <img src="docs/media/props.png" width="768" alt="All seventeen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and three skateboards">
 </div>
 
 <p align="center"><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
 
-This project is unofficial and not affiliated with or endorsed by Anthropic. See
-[LICENSE](LICENSE).
+This project is unofficial and not affiliated with or endorsed by Anthropic.
+MIT — see [LICENSE](LICENSE); the trademark and character-design note is in
+[NOTICE.md](NOTICE.md).
 
 ## Version history
 
-See [CHANGELOG.md](CHANGELOG.md). Currently **v1.3.0**.
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
