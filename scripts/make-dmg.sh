@@ -26,6 +26,21 @@ mkdir -p "$STAGE/.background"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 
+# Strip Finder detritus, then re-sign the staged copy.
+#
+# This repo lives in iCloud Drive, which re-stamps com.apple.FinderInfo on
+# files it syncs — including between run.sh signing the .app and this script
+# copying it. The xattr rides along through `cp -R`, and codesign rejects it:
+#   "resource fork, Finder information, or similar detritus not allowed"
+# Every DMG built here carried that, because run.sh verifies WITHOUT --strict
+# and so never saw it.
+#
+# Gatekeeper's verdict is the same either way — an ad-hoc app is rejected on
+# its signature long before this matters — so it is hygiene rather than a
+# broken download. But an artifact that fails its own strict verification is
+# not one to publish, and the fix is two commands.
+xattr -cr "$STAGE/ClaudePet.app"
+
 # Window background and volume icon, both produced by --render-icon.
 if [ -f build/icon/dmg-background.png ]; then
   cp build/icon/dmg-background.png "$STAGE/.background/bg.png"
@@ -82,6 +97,32 @@ if [ -f Sources/ClaudePet/Resources/AppIcon.icns ]; then
   cp Sources/ClaudePet/Resources/AppIcon.icns "$MOUNT_DIR/.VolumeIcon.icns"
   SetFile -a C "$MOUNT_DIR" 2>/dev/null || echo "    (could not set the volume icon bit)"
 fi
+
+# Strip Finder's detritus and re-sign, INSIDE the volume and after the layout
+# pass — which is what applies it. Positioning an icon writes com.apple.FinderInfo
+# onto the app, and `codesign --verify --strict` rejects that:
+#   "resource fork, Finder information, or similar detritus not allowed"
+# Stripping at staging time is not enough; that copy is clean and then Finder
+# stamps the one inside the image. Icon positions live in the volume's .DS_Store,
+# not in the app's own metadata, so the layout survives this.
+#
+# Gatekeeper's verdict does not change either way — an ad-hoc app is rejected on
+# its signature long before strictness matters — so this is release hygiene, not
+# a broken download. But an artifact that fails its own verification is not one
+# to publish, and run.sh's loop verifies WITHOUT --strict, so nothing else looks.
+# No re-signing: FinderInfo is not covered by the signature, so removing it
+# restores strict validity on its own. Re-signing here is also impossible —
+# the volume is mounted `noowners` and codesign fails on it with "internal
+# error in Code Signing subsystem".
+echo "==> stripping Finder detritus"
+xattr -cr "$MOUNT_DIR/ClaudePet.app"
+if ! codesign --verify --deep --strict "$MOUNT_DIR/ClaudePet.app" 2>/dev/null; then
+  echo "  ✗ FAIL — the app in the image does not pass strict verification:"
+  codesign --verify --deep --strict --verbose=2 "$MOUNT_DIR/ClaudePet.app" 2>&1 | sed 's/^/      /'
+  hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
+  exit 1
+fi
+echo "    ✓ strict verification passes"
 
 sync
 echo "==> volume contents before compressing"
