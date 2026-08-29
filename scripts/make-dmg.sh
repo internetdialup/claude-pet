@@ -41,9 +41,55 @@ ln -s /Applications "$STAGE/Applications"
 # not one to publish, and the fix is two commands.
 xattr -cr "$STAGE/ClaudePet.app"
 
-# Window background and volume icon, both produced by --render-icon.
-if [ -f build/icon/dmg-background.png ]; then
-  cp build/icon/dmg-background.png "$STAGE/.background/bg.png"
+# The window background.
+#
+# `docs/dmg-background.png` is the operator's artwork and wins when present.
+# It is tracked, because build/ is gitignored and anything dropped there is
+# erased by the next build. The generated background from --render-icon is the
+# fallback, so a fresh clone still produces a styled image.
+#
+# Retina: Finder sizes the background in POINTS, so a 1280x800 file would be
+# drawn 1280x800pt and overflow the window rather than look sharp. The way to
+# get a crisp background is a multi-representation TIFF, which is what
+# `tiffutil -cathidpicheck` builds — supply docs/dmg-background@2x.png at
+# exactly twice the size and it is used automatically.
+BG_NAME="bg.png"
+if [ -f docs/dmg-background.png ]; then
+  BG_SRC="docs/dmg-background.png"
+elif [ -f build/icon/dmg-background.png ]; then
+  BG_SRC="build/icon/dmg-background.png"
+else
+  BG_SRC=""
+fi
+
+if [ -n "$BG_SRC" ]; then
+  # The window is 640x400pt (see the bounds in the layout below). A background
+  # of another size is not fatal — Finder anchors it top-left and lets it clip
+  # or tile — but it is almost always a mistake worth naming out loud.
+  BG_W="$(sips -g pixelWidth  "$BG_SRC" | awk '/pixelWidth/{print $2}')"
+  BG_H="$(sips -g pixelHeight "$BG_SRC" | awk '/pixelHeight/{print $2}')"
+  if [ "$BG_W" != "640" ] || [ "$BG_H" != "400" ]; then
+    echo "    note: $BG_SRC is ${BG_W}x${BG_H}, expected 640x400 —"
+    echo "          the window is 640x400pt and Finder will clip or tile it"
+  fi
+
+  if [ -f docs/dmg-background@2x.png ]; then
+    # Both representations into one TIFF, so Retina picks the 2x and everything
+    # else picks the 1x. Falls back to the plain PNG if tiffutil objects.
+    if tiffutil -cathidpicheck "$BG_SRC" docs/dmg-background@2x.png \
+         -out "$STAGE/.background/bg.tiff" >/dev/null 2>&1; then
+      BG_NAME="bg.tiff"
+      echo "    background: $BG_SRC + @2x (Retina TIFF)"
+    else
+      cp "$BG_SRC" "$STAGE/.background/bg.png"
+      echo "    background: $BG_SRC (the @2x could not be combined; check it is exactly 1280x800)"
+    fi
+  else
+    cp "$BG_SRC" "$STAGE/.background/bg.png"
+    echo "    background: $BG_SRC"
+  fi
+else
+  echo "    note: no background found — shipping an unstyled DMG"
 fi
 # The volume icon is NOT staged: hdiutil create -srcfolder drops
 # .VolumeIcon.icns. It has to be written into the mounted volume, and the
@@ -73,7 +119,7 @@ tell application "Finder"
         set arrangement of opts to not arranged
         set icon size of opts to 128
         try
-            set background picture of opts to file ".background:bg.png"
+            set background picture of opts to file ".background:$BG_NAME"
         end try
         set position of item "ClaudePet.app" of container window to {160, 190}
         set position of item "Applications" of container window to {480, 190}
