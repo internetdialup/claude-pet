@@ -455,7 +455,7 @@ struct EasterEggScheduleTests {
     @Test("The patch of sun goes in behind him, never over him")
     func theSunIsAGroundObject() {
         var lit = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
-        var dark = lit
+        let dark = lit
         lit.sunPatch = 1
         lit.sunPatchPhase = 6
         let before = CrabRig.render(dark)
