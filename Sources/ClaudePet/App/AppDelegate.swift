@@ -75,6 +75,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         pets = [pet]
         pet.rebuildWindow()
+        // Fired here rather than inside `rebuildWindow`, which also runs on
+        // every size and costume change — "the first launch ever" is an
+        // app-lifecycle moment, not a window-build one. It no-ops after the
+        // first time, and its own delay waits for the window to settle.
+        pet.sayHello()
 
         coordinator.onChange = { [weak self] slot, state in
             guard let self else { return }
@@ -289,6 +294,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             menu.addItem(item)
         }
 
+        // The first-run hello, which is otherwise a once-ever moment that can
+        // only be seen again by deleting a preference key. Reviewing it by eye
+        // and filming it for a launch post both need it on demand.
+        // Pet 1 only, because `sayHello` is — a sibling has no hello to give.
+        if pet.slot == 0 {
+            menu.addItem(.separator())
+            let hello = NSMenuItem(title: "👋 Say hello",
+                                   action: #selector(secretMenuSayHello(_:)), keyEquivalent: "")
+            hello.target = self
+            hello.representedObject = pet
+            menu.addItem(hello)
+        }
+
         menu.popUp(positioning: nil,
                    at: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.maxY),
                    in: contentView)
@@ -306,6 +324,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         .varial: "🛹 Varial flip",
         .cruise: "🛹 Cruise",
     ]
+
+    /// Replays the first-run wave. `force` so it plays every time, and so it
+    /// does not mark him greeted — a review should not consume someone's real
+    /// first run.
+    @objc private func secretMenuSayHello(_ sender: NSMenuItem) {
+        (sender.representedObject as? PetInstance)?.sayHello(force: true)
+    }
 
     @objc private func secretMenuPick(_ sender: NSMenuItem) {
         if let effect = sender.representedObject as? CrabAnimator.PreviewEffect {

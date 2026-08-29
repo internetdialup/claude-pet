@@ -28,6 +28,10 @@ public final class Preferences {
         static let notificationsEnabled = "pet.notifications"
         static let cookingNotifications = "pet.notifications.cooking"
         static let pinnedSession = "pet.pinnedSession"
+        /// Whether he has ever introduced himself. Absent means no,
+        /// which is the honest reading for an install that predates
+        /// the greeting as well as for a brand-new one.
+        static let hasBeenGreeted = "pet.greeted"
         /// v3: became a Double for half-point sizes, then the default moved to
         /// 3.0. Bumped so stored values do not pin existing installs to the old
         /// default.
@@ -151,6 +155,19 @@ public final class Preferences {
     public var soundsEnabled: Bool {
         get { store.object(forKey: Key.soundsEnabled) as? Bool ?? true }
         set { store.set(newValue, forKey: Key.soundsEnabled) }
+    }
+
+    /// Whether the first-run hello has already played.
+    ///
+    /// `bool(forKey:)` rather than the `object(forKey:) as? Bool ?? true`
+    /// shape the toggles above use, because the default here is genuinely
+    /// false and "missing" and "false" mean the same thing — there is no third
+    /// state to preserve. Deleting the key is therefore how the greeting is
+    /// replayed from a clean install, and the secret menu's row exists so that
+    /// is not the only way to see it.
+    public var hasBeenGreeted: Bool {
+        get { store.bool(forKey: Key.hasBeenGreeted) }
+        set { store.set(newValue, forKey: Key.hasBeenGreeted) }
     }
 
     /// Off by default — a blip on every tool call is a lot of tool calls.

@@ -60,6 +60,8 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case bugCaught
     /// 🛹 He just landed a kickflip.
     case kickflip
+    /// 👋 The very first launch, ever. He introduces himself.
+    case hello
 }
 
 /// A line he says when the current task matches a pattern.
@@ -110,6 +112,22 @@ public enum Vocab {
             "Do a Kickflip 🛹!",
             "See you at the Hall of Meat 🍖!",
             "Tony Clawd 900 🦅",
+        ]
+
+        // 👋 The first launch, ever — the one moment a new arrival has no idea
+        // what the thing on their desktop is. So every line NAMES him; a
+        // friendly noise that does not introduce him wastes the only
+        // introduction he gets.
+        //
+        // Kept comfortably under the ceiling rather than near it. These render
+        // beside a wave on a first impression, and an emoji costs about two
+        // columns, so there is no room here for the one-over that `knownLong`
+        // forgives elsewhere.
+        case .hello: [
+            "Hi, I'm Claw'd 🦀",
+            "👋 Hey, I'm Claw'd",
+            "Oh! Hi — I'm Claw'd 🦀",
+            "Hi — I'm your crab 🦀",
         ]
 
         // 💬 Between tasks. Encouragement, mostly.
