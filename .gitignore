@@ -27,3 +27,13 @@ docs/internal/
 /CLAUDE.md
 /AGENT.md
 .claude/
+
+# Render output. The --render-* modes write wherever they are pointed, and the
+# README points them at the repo root, so one `git add -A` after a render run
+# would commit several MB of loose art. Root-anchored on purpose: the committed
+# artwork under docs/media/ must stay tracked.
+/*.png
+/*.gif
+/*.svg
+/AppIcon.iconset/
+/out/

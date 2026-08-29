@@ -112,9 +112,9 @@ codesign -dv "$APP" 2>&1 | grep -Ei "Signature|TeamIdentifier|Authority" || echo
 # notarization was meant to protect.
 #
 # Two traps this check is written around:
-#   - `strings` MISSES it. The path here contained a curly apostrophe (a UTF-8
-#     machine name like "Matthew’s Laptop"), which splits the run and hides the
-#     match. Use grep on the raw bytes.
+#   - `strings` MISSES it. The path here contained a curly apostrophe — a
+#     machine name with a non-ASCII character in it — which splits the run
+#     and hides the match. Use grep on the raw bytes.
 #   - The compressed .dmg shows nothing; the payload only appears once mounted.
 #     So this inspects $APP's binary directly, before compression.
 echo
