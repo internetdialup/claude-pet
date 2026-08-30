@@ -305,6 +305,12 @@ public final class ActivityCoordinator {
         /// Bumped whenever `newsAt` moves, so an old burst index reached under
         /// a NEW epoch is a new utterance rather than the same one.
         var newsEpoch = 0
+        /// How many facts he has muttered in his sleep — the 🐑 tally.
+        ///
+        /// Deliberately NOT persisted. It is a thing you notice about the
+        /// session you are in; a number that survived restarts would invite
+        /// being read as a statistic, and it is a joke.
+        var sheep = 0
         /// How many fun facts this slot has drawn — the index into the 20/60/20
         /// mix. Per-slot for the same reason `cursor` is: two idle pets sharing
         /// one counter would interleave each other's mixes and neither would
@@ -902,10 +908,28 @@ public final class ActivityCoordinator {
         case .sleeping:
             // Occasionally talks in his sleep. A sleeping pet that comments on
             // every frame is not asleep.
-            bubble = seed % 4 == 0
-                ? chatterCache[slot].cursor.line(for: .sleeping,
-                                                 token: "\(focus.id)|\(seed)")
-                : nil
+            //
+            // Some of those mutterings are FACTS. Sleep is the longest stretch
+            // anybody actually watches him — the operator reported never having
+            // seen a fact, and the measured reason was that the waking rate is
+            // ~one per five minutes of work shown for six seconds, while the
+            // hours they sit and look at him were the one place facts could not
+            // reach at all.
+            //
+            // `informationalBeat` is reused rather than rolled fresh: it is the
+            // same question ("is this a cycle he spends on something he knows")
+            // and it needs no new salt, of which there are none free.
+            if seed % 4 == 0 {
+                if Self.informationalBeat(seed: seed), let fact = funFact(slot: slot, seed: seed) {
+                    bubble = fact
+                    chatterCache[slot].sheep &+= 1
+                } else {
+                    bubble = chatterCache[slot].cursor.line(for: .sleeping,
+                                                            token: "\(focus.id)|\(seed)")
+                }
+            } else {
+                bubble = nil
+            }
             chatterCache[slot].line = nil
 
         // A title is what a session *is*, not what it is *doing*. Gating on
@@ -1021,6 +1045,7 @@ public final class ActivityCoordinator {
             focusedSessionID: focus.id,
             attentionCount: ordered.filter { $0.mood == .needsAttention && $0.id != focus.id }.count,
             bubbleStyle: style,
+            sleepTalkCount: chatterCache[slot].sheep,
             taskFraction: taskFraction,
             celebrating: mood == .done && focus.celebrating,
             epicCelebration: mood == .done && focus.epicCelebrating,

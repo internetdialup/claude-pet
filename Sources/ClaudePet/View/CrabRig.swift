@@ -132,6 +132,15 @@ public struct CrabPose: Sendable, Equatable {
     /// floor. A travel parameter, so the blend leaves it alone.
     public var sunPatchPhase: Double = 0
     /// Seconds into a petting session, for the floating hearts. nil = no hearts.
+    /// Mood-clock time while he is asleep, or nil. Drives the zZz's, which are
+    /// pure in it — sleeping is continuous, so there is no event to latch and
+    /// none is invented.
+    public var sleepZElapsed: Double?
+    /// Seconds between zZz's, already resolved from the wall clock by
+    /// `CrabAnimator.sleepZInterval`. The rig is kept ignorant of what hour it
+    /// is; it only ever asked "how far apart".
+    public var sleepZInterval: Double = 0
+
     public var heartsElapsed: Double?
     /// When the hold ended, on the hearts' own clock. New hearts stop being
     /// born there and the ones already climbing finish out. nil = still held.
@@ -350,6 +359,9 @@ public enum CrabRig {
         if let hearts = pose.heartsElapsed {
             drawHearts(&buffer, elapsed: hearts, until: pose.heartsUntil)
         }
+        if let sleepZ = pose.sleepZElapsed, pose.sleepZInterval > 0 {
+            drawSleepZ(&buffer, elapsed: sleepZ, interval: pose.sleepZInterval)
+        }
         if let snack = pose.snackElapsed { drawSnack(&buffer, elapsed: snack, dx: dx, dy: dy) }
         if pose.stargaze > 0.001 { drawStargaze(&buffer, pose: pose, dx: dx, dy: dy) }
 
@@ -532,6 +544,68 @@ public enum CrabRig {
             ], at: (x: heartColumns[pick % heartColumns.count] + drift, y: row),
                key: ["p": .pink])
             b.composite(heart, visibility: visibility, seed: 700 + ordinal % 3)
+        }
+    }
+
+    /// Where a zZz may sit. Right of centre and clear of the crown, so the
+    /// glyph leaves his head rather than out of the top of it — and clear of
+    /// the service glyph's box at cols 1-8 for the same reason `heartColumns`
+    /// is.
+    private static let sleepZColumns = [18, 20, 22]
+
+    /// zZz's drifting off a sleeping crab.
+    ///
+    /// Two shapes, alternating by ordinal: a three-wide capital and a
+    /// two-wide lowercase. One glyph repeated is a stutter; the pair is what
+    /// makes the read "zZz" rather than "zzz".
+    ///
+    /// `Ease.pulse` rather than a linear fade, for the reason the hearts
+    /// learned it: a glyph must arrive and leave under its own envelope so
+    /// nothing has to delete it mid-climb. The attack is longer than the
+    /// hearts' — he is breathing out, not startled.
+    ///
+    /// Salt `59 &+ 11`: 59 already carries the petting hearts' column, and the
+    /// registry says a shared multiplier takes a distinct addend. Same domain
+    /// too — a rising glyph's ordinal, not a cycle — which is the case the
+    /// registry's "over other domains" note covers.
+    private static func drawSleepZ(_ b: inout PixelBuffer, elapsed: Double, interval: Double) {
+        for (ordinal, born) in CrabAnimator.sleepZSpawns(t: elapsed, interval: interval) {
+            let age = elapsed - born
+            // Mostly hold. `composite(visibility:)` is a pixel DISSOLVE, and a
+            // three-cell glyph part-dissolved is not a faded z — it is two
+            // stray dots. A long hold keeps it legible and spends the fade at
+            // the ends where a fragment reads as departure rather than as
+            // noise.
+            let visibility = Ease.pulse(age, attack: 0.30, hold: 1.15,
+                                        decay: CrabAnimator.sleepZLife - 1.45)
+            guard visibility > 0.001 else { continue }
+            let row = CrabAnimator.sleepZRow(age: age)
+            guard row >= 0 else { continue }
+            let pick = Int(CrabAnimator.noise(ordinal &* 59 &+ 11) * Double(sleepZColumns.count))
+            // The same one-cell lean the hearts use, so it does not rise in a
+            // dead-straight line. One cell is the grid's own quantum.
+            let drift = row <= 5 ? (ordinal % 2 == 0 ? 1 : -1) : 0
+            let x = sleepZColumns[pick % sleepZColumns.count] + drift
+            var glyph = PixelBuffer()
+            if ordinal % 2 == 0 {
+                // Four wide, because three is not enough for a Z. At 3x3 the
+                // diagonal collapses onto the centre cell and the glyph reads
+                // as 工 — rendered and looked at, which is the only way that
+                // kind of thing gets caught.
+                glyph.stamp([
+                    "zzzz",
+                    "..z.",
+                    ".z..",
+                    "zzzz",
+                ], at: (x: x, y: row), key: ["z": .paper])
+            } else {
+                glyph.stamp([
+                    "zzz",
+                    ".z.",
+                    "zzz",
+                ], at: (x: x, y: row), key: ["z": .paper])
+            }
+            b.composite(glyph, visibility: visibility, seed: 760 + ordinal % 3)
         }
     }
 

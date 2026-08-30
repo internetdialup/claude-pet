@@ -119,7 +119,18 @@ public struct PetRootView: View {
                 // bubble and may appear even while he sleeps.
                 let live = model.transientBubble.flatMap { $0.until > Date() ? $0 : nil }
                 let transient = live?.text
-                let stateText = model.state.mood != .sleeping ? model.state.bubble : nil
+                // Sleeping lines are shown, not suppressed.
+                //
+                // This read `mood != .sleeping ? bubble : nil` for as long as
+                // the sleeping pool has existed, which made that whole pool
+                // dead code: `ActivityCoordinator`'s `.sleeping` branch drew a
+                // line one window in four and the view discarded every one of
+                // them. `vocab.swift`'s own note — "shown occasionally, not on
+                // every frame" — describes a behaviour nobody could see.
+                //
+                // The occasionally is enforced where it belongs, at the draw:
+                // three windows in four he says nothing at all.
+                let stateText = model.state.bubble
                 if let text = transient ?? stateText, !text.isEmpty {
                     ThoughtBubble(
                         text: text,

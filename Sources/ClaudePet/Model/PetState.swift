@@ -93,6 +93,10 @@ public struct PetState: Sendable, Equatable {
     public var attentionCount: Int
     /// How the bubble presents its contents.
     public var bubbleStyle: BubbleStyle = .plain
+    /// How many facts he has muttered in his sleep this session — the 🐑 tally
+    /// the roster shows once it is off zero. A joke, not a metric: it does not
+    /// survive a restart.
+    public var sleepTalkCount: Int = 0
     /// The focused session's todo completion, 0…1, quantised to 0.05 steps so
     /// the equality-gated publish does not churn on every re-read. Only set
     /// when the list is substantial enough to mean something (3+ tasks).

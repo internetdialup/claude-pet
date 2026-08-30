@@ -304,7 +304,9 @@ enum ReelRenderer {
         let _ = { if party { pose.mouth = .open; pose.confettiElapsed = t } }()
 
         ZStack {
-            Backdrop()
+            // The hero wears the operator's own sky. The other reel surfaces
+            // keep the ocean — this is the one frame anybody lands on.
+            Backdrop(style: .sky)
             VStack(spacing: 0) {
                 // Every scripted beat carries a bubble; the optional is for the
                 // live path, where a state can genuinely have nothing to say.
