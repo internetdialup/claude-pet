@@ -272,20 +272,41 @@ enum ReelRenderer {
             && renderRoster(to: root.appendingPathComponent("roster.png"))
             && renderBubbles(to: root.appendingPathComponent("bubbles.png"))
             && renderProps(to: root.appendingPathComponent("props.png"))
+            && renderFacts(to: root.appendingPathComponent("facts.png"))
+            && renderCostumes(to: root.appendingPathComponent("costumes.gif"))
     }
 
     // MARK: - The hero
 
     /// The demo script, rendered frame by frame.
+    ///
+    /// **`reelScript`, not `script`** — fifteen seconds rather than
+    /// twenty-seven and a half. The long one is the better catalogue: it walks
+    /// nine beats and includes the status ticker. But this is the first thing
+    /// on a store page, watched by someone deciding in a few seconds whether to
+    /// keep reading, and twenty-seven is past where that decision gets made.
+    ///
+    /// Nothing was authored for this. `reelScript` already existed for the
+    /// vertical social cut, tuned by the same hand for the same reason, and its
+    /// own note makes the argument for here too: it "drops the two marquee
+    /// beats — a scrolling ticker is illegible at thumb size", which is equally
+    /// true of a GIF embedded at a README's column width.
+    ///
+    /// The cost is honest and paid elsewhere: the ticker no longer appears in
+    /// the hero, so `renderFacts` shows marquee lines mid-scroll instead, in
+    /// the part of the page that is actually talking about them.
     static func renderHero(to url: URL) -> Bool {
+        // COUNTED, not accumulated. `while elapsed < seconds` stepping by 0.1
+        // in a Double overshoots: 15.0s came out as 151 frames, because the
+        // running total lands a hair under 15 on the last pass. The count is
+        // exact arithmetic and the timestamps are derived from it.
+        let frames = Int((DemoMode.reelSeconds / heroFrameDelay).rounded())
         var images: [CGImage] = []
-        var elapsed = 0.0
-        while elapsed < DemoMode.totalSeconds {
-            guard let image = SpriteImage.cgImage(of: heroScene(at: elapsed),
+        for frame in 0..<frames {
+            guard let image = SpriteImage.cgImage(of: heroScene(at: Double(frame) * heroFrameDelay),
                                                   scale: heroScale, isOpaque: true)
             else { return false }
             images.append(image)
-            elapsed += heroFrameDelay
         }
         return GifRenderer.encode(images, to: url, frameDelay: heroFrameDelay)
     }
@@ -293,7 +314,7 @@ enum ReelRenderer {
     /// One frame of the reel.
     @ViewBuilder
     static func heroScene(at elapsed: Double) -> some View {
-        let cue = DemoMode.cue(at: elapsed)
+        let cue = DemoMode.reelCue(at: elapsed)
         // Beat-relative, so the one-shot moods fire. `MoodClock` does this for
         // the live app; offline there is nothing to rebase the clock but us.
         let t = cue.since
@@ -364,9 +385,16 @@ enum ReelRenderer {
     /// no picture of the thing they are about.
     static func renderBubbles(to url: URL) -> Bool {
         let shown = PetMood.allCases.filter { $0 != .sleeping }
-        let sheet = VStack(alignment: .leading, spacing: 10) {
-            ForEach(shown, id: \.self) { mood in
-                HStack(spacing: 12) {
+        // TWO columns, because the page is wide and this used to be a portrait
+        // strip sitting in a full-width slot — which is what made the README's
+        // right edge look ragged next to the tables.
+        let split = (shown.count + 1) / 2
+        let columns = [Array(shown.prefix(split)), Array(shown.dropFirst(split))]
+        let sheet = HStack(alignment: .top, spacing: 28) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(column, id: \.self) { mood in
+                        HStack(spacing: 12) {
                     // First line that actually fits: the sheet is showing what a
                     // bubble looks like, and one cut off mid-word demonstrates
                     // the 29-character limit rather than the bubble.
@@ -377,17 +405,174 @@ enum ReelRenderer {
                                   mood: mood,
                                   style: mood == .thinking ? .dots : .plain,
                                   frozenTime: 0.4)
-                    Text(mood.rawValue)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(Palette.kraft.opacity(0.55))
+                            Text(mood.rawValue)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Palette.kraft.opacity(0.55))
+                        }
+                    }
                 }
             }
         }
-        .padding(18)
-        .background(Palette.Ocean.abyss)
+        .padding(24)
+        // The hero's own sky, dimmed. Flat abyss made this read as a different
+        // document from the rest of the page; the same quantised material ties
+        // them together, and the scrim keeps the bubbles the subject rather
+        // than letting the streak compete with them.
+        .background {
+            ZStack {
+                Backdrop(style: .sky)
+                Palette.Ocean.abyss.opacity(0.58)
+            }
+        }
 
         return SpriteImage.write(SpriteImage.png(of: sheet, scale: 2, isOpaque: true), to: url)
     }
+
+    /// What he knows, and the two shapes it arrives in.
+    ///
+    /// The README claims seventy-six facts and, until this, showed none of
+    /// them. It also describes the plain/ticker split in prose — which is
+    /// exactly the sort of thing a picture settles in one glance.
+    ///
+    /// So the sheet is deliberately mixed: real lines from `FunFacts`, one
+    /// short enough to sit still and the rest long enough to scroll, each drawn
+    /// through the actual `ThoughtBubble` at a frozen instant rather than mocked
+    /// up. The long ones are captured mid-travel, because a ticker caught at
+    /// its start looks identical to a plain bubble and would prove nothing.
+    static func renderFacts(to url: URL) -> Bool {
+        // Frozen offsets chosen so each long line is caught part-way along,
+        // showing different words rather than all starting from the same edge.
+        let picked: [(text: String, at: Double)] = [
+            (FunFacts.facts(in: .compSci101).first ?? "A byte is eight bits", 0.4),
+            (FunFacts.facts(in: .claude).first ?? "Claude is named for Shannon", 1.6),
+            (FunFacts.facts(in: .computerScience).first ?? "The first bug was a moth", 3.1),
+            (FunFacts.facts(in: .ai).first ?? "Attention is all you need", 2.2),
+            (FunFacts.facts(in: .aiEngineering).first ?? "Prompts are programs", 4.0),
+        ]
+        let split = (picked.count + 1) / 2
+        let columns = [Array(picked.prefix(split)), Array(picked.dropFirst(split))]
+        let sheet = HStack(alignment: .top, spacing: 28) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(column.enumerated()), id: \.offset) { _, item in
+                        ThoughtBubble(text: item.text,
+                                      tool: nil,
+                                      mood: .idle,
+                                      style: ActivityCoordinator.bubbleStyle(for: item.text),
+                                      frozenTime: item.at)
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .background {
+            ZStack {
+                Backdrop(style: .sky)
+                Palette.Ocean.abyss.opacity(0.58)
+            }
+        }
+
+        return SpriteImage.write(SpriteImage.png(of: sheet, scale: 2, isOpaque: true), to: url)
+    }
+
+    // MARK: - The wardrobe
+
+    /// Ten seconds, and the second thing on the store page.
+    ///
+    /// The wardrobe is the most screenshot-able thing in the app and had no
+    /// picture anywhere. Three at once rather than a contact sheet of ten:
+    /// three reads as a cast, ten reads as a settings screen.
+    ///
+    /// **Ten seconds because attention is the constraint**, not because ten is
+    /// a round number. The same reasoning trimmed the hero to fifteen.
+    static let costumeSeconds = 10.0
+
+    /// Who stands where, and what they do.
+    ///
+    /// The outer two wiggle on deliberately different beats — synchronised
+    /// idling reads as one animation drawn three times, which is the opposite
+    /// of what a wardrobe strip is for. The middle one lands the kickflip,
+    /// because the eye goes to the centre and that is the trick worth spending
+    /// it on.
+    ///
+    /// Every window is closed well inside the ten seconds. Nothing may be in
+    /// flight at t=0 or at the loop point, for the reason
+    /// `theSleepingClipIsOneWholeBreath` gives: a clip that does not close
+    /// shows a seam every time it repeats.
+    static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish, onsets: [Double])] = [
+        (.ninja,  .wiggle,   [1.2, 6.4]),
+        (.gundam, .kickflip, [3.2]),
+        (.white,  .wiggle,   [2.1, 7.6]),
+    ]
+
+    /// The line above them. Fixed rather than dealt: a committed asset cannot
+    /// depend on a draw counter and stay byte-reproducible.
+    static let costumeLine = "Claude's constitution cites the UN Declaration"
+
+    static func renderCostumes(to url: URL) -> Bool {
+        // Counted rather than accumulated — same reason as `renderHero`.
+        let frames = Int((costumeSeconds / heroFrameDelay).rounded())
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            guard let image = SpriteImage.cgImage(of: costumeScene(at: Double(frame) * heroFrameDelay),
+                                                  scale: heroScale, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: heroFrameDelay)
+    }
+
+    /// The pose for one member of the cast at `elapsed`.
+    ///
+    /// Outside its own window a crab holds the STILL idle pose — `t: 0` rather
+    /// than `t: elapsed`. Idle breathes on a cycle that does not divide ten, so
+    /// letting it run would put the three of them in a different phase at the
+    /// loop point than at the start, and the seam would be the whole strip
+    /// twitching once every ten seconds.
+    static func costumePose(_ member: (costume: Costume, flourish: CrabAnimator.Flourish,
+                                       onsets: [Double]),
+                            at elapsed: Double) -> CrabPose {
+        for onset in member.onsets where elapsed >= onset
+            && elapsed < onset + member.flourish.duration {
+            return CrabAnimator.flourishPose(member.flourish, at: elapsed - onset)
+        }
+        return CrabAnimator.pose(mood: .idle, t: 0, flourishes: false)
+    }
+
+    /// One frame of the wardrobe strip.
+    @ViewBuilder
+    static func costumeScene(at elapsed: Double) -> some View {
+        ZStack {
+            Backdrop(style: .sky)
+            VStack(spacing: 0) {
+                ThoughtBubble(text: costumeLine,
+                              tool: nil,
+                              mood: .idle,
+                              style: ActivityCoordinator.bubbleStyle(for: costumeLine),
+                              frozenTime: elapsed)
+                HStack(spacing: 0) {
+                    ForEach(Array(costumeCast.enumerated()), id: \.offset) { _, member in
+                        PixelCanvasView(
+                            buffer: CrabRig.render(costumePose(member, at: elapsed),
+                                                   costume: member.costume),
+                            inkOverrides: CostumeStyle.blendedOverrides(from: member.costume,
+                                                                       to: member.costume, u: 1),
+                            seamBleed: 0)
+                            .frame(width: costumeSprite, height: costumeSprite)
+                    }
+                }
+            }
+            .offset(y: 8)
+        }
+        .frame(width: costumeCanvas.width, height: costumeCanvas.height)
+        .background(Palette.Ocean.abyss)
+    }
+
+    /// Wider than the hero, because three crabs stand in it.
+    static let costumeCanvas = CGSize(width: 420, height: 170)
+    /// Whole multiples of the 32-cell grid at `heroScale`, so no cell lands on
+    /// a fractional device pixel.
+    static let costumeSprite: CGFloat = 112
 
     /// Every prop in one strip, so the README's list of them is concrete.
     ///
