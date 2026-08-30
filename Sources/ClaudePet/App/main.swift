@@ -26,6 +26,12 @@ for flag in renderFlags {
     }
 }
 
+if let index = arguments.firstIndex(of: "--render-samples"), index + 1 < arguments.count {
+    // Per-costume sample clips for marketing review — not committed media.
+    let ok = MainActor.assumeIsolated { CostumeSampler.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-sheet"), index + 1 < arguments.count {
     let path = arguments[index + 1]
     let ok = MainActor.assumeIsolated { SpriteSheetRenderer.renderSheet(to: path) }

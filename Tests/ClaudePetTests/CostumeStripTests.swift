@@ -103,41 +103,53 @@ struct CostumeStripTests {
         }
     }
 
-    /// The bubble's script. Three constants rather than a cursor — a committed
-    /// asset that drew from a deck would render differently depending on what
-    /// the counter had been doing — and every word of it is REAL: the facts
-    /// come from the pools and the shout from the skate deck, so the strip
-    /// shows things he actually says rather than marketing copy shaped like
-    /// them.
-    @Test("The beats tile the clip, and every line is one he really says")
-    func theBeatsAreReal() {
-        let beats = ReelRenderer.costumeBeats
-        #expect(beats.first?.from == 0)
-        #expect(beats.last?.to == ReelRenderer.costumeSeconds)
-        for (a, b) in zip(beats, beats.dropFirst()) {
-            #expect(a.to == b.from, "a gap between \"\(a.text)\" and \"\(b.text)\"")
+    /// Each crab speaks for himself, and every word is REAL.
+    ///
+    /// Constants rather than cursors — a committed asset that drew from a deck
+    /// would render differently depending on what a counter had been doing.
+    /// The facts come from the pools, the shout from the skate deck, and the
+    /// ninja says nothing at all on purpose: his bubble is the thinking dots.
+    @Test("The cast's lines are real, and the shout follows the landing")
+    func theCastSpeaksForItself() {
+        let cast = ReelRenderer.costumeCast
+
+        // Claw'd lands the kickflip and THEN shouts — that is the order a
+        // shout happens in, and the operator asked for exactly this staging.
+        let clawd = cast[1]
+        let shout = try! #require(clawd.line)
+        #expect(Vocab.lines(for: .kickflip).contains(shout),
+                "\"\(shout)\" is not a line he shouts after a trick")
+        let landing = try! #require(clawd.onsets.first) + clawd.flourish.duration
+        #expect(clawd.lineFrom >= landing - 0.001,
+                "the shout at \(clawd.lineFrom)s precedes the landing at \(landing)s")
+
+        // Gundam reads a pool fact, and it finishes scrolling inside the clip.
+        let gundam = cast[0]
+        let fact = try! #require(gundam.line)
+        #expect(FunFacts.all.contains(fact), "\"\(fact)\" is not in the pools")
+        if ActivityCoordinator.bubbleStyle(for: fact) == .marquee {
+            #expect(MarqueeText.readSeconds(for: fact, width: MarqueeText.viewport)
+                    <= ReelRenderer.costumeSeconds - gundam.lineFrom,
+                    "the fact cannot finish scrolling inside the clip")
         }
-        // The middle beat is the character moment: a real skate shout, and it
-        // covers the kickflip from pop to landing.
-        let shout = beats[1]
-        #expect(Vocab.lines(for: .kickflip).contains(shout.text),
-                "\"\(shout.text)\" is not a line he shouts after a trick")
-        let trick = ReelRenderer.costumeCast[1]
-        let onset = try! #require(trick.onsets.first)
-        #expect(shout.from <= onset && onset + trick.flourish.duration <= shout.to,
-                "the shout does not cover the kickflip")
-        // The outer beats are facts from the pools, wearing their emoji.
-        for beat in [beats[0], beats[2]] {
-            #expect(FunFacts.all.contains(beat.text),
-                    "\"\(beat.text)\" is not in the fact pools")
-        }
-        // A marquee beat must be long enough for its line to finish scrolling —
-        // an unfinished sentence at a beat swap is the glitch this exists to
-        // avoid.
-        for beat in beats where ActivityCoordinator.bubbleStyle(for: beat.text) == .marquee {
-            let read = MarqueeText.readSeconds(for: beat.text, width: MarqueeText.viewport)
-            #expect(read <= beat.to - beat.from,
-                    "\"\(beat.text)\" needs \(read)s and its beat is \(beat.to - beat.from)s")
+
+        // The ninja thinks. nil line IS the dots, and a test that let someone
+        // hand him a sentence would un-ninja him.
+        #expect(cast[2].line == nil, "the ninja does not explain himself")
+    }
+
+    /// The pack has depth: the mascot stands larger and in front, the flanks
+    /// smaller — and every side is a whole multiple of the 32-cell grid at
+    /// heroScale, so no cell lands on a fractional device pixel.
+    @Test("Claw'd is the front of the pack")
+    func theMascotIsInFront() {
+        let cast = ReelRenderer.costumeCast
+        #expect(cast[1].side > cast[0].side && cast[1].side > cast[2].side,
+                "the centre is not the largest")
+        for member in cast {
+            let cells = member.side * ReelRenderer.heroScale / 32
+            #expect(cells == cells.rounded(),
+                    "\(member.costume.rawValue) at \(member.side)pt puts cells on fractional pixels")
         }
     }
 }

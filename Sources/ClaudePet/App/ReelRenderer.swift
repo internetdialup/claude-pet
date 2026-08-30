@@ -542,15 +542,16 @@ enum ReelRenderer {
                 Text("Your Claude Code sessions, as a crab on your desk")
                     .font(.system(size: 20, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
-                HStack(spacing: 8) {
-                    ForEach(Array(costumeCast.enumerated()), id: \.offset) { _, member in
+                HStack(alignment: .bottom, spacing: 8) {
+                    ForEach(Array(costumeCast.enumerated()), id: \.offset) { index, member in
                         PixelCanvasView(
                             buffer: CrabRig.render(costumePose(member, at: midFlip),
                                                    costume: member.costume),
                             inkOverrides: CostumeStyle.blendedOverrides(from: member.costume,
                                                                        to: member.costume, u: 1),
                             seamBleed: 0)
-                            .frame(width: 128, height: 128)
+                            .frame(width: member.side, height: member.side)
+                            .offset(y: index == 1 ? 4 : -6)
                     }
                 }
             }
@@ -587,31 +588,26 @@ enum ReelRenderer {
     /// call, and the right one: the strip is the brand's second hero, and the
     /// brand is the orange crab — the costumes are his wardrobe, not his
     /// replacements. `.none` here is not "undressed", it is the mascot.
-    static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish, onsets: [Double])] = [
-        (.gundam, .wiggle,   [1.2, 6.4]),
-        (.none,   .kickflip, [3.2]),
+    ///
+    /// **Each crab speaks for himself now** — one shared bubble made the strip
+    /// a slideshow with three extras. Gundam reads an Anthropic fact the whole
+    /// clip; the ninja just thinks (the dots — he is a ninja, he does not
+    /// explain himself); Claw'd lands the kickflip and THEN shouts, which is
+    /// the order a shout happens in. `line: nil` means the dots.
+    ///
+    /// **And the flanks are smaller.** 96 against Claw'd's 128 — both whole
+    /// multiples of the 32-cell grid at heroScale, so no cell lands on a
+    /// fractional pixel — and raised a few points, so the strip reads as a
+    /// pack with the mascot at the front of it rather than a police lineup.
+    static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish,
+                              onsets: [Double], line: String?, lineFrom: Double,
+                              side: CGFloat)] = [
+        (.gundam, .wiggle,   [1.2, 6.4],
+         "Anthropic has published Claude's constitution 📜", 0.0, 96),
+        (.none,   .kickflip, [3.2], "Tony Clawd 900 🦅", 6.0, 128),
         // A wave, not a second wiggle: two crabs doing the same idle reads as
         // one animation stamped twice, which is the opposite of a wardrobe.
-        (.ninja,  .wave,     [1.8, 7.4]),
-    ]
-
-    /// What the shared bubble says, beat by beat.
-    ///
-    /// Fixed rather than dealt — a committed asset cannot depend on a draw
-    /// counter and stay byte-reproducible — but no longer one caption for ten
-    /// seconds. The middle beat is the SKATE SHOUT, timed over the kickflip,
-    /// so the strip has a character moment instead of a subtitle; the outer
-    /// beats are Anthropic facts wearing their emoji.
-    ///
-    /// Each marquee beat is long enough for its line to finish scrolling
-    /// (`readSeconds` against the window — asserted in `CostumeStripTests`),
-    /// and each beat's clock restarts at its own zero so a ticker opens on its
-    /// first word rather than mid-sentence. `DemoMode`'s hero beats work the
-    /// same way.
-    static let costumeBeats: [(text: String, from: Double, to: Double)] = [
-        ("Anthropic was founded in 2021 🧡", 0.0, 3.2),
-        ("Tony Clawd 900 🦅", 3.2, 6.2),
-        ("Claude reads images as well as text 👀", 6.2, 10.0),
+        (.ninja,  .wave,     [1.8, 7.4], nil, 0.0, 96),
     ]
 
     static func renderCostumes(to url: URL) -> Bool {
@@ -635,7 +631,8 @@ enum ReelRenderer {
     /// loop point than at the start, and the seam would be the whole strip
     /// twitching once every ten seconds.
     static func costumePose(_ member: (costume: Costume, flourish: CrabAnimator.Flourish,
-                                       onsets: [Double]),
+                                       onsets: [Double], line: String?, lineFrom: Double,
+                                       side: CGFloat),
                             at elapsed: Double) -> CrabPose {
         for onset in member.onsets where elapsed >= onset
             && elapsed < onset + member.flourish.duration {
@@ -649,33 +646,44 @@ enum ReelRenderer {
     static func costumeScene(at elapsed: Double) -> some View {
         ZStack {
             Backdrop(style: .sky)
-            let beat = costumeBeats.last { elapsed >= $0.from } ?? costumeBeats[0]
-            VStack(spacing: 0) {
-                ThoughtBubble(text: beat.text,
-                              tool: nil,
-                              mood: .idle,
-                              style: ActivityCoordinator.bubbleStyle(for: beat.text),
-                              frozenTime: elapsed - beat.from)
-                HStack(spacing: 0) {
-                    ForEach(Array(costumeCast.enumerated()), id: \.offset) { _, member in
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(Array(costumeCast.enumerated()), id: \.offset) { index, member in
+                    VStack(spacing: 0) {
+                        // Every crab keeps a bubble SLOT even while silent, so
+                        // the three stand on one baseline instead of the mute
+                        // one riding up by a bubble's height.
+                        Group {
+                            if let line = member.line, elapsed >= member.lineFrom {
+                                ThoughtBubble(text: line, tool: nil, mood: .idle,
+                                              style: ActivityCoordinator.bubbleStyle(for: line),
+                                              frozenTime: elapsed - member.lineFrom)
+                            } else if member.line == nil {
+                                ThoughtBubble(text: "…", tool: nil, mood: .thinking,
+                                              style: .dots, frozenTime: elapsed)
+                            } else {
+                                Color.clear
+                            }
+                        }
+                        .frame(height: 44)
                         PixelCanvasView(
                             buffer: CrabRig.render(costumePose(member, at: elapsed),
                                                    costume: member.costume),
                             inkOverrides: CostumeStyle.blendedOverrides(from: member.costume,
                                                                        to: member.costume, u: 1),
                             seamBleed: 0)
-                            .frame(width: costumeSprite, height: costumeSprite)
+                            .frame(width: member.side, height: member.side)
                     }
+                    // The flanks stand a step behind the mascot.
+                    .offset(y: index == 1 ? 6 : -8)
                 }
             }
-            .offset(y: 8)
         }
         .frame(width: costumeCanvas.width, height: costumeCanvas.height)
         .background(Palette.Ocean.abyss)
     }
 
     /// Wider than the hero, because three crabs stand in it.
-    static let costumeCanvas = CGSize(width: 420, height: 170)
+    static let costumeCanvas = CGSize(width: 560, height: 210)
     /// Whole multiples of the 32-cell grid at `heroScale`, so no cell lands on
     /// a fractional device pixel.
     static let costumeSprite: CGFloat = 112
