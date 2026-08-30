@@ -40,6 +40,7 @@ public enum CrabAnimator {
     /// | `43 &+ 11` | the idle mug |
     /// | `53 &+ 7` | the floor bug |
     /// | `59 &+ 7` | the petting hearts' column |
+    /// | `59 &+ 11` | the sleep zZz's column — 59 shared by addend, same domain |
     /// | `61 &+ 3` | the stargazer |
     /// | `67 &+ 5` | the near-done glow |
     /// | `71 &+ 29 &+ slot` | the bubble bursts |
@@ -781,6 +782,11 @@ public enum CrabAnimator {
             // about that reads as a tipped head. Both lids drop together now.
             pose.lidsLowered = true
             pose.mouth = .flat
+            // The zZz's ride the same clock as the breath, so a glyph is
+            // released on an exhale rather than drifting against him. Denser
+            // after dark; see `sleepZInterval`.
+            pose.sleepZElapsed = t
+            pose.sleepZInterval = sleepZInterval(hourOfDay: hourOfDay)
         }
 
         return pose
@@ -958,6 +964,73 @@ public enum CrabAnimator {
         }
         // Only the ones still in the air; the rest have finished dissolving.
         return spawns.filter { elapsed - $0.born < heartLife }
+    }
+
+    // MARK: - Sleep
+
+    /// How long one zZz lives, birth to gone.
+    ///
+    /// Short, and the shortness is load-bearing. `sleeping.gif` is exactly one
+    /// breath long and has to LOOP: `theSleepingClipIsOneWholeBreath` renders
+    /// t=0 and t=breathPeriod and demands the two be pixel-identical. A glyph
+    /// still in the air when the clip ends is a seam, so a zZz must be born
+    /// and gone inside a single breath — life plus its birth offset has to
+    /// clear the interval, at BOTH densities.
+    ///
+    /// The first attempt ran 3s on a 2.5s spacing and broke that test, which
+    /// is how the constraint was found rather than assumed.
+    static let sleepZLife = 2.00
+
+    /// Where a zZz sits `age` seconds after it left him.
+    ///
+    /// Slower than the hearts'. Hearts are excitement and should climb; this
+    /// is breathing, and a glyph that hurries reads as steam.
+    ///
+    /// Five rows of travel, 8 down to 3 — deliberately NOT out of the frame.
+    /// An earlier version ran 9 to 0 and the glyph was still solid when it met
+    /// the top edge, so every zZz ended as a half-drawn fragment sliced by the
+    /// sprite boundary. It runs out of life before it runs out of sky.
+    static func sleepZRow(age: Double) -> Int { 8 - Int(age / 0.34) }
+
+    /// Seconds between zZz's, by the clock on the wall.
+    ///
+    /// One a breath by day, two after dark. Both are exact divisions of
+    /// `breathPeriod`, so a glyph is always released on the same phase of the
+    /// breath rather than drifting against the body it came from.
+    ///
+    /// **22:00–06:00**, the hours the operator asked for, and the same shape
+    /// `stargaze` (23–04) and `sunPatch` (08–17) already use.
+    ///
+    /// `nil` — every offline render — must mean DAYTIME. The renderers have no
+    /// clock, and if absence meant night then `sleeping.gif` would come out
+    /// denser or sparser depending on when it happened to be regenerated,
+    /// which is the one thing a byte-compared asset cannot survive.
+    static func sleepZInterval(hourOfDay: Int?) -> Double {
+        guard let hourOfDay, hourOfDay >= 22 || hourOfDay < 6 else { return breathPeriod }
+        return breathPeriod / 2
+    }
+
+    /// How far into its interval a zZz is released, as a fraction.
+    ///
+    /// Not zero, for two reasons that happen to want the same number. The
+    /// frozen sentinel forbids anything mid-flight at t=0, where
+    /// `still-sleeping.png` and the sizzle's wake chapter are both sampled.
+    /// And the loop needs the glyph dead before the interval ends —
+    /// `0.16 * interval + sleepZLife` clears both 5.0 and 2.5 with room.
+    private static let sleepZOnset = 0.16
+
+    /// Which zZz's are in the air at mood-clock time `t`, as (ordinal, birth)
+    /// pairs. The ordinal is permanent and picks the column and the shape, so
+    /// it must not recycle — the same contract `heartSpawns` keeps.
+    static func sleepZSpawns(t: Double, interval: Double) -> [(ordinal: Int, born: Double)] {
+        guard t > 0, interval > 0 else { return [] }
+        let onset = interval * sleepZOnset
+        let newest = Int(floor((t - onset) / interval))
+        guard newest >= 0 else { return [] }
+        let oldest = max(0, newest - Int((sleepZLife / interval).rounded(.up)))
+        return (oldest...newest)
+            .map { (ordinal: $0, born: onset + Double($0) * interval) }
+            .filter { $0.born <= t && t - $0.born < sleepZLife }
     }
 
     /// Being petted: eyes ease shut, a purr wiggle, and hearts. Applied after

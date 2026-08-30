@@ -20,6 +20,17 @@ public struct RosterPanel: View {
                 Text("Claude sessions")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                 Spacer()
+                // The 🐑 tally, once it is off zero.
+                //
+                // Hidden at zero on purpose: it should be discovered by
+                // someone who left him asleep and later wondered what the
+                // sheep meant, not explained by a row that is always there.
+                if state.sleepTalkCount > 0 {
+                    Text("🐑 \(state.sleepTalkCount)")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .help("Facts he has muttered in his sleep this session")
+                }
                 Text("\(state.sessions.count) live")
                     .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(.secondary)
