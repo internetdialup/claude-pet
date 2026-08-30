@@ -72,7 +72,7 @@ public enum FunFacts {
             // Harvard Mark II log, 9 Sept 1947; the moth is at the Smithsonian.
             // NOT "the first computer bug": "bug" was engineering slang decades
             // earlier, which is exactly why the log entry makes the joke.
-            "A moth in a 1947 logbook: 'first actual case of bug being found'",
+            "A moth in a 1947 logbook: 'first actual case of bug being found' 🐛",
             // Note G of her translation of Menabrea, 1843. Says what she
             // demonstrably published — "the first algorithm" is contested, since
             // Babbage wrote programs for the engine in the 1830s.
@@ -87,7 +87,7 @@ public enum FunFacts {
             "A 1968 NATO conference popularized 'software engineering'",
             // Kernighan's Bell Labs tutorial for the language B. The year is
             // cited variously as 1972 and 1973, so it is left out.
-            "'hello, world' comes from Kernighan's Bell Labs B tutorial",
+            "'hello, world' comes from Kernighan's Bell Labs B tutorial 👋",
             // "A Mathematical Theory of Communication", 1948.
             "Claude Shannon founded information theory in a 1948 paper",
             // Engelbart's demo at the Fall Joint Computer Conference, San
@@ -124,14 +124,14 @@ public enum FunFacts {
             // "Computing Machinery and Intelligence", 1950.
             "Turing proposed the imitation game in 1950",
             // "Attention Is All You Need", 2017.
-            "The transformer arrived in a 2017 paper about attention",
+            "The transformer arrived in a 2017 paper about attention 🤖",
             // Described in the 1970s (Linnainmaa, Werbos), popularized by
             // Rumelhart, Hinton & Williams in 1986.
             "Backpropagation was described in the 1970s, popularized in 1986",
             // The 1997 rematch in New York: Deep Blue took it 3.5-2.5 from
             // Garry Kasparov. "a reigning world champion", indefinite, because
             // the title was split at the time — Karpov held FIDE's.
-            "Deep Blue beat a reigning world chess champion in 1997",
+            "Deep Blue beat a reigning world chess champion in 1997 🏆",
             // Fixed history: the hardware existed to rasterize triangles long
             // before anyone ran a network on it.
             "GPUs were built for graphics before they trained networks",
@@ -161,19 +161,19 @@ public enum FunFacts {
         case .claude: [
             // Anthropic's own public description.
             "Anthropic is a public benefit corporation",
-            "Anthropic was founded in 2021",
+            "Anthropic was founded in 2021 🧡",
             "Anthropic's founders included former OpenAI researchers",
             // The Constitutional AI paper, 2022.
             "Constitutional AI trains a model against written principles",
             // Past tense: there have been successive versions, so the present
             // tense would assert one current definitive document.
-            "Anthropic has published Claude's constitution",
+            "Anthropic has published Claude's constitution 📜",
             // The document's actual name is the UNIVERSAL Declaration of Human
             // Rights. "cites" rather than "draws on" — it is quoted, not merely
             // influenced.
             "Claude's constitution cites the Universal Declaration of Human Rights",
             // MCP, open-sourced by Anthropic.
-            "Anthropic open-sourced the Model Context Protocol",
+            "Anthropic open-sourced the Model Context Protocol 🔌",
             // MCP's own documentation.
             "MCP is an open standard for connecting models to tools and data",
             // Past tense on purpose: it launched in the terminal and has since
@@ -195,11 +195,11 @@ public enum FunFacts {
             // Tool use: the model emits a structured request, the host runs it.
             "Claude can call tools by asking for them in a structured way",
             // General AI-safety usage of the term.
-            "Red-teaming a model means trying hard to make it misbehave",
+            "Red-teaming a model means trying hard to make it misbehave 😈",
             // This repo's README and LICENSE. It says only what those say —
             // an earlier draft asserted the crab was Anthropic's intellectual
             // property, which is not something this project can vouch for.
-            "Claw'd is unofficial fan art, not affiliated with Anthropic",
+            "Claw'd is unofficial fan art, not affiliated with Anthropic 🦀",
             // The Constitutional AI paper, 2022 — subtitled "Harmlessness from
             // AI Feedback". "as well as", because human preference data still
             // supplies helpfulness.
@@ -212,7 +212,7 @@ public enum FunFacts {
             // present-tense claim about a practice ages the day it changes.
             "Anthropic has published the system prompts for its Claude apps",
             // Multimodal input. General and durable.
-            "Claude reads images as well as text",
+            "Claude reads images as well as text 👀",
             // The correction of the popular retelling: in a BPE vocabulary
             // common words like "the" and "and" ARE whole tokens, and a token
             // can just as easily be punctuation or whitespace. "a piece of a
@@ -309,7 +309,7 @@ public enum FunFacts {
             // Models", 2022.
             "ReAct interleaved reasoning and tool use in a 2022 paper",
             // General and durable — true of every embedding model there is.
-            "An embedding turns text into a list of numbers",
+            "An embedding turns text into a list of numbers 🧠",
             // The settled framing: untrusted text reaching a model is an
             // injection, not a mistake in the wording.
             "Prompt injection is a security problem, not a typo",
@@ -332,7 +332,7 @@ public enum FunFacts {
         // three years.
         case .vibeCoding: [
             // Karpathy's post, February 2025. The coinage is uncontested.
-            "Andrej Karpathy coined 'vibe coding' in February 2025",
+            "Andrej Karpathy coined 'vibe coding' in February 2025 ⚡",
             // Attributed on purpose. The DICTIONARY sense (Collins,
             // Merriam-Webster) is just prompting an AI in natural language and
             // does not require skipping the read; not-reading is the coiner's
