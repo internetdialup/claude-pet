@@ -75,18 +75,48 @@ enum CostumeSampler {
 
     // MARK: - The solos
 
-    /// The trick, alone: four solo kickflips, one per costume the operator
-    /// named. `ClaudePet --render-solos <dir>`.
+    /// The trick, alone — the drip-feed inventory. `--render-solos <dir>`.
     ///
-    /// A beat of stillness, the flip, the landing — and then the shout, EASED
-    /// in and out. The operator chose shout-over-purity knowing a bubble pop
-    /// rides the loop; the easing is what reconciles that choice with the
-    /// no-snap doctrine: the bubble rises over 0.28s at the landing and is
-    /// gone again by the final frame, so frame 0 and frame N are both
-    /// bubble-free and the only seam is the still pose meeting itself.
+    /// **On the board the whole way through.** The first cut snapped him back
+    /// to a bare-footed idle at the landing — the board vanished under him,
+    /// which was the operator's "jarred down". Measured fix: the kickflip's
+    /// t=0 stance and its landing frame differ by only 260 pixels (same feet,
+    /// same board), so the clip holds `flourishPose(.kickflip, 0)` on BOTH
+    /// sides of the flip. Frame 0 and frame N are literally the same render —
+    /// a zero-pixel seam — and the landing "cut" back to stance is a 260px
+    /// micro-step smaller than any ordinary frame of the flip itself.
+    ///
+    /// One GIF per costume x shout, because the operator is drip-feeding
+    /// socials with variants. Clip length is the SHOUT's: plain lines get the
+    /// short clip, a scrolling line gets long enough to finish one full read
+    /// before it eases out.
     static let soloCast: [Costume] = [.none, .ninja, .retroBlack, .gundam]
-    static let soloSeconds = 5.6
-    static let soloShout = "Tony Clawd 900 🦅"
+
+    /// The deck lines he really shouts, plus the operator's campaign lines.
+    ///
+    /// Campaign lines live HERE and not in `vocab.swift` deliberately: the
+    /// live skate bubble shows for 3.4 seconds and `skateLinesFitTheirWindow`
+    /// holds every deck line to that. "Johnny Tsunami once said…" needs 11.9
+    /// seconds of scroll — a marketing line, authored by the operator for
+    /// clips that can afford it, and it would break the live invariant.
+    static let soloShouts: [(slug: String, line: String)] = [
+        ("tony",     "Tony Clawd 900 🦅"),
+        ("kowbunga", "Kowbunga 🤙!"),
+        ("kickflip", "Do a Kickflip 🛹!"),
+        ("meat",     "See you at the Hall of Meat 🍖!"),
+        ("tsunami",  "Johnny Tsunami once said — Go Big or Go Home 🤙"),
+    ]
+
+    static let soloLead = 0.8
+    static var soloLanding: Double { soloLead + CrabAnimator.Flourish.kickflip.duration }
+
+    static func soloSeconds(for line: String) -> Double {
+        guard ActivityCoordinator.bubbleStyle(for: line) == .marquee else {
+            return ((soloLanding + 2.6) * 10).rounded() / 10
+        }
+        let travel = Double(MarqueeText.measure(line) / MarqueeText.speed)
+        return ((soloLanding + travel + 1.6) * 10).rounded(.up) / 10
+    }
 
     static func renderSolos(to directory: String) -> Bool {
         let root = URL(fileURLWithPath: directory)
@@ -97,41 +127,47 @@ enum CostumeSampler {
             return false
         }
         for costume in soloCast {
-            let frames = Int((soloSeconds / frameDelay).rounded())
-            var images: [CGImage] = []
-            for frame in 0..<frames {
-                guard let image = SpriteImage.cgImage(of: soloScene(costume,
-                                                                   at: Double(frame) * frameDelay),
-                                                      scale: 2, isOpaque: true)
-                else { return false }
-                images.append(image)
+            for shout in soloShouts {
+                let seconds = soloSeconds(for: shout.line)
+                let frames = Int((seconds / frameDelay).rounded())
+                var images: [CGImage] = []
+                for frame in 0..<frames {
+                    guard let image = SpriteImage.cgImage(
+                        of: soloScene(costume, shout: shout.line, seconds: seconds,
+                                      at: Double(frame) * frameDelay),
+                        scale: 2, isOpaque: true)
+                    else { return false }
+                    images.append(image)
+                }
+                let name = "solo-\(costume.rawValue)-\(shout.slug).gif"
+                guard GifRenderer.encode(images, to: root.appendingPathComponent(name),
+                                         frameDelay: frameDelay) else { return false }
             }
-            guard GifRenderer.encode(images,
-                                     to: root.appendingPathComponent("solo-\(costume.rawValue).gif"),
-                                     frameDelay: frameDelay) else { return false }
         }
-        print("wrote \(soloCast.count) solos to \(root.path)")
+        print("wrote \(soloCast.count * soloShouts.count) solos to \(root.path)")
         return true
     }
 
     @ViewBuilder
-    private static func soloScene(_ costume: Costume, at local: Double) -> some View {
-        let flipAt = 0.6
-        let landing = flipAt + CrabAnimator.Flourish.kickflip.duration   // 3.4
-        let inFlip = local >= flipAt && local < landing
+    private static func soloScene(_ costume: Costume, shout: String, seconds: Double,
+                                  at local: Double) -> some View {
+        let inFlip = local >= soloLead && local < soloLanding
         let pose = inFlip
-            ? CrabAnimator.flourishPose(.kickflip, at: local - flipAt)
-            : CrabAnimator.pose(mood: .idle, t: 0, flourishes: false)
-        // Rises at the landing, gone by 5.5 — see the doc above. `endedAt` is
-        // chosen so the release (0.45s) completes before the final frame.
-        let shout = Ease.amount(now: local, since: landing, endedAt: 5.0)
+            ? CrabAnimator.flourishPose(.kickflip, at: local - soloLead)
+            : CrabAnimator.flourishPose(.kickflip, at: 0)   // on the board, both ends
+        // Shout rises just after touchdown, gone before the final frame.
+        let opacity = Ease.amount(now: local, since: soloLanding + 0.1,
+                                  endedAt: seconds - 0.9)
 
         ZStack {
-            Backdrop(style: .sky)
+            MarketingBackdrop.warmWhite
             VStack(spacing: 0) {
-                ThoughtBubble(text: soloShout, tool: nil, mood: .idle,
-                              style: .plain, frozenTime: 0)
-                    .opacity(shout)
+                ThoughtBubble(text: shout, tool: nil, mood: .idle,
+                              style: ActivityCoordinator.bubbleStyle(for: shout),
+                              frozenTime: max(0, local - soloLanding - 0.1),
+                              fillOverride: Palette.slate,
+                              textOverride: .white)
+                    .opacity(opacity)
                 PixelCanvasView(
                     buffer: CrabRig.render(pose, costume: costume),
                     inkOverrides: CostumeStyle.blendedOverrides(from: costume, to: costume, u: 1),
@@ -141,7 +177,6 @@ enum CostumeSampler {
             .offset(y: 8)
         }
         .frame(width: 280, height: 200)
-        .background(Palette.Ocean.abyss)
     }
 
     @ViewBuilder
