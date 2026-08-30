@@ -586,12 +586,16 @@ enum ReelRenderer {
     /// flight at t=0 or at the loop point, for the reason
     /// `theSleepingClipIsOneWholeBreath` gives: a clip that does not close
     /// shows a seam every time it repeats.
+    /// Claw'd himself holds the centre and lands the trick. The operator's
+    /// call, and the right one: the strip is the brand's second hero, and the
+    /// brand is the orange crab — the costumes are his wardrobe, not his
+    /// replacements. `.none` here is not "undressed", it is the mascot.
     static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish, onsets: [Double])] = [
-        (.ninja,  .wiggle,   [1.2, 6.4]),
-        (.gundam, .kickflip, [3.2]),
+        (.gundam, .wiggle,   [1.2, 6.4]),
+        (.none,   .kickflip, [3.2]),
         // A wave, not a second wiggle: two crabs doing the same idle reads as
         // one animation stamped twice, which is the opposite of a wardrobe.
-        (.white,  .wave,     [1.8, 7.4]),
+        (.ninja,  .wave,     [1.8, 7.4]),
     ]
 
     /// What the shared bubble says, beat by beat.
