@@ -2,7 +2,7 @@
   <img src="docs/media/icon-1024.png" width="110" alt="Claude Pet">
   <h1>Claude Pet 🦀</h1>
   <p><strong>Claw'd sits on your desktop and shows you what Claude Code is doing.</strong></p>
-  <img src="docs/media/desktop.gif" width="640" alt="Claw'd cycling through every state — idle, thinking, working, cooking, waiting on you, done, and the status ticker">
+  <img src="docs/media/desktop.gif" width="100%" alt="Claw'd cycling through every state — idle, thinking, working, cooking, waiting on you, done, and the status ticker">
   <p><em>Every state, in order. Rendered from the sprite rig, not screen-recorded.</em></p>
   <p>
     <a href="https://github.com/internetdialup/claude-pet/releases/latest"><strong>⬇️ Download for macOS</strong></a>
@@ -67,9 +67,18 @@ than words, because there is no honest label for that moment.
 
 On a seven-second cycle, but only about seven cycles in ten fire — so the gaps
 stay irregular and he is still most of the time. Land a trick and he says
-something about it. While he waits he also shares what he knows: **76 fun facts**
-across computer science, AI and Claude, plus **16 tips** about Claude Code
-itself, every one checked against the installed build rather than the docs.
+something about it.
+
+While he waits he shares what he knows: **76 fun facts** across computer
+science, AI and Claude, plus **16 tips** about Claude Code itself, every one
+checked against the installed build rather than the documentation.
+
+<div align="center">
+  <img src="docs/media/facts.png" width="100%" alt="Five fun facts in speech bubbles — one short enough to sit still, the rest scrolling past as tickers">
+</div>
+
+<p align="center"><em>Short lines sit still. Long ones scroll past, and stay up
+long enough to read.</em></p>
 
 ## 👋 He notices you
 
@@ -86,6 +95,16 @@ pet him and hearts rise. **Poke him three times quickly** for something else. �
 
 </td></tr>
 </table>
+
+## 👕 Ten costumes, and every one of them moves
+
+<div align="center">
+  <img src="docs/media/costumes.gif" width="100%" alt="Three Claw'ds side by side — ninja, Gundam and Arctic White — the middle one landing a kickflip while a fun fact scrolls above them">
+</div>
+
+Pick one from the menu bar. They are not recolours: Frankenstein has bolts at
+the temples, Arcade is lit from inside like a cabinet, and each has a movement
+of its own — sparks, falling snow, a scanning column, a swishing tail.
 
 ## 📋 Every session at once
 
@@ -169,14 +188,11 @@ account of what it does with it, not a privacy badge.
 ## 🔨 Build him yourself
 
 ```bash
-git clone https://github.com/internetdialup/claude-pet.git
-cd claude-pet
-./run.sh
+git clone https://github.com/internetdialup/claude-pet.git && cd claude-pet && ./run.sh
 ```
 
-That builds the executable, assembles `build/ClaudePet.app`, ad-hoc signs it and
-launches it. Requires macOS 14+ on Apple silicon and a Swift 6 toolchain
-(Xcode 16.4 or newer). No package manager, no dependencies.
+Builds, assembles the `.app`, ad-hoc signs it, launches it. Swift 6 toolchain,
+no dependencies, no package manager.
 
 ## 📚 More
 
@@ -191,7 +207,7 @@ launches it. Requires macOS 14+ on Apple silicon and a Swift 6 toolchain
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="720" alt="All seventeen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and three skateboards">
+  <img src="docs/media/props.png" width="100%" alt="All seventeen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and three skateboards">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>
