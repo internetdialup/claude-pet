@@ -305,6 +305,12 @@ public final class ActivityCoordinator {
         /// Bumped whenever `newsAt` moves, so an old burst index reached under
         /// a NEW epoch is a new utterance rather than the same one.
         var newsEpoch = 0
+        /// A line that is still being READ, and must not be replaced yet.
+        ///
+        /// Only scrolling lines take one. A plain line is legible the instant
+        /// it appears; a marquee has to walk past, and the dwell it was given
+        /// was shorter than that walk.
+        var heldLine: (text: String, style: PetState.BubbleStyle, until: Date)?
         /// How many facts he has muttered in his sleep — the 🐑 tally.
         ///
         /// Deliberately NOT persisted. It is a thing you notice about the
@@ -919,7 +925,14 @@ public final class ActivityCoordinator {
             // `informationalBeat` is reused rather than rolled fresh: it is the
             // same question ("is this a cycle he spends on something he knows")
             // and it needs no new salt, of which there are none free.
-            if seed % 4 == 0 {
+            // A line he is still part way through keeps its place, exactly as
+            // on the waking path. Sleep is the longest stretch anyone watches
+            // him, so it is the worst place to cut a sentence in half.
+            if let held = chatterCache[slot].heldLine, now < held.until {
+                bubble = held.text
+                style = held.style
+            } else if seed % 4 == 0 {
+                chatterCache[slot].heldLine = nil
                 if Self.informationalBeat(seed: seed), let fact = funFact(slot: slot, seed: seed) {
                     bubble = fact
                     chatterCache[slot].sheep &+= 1
@@ -927,8 +940,22 @@ public final class ActivityCoordinator {
                     bubble = chatterCache[slot].cursor.line(for: .sleeping,
                                                             token: "\(focus.id)|\(seed)")
                 }
+                // Routed by LENGTH, like every other line that reaches the
+                // bubble. Sixty-six of the seventy-six facts are longer than
+                // the plain ceiling — they are written to scroll — so leaving
+                // this at the `.plain` default truncated almost every one of
+                // them the moment he started sleep-talking.
+                if let line = bubble {
+                    style = Self.bubbleStyle(for: line)
+                    let hold = Self.lineHold(for: line)
+                    if hold > 0 {
+                        chatterCache[slot].heldLine = (line, style,
+                                                       now.addingTimeInterval(hold))
+                    }
+                }
             } else {
                 bubble = nil
+                chatterCache[slot].heldLine = nil
             }
             chatterCache[slot].line = nil
 
@@ -1124,6 +1151,30 @@ public final class ActivityCoordinator {
         line.count <= ThoughtBubble.plainColumns ? .plain : .marquee
     }
 
+    /// The longest a single scrolling line may hold the bubble.
+    ///
+    /// Three read-throughs of the longest fact is thirty-five seconds, and a
+    /// pet whose face is owned by one sentence for over half a minute is the
+    /// furniture `bubbleCadences` exists to prevent. Twenty still buys nearly
+    /// three passes of a typical fact and two and a half of the worst one.
+    nonisolated static let maxLineHold: TimeInterval = 20
+
+    /// How long a line needs to stay up to be READ — three times, if it fits.
+    ///
+    /// Zero for anything that fits the plain bubble: a line you can see whole
+    /// the moment it appears needs no extra time, and giving it some would just
+    /// slow him down.
+    ///
+    /// For a scrolling line the old answer was the mood's dwell, six seconds,
+    /// against a read-through of up to 11.8 — so the longest facts had never
+    /// once been seen to the end. `readSeconds` is asked rather than
+    /// re-derived, so a change to the ticker's speed moves this with it.
+    nonisolated static func lineHold(for line: String) -> TimeInterval {
+        guard bubbleStyle(for: line) == .marquee else { return 0 }
+        let read = MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+        return min(read * 3, maxLineHold)
+    }
+
     /// A fun fact for this cycle, or nil when the coin says it is his turn to
     /// speak in his own voice.
     ///
@@ -1220,8 +1271,25 @@ public final class ActivityCoordinator {
     /// roughly three quiet cycles in ten — a fact every three or four minutes
     /// of working, which is the rate the idle path already runs at.
     private func quietBeatFact(mood: PetMood, slot: Int, seed: Int, now: Date) -> String? {
-        guard Self.factMoods.contains(mood),
-              Self.quietBeatSpeaks(seed: seed) else { return nil }
+        guard Self.factMoods.contains(mood) else {
+            // He has stopped being in a mood that says facts, so whatever was
+            // scrolling is no longer his to finish.
+            chatterCache[slot].heldLine = nil
+            return nil
+        }
+
+        // A line still being read keeps its place, window boundaries and dice
+        // included. This is the whole fix: the dwell was six seconds against a
+        // read-through of up to 11.8, so the longest facts had never once been
+        // seen to the end — and the seed turns over every fourteen seconds,
+        // which would have swapped the sentence out from under a reader even if
+        // the dwell had allowed it.
+        if let held = chatterCache[slot].heldLine {
+            if now < held.until { return held.text }
+            chatterCache[slot].heldLine = nil
+        }
+
+        guard Self.quietBeatSpeaks(seed: seed) else { return nil }
 
         // …and only the FIRST part of the window it won.
         //
@@ -1238,7 +1306,17 @@ public final class ActivityCoordinator {
         let intoWindow = now.timeIntervalSince1970
             .truncatingRemainder(dividingBy: Self.chatterInterval)
         guard intoWindow < dwell else { return nil }
-        return factOrTip(slot: slot, seed: seed)
+        guard let line = factOrTip(slot: slot, seed: seed) else { return nil }
+
+        // A scrolling line takes a hold; a plain one is legible the moment it
+        // appears and gets none, so short facts keep exactly the cadence they
+        // have today.
+        let hold = Self.lineHold(for: line)
+        if hold > 0 {
+            chatterCache[slot].heldLine = (line, Self.bubbleStyle(for: line),
+                                           now.addingTimeInterval(hold))
+        }
+        return line
     }
 
     private func publish(_ new: PetState, slot: Int) {
