@@ -75,14 +75,19 @@ struct CostumeStripTests {
         #expect(Set(poses.map(\.bob)).count > 1, "the kickflip never leaves the ground")
     }
 
-    /// Three, and three different ones. A wardrobe strip showing the same
-    /// costume twice would be worse than showing one.
-    @Test("Three distinct costumes, none of them the default")
-    func threeDistinctCostumes() {
+    /// The mascot leads, flanked by two distinct costumes.
+    ///
+    /// This test used to FORBID `.none` — "the strip includes the undressed
+    /// crab" — and the operator overruled it: the strip is the brand's second
+    /// hero, and the brand is the orange crab. So the contract flips: the
+    /// centre must be Claw'd himself, and the wardrobe lives on his flanks.
+    @Test("Claw'd holds the centre, two distinct costumes flank him")
+    func theMascotLeads() {
         let worn = ReelRenderer.costumeCast.map(\.costume)
         #expect(worn.count == 3)
-        #expect(Set(worn).count == 3, "a costume appears twice")
-        #expect(!worn.contains(.none), "the strip includes the undressed crab")
+        #expect(worn[1] == Costume.none, "the centre slot belongs to the mascot")
+        #expect(worn[0] != .none && worn[2] != .none, "a flank is undressed")
+        #expect(worn[0] != worn[2], "both flanks wear the same costume")
     }
 
     /// The outer two must not wiggle in unison — synchronised idling reads as
