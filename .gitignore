@@ -35,5 +35,8 @@ docs/internal/
 /*.png
 /*.gif
 /*.svg
+/*.mp4
+/*.beats.txt
 /AppIcon.iconset/
+/plate-*/
 /out/

@@ -157,12 +157,32 @@ struct SizzleScriptTests {
         #expect(start?.chapter == .mirror)
         #expect(abs((start?.localT ?? 0) - 1.6) < 1e-9)
 
-        // The README montage compresses 8.0 master seconds into 5.5.
+        // The README montage compresses the master chapter into 5.5 — derived,
+        // not restated: this line once said "8.0" while the order grew to ten,
+        // and the restated constant is exactly how the drift stayed hidden.
+        let montageMaster = SizzleScript.masterSeconds[.montage] ?? 0
         let montageStart = 3.0 + 3.0 + 8.0
         let mid = SizzleScript.resolve(SizzleScript.readme, at: montageStart + 2.75)
         #expect(mid?.chapter == .montage)
-        #expect(abs((mid?.localT ?? 0) - 4.0) < 1e-9,
+        #expect(abs((mid?.localT ?? 0) - montageMaster / 2) < 1e-9,
                 "half the segment must be half the master chapter")
+    }
+
+    /// The trap the battery caught one edit before it fired: the montage clock
+    /// said eight seconds, the running order held ten looks, and the pose
+    /// table held eight entries. Two costumes silently never rendered, and
+    /// fixing the clock alone would have subscripted `moods[8]` and trapped.
+    /// All three lengths are chained to `montageOrder` now, and this holds
+    /// them there.
+    @Test("The montage clock, order, and pose table agree")
+    func montageCoversItsOwnOrder() {
+        let looks = SizzleScript.montageOrder.count
+        #expect(SizzleScript.masterSeconds[.montage] == Double(looks),
+                "the montage clock is not one second per look")
+        #expect(SizzleRenderer.montageMoods.count == looks,
+                "\(SizzleRenderer.montageMoods.count) poses for \(looks) looks")
+        #expect(SizzleScript.montageOrder.last == Costume.none,
+                "the loop seam must land on Classic")
     }
 }
 

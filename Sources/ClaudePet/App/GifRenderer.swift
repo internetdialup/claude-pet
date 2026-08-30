@@ -128,7 +128,14 @@ enum GifRenderer {
             else { continue }
             let frames = stride(from: 0.0, to: 3.0, by: frameDelay).map { t -> PixelBuffer in
                 var pose = CrabAnimator.pose(mood: .idle, t: t)
-                CrabAnimator.applyGreeting(elapsed: t, seed: seed, to: &pose)
+                // Through the SAME envelope the live pointer gets. At full
+                // amount from frame 0 the clip opened two cells airborne and
+                // wrapped with a visible jump — the README showing exactly the
+                // snap the no-snap doctrine bans, in a motion the live app can
+                // never produce. Eased in and out, the loop closes at rest.
+                CrabAnimator.applyGreeting(elapsed: t, seed: seed,
+                                           amount: Ease.amount(now: t, since: 0, endedAt: 2.35),
+                                           to: &pose)
                 return CrabRig.render(pose)
             }
             _ = index

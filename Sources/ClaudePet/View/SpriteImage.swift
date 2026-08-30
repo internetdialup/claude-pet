@@ -110,12 +110,14 @@ public enum SpriteImage {
     /// bare sprite.
     public static func png(of view: some View, scale: CGFloat = 1,
                            isOpaque: Bool = false) -> Data? {
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = scale
-        renderer.isOpaque = isOpaque
-        guard let image = renderer.nsImage,
-              let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        // Through `cgImage(of:)`'s own pinned context, NOT a bare
+        // `ImageRenderer`. This was the last renderer still on the raw path,
+        // and it drifted: `--render-icon` differed from itself about one run
+        // in three, ±1 LSB inside flat fills — the mechanism behind the old
+        // icon-1024 false positive. The GIF path was fixed this way months of
+        // commits ago; the PNG path had simply never been moved over.
+        guard let image = cgImage(of: view, scale: scale, isOpaque: isOpaque) else { return nil }
+        let rep = NSBitmapImageRep(cgImage: image)
         return rep.representation(using: .png, properties: [:])
     }
 

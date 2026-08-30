@@ -311,13 +311,16 @@ public final class ActivityCoordinator {
         /// it appears; a marquee has to walk past, and the dwell it was given
         /// was shorter than that walk.
         var heldLine: (text: String, style: PetState.BubbleStyle, until: Date)?
+        /// The seed of the last fact the 🐑 tally counted, so a fact is
+        /// counted once however many recomputes show it.
+        var sheepSeed: Int = .min
         /// How many facts he has muttered in his sleep — the 🐑 tally.
         ///
         /// Deliberately NOT persisted. It is a thing you notice about the
         /// session you are in; a number that survived restarts would invite
         /// being read as a statistic, and it is a joke.
         var sheep = 0
-        /// How many fun facts this slot has drawn — the index into the 20/60/20
+        /// How many fun facts this slot has drawn — the index into the 60/8x5
         /// mix. Per-slot for the same reason `cursor` is: two idle pets sharing
         /// one counter would interleave each other's mixes and neither would
         /// hold the ratio.
@@ -935,7 +938,16 @@ public final class ActivityCoordinator {
                 chatterCache[slot].heldLine = nil
                 if Self.informationalBeat(seed: seed), let fact = funFact(slot: slot, seed: seed) {
                     bubble = fact
-                    chatterCache[slot].sheep &+= 1
+                    // One sheep per FACT, not per 2-second recompute — the
+                    // tally ran ~1.5x hot because every tick inside a winning
+                    // window counted. `funFact` steps `lastFactSeed` exactly
+                    // once per seed, so "the seed just changed" is "this fact
+                    // is new".
+                    if chatterCache[slot].lastFactSeed == seed,
+                       chatterCache[slot].sheepSeed != seed {
+                        chatterCache[slot].sheepSeed = seed
+                        chatterCache[slot].sheep &+= 1
+                    }
                 } else {
                     bubble = chatterCache[slot].cursor.line(for: .sleeping,
                                                             token: "\(focus.id)|\(seed)")
@@ -1029,7 +1041,7 @@ public final class ActivityCoordinator {
                 // The cadence chose silence. That is the one place a fact can
                 // go without displacing anything, so ask — and fall back to the
                 // silence it would have been.
-                if let known = quietBeatFact(mood: mood, slot: slot, seed: seed, now: now) {
+                if let known = quietBeatFact(mood: mood, slot: slot, now: now) {
                     bubble = known
                     style = Self.bubbleStyle(for: known)
                 } else {
@@ -1156,7 +1168,8 @@ public final class ActivityCoordinator {
     /// Three read-throughs of the longest fact is thirty-five seconds, and a
     /// pet whose face is owned by one sentence for over half a minute is the
     /// furniture `bubbleCadences` exists to prevent. Twenty still buys nearly
-    /// three passes of a typical fact and two and a half of the worst one.
+    /// three passes of a typical fact and about 1.7 of the worst one — measured,
+    /// not divided: the longest fact reads in 11.8s, and 20/11.8 is not 2.5.
     nonisolated static let maxLineHold: TimeInterval = 20
 
     /// How long a line needs to stay up to be READ — three times, if it fits.
@@ -1270,7 +1283,17 @@ public final class ActivityCoordinator {
     /// words. `factOrTip` carries its own even gate, so the two compound to
     /// roughly three quiet cycles in ten — a fact every three or four minutes
     /// of working, which is the rate the idle path already runs at.
-    private func quietBeatFact(mood: PetMood, slot: Int, seed: Int, now: Date) -> String? {
+    ///
+    /// **The die is keyed to the CADENCE cycle, not the chatter window.** It
+    /// was keyed to the 14-second seed, which re-rolled it twice per cadence
+    /// period — measured over two million simulated seconds, trivia was on
+    /// screen 28% of a working stretch, 2.3x more than the task label itself,
+    /// against the "every three or four minutes" this comment promises. One
+    /// roll per cadence period, at the period's own start, makes the
+    /// arithmetic above true instead of aspirational — and kills the chaining
+    /// where an expiring hold rolled straight into a fresh line, because after
+    /// a hold expires the cycle's dwell window has already passed.
+    private func quietBeatFact(mood: PetMood, slot: Int, now: Date) -> String? {
         guard Self.factMoods.contains(mood) else {
             // He has stopped being in a mood that says facts, so whatever was
             // scrolling is no longer his to finish.
@@ -1289,7 +1312,9 @@ public final class ActivityCoordinator {
             chatterCache[slot].heldLine = nil
         }
 
-        guard Self.quietBeatSpeaks(seed: seed) else { return nil }
+        let period = Self.bubbleCadences[mood]?.period ?? 30
+        let cycle = Int(now.timeIntervalSince1970 / period) &+ slot &* 7919
+        guard Self.quietBeatSpeaks(seed: cycle) else { return nil }
 
         // …and only the FIRST part of the window it won.
         //
@@ -1303,15 +1328,23 @@ public final class ActivityCoordinator {
         // The dwell is the mood's OWN, not a new number: a fact should sit on
         // his head for exactly as long as anything else that mood says.
         let dwell = Self.bubbleCadences[mood]?.dwell ?? 6
-        let intoWindow = now.timeIntervalSince1970
-            .truncatingRemainder(dividingBy: Self.chatterInterval)
-        guard intoWindow < dwell else { return nil }
-        guard let line = factOrTip(slot: slot, seed: seed) else { return nil }
+        let intoCycle = now.timeIntervalSince1970
+            .truncatingRemainder(dividingBy: period)
+        guard intoCycle < dwell else { return nil }
+        guard let line = factOrTip(slot: slot, seed: cycle) else { return nil }
 
         // A scrolling line takes a hold; a plain one is legible the moment it
         // appears and gets none, so short facts keep exactly the cadence they
         // have today.
-        let hold = Self.lineHold(for: line)
+        //
+        // Clamped to the END OF ITS OWN CYCLE. In production the clamp never
+        // binds — the shortest cadence period is 24s and the longest hold 20 —
+        // but the invariant it states is load-bearing: a fact may not outlive
+        // the cycle that rolled it, so no hold can ever chain across a cycle
+        // boundary into territory a fresh die never granted. The churning-label
+        // test shrinks periods three-hundred-fold and this is what keeps the
+        // quiet guarantee true there too, rather than true only at full scale.
+        let hold = min(Self.lineHold(for: line), period - intoCycle)
         if hold > 0 {
             chatterCache[slot].heldLine = (line, Self.bubbleStyle(for: line),
                                            now.addingTimeInterval(hold))

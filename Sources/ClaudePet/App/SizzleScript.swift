@@ -64,9 +64,16 @@ enum SizzleScript {
     static let workBase = 20.0
 
     /// Master chapter durations, in play order. Sum: exactly 45.0.
+    ///
+    /// The montage is `montageOrder.count` seconds BY CONSTRUCTION — one beat
+    /// per look. It sat at 8.0 while the order grew to ten, which silently cut
+    /// Arcade and Classic from every cut and left the README loop seam a
+    /// costume pop; and the obvious fix alone would have indexed one second
+    /// past the renderer's pose table and trapped. The two seconds came out of
+    /// the finale, which at ten was the longest chapter by a wide margin.
     static let masterSeconds: [Chapter: Double] = [
         .wake: 2.5, .mirror: 5.5, .glyphs: 6.0, .cook: 6.0,
-        .finale: 10.0, .montage: 8.0, .duet: 4.0, .outro: 3.0,
+        .finale: 8.0, .montage: Double(montageOrder.count), .duet: 4.0, .outro: 3.0,
     ]
 
     /// The montage's running order — ends on Classic so the README GIF's
