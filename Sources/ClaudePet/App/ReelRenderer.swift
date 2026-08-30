@@ -570,7 +570,13 @@ enum ReelRenderer {
     ///
     /// **Ten seconds because attention is the constraint**, not because ten is
     /// a round number. The same reasoning trimmed the hero to fifteen.
-    static let costumeSeconds = 10.0
+    /// Thirteen, and not a round number by accident: gundam's fact needs
+    /// 11.97s for one full scroll, and the seam rule says the clip must
+    /// contain a WHOLE cycle — the marquee's `loopSeconds` stretches its gap
+    /// to make the cycle exactly this. Ten seconds decapitated the sentence at
+    /// every wrap, which was the operator's "jarring cut". Still under the
+    /// 25-second attention ceiling.
+    static let costumeSeconds = 13.0
 
     /// Who stands where, and what they do.
     ///
@@ -602,12 +608,12 @@ enum ReelRenderer {
     static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish,
                               onsets: [Double], line: String?, lineFrom: Double,
                               side: CGFloat)] = [
-        (.gundam, .wiggle,   [1.2, 6.4],
+        (.gundam, .wiggle,   [1.4, 9.6],
          "Anthropic has published Claude's constitution 📜", 0.0, 96),
-        (.none,   .kickflip, [3.2], "Tony Clawd 900 🦅", 6.0, 128),
+        (.none,   .kickflip, [4.4], "Tony Clawd 900 🦅", 7.2, 128),
         // A wave, not a second wiggle: two crabs doing the same idle reads as
         // one animation stamped twice, which is the opposite of a wardrobe.
-        (.ninja,  .wave,     [1.8, 7.4], nil, 0.0, 96),
+        (.ninja,  .wave,     [2.2, 10.4], nil, 0.0, 96),
     ]
 
     static func renderCostumes(to url: URL) -> Bool {
@@ -653,18 +659,42 @@ enum ReelRenderer {
                         // the three stand on one baseline instead of the mute
                         // one riding up by a bubble's height.
                         Group {
-                            if let line = member.line, elapsed >= member.lineFrom {
+                            if let line = member.line, member.lineFrom == 0 {
+                                // A marquee that runs from the clip's own zero
+                                // closes its loop at `costumeSeconds` exactly —
+                                // that is the whole point of `loopSeconds`.
                                 ThoughtBubble(text: line, tool: nil, mood: .idle,
                                               style: ActivityCoordinator.bubbleStyle(for: line),
-                                              frozenTime: elapsed - member.lineFrom)
+                                              frozenTime: elapsed,
+                                              loopSeconds: costumeSeconds)
+                            } else if let line = member.line {
+                                // The shout: eased in at the landing, eased
+                                // out before the wrap, exactly as the solos do
+                                // it — so the seam carries no text pop, only
+                                // the marquee's single frame-step of travel.
+                                ThoughtBubble(text: line, tool: nil, mood: .idle,
+                                              style: .plain, frozenTime: 0)
+                                    .opacity(Ease.amount(now: elapsed,
+                                                         since: member.lineFrom,
+                                                         endedAt: costumeSeconds - 0.7))
                             } else if member.line == nil {
+                                // FROZEN dots, one phase. Their pulse cycle is
+                                // 1.36s and 13.0 is not a multiple of it, so a
+                                // ticking thought would twitch at the wrap. A
+                                // ninja can hold a thought.
                                 ThoughtBubble(text: "…", tool: nil, mood: .thinking,
-                                              style: .dots, frozenTime: elapsed)
+                                              style: .dots, frozenTime: 0.68)
                             } else {
                                 Color.clear
                             }
                         }
-                        .frame(height: 44)
+                        // Fixed WIDTH as well as height. The slot sized
+                        // itself to its content, so the instant Claw'd's shout
+                        // appeared his column widened and shoved both flanks
+                        // sideways — 44k crab-band pixels moved in one frame,
+                        // measured. A bubble slot is chrome; chrome does not
+                        // get to relayout the cast.
+                        .frame(width: 178, height: 44)
                         PixelCanvasView(
                             buffer: CrabRig.render(costumePose(member, at: elapsed),
                                                    costume: member.costume),

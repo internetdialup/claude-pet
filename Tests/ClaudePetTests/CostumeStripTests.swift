@@ -12,15 +12,48 @@ import Foundation
 @MainActor
 struct CostumeStripTests {
 
-    /// Exactly ten, not ten-ish. An earlier version accumulated `elapsed += 0.1`
-    /// in a Double and produced 101 frames — the running total lands a hair
-    /// under ten on the last pass, so the loop ran a frame long.
-    @Test("The strip is exactly ten seconds")
-    func exactlyTenSeconds() {
-        let frames = Int((ReelRenderer.costumeSeconds / ReelRenderer.heroFrameDelay).rounded())
-        #expect(frames == 100, "\(frames) frames, not 100")
-        #expect(ReelRenderer.costumeSeconds <= 25,
-                "past the point anyone keeps watching")
+    /// Frame-exact and seam-closed. The length itself is derived from the
+    /// gundam fact's scroll — the clip must contain one WHOLE marquee cycle,
+    /// or the sentence is decapitated at every wrap, which was the operator's
+    /// "jarring cut".
+    @Test("The strip is frame-exact, scroll-closed, and under the ceiling")
+    func theClockContainsTheScroll() {
+        let seconds = ReelRenderer.costumeSeconds
+        let frames = (seconds / ReelRenderer.heroFrameDelay)
+        #expect(frames == frames.rounded(), "\(seconds)s is not a whole number of frames")
+        #expect(seconds <= 25, "past the point anyone keeps watching")
+
+        // Every scrolling line in the cast must complete its travel inside
+        // the clip, so `loopSeconds` has slack to absorb rather than a
+        // collision to hide.
+        for member in ReelRenderer.costumeCast {
+            guard let line = member.line,
+                  ActivityCoordinator.bubbleStyle(for: line) == .marquee else { continue }
+            let natural = Double(MarqueeText.measure(line) / MarqueeText.speed)
+            #expect(natural < seconds - member.lineFrom,
+                    "\"\(line)\" travels \(natural)s inside \(seconds - member.lineFrom)s")
+        }
+    }
+
+    /// The seam itself, in points: a marquee given the clip as its loop puts
+    /// the text at the same offset at 0 and at the clip's end — the clamp
+    /// refuses a cycle shorter than the text rather than overlapping it.
+    @Test("loopSeconds closes the wrap and refuses to collide")
+    func theLoopCloses_marquee() {
+        let line = "Anthropic has published Claude's constitution 📜"
+        let cycle = MarqueeText.cycle(for: line, loopSeconds: ReelRenderer.costumeSeconds)
+        let travel = { (t: Double) -> CGFloat in
+            CGFloat(t * Double(MarqueeText.speed)).truncatingRemainder(dividingBy: cycle)
+        }
+        #expect(abs(travel(0) - travel(ReelRenderer.costumeSeconds)) < 0.001,
+                "the wrap does not close")
+        // Natural behaviour is untouched when no loop is asked for…
+        #expect(MarqueeText.cycle(for: line, loopSeconds: nil)
+                == MarqueeText.measure(line) + MarqueeText.gap)
+        // …and a loop shorter than the text degrades to natural, not to a
+        // second copy driving over the first.
+        #expect(MarqueeText.cycle(for: line, loopSeconds: 2.0)
+                == MarqueeText.measure(line) + MarqueeText.gap)
     }
 
     /// **The loop.** Every crab must hold the same pose at t=0 and t=10, or the

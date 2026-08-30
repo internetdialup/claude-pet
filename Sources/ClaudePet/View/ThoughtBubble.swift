@@ -34,6 +34,23 @@ public struct ThoughtBubble: View {
     /// render happened at and the same commit stops producing the same bytes.
     public var frozenTime: Double?
 
+    /// Closes a marquee's loop at exactly this many seconds — offline only.
+    ///
+    /// A ticker's natural cycle is `(measure + gap) / speed`, which is never a
+    /// frame-countable number, so any GIF that contains one shows the text
+    /// decapitated at the wrap. This stretches the GAP (never the text, never
+    /// the speed) so one full cycle equals the clip. The live app passes
+    /// nothing and renders byte-identically.
+    public var loopSeconds: Double? = nil
+
+    /// Comp-board knobs: override the mood's bubble fill and text colour.
+    ///
+    /// Offline only, for art-directing the facts bubble against variants
+    /// without inventing a fake mood. Nil — always, in the live app — keeps
+    /// `MoodStyle` the single authority.
+    public var fillOverride: Color? = nil
+    public var textOverride: Color? = nil
+
     /// Width of the scrolling viewport. Fixed so the bubble does not resize as
     /// the ticker's content changes.
     nonisolated static let marqueeWidth: CGFloat = 150
@@ -72,8 +89,8 @@ public struct ThoughtBubble: View {
 
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.
-    private var fill: Color { mood.style.bubbleFill }
-    private var foreground: Color { mood.style.bubbleText }
+    private var fill: Color { fillOverride ?? mood.style.bubbleFill }
+    private var foreground: Color { textOverride ?? mood.style.bubbleText }
 
     private var glyph: String {
         if style == .dots { return "" }        // the dots are the whole message
@@ -113,7 +130,8 @@ public struct ThoughtBubble: View {
                 case .dots:
                     PulsingDots(color: foreground, frozenTime: frozenTime)
                 case .marquee:
-                    MarqueeText(text: text, font: font, width: Self.marqueeWidth, frozenTime: frozenTime)
+                    MarqueeText(text: text, font: font, width: Self.marqueeWidth,
+                                frozenTime: frozenTime, loopSeconds: loopSeconds)
                 case .plain:
                     Text(text)
                         .font(font)
@@ -295,6 +313,8 @@ struct MarqueeText: View {
     let font: Font
     let width: CGFloat
     let frozenTime: Double?
+    /// See `ThoughtBubble.loopSeconds`. Nil live, a clip length offline.
+    var loopSeconds: Double? = nil
 
     /// Points per second. `nonisolated` because `readSeconds` is, and a
     /// nonisolated function cannot read a main-actor constant.
@@ -318,7 +338,7 @@ struct MarqueeText: View {
             // Frozen renders keep taking the caller's instant verbatim, so
             // offline output stays byte-deterministic.
             let elapsed = frozenTime == nil ? max(0, now - began) : now
-            let measured = Self.measure(text) + Self.gap
+            let measured = Self.cycle(for: text, loopSeconds: loopSeconds)
             let offset = measured > 0
                 ? -CGFloat(elapsed * Double(Self.speed)).truncatingRemainder(dividingBy: measured)
                 : 0
@@ -338,6 +358,25 @@ struct MarqueeText: View {
     /// countable rather than needing a layout pass.
     nonisolated static func measure(_ text: String) -> CGFloat {
         CGFloat(text.count) * 6.62
+    }
+
+    /// One full scroll cycle in POINTS: the text plus its trailing gap, or —
+    /// when a clip length is supplied — that length converted through the
+    /// speed, with the slack absorbed by the gap.
+    ///
+    /// CLAMPED to never fall below the natural cycle: a requested loop shorter
+    /// than the text's own travel would run the second copy over the first,
+    /// which is not a tighter loop, it is a collision. The clamp means a
+    /// too-short request degrades to today's behaviour (a visible wrap)
+    /// instead of to garbage.
+    nonisolated static func cycle(for text: String, loopSeconds: Double?) -> CGFloat {
+        guard let loopSeconds else { return measure(text) + gap }
+        let requested = CGFloat(loopSeconds) * speed
+        // The floor is the TEXT's width, not text-plus-gap: the gap is exactly
+        // the slack this exists to stretch or shrink. Below the text itself the
+        // second copy would drive over the first, so a too-short request
+        // degrades to the natural cycle (today's visible wrap) instead.
+        return requested >= measure(text) ? requested : measure(text) + gap
     }
 
     /// How long until the LAST character has reached the viewport — i.e. how
