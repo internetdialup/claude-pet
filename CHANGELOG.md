@@ -5,6 +5,142 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-08-30
+
+### Added
+
+- **👋 He introduces himself, once.** The first time he ever appears on a
+  desktop he hops, waves, and says who he is. First pet only — a second one you
+  summoned deliberately has nothing to introduce itself about.
+- **🛹 He skates.** A kickflip, a varial flip, and a cruise where he holds his
+  line while the ground streaks past underneath. He screws his eyes into a
+  squint through the pop and opens them for the rotation, and he shouts when he
+  lands one.
+- **💤 He talks in his sleep, and keeps a tally of it.** He has always had a
+  vocabulary for sleeping and the view discarded every word of it. He now
+  mutters about one nap cycle in four without stirring, and some of those are
+  fun facts. Each one bumps a 🐑 count in the session roster, hidden until it is
+  off zero. The zZz's over his head come twice as often between 10pm and 6am.
+- **🧠 He knows seventy-six things, and says them while he waits.** Fun facts in
+  six flavours — computer science, CS 101, Claude, AI, prompt engineering and
+  vibe coding — plus sixteen tips about the tool you are holding, every line
+  checked against the installed build rather than the docs. That caught six
+  wrong ones, two of them commands the live documentation still lists and no
+  build has. They reach the working mood too, filling a beat his own chatter had
+  already decided to spend in silence.
+- **⚡ Every costume gets a movement of its own.** Only the ninja's ribbons and
+  the Matrix rain had motion; the other seven were paint. Now there are sparks
+  at Frankenstein's bolts, snow on Arctic White, a specular sweep across Retro
+  Black, a swishing tail on Tiger, a scanning column on Gundam, speed lines
+  flanking Sonic, a chasing marquee on Arcade, and a shuriken that spins across
+  the ninja's airspace and is gone. None of them can cover an open eye.
+- **🧟 Two more costumes, and two more props.** Frankenstein is green with a
+  stitch line and two iron bolts at the temples, where a crab with no neck can
+  carry them. Arcade is a cabinet: black shell, phosphor eyes and mouth lit from
+  inside, a two-colour marquee below. The joystick joins the working props, and
+  the shades are their own prop rather than a recolour of the reading glasses.
+- **☀️ Light catches him, and sometimes he stands in it.** A diagonal glint
+  crosses his shell every couple of idle minutes, repainting only shell so a
+  costume or his face is never touched. And in daylight, roughly every
+  twenty-eight minutes, a pool of light arrives on the floor and he shuts his
+  eyes and stands in it for fourteen seconds. One envelope drives the pool, the
+  gold on his shell and his eyes easing closed, which is what makes it one
+  moment rather than three that coincide.
+- **🟡 Gold breathes around him while a plan waits on you.** A soft ring swells
+  for 2.6 seconds every eighteen — but not straight away. He leans, bobs and
+  holds the plan out on his own first, and the light only starts if that did not
+  work. It stops after three minutes; an always-on-top pet should not breathe at
+  an empty chair two hundred times.
+- **🧭 A second pet you can actually park.** Drag one crab near the other and it
+  eases into one of six positions around him, the pull growing as you get
+  closer rather than snapping when you let go. None of the distances are typed
+  in: each is the closest the two can stand with both speech bubbles still
+  clear.
+- **🎬 The secret menu can show you the rare things.** Shift+click and press K,
+  and the menu now carries an Effects section beside the moods. Each bypasses
+  the clock and the dice that normally gate it, so the effects most worth
+  looking at are no longer the ones no sequence of clicks could reach — you
+  cannot wait out a patch of sun at one in the morning.
+
+### Changed
+
+- **⏰ He stays up for fifteen minutes after the last thing that interested
+  him.** Close your last session and he was asleep within two seconds, and
+  interacting with him reset nothing — poking a sleeping crab woke him for a
+  second and then he went straight back to snoring. A poke, a hold, a drag, or
+  resting the pointer on him now all buy the same fifteen minutes. When he does
+  sleep he breathes properly: two pixels rather than one, eased rather than
+  switched, over five seconds rather than seven.
+- **🤹 He is still most of the time now.** A flourish fired every seven seconds,
+  forever, on a metronome; nothing gated whether one played, only which one.
+  About seven cycles in ten fire now and the gaps go irregular. The near-done
+  glow got the same treatment — it was two hundred and forty consecutive pulses
+  over a ten-minute sprint, and is now one 2.2-second breath every forty seconds
+  or so.
+- **💞 Petting gives you affection rather than a fountain.** Held down, he
+  produced a heart every 0.8 seconds indefinitely — thirty-eight in a
+  half-minute — which is exactly why it read as constant rather than as
+  affection. Two greet the purr, then one every four seconds. Letting go used to
+  delete the ones still climbing; they run on their own clock now.
+- **☕ The things you could not name got redrawn.** The balloon signalled nothing
+  and read as a lollipop; it is a mug now, meaning he has been idle a while. The
+  hard hat's wrench and screwdriver resolved to two grey rods either side of his
+  head, so he carries a single hammer. All the props are drawn in inks a costume
+  cannot repaint, so the mug stays white on the ninja. The ninja's own shell is
+  near-black now instead of a grey that read as "in shadow".
+- **🔋 A pet nobody is looking at stops drawing.** Nothing watched for display
+  sleep or for his window being covered, so he ticked at full rate with the
+  screen off. He drops to one frame a second when nobody can see him, and unseen
+  outranks reacting — if the display is asleep there is nobody to react for. A
+  rate change, never a pose change.
+- **📦 Getting him onto a current Mac.** The headline install step was
+  right-click → Open, which macOS 15 removed, so anyone on Sequoia was following
+  an instruction that no longer exists. `xattr -dr com.apple.quarantine` leads
+  now, with System Settings → Privacy & Security as the UI route; the right-click
+  shortcut is still listed, named for macOS 14. The install section also states
+  macOS 14+ on Apple silicon and that there is no Intel binary. LICENSE is plain
+  MIT again, so GitHub stops reporting "Other"; the trademark note moved to
+  NOTICE.md in the same words.
+
+### Fixed
+
+- **🎲 The same line stops coming round twice in a row.** His lines are dealt
+  like a deck, but that only holds while the seed advances by exactly one per
+  draw — and not one of the five places that asked him for a line did. Measured
+  on the shipped code: one idle line in ten was an immediate repeat, and one
+  working burst in three. A burst also rewrote itself mid-read every fourteen
+  seconds.
+- **🏷️ A joke stops talking over the thing you were actually doing.** Thirteen
+  patterns replaced a session's label with a themed line, and seven were wrong —
+  "Make the header prettier" and "Add a user profile page" were claimed by rules
+  with nothing to do with them, while "builds" was silently missed. A false
+  match does not mistime a joke; it deletes the one string on screen that said
+  what was happening.
+- **🐾 Two pets stop swallowing each other's drags.** His clickable area is the
+  union of every pose he can hold — 410 cells where the resting crab draws 264.
+  Alone that generosity is free; beside a sibling, a press meant for the other
+  pet landed in this one's halo, found no drag handle, moved nothing, and having
+  been claimed could not fall through. In company he now answers to precisely
+  the cells he draws.
+- **💬 The bubble stops taking the tail off a 29-character line.** The ceiling
+  was divided out using the scrolling marquee's advance, which runs under the
+  real one. A ruler rendered through the actual bubble says 28 whole and 29
+  clipped — "I'm hungry for something new!" is exactly 29 and had been losing
+  its exclamation mark for as long as the guard existed.
+- **🔭 His eyes stop teleporting when the telescope comes out.** The stargazer
+  snapped his gaze up the moment its envelope crossed a threshold, reliably
+  inside the window where his ordinary glance was still live — 81 firings out of
+  244 over a day of small-hours idling. The look now rides the envelope, so one
+  two-pixel jump becomes two one-pixel steps.
+- **🔏 Building him yourself no longer hands you a quietly unsigned app.**
+  `run.sh` signed the bundle, and when signing failed it carried on, launched
+  the app and printed "Running". An unsigned Claw'd behaves normally right up
+  until Open at Login or a notification needs a stable identity. The cause is
+  this repo living in iCloud Drive, which re-stamps the attributes codesign
+  objects to moments after they are cleared — clearing, signing and verifying
+  are one retried unit now, and it exits non-zero when the signature is not
+  really there.
+
 ## [1.5.1] — 2026-08-24
 
 ### Fixed

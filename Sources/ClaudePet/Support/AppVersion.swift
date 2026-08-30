@@ -7,7 +7,7 @@ import Foundation
 /// the About box says one thing, the installer another, and nobody notices until
 /// a user reports a version that was never built.
 public enum AppVersion {
-    public static let current = "1.5.1"
+    public static let current = "1.6.0"
 
     /// What the running bundle actually declares. `nil` outside an app bundle —
     /// `swift run` and the test target have no `Info.plist`.
