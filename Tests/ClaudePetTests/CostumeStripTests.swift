@@ -98,13 +98,41 @@ struct CostumeStripTests {
         }
     }
 
-    /// The line above them is fixed, not dealt. A committed asset that drew
-    /// from a cursor would render differently depending on what the counter had
-    /// been doing, which is the one thing a byte-compared file cannot survive.
-    @Test("The strip's line is a constant, and it scrolls")
-    func theLineIsFixed() {
-        #expect(!ReelRenderer.costumeLine.isEmpty)
-        #expect(ActivityCoordinator.bubbleStyle(for: ReelRenderer.costumeLine) == .marquee,
-                "a plain line would show the whole sentence in frame one and never move")
+    /// The bubble's script. Three constants rather than a cursor — a committed
+    /// asset that drew from a deck would render differently depending on what
+    /// the counter had been doing — and every word of it is REAL: the facts
+    /// come from the pools and the shout from the skate deck, so the strip
+    /// shows things he actually says rather than marketing copy shaped like
+    /// them.
+    @Test("The beats tile the clip, and every line is one he really says")
+    func theBeatsAreReal() {
+        let beats = ReelRenderer.costumeBeats
+        #expect(beats.first?.from == 0)
+        #expect(beats.last?.to == ReelRenderer.costumeSeconds)
+        for (a, b) in zip(beats, beats.dropFirst()) {
+            #expect(a.to == b.from, "a gap between \"\(a.text)\" and \"\(b.text)\"")
+        }
+        // The middle beat is the character moment: a real skate shout, and it
+        // covers the kickflip from pop to landing.
+        let shout = beats[1]
+        #expect(Vocab.lines(for: .kickflip).contains(shout.text),
+                "\"\(shout.text)\" is not a line he shouts after a trick")
+        let trick = ReelRenderer.costumeCast[1]
+        let onset = try! #require(trick.onsets.first)
+        #expect(shout.from <= onset && onset + trick.flourish.duration <= shout.to,
+                "the shout does not cover the kickflip")
+        // The outer beats are facts from the pools, wearing their emoji.
+        for beat in [beats[0], beats[2]] {
+            #expect(FunFacts.all.contains(beat.text),
+                    "\"\(beat.text)\" is not in the fact pools")
+        }
+        // A marquee beat must be long enough for its line to finish scrolling —
+        // an unfinished sentence at a beat swap is the glitch this exists to
+        // avoid.
+        for beat in beats where ActivityCoordinator.bubbleStyle(for: beat.text) == .marquee {
+            let read = MarqueeText.readSeconds(for: beat.text, width: MarqueeText.viewport)
+            #expect(read <= beat.to - beat.from,
+                    "\"\(beat.text)\" needs \(read)s and its beat is \(beat.to - beat.from)s")
+        }
     }
 }

@@ -274,6 +274,8 @@ enum ReelRenderer {
             && renderProps(to: root.appendingPathComponent("props.png"))
             && renderFacts(to: root.appendingPathComponent("facts.png"))
             && renderCostumes(to: root.appendingPathComponent("costumes.gif"))
+            && renderWordmark(to: root.appendingPathComponent("wordmark.png"))
+            && renderSocialPreview(to: root.appendingPathComponent("social-preview.png"))
     }
 
     // MARK: - The hero
@@ -440,15 +442,30 @@ enum ReelRenderer {
     /// up. The long ones are captured mid-travel, because a ticker caught at
     /// its start looks identical to a plain bubble and would prove nothing.
     static func renderFacts(to url: URL) -> Bool {
-        // Frozen offsets chosen so each long line is caught part-way along,
-        // showing different words rather than all starting from the same edge.
+        // Word-aligned freezes. A marquee frozen at an arbitrary instant cuts a
+        // word at the left edge ("pic is a public benefi"), which reads as a
+        // glitch in a product still. Each offset below is the instant the
+        // viewport's left edge lands exactly on a word start:
+        // seconds = (characters before the word) x 6.62pt / 26pt-per-second.
+        // The right edge still cuts — that is what says "this scrolls".
+        //
+        // Lines are drawn from the pools by TEXT, not by index, so a reordered
+        // pool fails the render loudly instead of silently swapping the shot.
         let picked: [(text: String, at: Double)] = [
-            (FunFacts.facts(in: .compSci101).first ?? "A byte is eight bits", 0.4),
-            (FunFacts.facts(in: .claude).first ?? "Claude is named for Shannon", 1.6),
-            (FunFacts.facts(in: .computerScience).first ?? "The first bug was a moth", 3.1),
-            (FunFacts.facts(in: .ai).first ?? "Attention is all you need", 2.2),
-            (FunFacts.facts(in: .aiEngineering).first ?? "Prompts are programs", 4.0),
+            ("A byte is usually eight bits", 0),                                  // plain — sits still
+            ("Anthropic has published Claude's constitution 📜", 0),              // opens on word one
+            ("Claw'd is unofficial fan art, not affiliated with Anthropic 🦀",
+             10 * 6.62 / 26),                                                     // opens on "unofficial"
+            ("Deep Blue beat a reigning world chess champion in 1997 🏆",
+             17 * 6.62 / 26),                                                     // opens on "reigning"
+            ("Andrej Karpathy coined 'vibe coding' in February 2025 ⚡",
+             16 * 6.62 / 26),                                                     // opens on "coined"
         ]
+        // Every line must really be in the pools — the sheet shows what he
+        // says, not marketing copy that resembles it.
+        guard picked.dropFirst().allSatisfy({ FunFacts.all.contains($0.text) }),
+              FunFacts.facts(in: .compSci101).contains(picked[0].text)
+        else { return false }
         let split = (picked.count + 1) / 2
         let columns = [Array(picked.prefix(split)), Array(picked.dropFirst(split))]
         let sheet = HStack(alignment: .top, spacing: 28) {
@@ -473,6 +490,76 @@ enum ReelRenderer {
         }
 
         return SpriteImage.write(SpriteImage.png(of: sheet, scale: 2, isOpaque: true), to: url)
+    }
+
+    // MARK: - The brand
+
+    /// The README's masthead: him, the name, and one sentence, on his sky.
+    ///
+    /// Replaces a plain `<h1>` — a store page opens with a wordmark, not a
+    /// heading. Rendered like every other committed asset (the real rig, the
+    /// real backdrop, byte-reproducible) so the brand is the product rather
+    /// than a graphic that resembles it.
+    static func renderWordmark(to url: URL) -> Bool {
+        let view = ZStack {
+            Backdrop(style: .sky)
+            // A light scrim: the streak crosses the tagline's tail, and white
+            // on the sky's lightest stop is not legible enough for a masthead.
+            Palette.Ocean.abyss.opacity(0.35)
+            HStack(spacing: 22) {
+                PixelCanvasView(buffer: CrabRig.render(
+                                    CrabAnimator.pose(mood: .idle, t: 0, flourishes: false)),
+                                seamBleed: 0)
+                    .frame(width: 96, height: 96)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Claude Pet")
+                        .font(.system(size: 52, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("Your Claude Code sessions, as a crab on your desk")
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                }
+            }
+        }
+        .frame(width: 640, height: 130)
+        return SpriteImage.write(SpriteImage.png(of: view, scale: 2, isOpaque: true), to: url)
+    }
+
+    /// The 1280x640 card social sites unfurl when the repo link is pasted.
+    ///
+    /// GitHub has no API for setting it — the operator uploads this at
+    /// Settings → Social preview. Without one, a LinkedIn or HN paste shows a
+    /// grey auto-card, which is the first impression most people will ever get
+    /// of the project.
+    ///
+    /// The cast is frozen mid-kickflip on purpose: a still has one instant to
+    /// say "this thing is alive", and the trick at its peak is that instant.
+    static func renderSocialPreview(to url: URL) -> Bool {
+        let midFlip = 4.6   // kickflip onset 3.2 + 1.4: board up, eyes squinted
+        let view = ZStack {
+            Backdrop(style: .sky)
+            VStack(spacing: 10) {
+                Text("Claude Pet")
+                    .font(.system(size: 64, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("Your Claude Code sessions, as a crab on your desk")
+                    .font(.system(size: 20, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                HStack(spacing: 8) {
+                    ForEach(Array(costumeCast.enumerated()), id: \.offset) { _, member in
+                        PixelCanvasView(
+                            buffer: CrabRig.render(costumePose(member, at: midFlip),
+                                                   costume: member.costume),
+                            inkOverrides: CostumeStyle.blendedOverrides(from: member.costume,
+                                                                       to: member.costume, u: 1),
+                            seamBleed: 0)
+                            .frame(width: 128, height: 128)
+                    }
+                }
+            }
+        }
+        .frame(width: 640, height: 320)
+        return SpriteImage.write(SpriteImage.png(of: view, scale: 2, isOpaque: true), to: url)
     }
 
     // MARK: - The wardrobe
@@ -502,12 +589,29 @@ enum ReelRenderer {
     static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish, onsets: [Double])] = [
         (.ninja,  .wiggle,   [1.2, 6.4]),
         (.gundam, .kickflip, [3.2]),
-        (.white,  .wiggle,   [2.1, 7.6]),
+        // A wave, not a second wiggle: two crabs doing the same idle reads as
+        // one animation stamped twice, which is the opposite of a wardrobe.
+        (.white,  .wave,     [1.8, 7.4]),
     ]
 
-    /// The line above them. Fixed rather than dealt: a committed asset cannot
-    /// depend on a draw counter and stay byte-reproducible.
-    static let costumeLine = "Claude's constitution cites the UN Declaration"
+    /// What the shared bubble says, beat by beat.
+    ///
+    /// Fixed rather than dealt — a committed asset cannot depend on a draw
+    /// counter and stay byte-reproducible — but no longer one caption for ten
+    /// seconds. The middle beat is the SKATE SHOUT, timed over the kickflip,
+    /// so the strip has a character moment instead of a subtitle; the outer
+    /// beats are Anthropic facts wearing their emoji.
+    ///
+    /// Each marquee beat is long enough for its line to finish scrolling
+    /// (`readSeconds` against the window — asserted in `CostumeStripTests`),
+    /// and each beat's clock restarts at its own zero so a ticker opens on its
+    /// first word rather than mid-sentence. `DemoMode`'s hero beats work the
+    /// same way.
+    static let costumeBeats: [(text: String, from: Double, to: Double)] = [
+        ("Anthropic was founded in 2021 🧡", 0.0, 3.2),
+        ("Tony Clawd 900 🦅", 3.2, 6.2),
+        ("Claude reads images as well as text 👀", 6.2, 10.0),
+    ]
 
     static func renderCostumes(to url: URL) -> Bool {
         // Counted rather than accumulated — same reason as `renderHero`.
@@ -544,12 +648,13 @@ enum ReelRenderer {
     static func costumeScene(at elapsed: Double) -> some View {
         ZStack {
             Backdrop(style: .sky)
+            let beat = costumeBeats.last { elapsed >= $0.from } ?? costumeBeats[0]
             VStack(spacing: 0) {
-                ThoughtBubble(text: costumeLine,
+                ThoughtBubble(text: beat.text,
                               tool: nil,
                               mood: .idle,
-                              style: ActivityCoordinator.bubbleStyle(for: costumeLine),
-                              frozenTime: elapsed)
+                              style: ActivityCoordinator.bubbleStyle(for: beat.text),
+                              frozenTime: elapsed - beat.from)
                 HStack(spacing: 0) {
                     ForEach(Array(costumeCast.enumerated()), id: \.offset) { _, member in
                         PixelCanvasView(

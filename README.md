@@ -1,7 +1,5 @@
 <div align="center">
-  <img src="docs/media/icon-1024.png" width="110" alt="Claude Pet">
-  <h1>Claude Pet 🦀</h1>
-  <p><strong>Claw'd sits on your desktop and shows you what Claude Code is doing.</strong></p>
+  <img src="docs/media/wordmark.png" width="100%" alt="Claude Pet — your Claude Code sessions, as a crab on your desk">
   <img src="docs/media/desktop.gif" width="100%" alt="Claw'd cycling through every state — idle, thinking, working, cooking, waiting on you, done, and the status ticker">
   <p><em>Every state, in order. Rendered from the sprite rig, not screen-recorded.</em></p>
   <p>
