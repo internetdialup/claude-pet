@@ -1,204 +1,172 @@
 <div align="center">
-  <img src="docs/media/icon-1024.png" width="120" alt="Claude Pet">
+  <img src="docs/media/icon-1024.png" width="110" alt="Claude Pet">
   <h1>Claude Pet 🦀</h1>
-  <p><strong>Claw'd lives on your desktop and shows you what Claude Code is doing.</strong></p>
+  <p><strong>Claw'd sits on your desktop and shows you what Claude Code is doing.</strong></p>
   <img src="docs/media/desktop.gif" width="640" alt="Claw'd cycling through every state — idle, thinking, working, cooking, waiting on you, done, and the status ticker">
   <p><em>Every state, in order. Rendered from the sprite rig, not screen-recorded.</em></p>
+  <p>
+    <a href="https://github.com/internetdialup/claude-pet/releases/latest"><strong>⬇️ Download for macOS</strong></a>
+    &nbsp;·&nbsp; <a href="#-build-him-yourself">Build it yourself</a>
+    &nbsp;·&nbsp; <a href="#-what-he-never-does">What he never does</a>
+  </p>
 </div>
 
-## What it is
+## 🙈 The moment you switch windows, Claude goes dark
 
-Claude Code tells you what it is doing inside the terminal. The moment you switch
-to a browser, a design tool, or another repo, that goes dark — and if you run
-several sessions at once, it was never visible in the first place.
+Claude Code tells you what it is doing inside the terminal. Switch to a browser,
+a design tool, or another repo and that goes away — and if you run several
+sessions at once, it was never visible in the first place.
 
-Claude Pet puts it back where you can see it. Claw'd sits on the desktop, always
-on top, and reflects your sessions continuously: what tool is running, what task
-is in progress, which one just finished, and which one is stuck waiting on you.
-No window to check, no tab to switch to. You just glance at him.
+Claw'd puts it back where you can see it. He sits on the desktop, always on top,
+and reflects your sessions continuously: which tool is running, what task is in
+progress, which one just finished, and which one is stuck waiting on you. No
+window to check, no tab to switch to. You glance at him.
 
-He floats above your windows, follows you across Spaces, and can be dragged
-anywhere — including onto a second display. He watches **every** running Claude
-Code session, mirrors whichever one is busiest, and clicking him opens a roster
-of them all so you can pin one.
+He watches **every** running session, mirrors whichever is busiest, and clicking
+him opens a roster of them all.
 
-## The states
-
-Each one is driven by something real on disk, and each says what it is reacting to.
+## 🦀 Eight states, and every one is reading something real
 
 <table>
-<tr><td width="170"><img src="docs/media/working.gif" width="150"></td><td>
+<tr>
+  <td width="150" align="center"><img src="docs/media/working.gif" width="130"><br><strong>Working</strong><br><sub>a tool call is in flight</sub></td>
+  <td width="150" align="center"><img src="docs/media/cooking.gif" width="130"><br><strong>🔥 Cooking</strong><br><sub>8+ tool calls a minute</sub></td>
+  <td width="150" align="center"><img src="docs/media/thinking.gif" width="130"><br><strong>Thinking</strong><br><sub>reasoning, no tool</sub></td>
+  <td width="150" align="center"><img src="docs/media/nudging.gif" width="130"><br><strong>👀 Nudging</strong><br><sub>a plan awaits you</sub></td>
+</tr>
+<tr>
+  <td align="center"><img src="docs/media/done.gif" width="130"><br><strong>Done</strong><br><sub>a turn just ended</sub></td>
+  <td align="center"><img src="docs/media/needsAttention.gif" width="130"><br><strong>Needs you</strong><br><sub>blocked on a prompt</sub></td>
+  <td align="center"><img src="docs/media/idle.gif" width="130"><br><strong>Idle</strong><br><sub>between tasks</sub></td>
+  <td align="center"><img src="docs/media/sleeping.gif" width="130"><br><strong>Asleep</strong><br><sub>nothing running</sub></td>
+</tr>
+</table>
 
-### Working
-A tool call is in flight. He picks up whatever he needs for the job — a scrolling
-terminal, a hard hat, a server rack, a phone, glasses — and swaps it every twenty
-seconds so a long task never looks frozen.
+None of these are decorative. **Cooking** fires on 8+ tool calls a minute or a
+live subagent fan-out — 8 because a measured ordinary session runs a median of 4
+and a 90th percentile of 7, while a fanned-out one runs 22. **Nudging** is an
+exact `ExitPlanMode` with no answer yet. **Thinking** shows three dots rather
+than words, because there is no honest label for that moment.
 
-</td></tr>
-<tr><td><img src="docs/media/cooking.gif" width="150"></td><td>
+## ✨ Nine things he does when nobody asked
 
-### 🔥 Cooking
-Claude is *going*. Triggered by **8+ tool calls in a minute**, or by **live
-subagents** — the on-disk signature of an `ultracode` fan-out. His eyes narrow and
-he catches fire.
+<table>
+<tr>
+  <td width="150" align="center"><img src="docs/media/flourish-jump.gif" width="130"><br><strong>Jump</strong></td>
+  <td width="150" align="center"><img src="docs/media/flourish-stretch.gif" width="130"><br><strong>Stretch</strong></td>
+  <td width="150" align="center"><img src="docs/media/flourish-lookAround.gif" width="130"><br><strong>Look around</strong></td>
+  <td width="150" align="center"><img src="docs/media/flourish-scuttle.gif" width="130"><br><strong>Scuttle</strong></td>
+</tr>
+<tr>
+  <td align="center"><img src="docs/media/flourish-wave.gif" width="130"><br><strong>Wave</strong></td>
+  <td align="center"><img src="docs/media/flourish-wiggle.gif" width="130"><br><strong>Wiggle</strong></td>
+  <td align="center"><img src="docs/media/flourish-kickflip.gif" width="130"><br><strong>Kickflip</strong></td>
+  <td align="center"><img src="docs/media/flourish-varialFlip.gif" width="130"><br><strong>Varial flip</strong></td>
+</tr>
+</table>
 
-*Why 8? Measured from real transcripts: an ordinary session runs a median of 4
-tool calls a minute and a 90th percentile of 7, while a fanned-out workflow runs a
-median of 22. Eight sits in the gap.*
+On a seven-second cycle, but only about seven cycles in ten fire — so the gaps
+stay irregular and he is still most of the time. Land a trick and he says
+something about it. While he waits he also shares what he knows: **76 fun facts**
+across computer science, AI and Claude, plus **16 tips** about Claude Code
+itself, every one checked against the installed build rather than the docs.
 
-</td></tr>
-<tr><td><img src="docs/media/thinking.gif" width="150"></td><td>
+## 👋 He notices you
 
-### Thinking
-Claude is reasoning — `thinking` blocks with no tool running. The bubble shows
-three pulsing dots rather than words, because there is no honest label for that
-moment and repeating the last thing he did would be a lie.
+<table>
+<tr><td width="150"><img src="docs/media/hover-wink.gif" width="70"><img src="docs/media/hover-hop.gif" width="70"><br><img src="docs/media/hover-wave.gif" width="70"><img src="docs/media/hover-wiggle.gif" width="70"></td><td>
 
-</td></tr>
-<tr><td><img src="docs/media/nudging.gif" width="150"></td><td>
+**Hover him** and he reacts — a wink, a little jump, a wave or a wiggle, picked
+once per hover so it holds while you stay. He stirs even when asleep.
 
-### 👀 Nudging
-A plan is written and Claude is blocked on **you**. Detected exactly: an
-`ExitPlanMode` call with no answer yet. He holds out the plan, leans in, taps a
-foot, and waits.
+**Click him** and he squashes down, then the roster opens. **Press and hold** to
+pet him and hearts rise. **Poke him three times quickly** for something else. 🎉🪄
 
-</td></tr>
-<tr><td><img src="docs/media/done.gif" width="150"></td><td>
-
-### Done
-A turn just ended. Arms up, green check, ✅ 🥳 🎉 — then he settles back to idle
-after a few seconds, because finishing is a moment, not a status.
-
-</td></tr>
-<tr><td><img src="docs/media/needsAttention.gif" width="150"></td><td>
-
-### Needs you
-A permission prompt is waiting. He waves both arms, bounces, and chirps. This is
-the only state that gets to be loud, and the only one that needs hooks installed —
-permission prompts are not written to the transcript.
-
-</td></tr>
-<tr><td><img src="docs/media/idle.gif" width="150"></td><td>
-
-### Idle
-Sessions are live but Claude is between tasks. He cheers you on, and every so
-often scrolls a status ticker instead — the model answering, how many sessions are
-live, how long you have been coding today, the project and branch. Every few
-seconds he does something unprompted: a jump, a stretch, a look around.
-
-</td></tr>
-<tr><td><img src="docs/media/sleeping.gif" width="150"></td><td>
-
-### Asleep
-Nothing is running. He shuts his eyes, tips his head, and breathes — and the render rate
-drops so an idle pet costs an idle machine nothing.
+**Drag him** anywhere, including onto a second display — he remembers where.
 
 </td></tr>
 </table>
 
-### Idle flourishes
-
-Nine unprompted little things, on a seven-second cycle — but only about seven
-cycles in ten fire, so the gaps stay irregular and he is still most of the time.
-Each one is picked per window and played through as a shape rather than a
-frequency, so it never stutters halfway.
-
-<table>
-<tr>
-  <td width="170" align="center"><img src="docs/media/flourish-jump.gif" width="140"><br><strong>Jump</strong></td>
-  <td width="170" align="center"><img src="docs/media/flourish-stretch.gif" width="140"><br><strong>Stretch</strong></td>
-  <td width="170" align="center"><img src="docs/media/flourish-lookAround.gif" width="140"><br><strong>Look around</strong></td>
-</tr>
-<tr>
-  <td align="center"><img src="docs/media/flourish-scuttle.gif" width="140"><br><strong>Scuttle</strong></td>
-  <td align="center"><img src="docs/media/flourish-wave.gif" width="140"><br><strong>Wave</strong></td>
-  <td align="center"><img src="docs/media/flourish-wiggle.gif" width="140"><br><strong>Wiggle</strong></td>
-</tr>
-<tr>
-  <td align="center"><img src="docs/media/flourish-kickflip.gif" width="140"><br><strong>Kickflip</strong></td>
-  <td align="center"><img src="docs/media/flourish-varialFlip.gif" width="140"><br><strong>Varial flip</strong></td>
-  <td align="center"><img src="docs/media/flourish-cruise.gif" width="140"><br><strong>Cruise</strong></td>
-</tr>
-</table>
-
-Land a trick and he says something about it.
-
-## Interactions
-
-<table>
-<tr><td width="170"><img src="docs/media/hover-wink.gif" width="75"><img src="docs/media/hover-hop.gif" width="75"><br><img src="docs/media/hover-wave.gif" width="75"><img src="docs/media/hover-wiggle.gif" width="75"></td><td>
-
-### Hover him
-He notices you and reacts — randomised between a **wink**, a **little jump**, a
-**wave**, and a **wiggle**. Picked once per hover, so it holds for as long as you
-stay. He stirs even when asleep.
-
-</td></tr>
-<tr><td><img src="docs/media/hover-hop.gif" width="150"></td><td>
-
-### Click him
-He squashes down, then the session roster opens. Drag him instead and the
-reaction is suppressed — a click that moved him is a move.
-
-Poke him three times quickly for something else. 🎉🪄
-
-</td></tr>
-<tr><td><img src="docs/media/party.gif" width="150"></td><td>
-
-### 🎉🪄 The party
-Three quick pokes and he throws one. **Pose and colour both cycle** for four
-seconds — cycling colour alone reads as a recolour, cycling the pose too reads as
-a celebration — then he goes back to reporting reality.
-
-</td></tr>
-</table>
-
-## The roster
-
-Clicking him opens every live session at once: what each is doing, which project
-it is in, and which one he is currently mirroring. Click a row to pin him to that
-session; click it again to go back to following the busiest.
+## 📋 Every session at once
 
 <div align="center">
-  <img src="docs/media/roster.png" width="360" alt="The session roster: three live sessions with status dots, activities and project names, one pinned">
+  <img src="docs/media/roster.png" width="340" alt="The session roster: three live sessions with status dots, activities and project names, one pinned">
 </div>
 
 <p align="center"><em>These sessions are invented. The real panel lists your
 actual project directories — which is exactly why the picture does not.</em></p>
 
-## Installing
+Click a row to pin him to that session; click again to go back to following the
+busiest. Summon a **second pet** from the menu bar and the two park beside each
+other without their speech bubbles ever overlapping.
 
-Download the **`.dmg`** from
-[Releases](https://github.com/internetdialup/claude-pet/releases), open it, and
-drag Claw'd to Applications.
+## 🗣️ Make him say your words
 
-**Requires macOS 14 or later on Apple silicon.** The build is arm64-only —
-there is no Intel binary.
+Everything Claw'd says lives in **one file** — no strings scattered through the
+codebase, no config format to learn. Open
+[`Sources/ClaudePet/Support/vocab.swift`](Sources/ClaudePet/Support/vocab.swift),
+change the strings, rebuild:
 
-> **First launch shows "unidentified developer".** This is expected. The app is
-> ad-hoc signed and deliberately **not** notarized — notarizing would publish the
-> author's legal name and Apple Team ID inside every copy.
+```swift
+// 💬 Between tasks. Encouragement, mostly.
+case .idle: [
+    "Let's build something awesome!",
+    "your line here",          // ← add as many as you like
+]
+```
+
+Rules let him say something specific when a task matches a pattern — a commit
+joke for `git commit`, your own line for `deploy`. Keep lines under **28
+characters** and they sit still; longer ones scroll past as a ticker.
+
+**→ [The full guide to writing his lines](docs/writing-his-lines.md)**
+
+## ⬇️ Get him on your desktop
+
+**[Download the latest `.dmg`](https://github.com/internetdialup/claude-pet/releases/latest)**,
+open it, drag Claw'd to Applications.
+
+**Requires macOS 14 or later on Apple silicon.** There is no Intel build.
+
+> **First launch says "unidentified developer".** That is expected, and
+> deliberate: notarizing would publish the author's legal name and Apple Team ID
+> inside every copy. The one command that works on every version of macOS:
 >
-> The one command that works on every version of macOS:
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/ClaudePet.app
 > ```
 >
-> Prefer to stay in the UI? Open it once and dismiss the warning, then go to
-> **System Settings → Privacy & Security** and click **Open Anyway** next to the
-> message about ClaudePet. On **macOS 14** you can instead right-click the app →
-> **Open** → **Open**; macOS 15 removed that shortcut, so on Sequoia and later
-> use one of the two above.
+> Prefer the UI? Open it once, dismiss the warning, then **System Settings →
+> Privacy & Security → Open Anyway**. On macOS 14 you can right-click → **Open**
+> instead; macOS 15 removed that shortcut.
 >
-> If you would rather not run someone else's binary at all — completely fair —
-> [build it yourself](#building-it-yourself). It takes about thirty seconds.
+> Rather not run someone else's binary? Entirely fair —
+> [build it yourself](#-build-him-yourself), it takes about thirty seconds.
 
 **Claw'd has no Dock icon.** He lives in the menu bar: click the little crab
-there for size, sounds, notifications, **Open at login**, session pinning, and
-hook installation. He reappears wherever you last dragged him, on whichever
-display you left him on.
+there for size, sounds, **Open at login**, costumes, session pinning, a second
+pet, and hook installation.
 
-## Building it yourself
+## 🔒 What he never does
+
+This app reads your live Claude Code session data. That earns you a specific
+account of what it does with it, not a privacy badge.
+
+- **No network. At all.** There is no `URLSession`, no socket, no analytics, no
+  update check, and zero dependencies. Verifiable in one grep — which is most of
+  why this repo is public.
+- **Read-only on everything Claude Code owns.** He never writes to `sessions/`,
+  `projects/` or `tasks/`. The file watcher opens with `O_EVTONLY`, a descriptor
+  that *cannot* write.
+- **He never reads a transcript whole.** A bounded tail off the end. Measured on
+  a 92 MB file: 21 events in 0.006s, 426 KB of memory.
+- **One writer, and you press it.** "Install Claude hooks…" is the only thing
+  that touches `settings.json`. It backs up first, merges without destroying
+  your existing hooks, preserves file permissions, and refuses rather than
+  resets if the file will not parse.
+- **Nothing leaves your machine**, because nothing can.
+
+## 🔨 Build him yourself
 
 ```bash
 git clone https://github.com/internetdialup/claude-pet.git
@@ -206,225 +174,25 @@ cd claude-pet
 ./run.sh
 ```
 
-That builds the executable, assembles `build/ClaudePet.app`, ad-hoc signs it, and
+That builds the executable, assembles `build/ClaudePet.app`, ad-hoc signs it and
 launches it. Requires macOS 14+ on Apple silicon and a Swift 6 toolchain
-(Xcode 16.4 or newer).
+(Xcode 16.4 or newer). No package manager, no dependencies.
 
-```bash
-swift build --product ClaudePet    # build just the app
-swift test                          # unit tests; synthetic fixtures, never touches ~/.claude/
-./scripts/make-icon.sh              # regenerate the app icon from the sprite rig
-./scripts/make-dmg.sh               # build the installer
-```
-
-The offline render modes, useful when working on it:
-
-```bash
-.build/debug/ClaudePet --render-sheet out.png   # contact sheet of every mood and prop
-.build/debug/ClaudePet --render-gif docs/media  # the GIFs above
-.build/debug/ClaudePet --probe                  # print the PetState from your real sessions
-.build/debug/ClaudePet --probe 320               # ...after watching for 320s, past the decay horizons
-.build/debug/ClaudePet --render-reel docs/media # the hero GIF, roster, bubbles and props
-.build/debug/ClaudePet --render-marketing out/  # large transparent stills and loops
-```
-
-## 🗣️ Make him say your words
-
-Everything Claw'd says lives in **two files** — no strings scattered through the
-codebase, no localisation framework, no config format to learn:
-
-| | File | Holds |
-| :---: | :--- | :--- |
-| 💬 | [`Support/vocab.swift`](Sources/ClaudePet/Support/vocab.swift) | What he says in the **speech bubble** |
-| 🔔 | [`Support/notification-nudge.swift`](Sources/ClaudePet/Support/notification-nudge.swift) | What the **macOS banners** say |
-
-Both are the same shape — an exhaustive `switch` returning `[String]` — so
-learning one teaches the other. Edit the arrays, run `./run.sh`, and he says
-your words instead.
-
-| | Occasion | When he says it | Ships with |
-| :---: | :--- | :--- | :--- |
-| 💬 | `.idle` | Sessions are live but Claude is between tasks | *"Let's build something awesome!"* · *"Ooo that's a spicy idea 🌶️"* |
-| 💭 | `.thinking` | Reasoning, no tool running | *"Thinking it through"* · *"Give me a second"* |
-| ⚙️ | `.working` | A tool is in flight | *"On it"* · *"This is the fun part"* |
-| 🔥 | `.cooking` | Going hard — rapid calls, or a subagent fan-out | *"Absolutely cooking 🔥"* · *"Do not disturb"* |
-| 👀 | `.planReady` | A plan is up and he wants your verdict | *"Plan's ready 👀"* · *"Shall we?"* |
-| ✅ | `.finished` | A turn just ended | *"Nailed it"* · *"That's a wrap 🎬"* · *"Chef's kiss"* |
-| ‼️ | `.needsYou` | Claude is blocked on you — usually a permission prompt | *"Psst — I need you"* · *"One quick question"* |
-| 😴 | `.sleeping` | Nothing is running at all | *"zzz…"* · *"Resting my claws"* |
-
-### 🥇 What wins, when several could apply
-
-This is the one thing worth reading before you edit, because otherwise it looks
-like your lines are being ignored:
-
-| | Precedence | Example |
-| :---: | :--- | :--- |
-| 1️⃣ | A **rule** matching the current task | `git commit …` → *"Committing the good stuff 📦"* |
-| 2️⃣ | The **real task text**, whenever there is one | *"Running the test suite"* |
-| 3️⃣ | The **state's lines** | *"This is the fun part"* |
-
-Rank 2️⃣ is deliberate: while Claude is actually running something, the bubble
-shows what it is running. A pet that hides *"Running the test suite"* behind a
-joke is a worse pet. So your `.working` and `.cooking` lines fill the **gaps
-between tools** rather than replacing anything useful, and `.sleeping` speaks
-only occasionally — a sleeping pet that talks constantly is not asleep.
-
-### ✏️ Editing lines
-
-Find the occasion, change the strings. That is the whole job:
-
-```swift
-// 💬 Between tasks. Encouragement, mostly.
-case .idle: [
-    "Let's build something awesome!",
-    "Now we're cooking with crisco 🍳",
-    "your line here",          // ← add as many as you like
-]
-```
-
-### 🎯 Custom sentences for particular work
-
-Rules let him say something specific when the task matches a pattern. The first
-match wins, so put the specific ones first:
-
-```swift
-public static let rules: [VocabRule] = [
-    VocabRule(#"\btest(s|ing)?\b"#, [
-        "Writing tests, the good kind 🧪",
-        "Red, green, refactor",
-    ]),
-    VocabRule(#"\bdeploy\b"#, ["Shipping it 🚀"]),   // ← yours here
-]
-```
-
-| | Ships with | Fires on |
-| :---: | :--- | :--- |
-| 🧪 | tests | `test`, `tests`, `testing` |
-| 📦 | commits | `commit`, `git` |
-| 🔍 | debugging | `fix`, `bug`, `debug` |
-| 📝 | docs | `README`, `doc`, `docs`, `document` |
-
-Patterns are case-insensitive regular expressions. **A pattern that doesn't
-compile is skipped, not fatal** — a typo in your vocabulary should never take
-the pet down.
-
-### ➕ Adding a whole new occasion
-
-Add a `case` to `ShoutoutOccasion` and **the build will fail until you give it
-lines**. That is deliberate — `lines(for:)` is a `switch`, not a dictionary, so
-the compiler catches a half-added occasion instead of Claw'd silently saying
-nothing at runtime.
-
-### 📏 Two rules worth knowing
+## 📚 More
 
 | | |
 | :--- | :--- |
-| **Keep it short** | The bubble cuts off at **28 characters** — it caps at 210pt, and 28 is what fits, measured by rendering a ruler rather than divided out of the nominal advance. A test enforces it, with a short allowlist of existing lines that run one or two over: a renderer deciding a sentence is a character too wide is not a reason to rewrite someone's voice. |
-| **Emoji are welcome** | They render fine — but count each as **two** characters, since they draw about twice as wide. 🍳 🌶️ 🎬 all ship by default. |
-| **He deals a deck** | Lines are dealt like a shuffled deck: every line is used once before any repeats, and the shuffle is reseeded each pass. A plain random pick would show one line four times and another never. |
+| 🗣️ | [Writing his lines](docs/writing-his-lines.md) — the vocabulary, rules and banner copy |
+| 🔍 | [How he knows](docs/how-he-knows.md) — what on disk drives each state |
+| 🎨 | [The art](docs/the-art.md) — one 32×32 rig, no sprite sheets |
+| 📋 | [Changelog](CHANGELOG.md) |
+| 🤝 | [Contributing](CONTRIBUTING.md) |
+
+---
 
 <div align="center">
-  <img src="docs/media/bubbles.png" width="440" alt="One speech bubble per state, each with its own fill colour and glyph">
+  <img src="docs/media/props.png" width="720" alt="All seventeen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and three skateboards">
+  <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
+  <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
+  MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>
 </div>
-
-<p align="center"><em>One bubble per state. The fill, the glyph and the text all
-come from the two files above.</em></p>
-
-### 🔔 What the banners say
-
-Same idea, second file. `notification-nudge.swift` holds the title and body for
-each banner, and Claw'd's own icon rides along with it:
-
-| | Event | Fires when | Default |
-| :---: | :--- | :--- | :---: |
-| ✅ | `.finished` | A turn ends while you are looking elsewhere | **on** |
-| ‼️ | `.needsYou` | Claude is blocked on you | **on** |
-| 👀 | `.planReady` | A plan is waiting for approval | **on** |
-| 🔥 | `.cooking` | A session starts really going | **off** |
-
-`.cooking` ships off because it fires often; turn it on from the menu bar under
-**Notify when cooking 🔥**. All four respect the master **Notifications** toggle.
-
-Banner copy has a tighter budget than the bubble: **titles under 40 characters,
-bodies under 80**, because macOS truncates. The session name is appended for
-you, so don't repeat it. A test enforces both limits.
-
-Selection is driven by a **seed, never `random()`** — the bubble is recomputed on
-a timer, so a real RNG would rewrite the sentence out from under you mid-read.
-
-## How it knows
-
-Claude Code already writes everything needed, and the pet only reads it:
-
-| Source | What it gives |
-| :--- | :--- |
-| `~/.claude/sessions/<pid>.json` | Live session registry. The filename is the PID, so liveness is `kill(pid,0)` **plus** a `procStart` match to guard PID reuse. |
-| `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | The transcript. `tool_use` blocks give the running tool and its description; `thinking` blocks and `stop_reason` give the rest. Also the model and git branch. |
-| `~/.claude/tasks/<id>/*.json` | Todos. The in-progress item's `activeForm` is already phrased for a human, so it wins the bubble. |
-| Hooks (optional) | `PreToolUse` / `PostToolUse` / `Stop` / `Notification` for sub-100ms reactions, and the only way to see a permission prompt. |
-
-Filesystem watching is the ground truth; hooks are a latency optimisation on top.
-That ordering is deliberate — hooks are blind to sessions that started before
-they were installed, so the pet has to be correct without them.
-
-### About the usage percentages
-
-While idle, Claw'd rotates encouragement with a status ticker: the model
-answering, how many sessions are live, how long you have been coding today, and
-the project and branch.
-
-**The weekly and 5-hour usage lines will probably not appear.** Claude Code no
-longer publishes rate-limit percentages to disk, and this app will not invent a
-number it cannot measure. The code reads the usage cache and freshness-gates it,
-so those lines light up on their own if the data ever comes back. An empty line
-is the honest answer; a made-up percentage is not.
-
-## What it will not do
-
-`~/.claude/` is your live working data. The rules:
-
-- **Read-only** for everything Claude Code owns — sessions, transcripts, todos,
-  settings. The pet writes in exactly two places, neither of which is Claude's
-  data: its own event drop-directory `~/.claude/claude-pet-events/`, and the hook
-  installer, which is user-initiated from the menu bar, shows you the exact
-  change first, and copies `settings.json` to `settings.json.bak.<timestamp>`
-  before writing.
-- **Every read is a bounded tail.** Transcripts reach 85 MB; a full read is a
-  hang, not a slow path.
-- **No network. At all.** `Package.swift` has an empty `dependencies` array,
-  which makes that checkable rather than promised. Nothing is uploaded, no
-  telemetry, no analytics, no crash reporting.
-- Tests never touch `~/.claude/`.
-
-## The art
-
-Claw'd is Anthropic's mascot. He is **drawn, not imported** — a parametric rig
-rasterised into a 32×32 indexed buffer each frame
-([`Sources/ClaudePet/View/`](Sources/ClaudePet/View/)). Flat colour, no outline,
-no shading ramp, whole-pixel motion. He is not a sprite sheet, so a new pose is a
-few numbers rather than a new asset, and the app icon is rendered from the same
-rig so the two can never drift apart.
-
-<div align="center">
-  <img src="docs/media/props.png" width="768" alt="All seventeen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and three skateboards">
-</div>
-
-<p align="center"><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
-
-This project is unofficial and not affiliated with or endorsed by Anthropic.
-MIT — see [LICENSE](LICENSE); the trademark and character-design note is in
-[NOTICE.md](NOTICE.md).
-
-## Version history
-
-See [CHANGELOG.md](CHANGELOG.md).
-
-## Contributing
-
-Two rules worth knowing before you open a PR:
-
-1. **Exit codes are the evidence.** "It builds" needs `swift build` exiting 0.
-2. **Never read a transcript whole.** Bounded tails only.
-
-MIT licensed.

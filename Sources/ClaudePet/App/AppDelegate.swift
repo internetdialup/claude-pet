@@ -156,7 +156,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         primary.model.costume = Preferences.shared.costume
         primary.startFilmWatch()
 
-        Notifier.center?.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        // The answer is RECORDED, not discarded. Thrown away, it left a
+        // checked "Notifications" row and a README table promising four
+        // banners that could never fire — see `NotificationGrant` for why an
+        // ad-hoc signed app is never granted them.
+        Notifier.center?.requestAuthorization(options: [.alert, .sound]) { ok, _ in
+            Task { @MainActor [weak self] in
+                NotificationGrant.record(ok)
+                self?.menuBar?.refresh()      // relabel now the answer is known
+            }
+        }
 
         if CommandLine.arguments.contains("--demo") {
             startDemo()
