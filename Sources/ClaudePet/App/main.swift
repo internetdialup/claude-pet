@@ -4,6 +4,28 @@ import AppKit
 // used to review the art without a display session.
 let arguments = CommandLine.arguments
 
+// Argument hygiene, before any flag is honoured. Two silent failure modes the
+// battery caught:
+//  - a render flag with NO value fell through every `index + 1 < count` guard
+//    and launched the GUI — a script typo started an invisible pet reading the
+//    live ~/.claude and blocking forever;
+//  - an EMPTY value resolved to the current directory via
+//    `URL(fileURLWithPath: "")`, so `--render-plates ""` dumped 49 MB wherever
+//    the shell happened to be standing, and reported success.
+// A tool that cannot do what was asked says so and exits 2.
+let renderFlags = arguments.filter { $0.hasPrefix("--render-") }
+for flag in renderFlags {
+    guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else {
+        FileHandle.standardError.write(Data("\(flag) needs an output path\n".utf8))
+        exit(2)
+    }
+    let value = arguments[index + 1]
+    guard !value.isEmpty, !value.hasPrefix("--") else {
+        FileHandle.standardError.write(Data("\(flag) needs an output path, got \(value.isEmpty ? "an empty string" : value)\n".utf8))
+        exit(2)
+    }
+}
+
 if let index = arguments.firstIndex(of: "--render-sheet"), index + 1 < arguments.count {
     let path = arguments[index + 1]
     let ok = MainActor.assumeIsolated { SpriteSheetRenderer.renderSheet(to: path) }

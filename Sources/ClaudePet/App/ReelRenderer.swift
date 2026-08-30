@@ -71,18 +71,15 @@ enum ReelRenderer {
     /// Both aspects run the same clock and the same beats, so the timing cannot
     /// drift between cuts.
     static func encodeReel<V: View>(to url: URL, scene: (Double) -> V) -> Bool {
+        // STREAMED, one frame in flight. Buffering all 450 3x frames into an
+        // array peaked at 2.37 GB RSS — measured — while the strictly heavier
+        // sizzle render sat under 700 MB because it already used this
+        // overload. The array bought nothing but the footprint.
         let count = Int((DemoMode.reelSeconds * Double(verticalFPS)).rounded())
-        var images: [CGImage] = []
-        images.reserveCapacity(count)
-
-        for index in 0..<count {
-            let elapsed = Double(index) / Double(verticalFPS)
-            guard let image = SpriteImage.cgImage(of: scene(elapsed),
-                                                  scale: verticalScale, isOpaque: true)
-            else { return false }
-            images.append(image)
+        return VideoWriter.write(to: url, fps: verticalFPS, frameCount: count) { index in
+            SpriteImage.cgImage(of: scene(Double(index) / Double(verticalFPS)),
+                                scale: verticalScale, isOpaque: true)
         }
-        return VideoWriter.write(images, to: url, fps: verticalFPS)
     }
 
     /// A still from the reel, for the cover frame social platforms ask for.

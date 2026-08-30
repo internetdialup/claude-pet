@@ -565,6 +565,25 @@ enum SizzleRenderer {
                                                  fmt: fmt).opacity(caption))
     }
 
+    /// One high-energy pose per montage look, each at a small local t so its
+    /// one-shots actually fire on camera.
+    ///
+    /// EXACTLY as long as `SizzleScript.montageOrder`, and a test holds the two
+    /// together. This table sat at eight entries while the order grew to ten:
+    /// the montage clock hid it (Arcade and Classic simply never rendered), and
+    /// the obvious clock fix alone would have subscripted past the end and
+    /// trapped. The clock is derived from the order now, so this array is the
+    /// only place left for the drift to hide — hence the test.
+    static let montageMoods: [(PetMood, Double)] = [
+        (.done, 0.3), (.working, SizzleScript.workBase + 1.0), (.nudging, 0.5),
+        (.cooking, SizzleScript.cookBase + 1.0), (.done, 0.2), (.thinking, 1.0),
+        (.needsAttention, 0.3), (.done, 0.4),
+        // Arcade glows from inside, so the screen-lit working pose; and the
+        // Classic closer is CALM on purpose — it is the loop seam, and the
+        // reel wraps back to a resting crab.
+        (.working, SizzleScript.workBase + 2.0), (.idle, 1.0),
+    ]
+
     private static func montageScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .montage, t: t, fmt: fmt)
         let order = SizzleScript.montageOrder
@@ -574,14 +593,7 @@ enum SizzleRenderer {
         let to = order[beat]
         let u = Ease.smoothstep(min(1, beatT / 0.35))
 
-        // A different high-energy pose per look, each at a small local t so
-        // its one-shots actually fire on camera.
-        let moods: [(PetMood, Double)] = [
-            (.done, 0.3), (.working, SizzleScript.workBase + 1.0), (.nudging, 0.5),
-            (.cooking, SizzleScript.cookBase + 1.0), (.done, 0.2), (.thinking, 1.0),
-            (.needsAttention, 0.3), (.done, 0.4),
-        ]
-        let (mood, base) = moods[beat]
+        let (mood, base) = Self.montageMoods[min(beat, Self.montageMoods.count - 1)]
         let tagOpacity = Ease.window(beatT, duration: 1.0, edge: 0.25)
         return chapterLayout(
             fmt: fmt, camera: camera,
