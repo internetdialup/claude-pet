@@ -97,7 +97,7 @@ pet him and hearts rise. **Poke him three times quickly** for something else. �
 ## 👕 Ten costumes, and every one of them moves
 
 <div align="center">
-  <img src="docs/media/costumes.gif" width="100%" alt="Three Claw'ds side by side — ninja, Gundam and Arctic White — the middle one landing a kickflip while a fun fact scrolls above them">
+  <img src="docs/media/costumes.gif" width="100%" alt="Claw'd front and centre landing a kickflip and shouting about it, Gundam reading an Anthropic fact on his left, the ninja thinking silently on his right">
 </div>
 
 Pick one from the menu bar. They are not recolours: Frankenstein has bolts at
