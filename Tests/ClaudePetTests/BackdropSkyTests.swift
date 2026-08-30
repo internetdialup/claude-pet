@@ -7,6 +7,13 @@ import AppKit
 /// The hero's sky: the operator's own art, quantised to the grid the crab is
 /// drawn on, with the procedural basin still underneath it.
 @Suite("Backdrop sky")
+// `@MainActor` written down rather than inferred. `Backdrop` conforms to
+// `View`, and Swift 6.1 — which is what CI runs — pushes that isolation onto
+// the struct's init and instance methods, while 6.3 on this machine does not.
+// So this compiled locally and failed on the runner with "call to main
+// actor-isolated instance method ... in a synchronous nonisolated context".
+// Same trap `ThoughtBubble` and `ReelDeterminismTests` already carry notes about.
+@MainActor
 struct BackdropSkyTests {
 
     /// The baked picture has to match the sprite's grid, or it stops being the
