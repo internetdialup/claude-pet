@@ -813,10 +813,20 @@ public enum CrabAnimator {
     ///     and falls after it leaves, so the greeting eases out through the
     ///     same shapes it eased in through instead of vanishing in one frame.
     ///     Continuous channels scale by it; discrete flips gate at 0.4.
+    ///   - variant: names the reaction outright, for callers that want a
+    ///     PARTICULAR one rather than whichever the seed lands on. `nil` keeps
+    ///     the seed's answer, which is what hovering wants.
+    ///
+    ///     The alternative was searching for a seed that happens to resolve to
+    ///     the wanted variant — `GifRenderer` does exactly that, five hundred
+    ///     iterations of it, and that search is the reason this parameter
+    ///     exists. Asking for `.wave` should not require solving for `.wave`.
     public static func applyGreeting(elapsed: Double, seed: Int = 0,
-                                     amount: Double = 1, to pose: inout CrabPose) {
+                                     amount: Double = 1,
+                                     variant: Greeting? = nil,
+                                     to pose: inout CrabPose) {
         guard amount > 0.001 else { return }
-        let greeting = greeting(forSeed: seed)
+        let greeting = variant ?? greeting(forSeed: seed)
         let engaged = amount >= 0.4
 
         // A startled hop on arrival, common to every variant — he noticed you.
@@ -1243,6 +1253,16 @@ public struct CrabView: View {
     /// Reference-time instant the pointer left, while the greeting eases out.
     /// `hoverSince` stays set through the release so the envelope has both ends.
     public var hoverEndedAt: Double?
+    /// Reference-time instant the first-run hello began, or nil.
+    ///
+    /// The same greeting the pointer gets, fired once on the very first launch
+    /// so a new arrival is introduced to rather than merely rendered at. Its
+    /// end is scheduled up front rather than waiting on a pointer leaving,
+    /// which is the only way this differs from a hover.
+    public var helloSince: Double?
+    /// When that hello starts easing out. Set at the same moment as
+    /// `helloSince`, because nothing else will come along to end it.
+    public var helloEndedAt: Double?
     /// Reference-time instant he was last clicked, or nil.
     public var clickedAt: Double?
     /// Reference-time instant rainbow mode began, or nil. 🎉🪄
@@ -1302,6 +1322,8 @@ public struct CrabView: View {
                 taskFraction: Double? = nil,
                 hoverSince: Double? = nil,
                 hoverEndedAt: Double? = nil,
+                helloSince: Double? = nil,
+                helloEndedAt: Double? = nil,
                 clickedAt: Double? = nil,
                 rainbowSince: Double? = nil,
                 petSince: Double? = nil,
@@ -1327,6 +1349,8 @@ public struct CrabView: View {
         self.taskFraction = taskFraction
         self.hoverSince = hoverSince
         self.hoverEndedAt = hoverEndedAt
+        self.helloSince = helloSince
+        self.helloEndedAt = helloEndedAt
         self.clickedAt = clickedAt
         self.rainbowSince = rainbowSince
         self.petSince = petSince
@@ -1572,8 +1596,15 @@ public struct CrabView: View {
             // mood rate renders a 0.34s shrink as two frames in `.sleeping`.
             // `hoverSince` stays set through the greeting's ease-out, so the
             // release renders at the reaction rate too instead of at 6fps.
+            //
+            // `helloSince` belongs here for a sharper reason than the rest: the
+            // first launch has no sessions, so the mood underneath the hello is
+            // idle or asleep — and asleep renders at 6fps. Left out, the one
+            // animation a new user is guaranteed to see would be the choppiest
+            // thing the app ever draws.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
                 || petSince != nil || pouncedAt != nil || snackSince != nil
+                || helloSince != nil
             let interval = CrabView.tickInterval(unseen: unseen, reacting: reacting,
                                                  mood: frameInterval)
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
@@ -1688,6 +1719,19 @@ public struct CrabView: View {
                                        amount: Ease.amount(now: time,
                                                            since: hoverSince,
                                                            endedAt: hoverEndedAt),
+                                       to: &pose)
+        }
+        // The first-run hello. Deliberately AFTER the hover block, so someone
+        // whose pointer is already on him during the greeting gets one coherent
+        // reaction rather than two fighting over the same channels — and `.wave`
+        // is named rather than rolled, because a hello that came out a wink
+        // would not read as a hello.
+        if let helloSince, frozenTime == nil {
+            CrabAnimator.applyGreeting(elapsed: time - helloSince,
+                                       amount: Ease.amount(now: time,
+                                                           since: helloSince,
+                                                           endedAt: helloEndedAt),
+                                       variant: .wave,
                                        to: &pose)
         }
         if let petSince, frozenTime == nil {

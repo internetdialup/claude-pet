@@ -117,13 +117,22 @@ public struct PetRootView: View {
             ZStack {
                 // A transient line (the pounce one-liner) outranks the state's
                 // bubble and may appear even while he sleeps.
-                let transient = model.transientBubble.flatMap { $0.until > Date() ? $0.text : nil }
+                let live = model.transientBubble.flatMap { $0.until > Date() ? $0 : nil }
+                let transient = live?.text
                 let stateText = model.state.mood != .sleeping ? model.state.bubble : nil
                 if let text = transient ?? stateText, !text.isEmpty {
                     ThoughtBubble(
                         text: text,
                         tool: transient == nil ? model.state.tool : nil,
-                        mood: transient == nil ? model.state.mood : .done,
+                        // A transient wears its OWN mood's styling rather than
+                        // the live one, because it is not reporting the live
+                        // one — but which mood is now the caller's to say. It
+                        // was hardcoded `.done` while every transient was a
+                        // celebration, and `.done`'s glyph is a checkmark: fine
+                        // in front of "Bug fixed", wrong in front of a hello,
+                        // where it reads as a notification rather than a
+                        // greeting.
+                        mood: transient == nil ? model.state.mood : (live?.mood ?? .done),
                         // A transient used to be forced `.plain`, which was
                         // fine while every one of them was a short pounce line.
                         // The skate lines are not: one of them is 31 columns
@@ -217,6 +226,8 @@ public struct PetRootView: View {
                     taskFraction: model.state.taskFraction,
                     hoverSince: model.hoverStartedAt?.timeIntervalSinceReferenceDate,
                     hoverEndedAt: model.hoverEndedAt?.timeIntervalSinceReferenceDate,
+                    helloSince: model.helloStartedAt?.timeIntervalSinceReferenceDate,
+                    helloEndedAt: model.helloEndedAt?.timeIntervalSinceReferenceDate,
                     clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,
                     rainbowSince: model.rainbowStartedAt?.timeIntervalSinceReferenceDate,
                     petSince: model.pettingStartedAt?.timeIntervalSinceReferenceDate,
@@ -617,11 +628,21 @@ public final class PetViewModel: ObservableObject {
     @Published public var pettingEndedAt: Date?
     /// A floor bug was just caught.
     @Published public var pouncedAt: Date?
+    /// The first-run hello — the one wave a brand-new install gets.
+    /// Two-ended like hover, but both ends are set at once: nothing
+    /// comes along later to finish it the way a pointer leaving does.
+    @Published public var helloStartedAt: Date?
+    @Published public var helloEndedAt: Date?
     /// The sleeping-click shrimp snack began.
     @Published public var snackStartedAt: Date?
     /// A short-lived line that outranks the state's bubble — the pounce
-    /// one-liner. Cleared by its own deadline.
-    @Published public var transientBubble: (text: String, until: Date)?
+    /// one-liner, the skate shout, the first-run hello. Cleared by its own
+    /// deadline.
+    ///
+    /// `mood` is the styling it wears, not a claim about what he is doing:
+    /// `.done` for the celebrations, `.idle` for the greeting, which is the
+    /// same green without the checkmark.
+    @Published public var transientBubble: (text: String, until: Date, mood: PetMood)?
     /// The completion badge's identity and appearance latches, managed by
     /// AppDelegate from published state changes.
     @Published public var badgeCompletionAt: Date?

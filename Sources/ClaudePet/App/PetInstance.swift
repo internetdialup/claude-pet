@@ -87,6 +87,8 @@ final class PetInstance {
     private var bugCursor = LineCursor()
     /// …and for the line he shouts after a skate beat.
     private var skateCursor = LineCursor()
+    /// …and for the one introduction a fresh install ever gets.
+    private var helloCursor = LineCursor()
     /// How long a skate line stays up. Exposed so the suite can check the
     /// longest line finishes scrolling inside it rather than restating 3.4.
     ///
@@ -99,6 +101,24 @@ final class PetInstance {
     /// counter rather than a `Timer` handle, matching `fadeSeq`: the timer
     /// still fires, it just finds itself stale and does nothing.
     private var skateSeq = 0
+    /// The same generation trick for the hello, which schedules twice: once to
+    /// begin after the window has settled, and once to clear itself afterwards.
+    private var helloSeq = 0
+
+    /// How long after launch he waves.
+    ///
+    /// Not zero. The window is still arriving at t=0 — it fades in, and on a
+    /// cold launch the whole app is still assembling — so a greeting fired
+    /// immediately is one the person has not looked at yet. A beat of stillness
+    /// first is what makes it read as him noticing you rather than as a loading
+    /// animation.
+    nonisolated static let helloDelay: TimeInterval = 1.2
+    /// How long the wave holds before easing out. `Ease.amount` adds its own
+    /// release on top, so he is in motion for a little longer than this.
+    nonisolated static let helloWaveSeconds: TimeInterval = 2.0
+    /// How long his introduction stays readable — longer than the wave on
+    /// purpose, so the line can still be read once he has settled.
+    nonisolated static let helloLineSeconds: TimeInterval = 3.6
     private var secretDisarmTimer: Timer?
 
     // MARK: - Visibility policy
@@ -261,7 +281,7 @@ final class PetInstance {
                 let line = self.bugCursor.advance(Vocab.lines(for: .bugCaught),
                                                   id: "bugCaught")
                 self.model.transientBubble = (line ?? "Bug fixed",
-                                              Date().addingTimeInterval(2.4))
+                                              Date().addingTimeInterval(2.4), .done)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                     guard let self, self.model.pouncedAt == pouncedAt else { return }
                     self.model.pouncedAt = nil
@@ -474,8 +494,66 @@ final class PetInstance {
             // appear: the Hall of Meat line is 31 columns, so it goes to the
             // marquee and needs about 2.1s to walk past.
             self.model.transientBubble = (line ?? "Kowbunga 🤙!",
-                                          Date().addingTimeInterval(PetInstance.skateLineSeconds))
+                                          Date().addingTimeInterval(PetInstance.skateLineSeconds), .done)
             self.armSkateLine()          // and meet the next one
+        }
+    }
+
+    // MARK: - Hello
+
+    /// He introduces himself, once, on the first launch ever.
+    ///
+    /// The DMG cannot carry motion — a Finder window's background is a colour
+    /// or a single still, with nowhere to put a frame rate — so the first
+    /// moving thing a new arrival sees is this. It is also the only moment they
+    /// have no idea what the crab on their desktop is, which is why every line
+    /// in the `.hello` pool names him.
+    ///
+    /// **Slot 0 only.** A second pet is summoned deliberately by someone who
+    /// already knows what he is; being introduced to by your own sibling is not
+    /// a first meeting.
+    ///
+    /// The reaction itself is `applyGreeting`'s `.wave` — the same one the
+    /// pointer gets, asked for by name rather than by hunting a seed that
+    /// happens to roll it.
+    ///
+    /// - Parameter force: play it regardless of the preference, for the secret
+    ///   menu's row. Deliberately does NOT mark him greeted: replaying a
+    ///   greeting should not be able to consume a first run that has not
+    ///   happened yet.
+    func sayHello(force: Bool = false) {
+        guard slot == 0 else { return }
+        if !force {
+            guard !Preferences.shared.hasBeenGreeted else { return }
+            Preferences.shared.hasBeenGreeted = true
+        }
+
+        helloSeq &+= 1
+        let seq = helloSeq
+        DispatchQueue.main.asyncAfter(deadline: .now() + PetInstance.helloDelay) { [weak self] in
+            guard let self, self.helloSeq == seq else { return }
+            let start = Date()
+            self.model.helloStartedAt = start
+            self.model.helloEndedAt = start.addingTimeInterval(PetInstance.helloWaveSeconds)
+            let line = self.helloCursor.advance(Vocab.lines(for: .hello), id: "hello")
+            // `.idle` styling, not `.done`: the same green bubble without the
+            // checkmark. A greeting that opens with a tick reads as a
+            // notification about something finishing.
+            self.model.transientBubble = (line ?? "Hi, I'm Claw'd 🦀",
+                                          Date().addingTimeInterval(PetInstance.helloLineSeconds), .idle)
+
+            // Clear the pair once it has finished easing out. Not housekeeping:
+            // `helloSince` is one of the flags that puts CrabView on the smooth
+            // reaction frame rate, so leaving it set would hold the whole
+            // session at that rate for a wave that ended seconds ago — an idle
+            // pet costing an idle machine something, which is exactly what
+            // `.sleeping`'s reduced rate exists to prevent.
+            let settle = PetInstance.helloWaveSeconds + 1.0
+            DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in
+                guard let self, self.helloSeq == seq else { return }
+                self.model.helloStartedAt = nil
+                self.model.helloEndedAt = nil
+            }
         }
     }
 
