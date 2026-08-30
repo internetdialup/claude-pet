@@ -200,12 +200,27 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         notifications.state = Preferences.shared.notificationsEnabled ? .on : .off
         menu.addItem(notifications)
 
+        // A switch that cannot do anything says so, rather than showing a tick.
+        // macOS never registers an ad-hoc signed app with Notification Center,
+        // so there is not even a row in System Settings for someone to go and
+        // fix — which is exactly why this has to be said here.
+        if !NotificationGrant.granted {
+            notifications.isEnabled = false
+            notifications.state = .off
+            notifications.toolTip = NotificationGrant.unavailableReason
+        }
+
         let cooking = action("Notify when cooking 🔥") { [weak self] in
             Preferences.shared.cookingNotificationsEnabled.toggle()
             self?.refresh()
         }
         cooking.state = Preferences.shared.cookingNotificationsEnabled ? .on : .off
         cooking.toolTip = "Off by default — cooking starts often."
+        if !NotificationGrant.granted {
+            cooking.isEnabled = false
+            cooking.state = .off
+            cooking.toolTip = NotificationGrant.unavailableReason
+        }
 
         // The preference itself lives in Preferences; the toggle goes through
         // the app because flipping it mid-film has to act NOW (step aside or
@@ -245,7 +260,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return "\(name): \(state.mood.rawValue)"
     }
 
-    private func refresh() {
+    /// Rebuilds the menu. Internal rather than private so `AppDelegate` can
+    /// relabel the notification rows once macOS has answered the authorization
+    /// request, which lands after the menu is first built.
+    func refresh() {
         menu.cancelTracking()
     }
 

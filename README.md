@@ -343,6 +343,23 @@ each banner, and Claw'd's own icon rides along with it:
 | 👀 | `.planReady` | A plan is waiting for approval | **on** |
 | 🔥 | `.cooking` | A session starts really going | **off** |
 
+> [!IMPORTANT]
+> **Banners do not fire in the downloadable build, and cannot.** macOS only
+> delivers notifications to apps with a stable code-signing identity, and Claw'd
+> is deliberately ad-hoc signed — a Developer ID signature would publish the
+> author's legal name and Apple Team ID inside every copy. An ad-hoc signature's
+> hash changes on every build, so the app is never registered with Notification
+> Center at all. It is not denied; it never appears in System Settings ▸
+> Notifications for you to switch on.
+>
+> Measured on a real install: the released `.dmg` copied into `/Applications`,
+> quarantine cleared, launched from there — zero entries under
+> `com.apple.ncprefs.plist`, where 93 other apps were listed.
+>
+> The menu rows say so rather than showing a tick that does nothing. Building
+> from source does not help: `run.sh` ad-hoc signs too. The copy below is live
+> and tested, and ships for whoever signs their own build.
+
 `.cooking` ships off because it fires often; turn it on from the menu bar under
 **Notify when cooking 🔥**. All four respect the master **Notifications** toggle.
 
