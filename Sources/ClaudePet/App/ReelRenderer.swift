@@ -532,7 +532,11 @@ enum ReelRenderer {
     /// The cast is frozen mid-kickflip on purpose: a still has one instant to
     /// say "this thing is alive", and the trick at its peak is that instant.
     static func renderSocialPreview(to url: URL) -> Bool {
-        let midFlip = 4.6   // kickflip onset 3.2 + 1.4: board up, eyes squinted
+        // DERIVED from the cast, not restated: this sat at "onset 3.2 + 1.4"
+        // while the pack retimed the onset to 4.4, and the og-image quietly
+        // became a crab barely off the ground — found by the media byte-check,
+        // the same way every restated constant in this repo has been found.
+        let midFlip = (costumeCast[1].onsets.first ?? 0) + 1.4
         let view = ZStack {
             Backdrop(style: .sky)
             VStack(spacing: 10) {

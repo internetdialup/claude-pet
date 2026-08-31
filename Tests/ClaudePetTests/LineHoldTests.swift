@@ -40,18 +40,26 @@ struct LineHoldTests {
         #expect(ActivityCoordinator.lineHold(for: over) > 0)
     }
 
-    /// Three passes, which is what was asked for — until the cap.
-    @Test("A held line gets three read-throughs, or the cap")
-    func threeReadsOrTheCap() {
+    /// **The glance guarantee.** Two whole marquee cycles, so a reader who
+    /// looks up at ANY moment inside the first cycle still gets a complete
+    /// pass that opens on the first word. This replaced three read-throughs —
+    /// the operator's complaint was precisely that a glance landed
+    /// mid-sentence and no clean pass followed.
+    @Test("A held line gets two whole cycles, and a glance always gets a full pass")
+    func twoCyclesAndTheGlance() {
         for columns in [30, 34, 44, 55, 69] {
             let line = String(repeating: "x", count: columns)
-            let read = MarqueeText.readSeconds(for: line, width: viewport)
+            let cycle = Double(MarqueeText.cycle(for: line, loopSeconds: nil)
+                               / MarqueeText.speed)
             let hold = ActivityCoordinator.lineHold(for: line)
-            #expect(hold <= ActivityCoordinator.maxLineHold + 0.001,
-                    "\(columns) columns held for \(hold)s, past the cap")
-            let wanted = min(read * 3, ActivityCoordinator.maxLineHold)
-            #expect(abs(hold - wanted) < 0.001,
-                    "\(columns) columns held \(hold)s, expected \(wanted)s")
+            #expect(abs(hold - min(cycle * 2, ActivityCoordinator.maxLineHold)) < 0.001,
+                    "\(columns) columns held \(hold)s against a \(cycle)s cycle")
+            // The guarantee, stated as arithmetic: any glance inside the
+            // first cycle leaves at least one whole cycle of hold behind it.
+            for glance in stride(from: 0.0, through: cycle, by: cycle / 7) {
+                #expect(hold - glance >= cycle - 0.001,
+                        "a glance at \(glance)s leaves only \(hold - glance)s")
+            }
         }
     }
 
@@ -87,9 +95,10 @@ struct LineHoldTests {
         #expect(worst.ratio >= 1, "tightest margin was \(worst.ratio) on \"\(worst.line)\"")
     }
 
-    /// The cap exists so one sentence cannot own his face. Three passes of the
-    /// longest fact is thirty-five seconds, which is the furniture failure
-    /// `bubbleCadences` was written to prevent.
+    /// The cap is a BACKSTOP now, not a budget: news kills any hold on the
+    /// spot (the burst path clears `heldLine`), so a long hold can no longer
+    /// own his face against real information — only against silence, which is
+    /// the operator's explicit trade.
     @Test("No line can hold the bubble longer than the cap")
     func nothingOwnsHisFace() {
         let everything = FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) } + ClaudeTips.all
@@ -97,8 +106,17 @@ struct LineHoldTests {
             #expect(ActivityCoordinator.lineHold(for: line) <= ActivityCoordinator.maxLineHold + 0.001,
                     "\"\(line)\" holds for \(ActivityCoordinator.lineHold(for: line))s")
         }
-        #expect(ActivityCoordinator.maxLineHold < 30,
-                "a cap this high is not a cap")
+        // Forty, because the operator's guarantee is two whole cycles and the
+        // longest fact needs 37.8s for that. The cap must clear every line
+        // that ships — it exists to catch a future 90-character fact, not to
+        // trim today's pool — so the real assertion is that it never binds.
+        let worst = (FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) } + ClaudeTips.all)
+            .filter { ActivityCoordinator.bubbleStyle(for: $0) == .marquee }
+            .map { Double(MarqueeText.cycle(for: $0, loopSeconds: nil) / MarqueeText.speed) * 2 }
+            .max() ?? 0
+        #expect(worst <= ActivityCoordinator.maxLineHold,
+                "the cap binds on a shipping line (worst 2-cycle hold \(worst)s)")
+        #expect(ActivityCoordinator.maxLineHold <= 45, "a cap this high is not a cap")
     }
 
     // MARK: - The regression
