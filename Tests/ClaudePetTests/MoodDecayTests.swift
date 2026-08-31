@@ -562,8 +562,16 @@ struct MoodDecayTests {
 
         let knowable = Set(FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
                            + ClaudeTips.all)
+        // Run until a fact actually surfaces, up to a generous deadline. The
+        // fact dice ride WALL-CLOCK cadence cycles — nothing a test can seed —
+        // and the first cut of this probe sampled ~5 cycles, where the chance
+        // of no fact at all is ~37%. It flaked on exactly that, locally, on
+        // the run whose failure was masked by an unguarded shell chain and
+        // merged anyway. Fifty-plus cycles puts the no-fact odds below 1e-4,
+        // and the loop exits the moment the liveness question is answered.
         var sawKnowledge = false
-        for _ in 0..<80 {
+        let deadline = Date().addingTimeInterval(14)
+        while Date() < deadline {
             // The house trick from `theTickerKeepsTicking` above: an event for
             // a session that does not exist recomputes without making news.
             coordinator.ingest([ActivityEvent(sessionID: "not-a-session",
@@ -578,8 +586,9 @@ struct MoodDecayTests {
                             "\"\(line)\" is his own voice but carries .knowledge")
                 }
             }
+            if sawKnowledge { break }
             try await Task.sleep(for: .milliseconds(25))
         }
-        #expect(sawKnowledge, "no fact ever surfaced — the probe proved nothing")
+        #expect(sawKnowledge, "no fact surfaced in 14s (~35 cycles) — the gate itself is broken")
     }
 }
