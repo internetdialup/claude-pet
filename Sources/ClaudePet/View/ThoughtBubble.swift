@@ -43,6 +43,17 @@ public struct ThoughtBubble: View {
     /// nothing and renders byte-identically.
     public var loopSeconds: Double? = nil
 
+    /// The knowledge card: facts and tips leave the mood palette entirely and
+    /// wear a card that follows the SYSTEM appearance — white with near-black
+    /// text in light mode, near-black with white text in dark. The operator's
+    /// reasoning: knowledge is a note, not a feeling, and green was reading as
+    /// a mood while the content was a citation. A hairline stroke rides both
+    /// modes because a white card must survive a white wallpaper, which the
+    /// mood bubbles never had to.
+    public var knowledge: Bool = false
+
+    @Environment(\.colorScheme) private var colorScheme
+
     /// Comp-board knobs: override the mood's bubble fill and text colour.
     ///
     /// Offline only, for art-directing the facts bubble against variants
@@ -89,8 +100,18 @@ public struct ThoughtBubble: View {
 
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.
-    private var fill: Color { fillOverride ?? mood.style.bubbleFill }
-    private var foreground: Color { textOverride ?? mood.style.bubbleText }
+    private var fill: Color {
+        if knowledge {
+            return colorScheme == .dark ? Color(white: 0.11) : .white
+        }
+        return fillOverride ?? mood.style.bubbleFill
+    }
+    private var foreground: Color {
+        if knowledge {
+            return colorScheme == .dark ? .white : Color(white: 0.13)
+        }
+        return textOverride ?? mood.style.bubbleText
+    }
 
     private var glyph: String {
         if style == .dots { return "" }        // the dots are the whole message
@@ -155,6 +176,14 @@ public struct ThoughtBubble: View {
             .padding(.vertical, 6)
             .frame(maxWidth: Self.maxWidth, alignment: .leading)
             .background(Rectangle().fill(fill))
+            .overlay {
+                // The knowledge card's hairline. Squared, like everything else
+                // on the grid — and only on the card, because a white card on a
+                // white wallpaper vanishes where a green bubble never could.
+                if knowledge {
+                    Rectangle().strokeBorder(foreground.opacity(0.22), lineWidth: 1)
+                }
+            }
             .overlay {
                 // An occasional light sweep across the bubble when he is asking
                 // for something — attention drawn by motion, not by colour.

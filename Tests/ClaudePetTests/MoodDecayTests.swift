@@ -540,4 +540,46 @@ struct MoodDecayTests {
         #expect(coordinator.state.bubbleContent != nil,
                 "the live task must survive the quiet for the tooltip")
     }
+
+    /// The knowledge tone rides every path a fact can arrive by, and never a
+    /// mood line. Sampled over a long working stretch with the cadence shrunk:
+    /// whenever the bubble shows a line from the fact or tip pools, the state
+    /// must say `.knowledge`; whenever it shows anything else, `.mood`. This
+    /// pins the plumbing rather than the palette — the palette is the view's,
+    /// and the view only knows what this flag tells it.
+    @Test("Facts and tips carry the knowledge tone; his own lines never do")
+    func knowledgeToneRidesTheFacts() async throws {
+        let fast = BubbleCadence(period: 0.4, dwell: 0.3, chance: 0.4,
+                                 newsDwell: 0.05, newsRefractory: 0.05)
+        let stored = ActivityCoordinator.bubbleCadences[.working]
+        ActivityCoordinator.bubbleCadences[.working] = fast
+        defer { ActivityCoordinator.bubbleCadences[.working] = stored }
+
+        let id = "s-tone"
+        let coordinator = try quietCoordinator([id])
+        coordinator.ingest([ActivityEvent(sessionID: id,
+                                          kind: .toolStarted(name: "Bash", detail: "tone probe"))])
+
+        let knowable = Set(FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
+                           + ClaudeTips.all)
+        var sawKnowledge = false
+        for _ in 0..<80 {
+            // The house trick from `theTickerKeepsTicking` above: an event for
+            // a session that does not exist recomputes without making news.
+            coordinator.ingest([ActivityEvent(sessionID: "not-a-session",
+                                              kind: .title("tick"))])
+            if let line = coordinator.state.bubble {
+                if knowable.contains(line) {
+                    sawKnowledge = true
+                    #expect(coordinator.state.bubbleTone == .knowledge,
+                            "\"\(line)\" is from the pools but carries .mood")
+                } else {
+                    #expect(coordinator.state.bubbleTone == .mood,
+                            "\"\(line)\" is his own voice but carries .knowledge")
+                }
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(sawKnowledge, "no fact ever surfaced — the probe proved nothing")
+    }
 }

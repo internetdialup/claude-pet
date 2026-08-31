@@ -93,6 +93,12 @@ public struct PetState: Sendable, Equatable {
     public var attentionCount: Int
     /// How the bubble presents its contents.
     public var bubbleStyle: BubbleStyle = .plain
+    /// Whether the bubble is his VOICE (mood colours) or his KNOWLEDGE — the
+    /// facts and tips, which wear a white/near-black card that follows the
+    /// system appearance instead of the mood palette. The split is semantic:
+    /// what he feels stays in colour, what he knows reads like a note.
+    public var bubbleTone: BubbleTone = .mood
+    public enum BubbleTone: Sendable, Equatable { case mood, knowledge }
     /// How many facts he has muttered in his sleep this session — the 🐑 tally
     /// the roster shows once it is off zero. A joke, not a metric: it does not
     /// survive a restart.

@@ -153,7 +153,9 @@ public struct PetRootView: View {
                         // than three.
                         style: transient.map { ActivityCoordinator.bubbleStyle(for: $0) }
                             ?? model.state.bubbleStyle,
-                        service: transient == nil ? model.state.serviceGlyph : nil
+                        service: transient == nil ? model.state.serviceGlyph : nil,
+                        knowledge: transient == nil
+                            && model.state.bubbleTone == .knowledge
                     )
                     // Asymmetric on purpose: he now speaks and goes quiet
                     // several times a minute, and a symmetric fade reads as
