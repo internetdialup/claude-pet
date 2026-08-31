@@ -92,6 +92,13 @@ enum CostumeSampler {
     /// before it eases out.
     static let soloCast: [Costume] = [.none, .ninja, .retroBlack, .gundam]
 
+    /// Both board tricks. The stance-hold loop works for either because both
+    /// begin and end within ~260px of the same on-board stance — measured on
+    /// the committed flourish GIFs before the axis was added, not assumed.
+    /// The varial is the kickflip plus the shove-it's 180° board rotation;
+    /// the rig has no plain pop shove-it, by the operator's own veto.
+    static let soloTricks: [CrabAnimator.Flourish] = [.kickflip, .varialFlip]
+
     /// The deck lines he really shouts, plus the operator's campaign lines.
     ///
     /// Campaign lines live HERE and not in `vocab.swift` deliberately: the
@@ -108,14 +115,19 @@ enum CostumeSampler {
     ]
 
     static let soloLead = 0.8
-    static var soloLanding: Double { soloLead + CrabAnimator.Flourish.kickflip.duration }
+    /// Both tricks share a duration today; asking the flourish keeps this true
+    /// if they ever stop sharing one.
+    static func soloLanding(for trick: CrabAnimator.Flourish) -> Double {
+        soloLead + trick.duration
+    }
 
-    static func soloSeconds(for line: String) -> Double {
+    static func soloSeconds(for line: String, trick: CrabAnimator.Flourish) -> Double {
+        let landing = soloLanding(for: trick)
         guard ActivityCoordinator.bubbleStyle(for: line) == .marquee else {
-            return ((soloLanding + 2.6) * 10).rounded() / 10
+            return ((landing + 2.6) * 10).rounded() / 10
         }
         let travel = Double(MarqueeText.measure(line) / MarqueeText.speed)
-        return ((soloLanding + travel + 1.6) * 10).rounded(.up) / 10
+        return ((landing + travel + 1.6) * 10).rounded(.up) / 10
     }
 
     static func renderSolos(to directory: String) -> Bool {
@@ -127,36 +139,45 @@ enum CostumeSampler {
             return false
         }
         for costume in soloCast {
-            for shout in soloShouts {
-                let seconds = soloSeconds(for: shout.line)
-                let frames = Int((seconds / frameDelay).rounded())
-                var images: [CGImage] = []
-                for frame in 0..<frames {
-                    guard let image = SpriteImage.cgImage(
-                        of: soloScene(costume, shout: shout.line, seconds: seconds,
-                                      at: Double(frame) * frameDelay),
-                        scale: 2, isOpaque: true)
-                    else { return false }
-                    images.append(image)
+            for trick in soloTricks {
+                for shout in soloShouts {
+                    let seconds = soloSeconds(for: shout.line, trick: trick)
+                    let frames = Int((seconds / frameDelay).rounded())
+                    var images: [CGImage] = []
+                    for frame in 0..<frames {
+                        guard let image = SpriteImage.cgImage(
+                            of: soloScene(costume, trick: trick, shout: shout.line,
+                                          seconds: seconds,
+                                          at: Double(frame) * frameDelay),
+                            scale: 2, isOpaque: true)
+                        else { return false }
+                        images.append(image)
+                    }
+                    // The kickflip keeps its unsuffixed names, so every file
+                    // the operator has already pulled stays where it was.
+                    let name = trick == .kickflip
+                        ? "solo-\(costume.rawValue)-\(shout.slug).gif"
+                        : "solo-\(costume.rawValue)-\(shout.slug)-varial.gif"
+                    guard GifRenderer.encode(images, to: root.appendingPathComponent(name),
+                                             frameDelay: frameDelay) else { return false }
                 }
-                let name = "solo-\(costume.rawValue)-\(shout.slug).gif"
-                guard GifRenderer.encode(images, to: root.appendingPathComponent(name),
-                                         frameDelay: frameDelay) else { return false }
             }
         }
-        print("wrote \(soloCast.count * soloShouts.count) solos to \(root.path)")
+        print("wrote \(soloCast.count * soloTricks.count * soloShouts.count) solos to \(root.path)")
         return true
     }
 
     @ViewBuilder
-    private static func soloScene(_ costume: Costume, shout: String, seconds: Double,
+    private static func soloScene(_ costume: Costume, trick: CrabAnimator.Flourish,
+                                  shout: String, seconds: Double,
                                   at local: Double) -> some View {
-        let inFlip = local >= soloLead && local < soloLanding
+        let landing = soloLanding(for: trick)
+        let inFlip = local >= soloLead && local < landing
         let pose = inFlip
-            ? CrabAnimator.flourishPose(.kickflip, at: local - soloLead)
-            : CrabAnimator.flourishPose(.kickflip, at: 0)   // on the board, both ends
+            ? CrabAnimator.flourishPose(trick, at: local - soloLead)
+            : CrabAnimator.flourishPose(trick, at: 0)   // on the board, both ends
         // Shout rises just after touchdown, gone before the final frame.
-        let opacity = Ease.amount(now: local, since: soloLanding + 0.1,
+        let opacity = Ease.amount(now: local, since: landing + 0.1,
                                   endedAt: seconds - 0.9)
 
         ZStack {
@@ -164,7 +185,7 @@ enum CostumeSampler {
             VStack(spacing: 0) {
                 ThoughtBubble(text: shout, tool: nil, mood: .idle,
                               style: ActivityCoordinator.bubbleStyle(for: shout),
-                              frozenTime: max(0, local - soloLanding - 0.1),
+                              frozenTime: max(0, local - landing - 0.1),
                               fillOverride: Palette.slate,
                               textOverride: .white)
                     .opacity(opacity)
