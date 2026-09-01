@@ -1095,22 +1095,38 @@ public enum CrabRig {
             b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
 
         case .shades:
-            // The meme shades, straight off the stickers: two solid lenses, a
-            // bridge, a brow bar, and a white glint stepping down each lens.
+            // The DEAL-WITH-IT shades, matched to the sticker on the
+            // operator's desk: angular lenses and a checkered glint.
+            //
+            // Two things distinguish the sticker's pair from generic solid
+            // shades, and both are here. The lenses RAKE — each bottom row is
+            // shorter and anchored toward the temple, both cut the same way,
+            // which is the slant of the pair that flies in from off-screen —
+            // and the glint is a CHECKER, three alternating white cells in
+            // each lens rather than a two-pixel step.
             //
             // Deliberately NOT the `glasses` prop with a new coat. Those are a
             // wire outline and they say READING — you can see his eyes through
             // them, which is the whole point of drawing them hollow. These are
             // solid, and solid says something else entirely. Two props, two
             // meanings, and the resolution is the same either way.
+            // The raked rows are anchored over his EYES (left eye cols 10-12,
+            // right eye 19-21): the first cut anchored them at the temples and
+            // the exposed eye corners read as the shades sliding off his face.
             b.rect(9 + dx, 12 + dy, 15, 1, .slate)          // brow
-            b.rect(9 + dx, 13 + dy, 6, 2, .slate)           // left lens
-            b.rect(18 + dx, 13 + dy, 6, 2, .slate)          // right lens
+            b.rect(9 + dx, 13 + dy, 6, 1, .slate)           // left lens, full row
+            b.rect(9 + dx, 14 + dy, 4, 1, .slate)           // …raked
+            b.rect(10 + dx, 15 + dy, 3, 1, .slate)          // …to a wedge tip
+            b.rect(18 + dx, 13 + dy, 6, 1, .slate)          // right lens, full row
+            b.rect(18 + dx, 14 + dy, 4, 1, .slate)          // …raked
+            b.rect(19 + dx, 15 + dy, 3, 1, .slate)          // …to a wedge tip
             b.rect(15 + dx, 13 + dy, 3, 1, .slate)          // bridge
-            b.pixel(10 + dx, 14 + dy, .paper)               // the glint, stepping
-            b.pixel(11 + dx, 13 + dy, .paper)
-            b.pixel(19 + dx, 14 + dy, .paper)
-            b.pixel(20 + dx, 13 + dy, .paper)
+            b.pixel(10 + dx, 13 + dy, .paper)               // the checker glint
+            b.pixel(12 + dx, 13 + dy, .paper)
+            b.pixel(11 + dx, 14 + dy, .paper)
+            b.pixel(19 + dx, 13 + dy, .paper)
+            b.pixel(21 + dx, 13 + dy, .paper)
+            b.pixel(20 + dx, 14 + dy, .paper)
 
         case .skateboard:
             // A board doing a KICKFLIP, and the shape of it is the opposite of
