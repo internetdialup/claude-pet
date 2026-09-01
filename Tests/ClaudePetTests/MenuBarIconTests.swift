@@ -18,14 +18,24 @@ struct MenuBarIconTests {
         let icon = MenuBarController.templateIcon()
 
         #expect(icon.isTemplate, "a menu-bar icon must tint itself for the bar")
-        #expect(icon.size.width == CGFloat(box.w) * MenuBarController.iconCell)
-        #expect(icon.size.height == CGFloat(box.h) * MenuBarController.iconCell)
+        // The cell is DERIVED from a target height now, after the raw
+        // half-point cell shipped a 12 x 7.5pt speck the operator could not
+        // find on their own menu bar. The contract flips from "cells are this
+        // big" to "the icon is this tall": exactly `iconHeight`, whatever the
+        // crab's proportions do.
+        #expect(icon.size.height == MenuBarController.iconHeight)
+        #expect(abs(icon.size.width
+                    - CGFloat(box.w) * MenuBarController.iconHeight / CGFloat(box.h)) < 0.001)
 
         // Cropped: he fills the icon rather than floating in the sprite's
         // transparent margins.
         #expect(box.w < PixelBuffer.side && box.h < PixelBuffer.side)
-        // And it stays inside what a menu bar will show.
+        // And it stays inside what a menu bar will show — but is no longer
+        // allowed to be a speck either. The bar's glyph body is ~16-18pt, and
+        // anything under 14 disappears next to every neighbour it has.
         #expect(icon.size.height <= 18)
+        #expect(icon.size.height >= 14,
+                "\(icon.size.height)pt is a speck — this is the exact bug that shipped")
     }
 
     /// The face is punched, not drawn — a template image carries only alpha.

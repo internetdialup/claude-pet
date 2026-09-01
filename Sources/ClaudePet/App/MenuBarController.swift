@@ -41,8 +41,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.onSetSecondCostume = onSetSecondCostume
         self.onQuit = onQuit
 
+        // SELF-HEAL before the item exists. macOS persists a status item's
+        // preferred position in the app's own defaults, and a stale one
+        // strands the item in a slot that no longer renders — measured live:
+        // the stored slot (603pt from the right) sat EMPTY on a bar whose
+        // icon cluster began 400pt further right, and the crab was simply
+        // gone. The operator has hit this class before (the days-invisible
+        // status item in the fork). Position memory was never a feature here,
+        // so the key is dropped every launch and macOS places the item fresh
+        // beside its neighbours, where it can be seen.
+        // `.standard`, NOT the named suite: inside the bundled app the suite
+        // name equals the bundle id, and Foundation refuses that pairing with
+        // "does not make sense and will not work" — the delete silently
+        // no-ops. Standard maps to the bundle's own domain, which is exactly
+        // where macOS stores the position. (A bare `swift run` has no bundle
+        // and the key never existed there; the delete is harmless.)
+        UserDefaults.standard
+            .removeObject(forKey: "NSStatusItem Preferred Position Item-0")
+
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
+
+        // Belt to the braces above: visibility is also persistable state (a
+        // Cmd-drag off the bar writes it), and a pet whose only quit lives in
+        // this menu must never be invisible.
+        item.isVisible = true
 
         if let button = item.button {
             button.image = Self.templateIcon()
@@ -308,7 +331,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// antialias, and at 2x that allows 0.5pt and 1pt and nothing between.
     /// A point per cell made him 24×15pt — wider than the clock beside him and
     /// visibly chunky. This is the next crisp stop down.
-    static let iconCell: CGFloat = 0.5
+    /// The bar icon's target HEIGHT in points, with the cell derived from it.
+    ///
+    /// This was a raw half-point cell, and the arithmetic it produced is why
+    /// the operator "wasn't seeing Claw'd in the menu bar": the resting crab's
+    /// ink box is 24x15 cells, and 0.5pt a cell made the entire icon 12 x 7.5
+    /// points — a speck, parked at a remembered position out in an empty
+    /// stretch of a 2880-point bar. Not hidden, not off-screen, not a poisoned
+    /// pref: just seven and a half points tall. Measured by probing
+    /// `templateIcon().size` after screenshots proved the slot itself was
+    /// blank at every zoom.
+    ///
+    /// Sixteen and a half points is menu-bar native (the standard glyph body),
+    /// and deriving the cell from the height means a future art change to the
+    /// crab's proportions resizes the icon instead of silently shrinking it.
+    static let iconHeight: CGFloat = 16.5
 
     /// The menu-bar crab, drawn from the rig itself.
     ///
@@ -331,7 +368,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard let box = SpriteMask(buffer).bounds else {
             return NSImage(size: NSSize(width: 1, height: 1))
         }
-        let cell = iconCell
+        let cell = iconHeight / CGFloat(box.h)
         let size = NSSize(width: CGFloat(box.w) * cell, height: CGFloat(box.h) * cell)
         let image = NSImage(size: size, flipped: false) { _ in
             NSColor.black.setFill()
