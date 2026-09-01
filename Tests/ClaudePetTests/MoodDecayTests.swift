@@ -596,7 +596,21 @@ struct MoodDecayTests {
                                                                  detail: "step \(step) of the sprint"))])
             samples += 1
             if coordinator.state.bubble == nil { quiet += 1 }
-            try await Task.sleep(for: .milliseconds(60))
+            // De-aliased on purpose — the flat 60ms this replaces was a 3:1
+            // resonance against the cadence's 200ms period. On a loaded
+            // runner the sleeps stretch just enough that two of every three
+            // samples can land inside the 50ms dwell window, and CI measured
+            // exactly the boundary — quiet 8 of 24, one short of the bound,
+            // twice in five merges of main. Stepping the interval (37 is
+            // coprime to 100, so 24 steps never repeat a residue) walks the
+            // samples through the period instead of riding one phase of it,
+            // and the quiet fraction converges on the duty cycle the cadence
+            // actually has (~75% quiet) rather than on whichever phase the
+            // runner happened to wake up in. The bound is untouched: the
+            // regression this test exists for — a churn re-arming the news
+            // window every tick — still measures quiet ≈ 0 and fails by a
+            // mile.
+            try await Task.sleep(for: .milliseconds(45 + (step * 37) % 100))
         }
 
         #expect(quiet > samples / 3,
