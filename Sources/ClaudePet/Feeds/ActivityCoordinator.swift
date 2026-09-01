@@ -51,14 +51,16 @@ public final class ActivityCoordinator {
         if clamped > states.count {
             states.append(.sleeping)
             chatterCache.append(SlotChatter(cursor: LineCursor(salt: chatterCache.count &* 7919)))
-            // Summoning a pet IS an interaction, so he arrives awake. The
-            // alternative — a second pet that is asleep on arrival — means
-            // clicking "Summon a second pet" hands you a corpse.
+            // Summoning a pet IS an interaction, so he arrives awake — and
+            // through `stirredAt`, not the poke mark: arrival buys the full
+            // window, same as launch. `rousedAt` stays in lockstep at rest.
             stirredAt.append(Date())
+            rousedAt.append(.distantPast)
         } else {
             states.removeLast()
             chatterCache.removeLast()
             stirredAt.removeLast()
+            rousedAt.removeLast()
         }
         recompute()
     }
@@ -272,6 +274,13 @@ public final class ActivityCoordinator {
     /// would fire during two-fifths of normal think-breaks. At 900 only 19% are
     /// longer, and those are genuine walk-aways.
     static var sleepAfter: TimeInterval = 900
+    /// How long a POKE keeps him up — the tamagotchi window, and deliberately
+    /// a different order of magnitude from `sleepAfter`. Session activity is
+    /// work and buys the full fifteen minutes; a poke is attention, and
+    /// attention buys about a minute and a half of him idling around before
+    /// he drifts back to sleep. `var` for the same shrink-in-tests reason as
+    /// `sleepAfter`.
+    static var rousedAfter: TimeInterval = 90
     /// How long one idle line stays on screen before a new one is chosen.
     /// `nonisolated`: a plain constant with no actor affinity, and the fun-fact
     /// length guard reads it from a non-MainActor suite to compare a scroll
@@ -350,6 +359,14 @@ public final class ActivityCoordinator {
     /// session drop the anchor and flap him in and out of sleep on the 2s tick.
     private var stirredAt: [Date] = [Date()]
 
+    /// When the operator last laid hands on this slot's pet. A separate mark
+    /// from `stirredAt` because it buys a separate window: a poke grants
+    /// `rousedAfter` (about a minute and a half), while `stirredAt` — launch,
+    /// summoning, session activity — grants the full `sleepAfter`. Written
+    /// only by `stir`, and each write is `Date()`, so it is monotonic by
+    /// construction; `.distantPast` at rest so a never-poked pet adds nothing.
+    private var rousedAt: [Date] = [.distantPast]
+
     public init() {}
 
     public func start() {
@@ -387,15 +404,19 @@ public final class ActivityCoordinator {
         queue.async { [folds] in folds.removeAll() }
     }
 
-    /// User pinned (or unpinned) a session from the roster (slot 0).
     /// The operator laid hands on him — a click, a press-and-hold, a drag, or a
-    /// hover he actually rested on. Pushes the wake window out.
+    /// hover he actually rested on. Buys the ROUSED window, not the full wake
+    /// window: a poke is attention, not a session, so about ninety seconds
+    /// later a pet with nothing else going on drifts back to sleep — the
+    /// operator's tamagotchi ruling. (It used to write `stirredAt` and buy
+    /// fifteen minutes, which made waking him up feel like flipping a switch
+    /// rather than bothering a sleeper.)
     ///
     /// Recomputes on the spot rather than waiting for the 2s decay tick,
     /// because a poke that takes two seconds to land does not read as a poke.
     public func stir(slot: Int = 0) {
-        guard slot < stirredAt.count else { return }
-        stirredAt[slot] = Date()
+        guard slot < rousedAt.count else { return }
+        rousedAt[slot] = Date()
         recompute()
     }
 
@@ -801,9 +822,11 @@ public final class ActivityCoordinator {
         up.mood = .idle
         up.sessions = roster
         // The same quiet gate the focused idle path uses — constant company for
-        // the first ninety seconds, intermittent after. Measured from the mark,
-        // which with no session under him IS how long he has been up.
-        let quietFor = now.timeIntervalSince(stirredAt[slot])
+        // the first ninety seconds, intermittent after. Measured from the
+        // FRESHER of the two marks, which with no session under him IS how
+        // long he has been up: a crab poked awake gets the lively first
+        // stretch of chatter, not an arrival mid-intermittence.
+        let quietFor = now.timeIntervalSince(max(stirredAt[slot], rousedAt[slot]))
         if Self.idleChatterShows(quietFor: quietFor, seed: seed) {
             var snapshot = StatusTicker.Snapshot()
             snapshot.sessionCount = roster.count
@@ -850,7 +873,13 @@ public final class ActivityCoordinator {
         if let focus = focusOrNil {
             stirredAt[slot] = max(stirredAt[slot], focus.lastActivity)
         }
+        // Two windows, one question: work (launch, summoning, session
+        // activity) holds him up for `sleepAfter`; a poke holds him up for
+        // `rousedAfter`. Either suffices — whichever mark is fresher relative
+        // to its own window wins, so a poke can never SHORTEN a working
+        // crab's day and work can never be extended by mere attention.
         let awake = now.timeIntervalSince(stirredAt[slot]) <= Self.sleepAfter
+            || now.timeIntervalSince(rousedAt[slot]) <= Self.rousedAfter
 
         // Nobody to watch: either no sessions at all, or slot 1 with only one
         // session running. Awake he is the same idle crab with no session

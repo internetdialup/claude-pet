@@ -1007,20 +1007,26 @@ public enum CrabAnimator {
 
     /// Seconds between zZz's, by the clock on the wall.
     ///
-    /// One a breath by day, two after dark. Both are exact divisions of
+    /// One every OTHER breath by day, two a breath after dark — the operator's
+    /// tamagotchi ruling: a daytime nap is light dozing, and its z's should
+    /// whisper. All three values are whole multiples or divisions of
     /// `breathPeriod`, so a glyph is always released on the same phase of the
     /// breath rather than drifting against the body it came from.
     ///
     /// **22:00–06:00**, the hours the operator asked for, and the same shape
     /// `stargaze` (23–04) and `sunPatch` (08–17) already use.
     ///
-    /// `nil` — every offline render — must mean DAYTIME. The renderers have no
-    /// clock, and if absence meant night then `sleeping.gif` would come out
-    /// denser or sparser depending on when it happened to be regenerated,
-    /// which is the one thing a byte-compared asset cannot survive.
+    /// `nil` — every offline render — pins the RENDER density: one z per
+    /// breath, the density every committed byte of `sleeping.gif` was
+    /// compared at. It stopped meaning "daytime" the day live-day backed off
+    /// to whispering; it means "the clock the renderers do not have", and if
+    /// it ever tracks the live day again the committed media re-densifies on
+    /// its next regeneration, which is the one thing a byte-compared asset
+    /// cannot survive.
     static func sleepZInterval(hourOfDay: Int?) -> Double {
-        guard let hourOfDay, hourOfDay >= 22 || hourOfDay < 6 else { return breathPeriod }
-        return breathPeriod / 2
+        guard let hourOfDay else { return breathPeriod }
+        if hourOfDay >= 22 || hourOfDay < 6 { return breathPeriod / 2 }
+        return breathPeriod * 2
     }
 
     /// How far into its interval a zZz is released, as a fraction.
@@ -1173,6 +1179,69 @@ public enum CrabAnimator {
     }
 
     public static let clickDuration = 0.34
+
+    // MARK: - The rude awakening
+
+    /// Phase A: one claw eases out while he is demonstrably still asleep.
+    public static let rudeWakeArmRise = 0.5
+    /// Phase B: eyes open, annoyed, at you — still in bed.
+    public static let rudeWakeHold = 0.7
+    /// Phase C: everything eases back out while the mood gets him up.
+    public static let rudeWakeRelease = 0.5
+    /// The whole sequence; the latch's clear-out waits a beat past this.
+    public static let rudeWakeDuration = 1.7
+    /// The instant the eyes snap open — the end of phase A, by construction.
+    static let rudeWakeEyesOpenAt = 0.5
+
+    /// The tamagotchi wake: poke a sleeping crab and he does not squeal and
+    /// open the roster — he stretches one claw out from under the covers, a
+    /// zzz still rising, and then opens his eyes ANNOYED at you.
+    ///
+    /// Three contracts, each carried by a mechanism rather than a hope:
+    ///
+    /// - **The z's survive phase A and B.** The coordinator's stir is
+    ///   deferred by the caller, so the base pose stays `.sleeping` and keeps
+    ///   its `sleepZElapsed` channel — this overlay deliberately never
+    ///   touches it. Arm out WITH a zzz aloft is the operator's picture.
+    /// - **The annoyed face is pre-seeded from t=0.** `.determined` eyes and
+    ///   a `.flat` mouth are set through every phase — invisible while the
+    ///   lids are shut, and it makes the mood blend's discrete midpoint
+    ///   switch a no-op when the wake hands over to idle: both ends already
+    ///   agree, so nothing swaps mid-crossfade.
+    /// - **It closes itself.** One `Ease.pulse` envelope, zero at t ≤ 0 (the
+    ///   frozen sentinel comes free) and back under 0.001 past 1.7s, so a
+    ///   stale latch can strand nothing on his face.
+    public static func applyRudeWake(elapsed: Double, to pose: inout CrabPose) {
+        let amount = Ease.pulse(elapsed, attack: rudeWakeArmRise,
+                                hold: rudeWakeHold, decay: rudeWakeRelease)
+        guard amount > 0.001 else { return }
+        // The claw, out at the poker — eased across drawArm's six-cell
+        // quantisation, one cell per frame at 30fps. `max` so a live hover
+        // greeting's wave composes instead of fighting.
+        pose.armRight = max(pose.armRight, 0.75 * amount)
+        pose.eyes = .determined
+        pose.mouth = .flat
+        if elapsed < rudeWakeEyesOpenAt {
+            // Phase A: still asleep, and DEMONSTRABLY so — the pointer was on
+            // him before the click, so a hover greeting may already have set
+            // `asleepOverride`; the poke re-shuts the eyes. That one-frame
+            // shut is a blink, the one snap the no-snap rule exempts.
+            pose.asleepOverride = false
+            pose.blink = 1
+            pose.winkEye = .none
+            pose.lidsLowered = true
+        } else if amount >= 0.4 {
+            // Phase B and most of C: eyes open, annoyed, up and at you.
+            pose.asleepOverride = true
+            pose.blink = 0
+            pose.lidsLowered = false
+            pose.gazeX = 0
+            pose.gazeY = -1
+            // A one-pixel startle on the instant the eyes open — the grid's
+            // own quantum, explicitly allowed.
+            if elapsed < rudeWakeEyesOpenAt + 0.12 { pose.bob -= 1 }
+        }
+    }
 
     /// The idle pose with `kind` overlaid, `t` seconds into the flourish.
     ///
@@ -1406,6 +1475,10 @@ public struct CrabView: View {
     public var pouncedAt: Double?
     /// Reference-time instant the sleeping-click snack began, or nil.
     public var snackSince: Double?
+    /// Reference-time instant a sleeping crab was poked awake, or nil. The
+    /// rude-wake sequence plays over the still-sleeping pose (the stir is
+    /// deferred), then everything eases out as the mood gets him up.
+    public var rudeWakeSince: Double?
     /// The quiet completion badge. `completedAt` is the identity (nudge
     /// windows + the five-minute clock); the shown/ended pair is the
     /// appearance latch, so every entrance and exit — first show, early
@@ -1462,6 +1535,7 @@ public struct CrabView: View {
                 petEndedAt: Double? = nil,
                 pouncedAt: Double? = nil,
                 snackSince: Double? = nil,
+                rudeWakeSince: Double? = nil,
                 completedAt: Double? = nil,
                 badgeShownAt: Double? = nil,
                 badgeEndedAt: Double? = nil,
@@ -1489,6 +1563,7 @@ public struct CrabView: View {
         self.petEndedAt = petEndedAt
         self.pouncedAt = pouncedAt
         self.snackSince = snackSince
+        self.rudeWakeSince = rudeWakeSince
         self.completedAt = completedAt
         self.badgeShownAt = badgeShownAt
         self.badgeEndedAt = badgeEndedAt
@@ -1734,9 +1809,12 @@ public struct CrabView: View {
             // idle or asleep — and asleep renders at 6fps. Left out, the one
             // animation a new user is guaranteed to see would be the choppiest
             // thing the app ever draws.
+            // `rudeWakeSince` for the same sharp reason as `helloSince`: the
+            // mood underneath a rude wake is SLEEPING, which renders at 6fps —
+            // and a 0.5s arm rise at 6fps is three frames of teleporting claw.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
                 || petSince != nil || pouncedAt != nil || snackSince != nil
-                || helloSince != nil
+                || helloSince != nil || rudeWakeSince != nil
             let interval = CrabView.tickInterval(unseen: unseen, reacting: reacting,
                                                  mood: frameInterval)
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
@@ -1882,6 +1960,13 @@ public struct CrabView: View {
         }
         if let snackSince, frozenTime == nil {
             CrabAnimator.applySnack(elapsed: time - snackSince, to: &pose)
+        }
+        // AFTER the greeting on purpose: the pointer is on him when the click
+        // lands, so a hover greeting is usually mid-flight — phase A vetoes
+        // its opened eyes (still asleep while the claw comes out), and the
+        // arms compose through `max`.
+        if let rudeWakeSince, frozenTime == nil {
+            CrabAnimator.applyRudeWake(elapsed: time - rudeWakeSince, to: &pose)
         }
         if let completedAt, frozenTime == nil {
             // The foot badge: the appearance latch eased both ways, and

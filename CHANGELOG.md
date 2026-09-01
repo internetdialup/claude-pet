@@ -9,6 +9,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **😾 Wake him up and he lets you know about it.** Click a sleeping crab and
+  he does not squeal and open the roster — one claw stretches out from under
+  the covers with a zzz still rising, then his eyes open, annoyed, at you.
+  He stays up about ninety seconds; leave him alone and he drifts back to
+  sleep. A poke is attention, not a session — real work still keeps him up
+  the full fifteen minutes, and a session that needs you still outranks
+  everything. Daytime naps whisper now too: one z every other breath, while
+  the deep 10pm–6am sleep keeps its double density.
+
 - **🛹 He ollies.** The big floating one, off the sticker: he pops, the nose
   kicks up, and he hangs there — most of the air is spent near the apex on
   purpose — balance arms riding the float in counterphase, board glued to his
@@ -17,6 +26,12 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   asked, and the eighteenth prop.
 
 ### Fixed
+
+- **🍤 An honest accounting of the sleeping snack.** The click-a-sleeping-crab
+  shrimp easter egg had been unreachable since the day it shipped — the
+  click's own wake-up stir flipped his mood before the sleeping check ever
+  ran. The rude awakening now owns that click; the shrimp animation stays in
+  the rig, one trigger away from a comeback.
 
 - **🦀 The menu bar crab is visible again.** Three separate faults hid him. The
   icon was drawn at 12×7.5 points — smaller than a period — and now stands

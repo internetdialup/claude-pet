@@ -247,6 +247,7 @@ public struct PetRootView: View {
                     petEndedAt: model.pettingEndedAt?.timeIntervalSinceReferenceDate,
                     pouncedAt: model.pouncedAt?.timeIntervalSinceReferenceDate,
                     snackSince: model.snackStartedAt?.timeIntervalSinceReferenceDate,
+                    rudeWakeSince: model.rudeWakeStartedAt?.timeIntervalSinceReferenceDate,
                     completedAt: model.badgeCompletionAt?.timeIntervalSinceReferenceDate,
                     badgeShownAt: model.badgeShownAt?.timeIntervalSinceReferenceDate,
                     badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate,
@@ -646,8 +647,12 @@ public final class PetViewModel: ObservableObject {
     /// comes along later to finish it the way a pointer leaving does.
     @Published public var helloStartedAt: Date?
     @Published public var helloEndedAt: Date?
-    /// The sleeping-click shrimp snack began.
+    /// The sleeping-click shrimp snack began. (No live trigger today — the
+    /// rude wake owns the sleeping click; kept for the animator and a future
+    /// awake-snack round.)
     @Published public var snackStartedAt: Date?
+    /// A sleeping crab was poked awake — the rude-wake sequence is playing.
+    @Published public var rudeWakeStartedAt: Date?
     /// A short-lived line that outranks the state's bubble — the pounce
     /// one-liner, the skate shout, the first-run hello. Cleared by its own
     /// deadline.
