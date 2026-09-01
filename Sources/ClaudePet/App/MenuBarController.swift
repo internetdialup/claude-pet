@@ -341,10 +341,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// `templateIcon().size` after screenshots proved the slot itself was
     /// blank at every zoom.
     ///
-    /// Sixteen and a half points is menu-bar native (the standard glyph body),
-    /// and deriving the cell from the height means a future art change to the
+    /// Fourteen and a half points, arrived at by eye. The first repair used
+    /// 16.5 — the standard glyph body height — but the crab is a WIDE sprite
+    /// (24×15 ink cells), so height-matching the neighbours made him 26pt
+    /// across and the operator's next report was "too large". A wide glyph has
+    /// to sit a notch below the standard body to carry the same visual weight.
+    /// Deriving the cell from the height means a future art change to the
     /// crab's proportions resizes the icon instead of silently shrinking it.
-    static let iconHeight: CGFloat = 16.5
+    static let iconHeight: CGFloat = 14.5
 
     /// The menu-bar crab, drawn from the rig itself.
     ///
