@@ -33,7 +33,8 @@ if let index = arguments.firstIndex(of: "--render-comps"), index + 1 < arguments
 }
 
 if let index = arguments.firstIndex(of: "--render-solos"), index + 1 < arguments.count {
-    // Four solo kickflips, one per named costume — marketing review material.
+    // The drip-feed solo matrix — costumes × tricks-and-variants × shouts.
+    // Marketing review material, never committed.
     let ok = MainActor.assumeIsolated { CostumeSampler.renderSolos(to: arguments[index + 1]) }
     exit(ok ? 0 : 1)
 }

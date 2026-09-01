@@ -120,6 +120,18 @@ public struct CrabPose: Sendable, Equatable {
     public var heat: Double = 0
     public var heatPhase: Double = 0
 
+    /// Torso-turn shading, for the drip-feed sampler's ollie variants: which
+    /// body edge the torso rotates away from (-1 = the left columns darken,
+    /// +1 = the right, 0 = none), and how much of the turn is on him, 0…1.
+    ///
+    /// Envelope-owned like `doneBadge`: the sampler's variant map writes both
+    /// fresh every frame from the trick's own air fraction, no live pose ever
+    /// sets them, and `CrabPose.blend` deliberately does not lerp them — a
+    /// blend could only ever see zeros, and averaging a shade that is pure in
+    /// someone else's clock would invent a third turn nobody performed.
+    public var torsoShade: Int = 0
+    public var torsoShadeAmount: Double = 0
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
@@ -329,6 +341,9 @@ public enum CrabRig {
         costumeLayer(.onBody)
         if pose.heat > 0.001 { heatPass(&buffer, pose: pose, dy: dy, squash: squash) }
         if let glint = pose.glint { glintPass(&buffer, u: glint, dy: dy, squash: squash) }
+        if pose.torsoShade != 0, pose.torsoShadeAmount > 0.001 {
+            shadePass(&buffer, pose: pose, dx: dx, dy: dy, squash: squash)
+        }
         drawFace(&buffer, dx: dx, dy: dy, pose: pose)
         // After the face, so it reads as light coming off the eye rather than
         // as something behind it.
@@ -813,6 +828,28 @@ public enum CrabRig {
         }
     }
 
+    /// The torso-turn shade: up to two columns hugging one body edge, one flat
+    /// step below the shell, quantised off the amount the way `heatPass`
+    /// quantises its half-width. The `== .body` mask is the whole safety
+    /// story — costume cells, eyes and props are other inks, so the shade can
+    /// only ever land on bare shell, and the edge columns are geometrically
+    /// clear of the eye windows anyway. Legs live below the body rect, so the
+    /// band is torso-only by construction: the whole shell yawing is the
+    /// sticker's picture.
+    private static func shadePass(_ b: inout PixelBuffer, pose: CrabPose,
+                                  dx: Int, dy: Int, squash: Int) {
+        let top = bodyY + dy + squash
+        let height = bodyH - squash
+        let cols = Int((Ease.clamp01(pose.torsoShadeAmount) * 2).rounded())
+        guard height > 0, cols > 0, pose.torsoShade != 0 else { return }
+        let left = bodyX + dx - squash
+        let right = bodyX + bodyW - 1 + dx + squash
+        let xs = pose.torsoShade > 0 ? (right - cols + 1)...right : left...(left + cols - 1)
+        for y in max(0, top)..<min(PixelBuffer.side, top + height) {
+            for x in xs where b[x, y] == .body { b[x, y] = .bodyShade }
+        }
+    }
+
     /// One prop at a given visibility. Full visibility draws straight into the
     /// buffer — byte-identical to the pre-dissolve renderer; anything less
     /// renders to a scratch buffer and composites as a stable pixel dissolve.
@@ -1095,38 +1132,45 @@ public enum CrabRig {
             b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
 
         case .shades:
-            // The DEAL-WITH-IT shades, matched to the sticker on the
-            // operator's desk: angular lenses and a checkered glint.
+            // The DEAL-WITH-IT shades, matched cell-for-cell to the sticker
+            // on the operator's desk — third cut, against the photograph.
             //
-            // Two things distinguish the sticker's pair from generic solid
-            // shades, and both are here. The lenses RAKE — each bottom row is
-            // shorter and anchored toward the temple, both cut the same way,
-            // which is the slant of the pair that flies in from off-screen —
-            // and the glint is a CHECKER, three alternating white cells in
-            // each lens rather than a two-pixel step.
+            // What the photo actually shows, and the first two cuts missed:
+            // the pair is TWO hanging lenses on one thin line, not a visor.
+            // A single 1-cell top line runs temple to temple (it is the
+            // arms AND the bridge at once), each lens hangs off it as a
+            // wedge tapering inward-and-down, and the shell shows through
+            // UNDER the line between the lenses — that gap is what makes it
+            // read as glasses rather than a mask. The print is PURE black
+            // (`.memeBlack`, costume-immune), and each lens carries the
+            // sticker's four-cell checker glint at its left side — both
+            // lenses, same side, straight off the print.
             //
             // Deliberately NOT the `glasses` prop with a new coat. Those are a
             // wire outline and they say READING — you can see his eyes through
             // them, which is the whole point of drawing them hollow. These are
             // solid, and solid says something else entirely. Two props, two
             // meanings, and the resolution is the same either way.
-            // The raked rows are anchored over his EYES (left eye cols 10-12,
-            // right eye 19-21): the first cut anchored them at the temples and
-            // the exposed eye corners read as the shades sliding off his face.
-            b.rect(9 + dx, 12 + dy, 15, 1, .slate)          // brow
-            b.rect(9 + dx, 13 + dy, 6, 1, .slate)           // left lens, full row
-            b.rect(9 + dx, 14 + dy, 4, 1, .slate)           // …raked
-            b.rect(10 + dx, 15 + dy, 3, 1, .slate)          // …to a wedge tip
-            b.rect(18 + dx, 13 + dy, 6, 1, .slate)          // right lens, full row
-            b.rect(18 + dx, 14 + dy, 4, 1, .slate)          // …raked
-            b.rect(19 + dx, 15 + dy, 3, 1, .slate)          // …to a wedge tip
-            b.rect(15 + dx, 13 + dy, 3, 1, .slate)          // bridge
-            b.pixel(10 + dx, 13 + dy, .paper)               // the checker glint
-            b.pixel(12 + dx, 13 + dy, .paper)
-            b.pixel(11 + dx, 14 + dy, .paper)
-            b.pixel(19 + dx, 13 + dy, .paper)
+            //
+            // Wedges taper toward the BRIDGE and stay over the eye windows
+            // (left 10-12, right 19-21) all three rows — the second cut
+            // anchored its rake at the temples and his eye corners peeked
+            // out underneath, reading as the shades sliding off.
+            b.rect(6 + dx, 12 + dy, 20, 1, .memeBlack)      // the line: arms + tops + bridge
+            b.rect(8 + dx, 13 + dy, 6, 1, .memeBlack)       // left lens
+            b.rect(9 + dx, 14 + dy, 5, 1, .memeBlack)
+            b.rect(10 + dx, 15 + dy, 4, 1, .memeBlack)
+            b.rect(18 + dx, 13 + dy, 6, 1, .memeBlack)      // right lens
+            b.rect(18 + dx, 14 + dy, 5, 1, .memeBlack)
+            b.rect(18 + dx, 15 + dy, 4, 1, .memeBlack)
+            b.pixel(9 + dx, 13 + dy, .paper)                // checker glint, left lens
+            b.pixel(11 + dx, 13 + dy, .paper)
+            b.pixel(10 + dx, 14 + dy, .paper)
+            b.pixel(12 + dx, 14 + dy, .paper)
+            b.pixel(19 + dx, 13 + dy, .paper)               // checker glint, right lens
             b.pixel(21 + dx, 13 + dy, .paper)
             b.pixel(20 + dx, 14 + dy, .paper)
+            b.pixel(22 + dx, 14 + dy, .paper)
 
         case .skateboard:
             // A board doing a KICKFLIP, and the shape of it is the opposite of

@@ -68,6 +68,12 @@ struct CostumeStyle {
                     // needs somewhere to put a headband. A cool near-black
                     // keeps the red legible on top of it.
                     .body: rgb(0x23_232B),      // near-black, cool
+                    // One step below the shell, for the sampler's torso-turn
+                    // shade — the ollie variants sell a slight body rotation
+                    // with an edge band, and "one step darker" is relative to
+                    // whichever shell is worn. Inert in every live buffer:
+                    // only the drip-feed sampler ever sets `torsoShade`.
+                    .bodyShade: rgb(0x15_1519),
                     .costumeA: rgb(0xC2_4141),  // headband + tails
                     .costumeB: rgb(0xCE_7B5C),  // the mask's eye window — his own terracotta
                 ],
@@ -76,6 +82,7 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x1C_1C1E),      // matte black shell
+                    .bodyShade: rgb(0x0E_0E10), // the turn shade's step — see ninja's note
                     .costumeB: rgb(0x3A_3A40),  // charcoal eye backing — black-on-black eyes vanish
                 ],
                 yieldsCrownToProps: false)
@@ -114,6 +121,7 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0xE8_EAF0),      // RX-78 white
+                    .bodyShade: rgb(0xC9_CDD8), // the turn shade's step — see ninja's note
                     .costumeA: rgb(0x2C_4FA3),  // federation blue — shoulders, chest
                     .costumeB: rgb(0xC6_3A3A),  // the red — crest, chin, feet
                     .costumeC: rgb(0x14_161A),  // the visor recess — the black the face is built on

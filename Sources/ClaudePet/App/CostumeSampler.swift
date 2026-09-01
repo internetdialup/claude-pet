@@ -1,5 +1,78 @@
 import SwiftUI
 
+/// One row of the drip-feed solo matrix: a trick plus the mid-air dressing
+/// that makes it a distinct clip. The kickflip and varial are their plain
+/// selves; the ollie comes in four flavors, and the flavors live HERE, not in
+/// `CrabAnimator.Flourish` — the live dice must never roll a frontside ollie,
+/// because the drip variants are marketing inventory, not behavior.
+///
+/// A clip cannot carry a shape: every variant is pose arithmetic applied
+/// AFTER `flourishPose`, strictly inside the trick's air window, riding
+/// envelopes that are zero at both bounds — so the first and last airborne
+/// frames match the straight trick's, and the stance-hold seam stays
+/// zero-pixel by construction.
+enum SoloVariant: CaseIterable {
+    case kickflip, varial, ollie, ollieFrontside, ollieBackside, ollieLofty
+
+    var trick: CrabAnimator.Flourish {
+        switch self {
+        case .kickflip: .kickflip
+        case .varial: .varialFlip
+        case .ollie, .ollieFrontside, .ollieBackside, .ollieLofty: .ollie
+        }
+    }
+
+    /// The filename tail. The kickflip keeps its unsuffixed names so every
+    /// file the operator has already pulled stays where it was; the varial
+    /// keeps "-varial" for the same reason.
+    var suffix: String {
+        switch self {
+        case .kickflip: ""
+        case .varial: "-varial"
+        case .ollie: "-ollie"
+        case .ollieFrontside: "-ollie-frontside"
+        case .ollieBackside: "-ollie-backside"
+        case .ollieLofty: "-ollie-lofty"
+        }
+    }
+
+    /// The mid-air dressing. `air` is the ollie's own 0…1 air fraction; the
+    /// caller only invokes this strictly inside the window.
+    func adjust(_ pose: inout CrabPose, air: Double) {
+        switch self {
+        case .kickflip, .varial, .ollie:
+            break
+
+        case .ollieFrontside, .ollieBackside:
+            // The torso turn, off the reference sticker: a slight body
+            // rotation sold by one flat step of shade hugging the edge he
+            // turns away from. `sin(air·π)` is zero at both bounds, so the
+            // shade eases on with the rise and is gone by the stomp — an
+            // event, never a state.
+            let turn = sin(air * .pi)
+            pose.torsoShade = self == .ollieFrontside ? 1 : -1
+            pose.torsoShadeAmount = turn
+            if self == .ollieBackside, air >= 0.18 {
+                // The mirror is total: gaze down the OTHER line, and the
+                // counterphase balance arms swap with it — the same 0.18
+                // instant the straight ollie opens its own gaze, so the
+                // mirrored eye step lands where the original already steps.
+                pose.gazeX = -1
+                swap(&pose.armLeft, &pose.armRight)
+            }
+
+        case .ollieLofty:
+            // The hang, exaggerated. NOT higher: the straight ollie's −10
+            // apex already puts the shell's top row on the grid's row zero,
+            // and one more pixel silently crops. Loft is TIME, not height —
+            // a flatter exponent pins him near the apex for more of the air,
+            // and his eyes go wide for the whole float.
+            pose.bob = -Int((pow(sin(air * .pi), 0.35) * 10).rounded())
+            if air >= 0.18 { pose.eyes = .wide }
+        }
+    }
+}
+
 /// Single-costume sample clips, for choosing what the marketing uses next.
 ///
 /// One GIF per costume: the character on the sky, his own effect firing ON
@@ -92,12 +165,14 @@ enum CostumeSampler {
     /// before it eases out.
     static let soloCast: [Costume] = [.none, .ninja, .retroBlack, .gundam]
 
-    /// Both board tricks. The stance-hold loop works for either because both
-    /// begin and end within ~260px of the same on-board stance — measured on
-    /// the committed flourish GIFs before the axis was added, not assumed.
-    /// The varial is the kickflip plus the shove-it's 180° board rotation;
-    /// the rig has no plain pop shove-it, by the operator's own veto.
-    static let soloTricks: [CrabAnimator.Flourish] = [.kickflip, .varialFlip]
+    /// The full drip matrix's trick axis: both flip tricks plus the ollie in
+    /// its four flavors. The stance-hold loop works for every row because
+    /// each begins and ends on the same on-board stance frame (`soloPose`
+    /// returns the literal same render at both ends), and every variant's
+    /// dressing is zero at the air's bounds. The varial is the kickflip plus
+    /// the shove-it's 180° board rotation; the rig has no plain pop
+    /// shove-it, by the operator's own veto.
+    static let soloVariants = SoloVariant.allCases
 
     /// The deck lines he really shouts, plus the operator's campaign lines.
     ///
@@ -115,8 +190,10 @@ enum CostumeSampler {
     ]
 
     static let soloLead = 0.8
-    /// Both tricks share a duration today; asking the flourish keeps this true
-    /// if they ever stop sharing one.
+    /// Asks the flourish, and the day this comment predicted arrived: the
+    /// flips land at 3.6 and the ollie floats until 4.0. Everything
+    /// downstream — clip length, shout onset, marquee clock — derives from
+    /// this one call, which is why the ollie joined without a branch.
     static func soloLanding(for trick: CrabAnimator.Flourish) -> Double {
         soloLead + trick.duration
     }
@@ -130,6 +207,30 @@ enum CostumeSampler {
         return ((landing + travel + 1.6) * 10).rounded(.up) / 10
     }
 
+    /// The clip's pose at an instant: stance-hold outside the trick, the
+    /// trick inside it, and the variant's dressing strictly inside the
+    /// ollie's air window. Extracted from the scene so the suite can hold
+    /// the seam still and measure it.
+    static func soloPose(variant: SoloVariant, at local: Double) -> CrabPose {
+        let landing = soloLanding(for: variant.trick)
+        guard local >= soloLead, local < landing else {
+            return CrabAnimator.flourishPose(variant.trick, at: 0)   // on the board, both ends
+        }
+        var pose = CrabAnimator.flourishPose(variant.trick, at: local - soloLead)
+        if variant.trick == .ollie {
+            let progress = (local - soloLead) / variant.trick.duration
+            let air = (progress - CrabAnimator.ollieAirStart) / CrabAnimator.ollieAirSpan
+            if air > 0, air < 1 { variant.adjust(&pose, air: air) }
+        }
+        return pose
+    }
+
+    /// One name per clip; the suffix carries the whole variant axis.
+    static func soloFileName(costume: Costume, variant: SoloVariant,
+                             slug: String) -> String {
+        "solo-\(costume.rawValue)-\(slug)\(variant.suffix).gif"
+    }
+
     static func renderSolos(to directory: String) -> Bool {
         let root = URL(fileURLWithPath: directory)
         do {
@@ -139,43 +240,37 @@ enum CostumeSampler {
             return false
         }
         for costume in soloCast {
-            for trick in soloTricks {
+            for variant in soloVariants {
                 for shout in soloShouts {
-                    let seconds = soloSeconds(for: shout.line, trick: trick)
+                    let seconds = soloSeconds(for: shout.line, trick: variant.trick)
                     let frames = Int((seconds / frameDelay).rounded())
                     var images: [CGImage] = []
                     for frame in 0..<frames {
                         guard let image = SpriteImage.cgImage(
-                            of: soloScene(costume, trick: trick, shout: shout.line,
+                            of: soloScene(costume, variant: variant, shout: shout.line,
                                           seconds: seconds,
                                           at: Double(frame) * frameDelay),
                             scale: 2, isOpaque: true)
                         else { return false }
                         images.append(image)
                     }
-                    // The kickflip keeps its unsuffixed names, so every file
-                    // the operator has already pulled stays where it was.
-                    let name = trick == .kickflip
-                        ? "solo-\(costume.rawValue)-\(shout.slug).gif"
-                        : "solo-\(costume.rawValue)-\(shout.slug)-varial.gif"
+                    let name = soloFileName(costume: costume, variant: variant,
+                                            slug: shout.slug)
                     guard GifRenderer.encode(images, to: root.appendingPathComponent(name),
                                              frameDelay: frameDelay) else { return false }
                 }
             }
         }
-        print("wrote \(soloCast.count * soloTricks.count * soloShouts.count) solos to \(root.path)")
+        print("wrote \(soloCast.count * soloVariants.count * soloShouts.count) solos to \(root.path)")
         return true
     }
 
     @ViewBuilder
-    private static func soloScene(_ costume: Costume, trick: CrabAnimator.Flourish,
+    private static func soloScene(_ costume: Costume, variant: SoloVariant,
                                   shout: String, seconds: Double,
                                   at local: Double) -> some View {
-        let landing = soloLanding(for: trick)
-        let inFlip = local >= soloLead && local < landing
-        let pose = inFlip
-            ? CrabAnimator.flourishPose(trick, at: local - soloLead)
-            : CrabAnimator.flourishPose(trick, at: 0)   // on the board, both ends
+        let landing = soloLanding(for: variant.trick)
+        let pose = soloPose(variant: variant, at: local)
         // Shout rises just after touchdown, gone before the final frame.
         let opacity = Ease.amount(now: local, since: landing + 0.1,
                                   endedAt: seconds - 0.9)
