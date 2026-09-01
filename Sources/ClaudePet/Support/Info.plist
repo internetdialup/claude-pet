@@ -8,8 +8,18 @@
 	<string>ClaudePet</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<!-- Renamed from com.internetdialup.claude-pet 2026-08-31. That identity
+	     is adoption-poisoned on macOS 26: the window server refuses to place
+	     any status item created by an app wearing it — measured with minimal
+	     probe apps, where the neighbouring id adopted in under three seconds
+	     and this one parked its item off-screen forever, across reboots and
+	     Control Center restarts, with no clearable record anywhere in
+	     user-space. The sibling repo hit the identical disease and the rename
+	     was the cure there too. The UserDefaults suite deliberately KEEPS the
+	     old name (Preferences.suiteName) so every existing install's settings
+	     survive; do not "tidy" the two into agreement. -->
 	<key>CFBundleIdentifier</key>
-	<string>com.internetdialup.claude-pet</string>
+	<string>com.internetdialup.clawd</string>
 	<key>CFBundleName</key>
 	<string>ClaudePet</string>
 	<key>CFBundlePackageType</key>

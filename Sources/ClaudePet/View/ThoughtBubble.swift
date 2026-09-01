@@ -154,10 +154,18 @@ public struct ThoughtBubble: View {
                     MarqueeText(text: text, font: font, width: Self.marqueeWidth,
                                 frozenTime: frozenTime, loopSeconds: loopSeconds)
                 case .plain:
-                    Text(text)
-                        .font(font)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    if knowledge {
+                        // A note gets WRITTEN, not stamped: short facts and
+                        // tips type themselves onto the card. Mood lines stay
+                        // instant — they are his voice, and a voice does not
+                        // arrive letter by letter.
+                        TypewriterText(text: text, font: font, frozenTime: frozenTime)
+                    } else {
+                        Text(text)
+                            .font(font)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
                 if mood == .nudging, style == .plain {
                     // The plan is ready and he wants a verdict: a slow, eased
@@ -281,6 +289,56 @@ private struct BubbleShimmer: View {
         }
         .allowsHitTesting(false)
         .clipped()
+    }
+}
+
+/// The knowledge card's short lines, typed rather than stamped.
+///
+/// Three rules keep it honest:
+///
+/// - **The card never grows.** The full line is laid out invisibly underneath,
+///   so the bubble arrives at its final width and the text types INTO it —
+///   a card widening letter by letter would be layout jiggling, which the
+///   no-snap doctrine bans in spirit even where nothing technically snaps.
+/// - **A frozen clock shows the whole line.** Every committed still and GIF
+///   passes `frozenTime`, and a marketing asset caught mid-word ("Ada Lovel")
+///   is the exact mid-sentence bug the operator reported about the marquee,
+///   reincarnated. Offline, the reveal is always complete.
+/// - **The cursor leaves when the typing does.** The block rides the reveal
+///   and vanishes at the end — a cursor that stayed would promise more text
+///   that never comes.
+struct TypewriterText: View {
+    let text: String
+    let font: Font
+    let frozenTime: Double?
+    @State private var startedAt: Double?
+
+    /// Brisk enough that the longest plain line (28 columns) lands in under
+    /// 1.2s of a six-second dwell; slow enough to read as typing, not loading.
+    nonisolated static let charsPerSecond: Double = 24
+
+    /// How many characters are on the card `elapsed` seconds after the line
+    /// appeared. Pure, so the suite can hold it still.
+    nonisolated static func typedCount(elapsed: Double, of total: Int) -> Int {
+        max(0, min(total, Int(elapsed * charsPerSecond)))
+    }
+
+    var body: some View {
+        Clocked(frozenTime: frozenTime) { t in
+            // Offline there is no "when the line appeared" — the whole line is
+            // the picture. Live, the first tick anchors the clock.
+            let shown = frozenTime != nil
+                ? text.count
+                : Self.typedCount(elapsed: t - (startedAt ?? t), of: text.count)
+            ZStack(alignment: .leading) {
+                Text(text).font(font).lineLimit(1).opacity(0)  // reserves the width
+                Text(String(text.prefix(shown)) + (shown < text.count ? "▮" : ""))
+                    .font(font)
+                    .lineLimit(1)
+            }
+        }
+        .onAppear { startedAt = Date.timeIntervalSinceReferenceDate }
+        .onChange(of: text) { startedAt = Date.timeIntervalSinceReferenceDate }
     }
 }
 

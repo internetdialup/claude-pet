@@ -84,11 +84,16 @@ public struct CrabPose: Sendable, Equatable {
         // Appended for the same reason, never inserted: the arcade stick, the
         // shades off the stickers, and the board he kickflips.
         case joystick, shades, skateboard, skateboardVarial, skateboardRoll
+        // Appended: the board mid-OLLIE, nose high. Its own case because pitch
+        // is the one motion the flip boards refuse on purpose — see the
+        // kickflip's comment calling tilt "an impossible". For an ollie the
+        // tilt IS the trick.
+        case skateboardOllie
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
-             .skateboardRoll: true
+             .skateboardRoll, .skateboardOllie: true
             default: false
             }
         }
@@ -1090,22 +1095,38 @@ public enum CrabRig {
             b.stamp(StarMark.art.rows, at: (x: 20, y: 0), key: StarMark.art.key)
 
         case .shades:
-            // The meme shades, straight off the stickers: two solid lenses, a
-            // bridge, a brow bar, and a white glint stepping down each lens.
+            // The DEAL-WITH-IT shades, matched to the sticker on the
+            // operator's desk: angular lenses and a checkered glint.
+            //
+            // Two things distinguish the sticker's pair from generic solid
+            // shades, and both are here. The lenses RAKE — each bottom row is
+            // shorter and anchored toward the temple, both cut the same way,
+            // which is the slant of the pair that flies in from off-screen —
+            // and the glint is a CHECKER, three alternating white cells in
+            // each lens rather than a two-pixel step.
             //
             // Deliberately NOT the `glasses` prop with a new coat. Those are a
             // wire outline and they say READING — you can see his eyes through
             // them, which is the whole point of drawing them hollow. These are
             // solid, and solid says something else entirely. Two props, two
             // meanings, and the resolution is the same either way.
+            // The raked rows are anchored over his EYES (left eye cols 10-12,
+            // right eye 19-21): the first cut anchored them at the temples and
+            // the exposed eye corners read as the shades sliding off his face.
             b.rect(9 + dx, 12 + dy, 15, 1, .slate)          // brow
-            b.rect(9 + dx, 13 + dy, 6, 2, .slate)           // left lens
-            b.rect(18 + dx, 13 + dy, 6, 2, .slate)          // right lens
+            b.rect(9 + dx, 13 + dy, 6, 1, .slate)           // left lens, full row
+            b.rect(9 + dx, 14 + dy, 4, 1, .slate)           // …raked
+            b.rect(10 + dx, 15 + dy, 3, 1, .slate)          // …to a wedge tip
+            b.rect(18 + dx, 13 + dy, 6, 1, .slate)          // right lens, full row
+            b.rect(18 + dx, 14 + dy, 4, 1, .slate)          // …raked
+            b.rect(19 + dx, 15 + dy, 3, 1, .slate)          // …to a wedge tip
             b.rect(15 + dx, 13 + dy, 3, 1, .slate)          // bridge
-            b.pixel(10 + dx, 14 + dy, .paper)               // the glint, stepping
-            b.pixel(11 + dx, 13 + dy, .paper)
-            b.pixel(19 + dx, 14 + dy, .paper)
-            b.pixel(20 + dx, 13 + dy, .paper)
+            b.pixel(10 + dx, 13 + dy, .paper)               // the checker glint
+            b.pixel(12 + dx, 13 + dy, .paper)
+            b.pixel(11 + dx, 14 + dy, .paper)
+            b.pixel(19 + dx, 13 + dy, .paper)
+            b.pixel(21 + dx, 13 + dy, .paper)
+            b.pixel(20 + dx, 14 + dy, .paper)
 
         case .skateboard:
             // A board doing a KICKFLIP, and the shape of it is the opposite of
@@ -1189,6 +1210,50 @@ public enum CrabRig {
                     b.pixel(hub + 2, deckY + orbit, .yellow)
                     b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
                 }
+            }
+
+        case .skateboardOllie:
+            // An OLLIE, off the sticker: nose high, board glued to his feet,
+            // nothing spinning. The one board where PITCH is the picture —
+            // the kickflip rolls, the varial yaws, this one tilts and floats.
+            //
+            // `propPhase` is the air 0…1, and the tilt is its story: the pop
+            // kicks the nose up hard, the float carries it proudly high (the
+            // sticker's whole attitude), and only the last beat levels the
+            // deck for the wheels to land flat. Nothing snaps — every segment
+            // of the profile eases.
+            //
+            // Drawn as three deck slabs stepping up toward the nose — a pixel
+            // diagonal, since a 17-point line can hold at most a few honest
+            // steps. The wheels hang under their own third of the deck and
+            // ride its height, because a board that tilts while its wheels
+            // stay level is two props, not one.
+            let air = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let tilt: Double =
+                air < 0.35 ? Ease.smoothstep(air / 0.35)                 // pop: 0 → 1
+                : air < 0.75 ? 1 - 0.55 * Ease.smoothstep((air - 0.35) / 0.4)  // float: 1 → 0.45
+                : 0.45 * (1 - Ease.smoothstep((air - 0.75) / 0.25))      // level out: → 0
+            let cx = 16 + dx, deckY = 25 + dy
+            let rise = Int((5 * tilt).rounded())          // nose lift, in cells
+            let dip = Int((2 * tilt).rounded())           // tail drop
+            // Tail, middle, nose — each a third of the deck, stepping.
+            let yTail = deckY + dip
+            let yMid = deckY + dip - (rise + dip) / 2
+            let yNose = deckY - rise
+            b.rect(cx - 8, yTail, 6, 1, .slate)
+            b.rect(cx - 2, yMid, 6, 1, .slate)
+            b.rect(cx + 4, yNose, 5, 1, .slate)
+            // A joining pixel where the steps gap, so the deck reads as one
+            // plank rather than three floating dashes.
+            if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, .slate) }
+            if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, .slate) }
+
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                b.rect(hub, y + 1, 3, 1, .yellow)
+                b.pixel(hub, y + 2, .yellow)
+                b.pixel(hub + 1, y + 2, .screenDark)      // the bearing
+                b.pixel(hub + 2, y + 2, .yellow)
+                b.rect(hub, y + 3, 3, 1, .yellow)
             }
 
         case .skateboardRoll:

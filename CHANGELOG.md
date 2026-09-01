@@ -5,6 +5,32 @@ All notable changes to Claude Pet, for people who use it.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **🛹 He ollies.** The big floating one, off the sticker: he pops, the nose
+  kicks up, and he hangs there — most of the air is spent near the apex on
+  purpose — balance arms riding the float in counterphase, board glued to his
+  feet, eyes open to enjoy it. Nothing spins; the tilt is the trick. He shouts
+  after landing it, like every skate beat. The tenth thing he does when nobody
+  asked, and the eighteenth prop.
+
+### Fixed
+
+- **🦀 The menu bar crab is visible again.** Three separate faults hid him. The
+  icon was drawn at 12×7.5 points — smaller than a period — and now stands
+  16.5pt tall, with a test that refuses specks. A stale remembered slot could
+  strand the item in a position that no longer renders; it is forgotten on
+  every launch and the item is placed fresh. And the app's old bundle
+  identifier turned out to be adoption-poisoned on macOS 26 — the window
+  server refused to place any status item created under it, measured with
+  minimal probe apps across reboots — so the app now ships as
+  `com.internetdialup.clawd`. Settings are untouched: the preferences suite
+  deliberately keeps its old home, so every costume, size and saved position
+  survives. If "Open at login" was on, flip it once more — the login
+  registration follows the identity.
+
 ## [1.6.0] — 2026-08-30
 
 ### Added
