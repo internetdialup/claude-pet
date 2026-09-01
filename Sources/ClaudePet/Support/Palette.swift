@@ -28,6 +28,17 @@ public enum Palette {
     public static let bodyHot = Color(hex: 0xDE8A45)
     public static let bodyEmber = Color(hex: 0xD65B31)
 
+    /// The torso-turn shade: exactly one flat step below the shell, and the
+    /// closest this palette comes to breaking its own headline rule, so the
+    /// terms are stated here. It is an EVENT, not a state — the drip-feed
+    /// sampler raises and lowers it inside a single ollie's air to sell a
+    /// slight body rotation, no live pose ever sets it, and every frozen
+    /// render shows zero cells of it. Two values, shell and step, never a
+    /// third between them. If it ever reads as a shading ramp sneaking in,
+    /// delete it; do not soften it into one. (The costumed shells carry their
+    /// own step via `inkOverrides` — see `CostumeStyle`.)
+    public static let bodyShade = Color(hex: 0xB8674B)
+
     /// Chrome colours for the bubble and roster. Mostly not part of the
     /// sprite — `slateSoft` is the exception, promoted to `Ink.slate` for the
     /// service marks' field.

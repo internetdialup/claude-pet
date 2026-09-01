@@ -130,6 +130,14 @@ public enum CrabAnimator {
     /// breathes and reads as stopped.
     static let breathPeriod = 5.0
 
+    /// The ollie's air window inside its own 0…1 progress: the crouch ends at
+    /// `ollieAirStart`, the stomp begins at `ollieAirStart + ollieAirSpan`.
+    /// Shared with the drip-feed sampler's variant maps, which shade and
+    /// re-arc the trick strictly INSIDE this window — one copy of the
+    /// numbers, so the variants cannot drift from the flourish they dress.
+    static let ollieAirStart = 0.12
+    static let ollieAirSpan = 0.76
+
     /// One flourish per window, on dice, with a quiet stretch after it.
     private static let flourishPeriod = 7.0
 
@@ -1279,11 +1287,11 @@ public enum CrabAnimator {
             pose.prop = .skateboardOllie
             pose.propVisibility = 1
             pose.propPhase = 0
-            if progress < 0.12 {
+            if progress < Self.ollieAirStart {
                 pose.squash = 1                       // load the pop
                 pose.bob = 1
-            } else if progress < 0.88 {
-                let air = (progress - 0.12) / 0.76
+            } else if progress < Self.ollieAirStart + Self.ollieAirSpan {
+                let air = (progress - Self.ollieAirStart) / Self.ollieAirSpan
                 let hang = pow(sin(air * .pi), 0.55)  // flat-topped: the float
                 pose.bob = -Int((hang * 10).rounded())
                 pose.legAmplitude = 1.6

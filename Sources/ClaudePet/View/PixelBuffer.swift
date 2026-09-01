@@ -50,6 +50,22 @@ public struct PixelBuffer: Sendable {
         /// wardrobe. The GitHub mark used to be drawn in `.eye` and turned
         /// pale green under the Matrix look and yellow under the Gundam.
         case slate
+        /// The torso-turn shade — the sampler's ollie variants selling a
+        /// slight body rotation. This is NOT the shading ramp the header
+        /// bans: it is one flat step below the shell, override-consulting so
+        /// every wardrobe supplies its own step, raised and lowered inside a
+        /// single trick's air by the drip-feed sampler, and never set by any
+        /// live pose. An EVENT, not a state — the glint's defence, borrowed
+        /// whole. If it ever reads as a ramp sneaking in, delete it; do not
+        /// soften it into one.
+        case bodyShade
+        /// The deal-with-it black — the meme shades off the operator's desk
+        /// sticker, which are PURE black on the print. `.slate` renders as
+        /// the soft charcoal the service badges need, and `.eye` takes
+        /// wardrobe overrides (camera-yellow shades on the Gundam would be
+        /// a different meme). No override lookup, so the lenses are the same
+        /// black in every costume — which is the joke's whole uniform.
+        case memeBlack
     }
 
     private(set) var cells: [UInt8]
@@ -314,6 +330,13 @@ public struct PixelCanvasView: View {
         // cards ground this badge on `Palette.slate` itself, so a near-black
         // field would be 1.05:1 against its own card and the tile would vanish.
         case .slate: Palette.slateSoft
+        // Override-consulting on purpose: "one step below the shell" is a
+        // relation, not a colour, and three of the four solo costumes recolour
+        // the shell itself — a fixed darker terracotta would sit LIGHTER than
+        // the ninja and Retro Black shells and stain the Gundam's white.
+        case .bodyShade: inkOverrides[.bodyShade] ?? Palette.bodyShade
+        // Deliberately NOT override-consulting — see the case's own comment.
+        case .memeBlack: Palette.ink
         }
     }
 }
