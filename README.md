@@ -46,20 +46,22 @@ and a 90th percentile of 7, while a fanned-out one runs 22. **Nudging** is an
 exact `ExitPlanMode` with no answer yet. **Thinking** shows three dots rather
 than words, because there is no honest label for that moment.
 
-## ✨ Nine things he does when nobody asked
+## ✨ Ten things he does when nobody asked
 
 <table>
 <tr>
-  <td width="150" align="center"><img src="docs/media/flourish-jump.gif" width="130"><br><strong>Jump</strong></td>
-  <td width="150" align="center"><img src="docs/media/flourish-stretch.gif" width="130"><br><strong>Stretch</strong></td>
-  <td width="150" align="center"><img src="docs/media/flourish-lookAround.gif" width="130"><br><strong>Look around</strong></td>
-  <td width="150" align="center"><img src="docs/media/flourish-scuttle.gif" width="130"><br><strong>Scuttle</strong></td>
+  <td width="120" align="center"><img src="docs/media/flourish-jump.gif" width="110"><br><strong>Jump</strong></td>
+  <td width="120" align="center"><img src="docs/media/flourish-stretch.gif" width="110"><br><strong>Stretch</strong></td>
+  <td width="120" align="center"><img src="docs/media/flourish-lookAround.gif" width="110"><br><strong>Look around</strong></td>
+  <td width="120" align="center"><img src="docs/media/flourish-scuttle.gif" width="110"><br><strong>Scuttle</strong></td>
+  <td width="120" align="center"><img src="docs/media/flourish-wave.gif" width="110"><br><strong>Wave</strong></td>
 </tr>
 <tr>
-  <td align="center"><img src="docs/media/flourish-wave.gif" width="130"><br><strong>Wave</strong></td>
-  <td align="center"><img src="docs/media/flourish-wiggle.gif" width="130"><br><strong>Wiggle</strong></td>
-  <td align="center"><img src="docs/media/flourish-kickflip.gif" width="130"><br><strong>Kickflip</strong></td>
-  <td align="center"><img src="docs/media/flourish-varialFlip.gif" width="130"><br><strong>Varial flip</strong></td>
+  <td align="center"><img src="docs/media/flourish-wiggle.gif" width="110"><br><strong>Wiggle</strong></td>
+  <td align="center"><img src="docs/media/flourish-kickflip.gif" width="110"><br><strong>Kickflip</strong></td>
+  <td align="center"><img src="docs/media/flourish-varialFlip.gif" width="110"><br><strong>Varial flip</strong></td>
+  <td align="center"><img src="docs/media/flourish-ollie.gif" width="110"><br><strong>Ollie</strong></td>
+  <td align="center"><img src="docs/media/flourish-cruise.gif" width="110"><br><strong>Cruise</strong></td>
 </tr>
 </table>
 
@@ -205,7 +207,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All seventeen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and three skateboards">
+  <img src="docs/media/props.png" width="100%" alt="All eighteen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and four skateboards">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

@@ -91,7 +91,9 @@ public enum CrabAnimator {
     /// than random per frame, so each one plays through instead of stuttering.
     enum Flourish: String, CaseIterable {
         case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, varialFlip,
-             cruise
+             cruise,
+             // Appended, never inserted — the dice index into `allCases`.
+             ollie
 
         /// The two skate tricks, so the line he shouts after one does not have
         /// to name them individually.
@@ -99,11 +101,14 @@ public enum CrabAnimator {
         /// which is why this is not called `skateTricks` — he shouts after all
         /// three, and "Do a Kickflip!" lands funnier over a roll-away than it
         /// does over an actual kickflip.
-        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise]
+        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie]
 
         var duration: Double {
             switch self {
             case .kickflip, .varialFlip: 2.8
+            // Longer than the flips on purpose: the whole point of this one
+            // is the hang, and hang needs clock to hang in.
+            case .ollie: 3.2
             case .cruise: 2.6
             case .jump: 0.9
             case .wave: 1.8
@@ -1251,6 +1256,52 @@ public enum CrabAnimator {
                 pose.propPhase = air
             } else {
                 pose.squash = 1                       // stomp it
+                pose.bob = 1
+                pose.mouth = .open
+            }
+
+        case .ollie:
+            // The sticker ollie: a big floating one, nose high, board stuck to
+            // his feet, arms riding the balance the whole way up and down.
+            //
+            // Same worn-prop trick as the flips — the board travels with `bob`
+            // — but the arc is different on purpose. A flip's air is a sine:
+            // up, over, down. This one flattens the top of that sine
+            // (`pow 0.55`) so he spends most of the air NEAR the apex, which
+            // is what "floating" is; the flips get through their air in the
+            // time this one spends arriving at the top of it.
+            //
+            // The arms are the sticker's other half: not tucked like the jump,
+            // but OUT, front arm high and back arm low, wobbling gently in
+            // counterphase like he is surfing the hang. Eyes squint through
+            // the pop, then open wide for the whole float — this trick is for
+            // enjoying, not surviving.
+            pose.prop = .skateboardOllie
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            if progress < 0.12 {
+                pose.squash = 1                       // load the pop
+                pose.bob = 1
+            } else if progress < 0.88 {
+                let air = (progress - 0.12) / 0.76
+                let hang = pow(sin(air * .pi), 0.55)  // flat-topped: the float
+                pose.bob = -Int((hang * 10).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.propPhase = air
+                if air < 0.18 {
+                    pose.eyes = .squint               // the snap
+                } else {
+                    // Balance arms, breathing in counterphase through the hang.
+                    let sway = sin(t * 5)
+                    pose.armRight = 0.7 + 0.25 * sway
+                    pose.armLeft = 0.35 - 0.2 * sway
+                    pose.gazeX = 1                    // eyes down the line
+                }
+                pose.mouth = .open
+            } else {
+                pose.squash = 1                       // stomp it flat
                 pose.bob = 1
                 pose.mouth = .open
             }

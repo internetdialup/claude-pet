@@ -7,6 +7,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+### Added
+
+- **🛹 He ollies.** The big floating one, off the sticker: he pops, the nose
+  kicks up, and he hangs there — most of the air is spent near the apex on
+  purpose — balance arms riding the float in counterphase, board glued to his
+  feet, eyes open to enjoy it. Nothing spins; the tilt is the trick. He shouts
+  after landing it, like every skate beat. The tenth thing he does when nobody
+  asked, and the eighteenth prop.
+
 ### Fixed
 
 - **🦀 The menu bar crab is visible again.** Three separate faults hid him. The
