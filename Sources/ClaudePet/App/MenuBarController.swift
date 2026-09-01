@@ -50,12 +50,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // status item in the fork). Position memory was never a feature here,
         // so the key is dropped every launch and macOS places the item fresh
         // beside its neighbours, where it can be seen.
-        // `.standard`, NOT the named suite: inside the bundled app the suite
-        // name equals the bundle id, and Foundation refuses that pairing with
-        // "does not make sense and will not work" — the delete silently
-        // no-ops. Standard maps to the bundle's own domain, which is exactly
-        // where macOS stores the position. (A bare `swift run` has no bundle
-        // and the key never existed there; the delete is harmless.)
+        // `.standard`, NOT `Preferences.suiteName`: macOS reads and writes the
+        // position under the BUNDLE's own domain (`com.internetdialup.clawd`
+        // since the rename), while the named suite is the settings home the
+        // rename deliberately left behind. Deleting the key from the suite
+        // would clean a domain the status bar never looks at.
         UserDefaults.standard
             .removeObject(forKey: "NSStatusItem Preferred Position Item-0")
 

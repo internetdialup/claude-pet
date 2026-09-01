@@ -6,6 +6,13 @@ import Foundation
 /// `com.internetdialup.claude-pet` UserDefaults suite, which macOS backs with
 /// `~/Library/Preferences/com.internetdialup.claude-pet.plist`. Any claim that
 /// something "was saved" refers to that exact file.
+///
+/// The suite name is NOT the bundle identifier, on purpose. The bundle was
+/// renamed to `com.internetdialup.clawd` (see Info.plist for the why — the old
+/// identity is status-item-poisoned on the operator's macOS), and the suite
+/// kept the old name so every existing install's settings survive the rename
+/// untouched. The mismatch is also what makes `UserDefaults(suiteName:)` legal
+/// here: Foundation refuses the pairing when the suite EQUALS the bundle id.
 @MainActor
 public final class Preferences {
     public static let shared = Preferences()
