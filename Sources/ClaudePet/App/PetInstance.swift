@@ -41,6 +41,13 @@ final class PetInstance {
     /// noticed you" still feels causal.
     static let hoverStirDwell: TimeInterval = 1.2
 
+    /// How long the rude wake holds the coordinator's stir back — exactly
+    /// `rudeWakeArmRise + rudeWakeHold`, so the mood flips (and the zzz's cut)
+    /// at the instant phase C begins: he stretches and glares from inside the
+    /// sleeping pose, and only then gets up. The 0.4s mood crossfade and the
+    /// envelope's 0.5s release land together.
+    static let rudeWakeStirDelay: TimeInterval = 1.2
+
     /// Whether a hover that started at `startedAt` still counts as attention
     /// when its dwell timer fires at `queuedFor`.
     ///
@@ -236,19 +243,52 @@ final class PetInstance {
     private func wire(_ controller: PetWindowController) {
         controller.onClick = { [weak self] clicks, location in
             guard let self else { return }
-            // Any click is contact. First statement in the closure on purpose:
-            // the four paths below all return early (secret gate, triple-poke,
-            // bug pounce, sleeping snack), so stirring here is the one place
-            // that catches every one of them without repetition.
-            self.onStir?()
             // 🗝️ Shift+click is the arming half of the secret handshake, not
             // a poke: the window borrows key focus (the roster's dance) and
             // listens for a lone K. Modifier state is polled because it is
             // the one keyboard fact a focusless window can always read.
+            // Checked before ANY stir so the handshake works on a sleeper too.
             if NSEvent.modifierFlags.contains(.shift) {
+                self.onStir?()
                 self.armSecretMenu()
                 return
             }
+
+            // 🌙 A click on a sleeping crab is a RUDE AWAKENING, not a roster
+            // request — the roster stays a menu-bar away. Checked BEFORE any
+            // stir, and that ordering is the whole fix: the stir chain is
+            // synchronous all the way to `model.state`, so a stir on the line
+            // above this check flips the mood to idle before the question is
+            // asked — which is precisely how the old sleeping-snack branch
+            // spent its entire shipped life unreachable.
+            //
+            // The stir is DEFERRED to the end of the annoyed beat, so the
+            // sleeping pose — and the zzz mid-air — survive the claw coming
+            // out and the eyes opening. No squeal (silence reads as him not
+            // dignifying this), no roster (the poke is the wake; the NEXT
+            // click, now awake, squashes and opens it as ever). A click
+            // landing during the wake is swallowed: he is already being
+            // woken, and a fast triple-poke on a sleeper gets a rude wake,
+            // not a party — the party needs him awake, which is right.
+            if self.model.state.mood == .sleeping {
+                guard self.model.rudeWakeStartedAt == nil else { return }
+                let wokenAt = Date()
+                self.model.rudeWakeStartedAt = wokenAt
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.rudeWakeStirDelay) { [weak self] in
+                    guard let self, self.model.rudeWakeStartedAt == wokenAt else { return }
+                    self.onStir?()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.rudeWakeDuration + 0.1) { [weak self] in
+                    guard let self, self.model.rudeWakeStartedAt == wokenAt else { return }
+                    self.model.rudeWakeStartedAt = nil
+                }
+                return
+            }
+
+            // Any AWAKE click is contact. The paths below all return early
+            // (triple-poke, bug pounce), so stirring here is the one place
+            // that catches every one of them without repetition.
+            self.onStir?()
 
             // 🎉🪄 Poke him three times and he throws a party.
             //
@@ -289,20 +329,13 @@ final class PetInstance {
                 return
             }
 
-            // 🍤 A click on a sleeping crab is a snack, not a roster request —
-            // the roster stays a menu-bar away. The cell gate stays even now
-            // that the mouse territory is his silhouette: the click location
-            // is sampled at mouseUp and can drift a few points off him.
-            if self.model.state.mood == .sleeping, self.model.snackStartedAt == nil,
-               let cell = self.gridCell(for: location), CrabHitMask.body[cell.x, cell.y] {
-                let snackAt = Date()
-                self.model.snackStartedAt = snackAt
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) { [weak self] in
-                    guard let self, self.model.snackStartedAt == snackAt else { return }
-                    self.model.snackStartedAt = nil
-                }
-                return
-            }
+            // (The 🍤 sleeping-snack branch lived here, and an autopsy found
+            // it had been unreachable since the day it shipped: the
+            // stir-first ordering flipped the mood before its `.sleeping`
+            // check ever ran. The rude wake above now owns the sleeping
+            // click; `applySnack`, the shrimp art and their tests all stay in
+            // the rig, one trigger away from a comeback — a snack for an
+            // AWAKE crab is a plausible future round.)
 
             // Squash first, roster second — the reaction is feedback for the
             // click, and the roster is what the click is for. The squeal

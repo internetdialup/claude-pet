@@ -101,16 +101,25 @@ struct MoodDecayTests {
         try await body()
     }
 
-    /// Shrinks ONLY the wake window.
+    /// Shrinks ONLY the wake windows — BOTH of them, in lockstep, so the
+    /// existing tests keep their meaning: a stir used to write the one mark
+    /// and now writes the roused one, and a test that shrank only
+    /// `sleepAfter` would find its poke buying ninety real seconds.
     ///
     /// Deliberately separate from `withFastDecay`, which sets `sleepAfter = 30`
     /// on purpose so its tests can reach `.idle` without tripping the
     /// display-time sleep. Shrinking it there would race them.
     private func withShortWakeWindow(_ seconds: TimeInterval = 0.4,
+                                     roused: TimeInterval? = nil,
                                      _ body: () async throws -> Void) async rethrows {
-        let stored = ActivityCoordinator.sleepAfter
+        let storedSleep = ActivityCoordinator.sleepAfter
+        let storedRoused = ActivityCoordinator.rousedAfter
         ActivityCoordinator.sleepAfter = seconds
-        defer { ActivityCoordinator.sleepAfter = stored }
+        ActivityCoordinator.rousedAfter = roused ?? seconds
+        defer {
+            ActivityCoordinator.sleepAfter = storedSleep
+            ActivityCoordinator.rousedAfter = storedRoused
+        }
         try await body()
     }
 
@@ -309,6 +318,12 @@ struct MoodDecayTests {
         // drops the one signal it exists to carry.
         #expect(ActivityCoordinator.attentionStaleAfter > ActivityCoordinator.sleepAfter)
         #expect(ActivityCoordinator.attentionStaleAfter >= 1800)
+
+        // The tamagotchi split: a poke buys ABOUT ninety seconds, and it must
+        // stay an order of magnitude under the work window — equal values
+        // would quietly undo the whole "attention is not a session" ruling.
+        #expect(ActivityCoordinator.rousedAfter < ActivityCoordinator.sleepAfter)
+        #expect(ActivityCoordinator.rousedAfter >= 60)
     }
 
     @Test("The second slot follows the busiest session the first is not showing")
@@ -444,6 +459,56 @@ struct MoodDecayTests {
             coordinator.stir()
             #expect(coordinator.state.mood != .sleeping,
                     "a poke has to outrank a quiet session's clock")
+        }
+    }
+
+    /// **The tamagotchi ruling, as arithmetic.** A poke buys `rousedAfter`,
+    /// not `sleepAfter` — this is the test that FAILS on the old code, where
+    /// `stir` wrote the long mark and waking him up was flipping a
+    /// fifteen-minute switch. Windows: sleep 0.4s, roused 1.0s. Poke at
+    /// t=0.7 (asleep): awake immediately; at +0.7 (past sleepAfter, inside
+    /// rousedAfter) still up; at +1.2 more, the roused clock has lapsed and
+    /// he is back down on his own.
+    @Test("A poke buys the short window, not the long one")
+    func aPokeBuysTheShortWindowNotTheLongOne() async throws {
+        try await withShortWakeWindow(0.4, roused: 1.0) {
+            let coordinator = try quietCoordinator([])
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping)
+
+            coordinator.stir()
+            #expect(coordinator.state.mood == .idle, "the poke did not land")
+
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .idle,
+                    "0.7s after the poke he slept — the poke bought sleepAfter, not rousedAfter")
+
+            try await Task.sleep(nanoseconds: 500_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping,
+                    "the roused window never lapsed — he would idle forever off one poke")
+        }
+    }
+
+    /// The other half of the split: session ACTIVITY still buys the long
+    /// window, untouched by a tiny roused tier — work is work.
+    @Test("Session activity still buys the long window")
+    func sessionActivityStillBuysTheLongWindow() async throws {
+        try await withShortWakeWindow(1.0, roused: 0.1) {
+            let id = "s-busy"
+            let coordinator = try quietCoordinator([id])
+            coordinator.ingest([ActivityEvent(sessionID: id, kind: .turnEnded)])
+            try await Task.sleep(nanoseconds: 500_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood != .sleeping,
+                    "0.5s-old activity slept inside a 1.0s window")
+
+            try await Task.sleep(nanoseconds: 700_000_000)
+            tick(coordinator)
+            #expect(coordinator.state.mood == .sleeping,
+                    "…and the long window still lapses after")
         }
     }
 

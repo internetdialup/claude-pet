@@ -14,19 +14,21 @@ struct SleepZTests {
 
     private var day: Double { CrabAnimator.sleepZInterval(hourOfDay: 14) }
     private var night: Double { CrabAnimator.sleepZInterval(hourOfDay: 2) }
+    private var render: Double { CrabAnimator.sleepZInterval(hourOfDay: nil) }
 
     // MARK: - The loop
 
     /// **The constraint that shaped everything else.** Nothing may be in the
     /// air at t=0 or at the end of a breath, or the clip does not close.
     ///
-    /// Checked at BOTH densities even though only the daytime one is ever
-    /// rendered: night is one edit away from being rendered, and a seam that
-    /// only appears after 22:00 is the kind of bug nobody reproduces.
+    /// Checked at ALL densities even though only the render one is ever
+    /// committed: the others are one edit away from being rendered, and a
+    /// seam that only appears after 22:00 is the kind of bug nobody
+    /// reproduces.
     @Test("No zZz is in the air at either end of a breath")
     func theLoopCloses() {
         let breath = CrabAnimator.breathPeriod
-        for (label, interval) in [("day", day), ("night", night)] {
+        for (label, interval) in [("day", day), ("night", night), ("render", render)] {
             for t in [0.0, breath, breath * 2, breath * 3] {
                 let aloft = CrabAnimator.sleepZSpawns(t: t, interval: interval)
                 #expect(aloft.isEmpty,
@@ -91,13 +93,32 @@ struct SleepZTests {
                 "night showed \(byNight) against day's \(byDay) — the window is not biting")
     }
 
-    /// **`nil` must be daytime.** Every offline renderer passes it, and if
-    /// absence meant night then `sleeping.gif` would come out denser or
-    /// sparser depending on the hour someone regenerated it — which is the one
-    /// thing a byte-compared asset cannot survive.
-    @Test("No clock means daytime, exactly")
-    func nilIsDaytime() {
-        #expect(CrabAnimator.sleepZInterval(hourOfDay: nil) == day)
+    /// **`nil` is the RENDER density, and it must never move.** Every offline
+    /// renderer passes it, and the committed `sleeping.gif` was byte-compared
+    /// at one z per breath. `nil` stopped meaning "daytime" the day live-day
+    /// backed off to whispering — if a future round "fixes" nil back to
+    /// tracking the day, the committed media silently re-densifies on its
+    /// next regeneration, which is the one thing a byte-compared asset
+    /// cannot survive.
+    @Test("No clock means the render density, exactly one z per breath")
+    func nilIsTheRenderDensity() {
+        #expect(CrabAnimator.sleepZInterval(hourOfDay: nil) == CrabAnimator.breathPeriod)
+        #expect(day > render,
+                "the live day no longer whispers past the render density")
+    }
+
+    /// The whisper still breathes: every density is a whole multiple or exact
+    /// division of the breath, so a glyph is always released on the same
+    /// phase of the body it rises from. An interval of 7 or 8 would pass
+    /// every other test here and still drift against the chest.
+    @Test("Every density rides the breath")
+    func everyDensityRidesTheBreath() {
+        for interval in [day, night, render] {
+            let asMultiple = interval.truncatingRemainder(dividingBy: CrabAnimator.breathPeriod)
+            let asDivision = CrabAnimator.breathPeriod.truncatingRemainder(dividingBy: interval)
+            #expect(asMultiple == 0 || asDivision == 0,
+                    "\(interval)s drifts against a \(CrabAnimator.breathPeriod)s breath")
+        }
     }
 
     // MARK: - How one behaves
@@ -133,11 +154,15 @@ struct SleepZTests {
     /// The ordinal picks the column and the shape, so recycling it would make
     /// two consecutive glyphs identical twins — the thing that makes a rise
     /// read as a stutter rather than as breathing.
+    ///
+    /// Driven at the RENDER interval, not the live day's: the test is about
+    /// monotonic ordinals, not density, and at the whisper interval a 40s
+    /// sweep births only four glyphs — too few for the floor to mean much.
     @Test("Ordinals keep counting up")
     func ordinalsDoNotRecycle() {
         var last = -1
         for step in stride(from: 0.1, through: 40.0, by: 0.1) {
-            for z in CrabAnimator.sleepZSpawns(t: step, interval: day) {
+            for z in CrabAnimator.sleepZSpawns(t: step, interval: render) {
                 #expect(z.ordinal >= last, "ordinal went backwards at t=\(step)")
                 last = max(last, z.ordinal)
             }
