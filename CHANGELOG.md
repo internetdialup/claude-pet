@@ -9,6 +9,30 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **📖 Fun facts finish their sentence now.** A scrolling fact always
+  completes one full read before real news can replace it. After that, news
+  takes over right away. Busy sessions used to cut facts off mid-word every
+  ten seconds or so, and idle facts died even faster. Both paths are fixed.
+- **😎 The deal-with-it drop.** About half the time a fun fact shows up, the
+  shades fall from above and land on his face. Sometimes the landing gets a
+  little sparkle and a ding. It varies on purpose, so keep watching.
+- **🎉 The triple-poke party actually fires.** Three deliberate pokes now
+  count even at human speed. The old version needed machine-gun clicking,
+  and the roster panel was eating your second click anyway. The panel now
+  waits three quarters of a second before opening, so a poke combo never
+  flashes it.
+- **🍤 Double-poke feeds him.** Two quick pokes on an idle crab's body and he
+  pulls out the shrimp. One poke still opens the roster, three still party.
+- **🌠 A shooting star, sometimes.** During a late-night stargaze there is a
+  chance a streak crosses the sky, and he follows it with his eyes. Most
+  nights it stays rare. That is the point.
+- **🛹✨ The golden board.** About one skate trick in fifty rides a gold deck,
+  and he has special lines saved for it.
+- **💛 The long-pet thank-you.** Hold the pet for ten full seconds and the
+  hearts surge, with a line he saves for exactly this.
+- **🛹 More skating overall.** The idle rotation now leans harder into the
+  board: tricks come up about twice as often as before.
+
 - **😾 Wake him up and he lets you know about it.** Click a sleeping crab and
   he does not squeal and open the roster — one claw stretches out from under
   the covers with a zzz still rising, then his eyes open, annoyed, at you.

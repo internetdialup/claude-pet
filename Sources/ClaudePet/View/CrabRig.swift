@@ -141,6 +141,20 @@ public struct CrabPose: Sendable, Equatable {
     public var shadesDrop: Int = 0
     public var shadesGlint: Bool = false
 
+    /// The 1-in-50 jackpot deck. Set ONLY by the live schedule in `pose()` —
+    /// never by `flourishPose` (the renderers' and sampler's door) and never
+    /// by a preview — so a golden board cannot reach a committed byte by
+    /// construction.
+    public var goldenBoard: Bool = false
+
+    /// 🌠 The stargaze session's rare streak: the head's cell, its sky row,
+    /// and its travel direction (the trail extends opposite). nil = no
+    /// sighting. Set only inside the live stargaze branch, whose hour gate
+    /// already keeps every offline render dark.
+    public var shootingStarX: Int?
+    public var shootingStarY: Int = 0
+    public var shootingStarDX: Int = 1
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
@@ -686,11 +700,16 @@ public enum CrabRig {
             }
         }
 
-        // One shooting star early in the session: a three-pixel diagonal streak.
-        if phase > 2, phase < 2.5 {
-            let head = Int((phase - 2) * 20)
-            for trail in 0..<3 {
-                scene.pixel(6 + head - trail, 3 + (head - trail) / 3, .mouth)
+        // 🌠 The rare streak — a DICED sighting he tracks with his eyes, not
+        // the old hardcoded every-session one (a shooting star that always
+        // comes is furniture). The schedule owns when and where; this only
+        // paints the head bright and a two-cell tail trailing opposite the
+        // travel, clamped to the sky rows.
+        if let head = pose.shootingStarX {
+            scene.pixel(head, max(0, pose.shootingStarY), .paper)
+            for trail in 1...2 {
+                let x = head - trail * pose.shootingStarDX
+                scene.pixel(x, max(0, pose.shootingStarY - trail / 2), .mouth)
             }
         }
 
@@ -1228,21 +1247,28 @@ public enum CrabRig {
             let theta = turn * 2 * .pi
             let cx = 16 + dx, deckY = 25 + dy
             let thick = max(1, Int((7 * abs(sin(theta))).rounded()))
-            b.rect(cx - 8, deckY - thick / 2, 17, thick, .slate)
+            // The golden board inverts the two board inks: deck gold, wheels
+            // slate. `.yellow` because it is the palette's only gold — the
+            // wheels' own ink and the star's — and the inversion (rather than
+            // gold-on-gold) keeps the deck/wheel boundary the board tests
+            // measure. Same swap in all four board cases.
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - 8, deckY - thick / 2, 17, thick, deckInk)
 
             let orbit = Int((3 * cos(theta)).rounded())     // + is below: y grows down
             if sin(theta) >= 0 || abs(orbit) > thick / 2 {
                 for hub in [cx - 5, cx + 4] {
-                    b.rect(hub, deckY + orbit - 1, 3, 1, .yellow)
-                    b.pixel(hub, deckY + orbit, .yellow)
+                    b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
+                    b.pixel(hub, deckY + orbit, wheelInk)
                     // The bearing is `.screenDark`, not slate. Slate is the
                     // DECK's ink and nothing else's, which is what lets the
                     // suite measure the deck by looking for it — a bearing in
                     // the same ink put the wheel inside the deck's bounding box
                     // and made every frame look diagonal to the test.
                     b.pixel(hub + 1, deckY + orbit, .screenDark)   // the bearing
-                    b.pixel(hub + 2, deckY + orbit, .yellow)
-                    b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
+                    b.pixel(hub + 2, deckY + orbit, wheelInk)
+                    b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
                 }
             }
 
@@ -1273,17 +1299,19 @@ public enum CrabRig {
             // looking straight down the nose-tail axis.
             let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
             let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
-            b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, .slate)
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
 
             let orbit = Int((3 * cos(roll)).rounded())
             if sin(roll) >= 0 || abs(orbit) > thick / 2 {
                 let reach = max(1, half - 3)
                 for hub in [cx - reach - 1, cx + reach - 1] {
-                    b.rect(hub, deckY + orbit - 1, 3, 1, .yellow)
-                    b.pixel(hub, deckY + orbit, .yellow)
+                    b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
+                    b.pixel(hub, deckY + orbit, wheelInk)
                     b.pixel(hub + 1, deckY + orbit, .screenDark)
-                    b.pixel(hub + 2, deckY + orbit, .yellow)
-                    b.rect(hub, deckY + orbit + 1, 3, 1, .yellow)
+                    b.pixel(hub + 2, deckY + orbit, wheelInk)
+                    b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
                 }
             }
 
@@ -1315,20 +1343,22 @@ public enum CrabRig {
             let yTail = deckY + dip
             let yMid = deckY + dip - (rise + dip) / 2
             let yNose = deckY - rise
-            b.rect(cx - 8, yTail, 6, 1, .slate)
-            b.rect(cx - 2, yMid, 6, 1, .slate)
-            b.rect(cx + 4, yNose, 5, 1, .slate)
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - 8, yTail, 6, 1, deckInk)
+            b.rect(cx - 2, yMid, 6, 1, deckInk)
+            b.rect(cx + 4, yNose, 5, 1, deckInk)
             // A joining pixel where the steps gap, so the deck reads as one
             // plank rather than three floating dashes.
-            if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, .slate) }
-            if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, .slate) }
+            if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
+            if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
 
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
-                b.rect(hub, y + 1, 3, 1, .yellow)
-                b.pixel(hub, y + 2, .yellow)
+                b.rect(hub, y + 1, 3, 1, wheelInk)
+                b.pixel(hub, y + 2, wheelInk)
                 b.pixel(hub + 1, y + 2, .screenDark)      // the bearing
-                b.pixel(hub + 2, y + 2, .yellow)
-                b.rect(hub, y + 3, 3, 1, .yellow)
+                b.pixel(hub + 2, y + 2, wheelInk)
+                b.rect(hub, y + 3, 3, 1, wheelInk)
             }
 
         case .skateboardRoll:
@@ -1349,15 +1379,17 @@ public enum CrabRig {
             let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
             let deckY = 25 + dy
             let cx = 16 + dx
-            b.rect(cx - 8, deckY, 17, 1, .slate)
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - 8, deckY, 17, 1, deckInk)
 
             let tick = Int(u * 34) % 4
             let mark = [(0, -1), (1, 0), (0, 1), (-1, 0)][tick]
             for hub in [cx - 5, cx + 4] {
-                b.rect(hub, deckY + 1, 3, 1, .yellow)
-                b.pixel(hub, deckY + 2, .yellow)
-                b.pixel(hub + 2, deckY + 2, .yellow)
-                b.rect(hub, deckY + 3, 3, 1, .yellow)
+                b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                b.pixel(hub, deckY + 2, wheelInk)
+                b.pixel(hub + 2, deckY + 2, wheelInk)
+                b.rect(hub, deckY + 3, 3, 1, wheelInk)
                 b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, .screenDark)
             }
 

@@ -651,9 +651,9 @@ public final class PetViewModel: ObservableObject {
     /// comes along later to finish it the way a pointer leaving does.
     @Published public var helloStartedAt: Date?
     @Published public var helloEndedAt: Date?
-    /// The sleeping-click shrimp snack began. (No live trigger today — the
-    /// rude wake owns the sleeping click; kept for the animator and a future
-    /// awake-snack round.)
+    /// The shrimp snack began — a double-poke on an idle crab's body feeds
+    /// him. (The original sleeping-click trigger was stillborn; the poke
+    /// ladder gave the shrimp its comeback.)
     @Published public var snackStartedAt: Date?
     /// A sleeping crab was poked awake — the rude-wake sequence is playing.
     @Published public var rudeWakeStartedAt: Date?

@@ -31,6 +31,7 @@ public enum CrabAnimator {
     /// | salt | who |
     /// | --- | --- |
     /// | `7 &+ 3` | which idle flourish |
+    /// | `7 &+ 11` | whether a skate beat rides the golden board — 7 shared by addend |
     /// | `13 &+ 5` | the working prop re-roll |
     /// | `17 &+ 7` | whether an idle cycle is a fun fact |
     /// | `17 &+ 11` | whether a fact showing drops the shades — 17 shared by addend |
@@ -44,6 +45,7 @@ public enum CrabAnimator {
     /// | `59 &+ 7` | the petting hearts' column |
     /// | `59 &+ 11` | the sleep zZz's column — 59 shared by addend, same domain |
     /// | `61 &+ 3` | the stargazer |
+    /// | `61 &+ 7` | the stargazer's shooting star — 61 shared by addend, same domain |
     /// | `67 &+ 5` | the near-done glow |
     /// | `71 &+ 29 &+ slot` | the bubble bursts |
     /// | `73 &+ 5` | the patch of sun |
@@ -94,7 +96,9 @@ public enum CrabAnimator {
     enum Flourish: String, CaseIterable {
         case jump, wave, wiggle, stretch, lookAround, scuttle, kickflip, varialFlip,
              cruise,
-             // Appended, never inserted — the dice index into `allCases`.
+             // Appended, never inserted — renderers and the sampler iterate
+             // `allCases` by position, and the live dice index into
+             // `flourishDeck`, whose head IS `allCases`.
              ollie
 
         /// The two skate tricks, so the line he shouts after one does not have
@@ -163,12 +167,35 @@ public enum CrabAnimator {
     /// 72% of cycles fire, gaps go irregular (7s, 14s, 7s, 21s…, longest 35s
     /// over 600 cycles) and the quiet stretches rise from 80% to 86%.
     /// "He should move sometimes, and be still most of the time."
+    /// What the choice die deals from. The enum stays append-only; TASTE
+    /// lives here. The three tricks appear twice and the cruise once — the
+    /// operator skates, and the shout deck lands harder on tricks than on a
+    /// roll-away. Thirteen entries put skate beats at ~54% of fired
+    /// flourishes (measured over the real dice, up from 40%), each trick at
+    /// ~15%, cruise at ~7.5%, every other flourish at ~7.7%.
+    static let flourishDeck: [Flourish] = Flourish.allCases
+        + [.kickflip, .varialFlip, .ollie]
+
+    /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
+    /// flourish family's multiplier, new addend, same cycle domain.
+    nonisolated static let goldenSkateChance = 0.02
+    static func skateBeatIsGolden(cycle: Int) -> Bool {
+        cycle > 0 && noise(cycle &* 7 &+ 11) < goldenSkateChance
+    }
+
+    /// The same question asked at a LANDING instant — the one derivation
+    /// `armSkateLine` and the pose share, so the reserved shout can never
+    /// disagree with the deck it is shouting about.
+    static func skateLandingIsGolden(at landing: Double) -> Bool {
+        skateBeatIsGolden(cycle: Int(floor((landing - 0.01) / flourishPeriod)))
+    }
+
     static func flourish(at t: Double) -> (Flourish, Double)? {
         let cycle = Int(floor(t / flourishPeriod))
         guard cycle > 0, noise(cycle &* 89 &+ 11) < 0.7 else { return nil }
         let since = t - Double(cycle) * flourishPeriod
-        let all = Flourish.allCases
-        let choice = all[Int(noise(cycle &* 7 &+ 3) * Double(all.count)) % all.count]
+        let deck = flourishDeck
+        let choice = deck[Int(noise(cycle &* 7 &+ 3) * Double(deck.count)) % deck.count]
         guard since < choice.duration else { return nil }
         return (choice, since / choice.duration)
     }
@@ -303,6 +330,33 @@ public enum CrabAnimator {
         let since = t - Double(cycle) * 120
         guard since < 12 else { return nil }
         return (Ease.window(since, duration: 12, edge: 0.8), since)
+    }
+
+    /// 🌠 The rare streak during a stargaze, as a whole-pixel head position
+    /// and travel direction, or nil. About two sessions in five get one —
+    /// dice, so a sighting stays an event; the old rig hardcoded a streak
+    /// into EVERY session, which made it furniture. Salt 61 &+ 7: the
+    /// stargazer's multiplier, new addend, same 120s-cycle domain — the
+    /// 59-family precedent.
+    ///
+    /// The 1.6s flight sits at seconds 4.0–5.6, inside the envelope's
+    /// plateau; the head enters and leaves off-grid (the floor bug's trick),
+    /// advances at most one cell per 30fps frame, and alternates direction
+    /// by cycle so two sightings in one night are not the same sighting.
+    /// `hourOfDay == nil` — every offline render — cannot reach it, because
+    /// `stargaze` itself is already nil there: the sun-patch double lock.
+    static func shootingStar(idleT t: Double,
+                             hourOfDay: Int?) -> (x: Int, y: Int, dx: Int, flight: Double)? {
+        guard stargaze(idleT: t, hourOfDay: hourOfDay) != nil else { return nil }
+        let cycle = Int(floor(t / 120))
+        guard noise(cycle &* 61 &+ 7) < 0.4 else { return nil }
+        let since = t - Double(cycle) * 120
+        guard since >= 4.0, since < 5.6 else { return nil }
+        let progress = (since - 4.0) / 1.6
+        let head = Int(progress * 38) - 3
+        let leftward = cycle % 2 != 0
+        let x = leftward ? 31 - head : head
+        return (x, 1 + max(0, head) / 6, leftward ? -1 : 1, progress)
     }
 
     /// The rare scheduled effects, each forced on for review.
@@ -570,6 +624,14 @@ public enum CrabAnimator {
 
             if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
+                // 🛹✨ The jackpot ride. LIVE-only by placement: this branch
+                // is the schedule's, and `flourishPose` — every renderer's
+                // and the sampler's door — never runs it, so the golden deck
+                // cannot leak into a committed byte.
+                if Flourish.skateBeats.contains(kind),
+                   skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod))) {
+                    pose.goldenBoard = true
+                }
             }
 
             // A second and a half of light across the shell. Not suppressed by
@@ -653,6 +715,25 @@ public enum CrabAnimator {
                 pose.gazeY = Int((Double(pose.gazeY) + (-1 - Double(pose.gazeY)) * lead).rounded())
                 pose.gazeX = Int((Double(pose.gazeX) + (1 - Double(pose.gazeX)) * lead).rounded())
                 if gazing.amount > 0.4 { pose.mouth = .open }
+                // 🌠 The rare streak, and he TRACKS it: the same by-thirds
+                // gaze mapping the floor bug uses, aimed at the sky. The
+                // chase EASES over the flight's first quarter — a star can
+                // enter opposite the telescope side, and an assigned target
+                // would jump his eyes two cells in one frame, which is the
+                // exact snap the stargazer's own lead was rebuilt to remove.
+                if let star = shootingStar(idleT: t, hourOfDay: hourOfDay) {
+                    pose.shootingStarX = star.x
+                    pose.shootingStarY = star.y
+                    pose.shootingStarDX = star.dx
+                    // Symmetric: the chase ramps in over the first quarter
+                    // and RELEASES over the last — his attention lets go
+                    // before the star leaves the sky, so the hand-back to the
+                    // telescope's lead is a step, never a jump.
+                    let target = star.x < 14 ? -1 : (star.x > 18 ? 1 : 0)
+                    let chase = Ease.smoothstep(min(1, min(star.flight, 1 - star.flight) * 4))
+                    pose.gazeX = Int((Double(pose.gazeX)
+                        + (Double(target) - Double(pose.gazeX)) * chase).rounded())
+                }
             }
 
         case .thinking:
@@ -964,21 +1045,33 @@ public enum CrabAnimator {
     /// 1s → 1 heart, 3s → 2, 10s → 4, 30s → 9.
     /// `until` is when the hold ended, if it has: no heart is born after it,
     /// but the ones already climbing are still returned until they finish.
+    /// Ten seconds of continuous petting earns the crescendo.
+    nonisolated static let longPetCrescendoAt = 10.0
+    /// Three quick hearts for the devoted — threshold + 0.1, stepped by 0.9.
+    /// The spacing is chosen against the refrain, not freely: 9.2→10.1 and
+    /// 11.9→13.2 both clear the 0.85s floor `heartsKeepTheirDistance` pins,
+    /// and `heartLife` 1.3 keeps the airborne peak at two — so every existing
+    /// hearts invariant passes untouched, which is the evidence the burst is
+    /// shaped right.
+    private static let heartCrescendo = [10.1, 11.0, 11.9]
+
     static func heartSpawns(elapsed: Double, until: Double? = nil) -> [(ordinal: Int, born: Double)] {
         let lastBirth = min(elapsed, until ?? elapsed)
-        var spawns: [(ordinal: Int, born: Double)] = []
-        for (index, born) in heartOpening.enumerated() where born < lastBirth {
-            spawns.append((index, born))
-        }
+        // One merged, sorted onset list — opening, crescendo, refrain — with
+        // the ordinal as the sorted index, so a heart's column and shape stay
+        // a pure function of its place in the whole performance. `until`
+        // already suppresses the crescendo for holds released before ten
+        // seconds, and "once per hold" is free: a hold crosses ten once.
+        var onsets = heartOpening + heartCrescendo
         if lastBirth > heartRefrainStart {
             let beats = Int((lastBirth - heartRefrainStart) / heartRefrain)
             for beat in 0...beats {
-                spawns.append((heartOpening.count + beat,
-                               heartRefrainStart + Double(beat) * heartRefrain))
+                onsets.append(heartRefrainStart + Double(beat) * heartRefrain)
             }
         }
-        // Only the ones still in the air; the rest have finished dissolving.
-        return spawns.filter { elapsed - $0.born < heartLife }
+        return onsets.sorted().enumerated()
+            .filter { $0.element < lastBirth && elapsed - $0.element < heartLife }
+            .map { (ordinal: $0.offset, born: $0.element) }
     }
 
     // MARK: - Sleep

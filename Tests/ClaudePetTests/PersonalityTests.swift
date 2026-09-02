@@ -1084,7 +1084,9 @@ struct EditableCopyTests {
     /// that the window closes on mid-scroll.
     @Test("Every skate line finishes inside the window it gets")
     func skateLinesFitTheirWindow() {
-        for line in Vocab.lines(for: .kickflip) {
+        // Both skate decks share the 3.4s live window — the golden lines are
+        // reserved, not exempt.
+        for line in Vocab.lines(for: .kickflip) + Vocab.lines(for: .goldenSkate) {
             switch ActivityCoordinator.bubbleStyle(for: line) {
             case .plain:
                 #expect(line.count <= ThoughtBubble.plainColumns,
