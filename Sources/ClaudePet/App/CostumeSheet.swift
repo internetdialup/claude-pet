@@ -92,6 +92,30 @@ enum CostumeSheet {
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
             && tigerSheet(to: root.appendingPathComponent("sheet-tiger.png"))
             && coderSheet(to: root.appendingPathComponent("sheet-coder.png"))
+            && turnSheet(to: root.appendingPathComponent("sheet-turn.png"))
+    }
+
+    // MARK: The body turn
+
+    /// One revolution, sampled — bare, and then dressed, since the whole
+    /// case for the mapping pass is that the wardrobe turns with him.
+    private static func turnSheet(to url: URL) -> Bool {
+        func turned(_ turn: Double, _ costume: Costume, _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+            pose.bob = -9
+            pose.legAmplitude = 1.6
+            pose.legPhase = .pi / 2
+            pose.torsoTurn = turn
+            return tile(CrabRig.render(pose, costume: costume), costume, label)
+        }
+        let steps = [0.0, 0.08, 0.17, 0.25, 0.33, 0.42, 0.5]
+        let bare = steps.map { turned($0, .none, "θ \(Int($0 * 360))°") }
+        let back = [0.58, 0.67, 0.75, 0.83, 0.92, 0.97, 1.0]
+            .map { turned($0, .none, "θ \(Int($0 * 360))°") }
+        let ninja = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .ninja, "ninja \(Int($0 * 360))°") }
+        let sonic = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .sonic, "sonic \(Int($0 * 360))°") }
+        return write("THE TURN — one revolution, bare and dressed",
+                     rows: [bare, back, ninja, sonic], to: url)
     }
 
     // MARK: The tiger, for pointing

@@ -446,7 +446,13 @@ public enum CrabRig {
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
         firePass(&buffer, pose: pose, dx: dx, dy: dy)
+        // Two plates for the yaw pass, and the gap between them is the whole
+        // point: what the world painted (the flame) stays put while he
+        // turns, and what the wardrobe painted behind him turns with him but
+        // stays behind him.
+        let worldPlate = buffer
         costumeLayer(.behind)
+        let behindPlate = buffer
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
         drawDust(&buffer, dx: dx, dy: dy, pose: pose)
@@ -496,6 +502,13 @@ public enum CrabRig {
             drawHeadwear(&buffer, kind: pose.headwear, dx: dx, dy: dy, squash: squash)
         }
         costumeLayer(.front)
+        // He is dressed; now he can turn. Nothing after this line knows the
+        // difference — the weather, the boards and the badges all land on
+        // the frame he leaves behind.
+        if pose.torsoTurn != 0 {
+            yawPass(&buffer, world: worldPlate, behind: behindPlate,
+                    pose: pose, dx: dx, dy: dy, squash: squash)
+        }
         // The wardrobe's own weather goes on after the last worn layer, so
         // the figure is finished before the sky is.
         costumeLayer(.weather)
@@ -1066,6 +1079,260 @@ public enum CrabRig {
         for y in max(0, top)..<min(PixelBuffer.side, top + height) {
             for x in xs where b[x, y] == .body { b[x, y] = .bodyShade }
         }
+    }
+
+    // MARK: - The turn
+
+    /// He is a BOX, not a card: twenty cells across the front and six through
+    /// the flank, so the silhouette is `20|cos θ| + 6|sin θ|` — twenty facing
+    /// you, six edge-on, and never a paper-thin nothing in between.
+    private static let turnHalfDepth = 3.0
+    /// Under a six-wide face the eyes, the mouth and every scrap of face
+    /// paint leave TOGETHER. Separately, sonic's white field outlives his
+    /// eyes by a frame and he spins wearing a blank patch.
+    private static let turnFaceFadeHalf = 3.0
+    /// A shell row a costume paints nearly all the way across is a BAND
+    /// round him — a headband, a tee, a scarf — so it shows from behind.
+    /// Anything narrower is face paint and does not.
+    private static let turnWrapRun = 18
+    /// …and so does whatever sits on the outermost columns: armour plates
+    /// and neck bolts are on his sides, and his sides are still there when
+    /// his face is not.
+    private static let turnEdgeFurniture = 2
+    /// A source cell has to cover this much of an output cell to be sampled.
+    private static let turnSampleOverlap = 0.3
+    /// One lit row across the carapace, so his back is not a flat slab.
+    private static let turnRidgeRow = 3
+
+    /// Yaw the finished figure about his own vertical axis.
+    ///
+    /// A POST-PASS, deliberately: the deformation belongs in the mapping, not
+    /// in the drawing — so every draw above runs exactly as it always has,
+    /// the wardrobe turns with him for free (a ninja spins in his headband
+    /// rather than out of it), and at `torsoTurn` 0 this function returns
+    /// before touching a cell, which is what keeps every committed byte and
+    /// every existing pin true by construction rather than by proof.
+    ///
+    /// Three planes, painted back to front: what was drawn behind him, the
+    /// flank slab that has come round, and the figure itself. Everything
+    /// below his feet — the board, the shadow, the ground rush — sits under
+    /// `legBottom` and is never touched, so a spinning crab still lands on
+    /// the same deck he took off from.
+    private static func yawPass(_ b: inout PixelBuffer, world: PixelBuffer, behind: PixelBuffer,
+                                pose: CrabPose, dx: Int, dy: Int, squash: Int) {
+        // `turn − floor(turn)`, never `truncatingRemainder`: that one goes
+        // negative for a negative turn and would silently skip the pass.
+        let turn = pose.torsoTurn - floor(pose.torsoTurn)
+        guard turn > 0.0005, turn < 0.9995 else { return }
+
+        let theta = 2 * Double.pi * turn
+        let c = cos(theta), s = sin(theta)
+        let halfW = Double(bodyW) / 2 + Double(squash)
+        let axis = Double(bodyX + dx) + halfW
+        let faceCentre = -turnHalfDepth * s * (c >= 0 ? 1 : -1)
+        let faceHalf = halfW * abs(c)
+        let sideCentre = halfW * c * (s >= 0 ? 1 : -1)
+        let sideHalf = turnHalfDepth * abs(s)
+        // The light does not move: his right flank is the dark one, the same
+        // upper-left key the hero shade and the catchlights already claim.
+        let flankInk: PixelBuffer.Ink = s > 0 ? .bodyShade : .body
+
+        let shellTop = bodyY + dy + squash
+        let shellLeft = bodyX + dx - squash
+        let shellRight = bodyX + bodyW - 1 + dx + squash
+        let fullWidth = bodyW + squash * 2
+        let shellBottom = 20 + dy
+        let legBottom = 24 + dy
+        guard legBottom >= 0, shellTop <= shellBottom else { return }
+
+        let silLeft = Int(floor(axis + min(faceCentre - faceHalf, sideCentre - sideHalf)))
+        let silRight = Int(ceil(axis + max(faceCentre + faceHalf, sideCentre + sideHalf))) - 1
+        let silWidth = max(1, silRight - silLeft + 1)
+
+        let source = b
+        // His own art, minus whatever was drawn behind him: ribbons, tails
+        // and fans map under the flank, never over it — art drawn behind a
+        // crab has no business appearing in front of his side.
+        var figure = source, behindArt = PixelBuffer()
+        for y in 0...min(legBottom, PixelBuffer.side - 1) {
+            for x in 0..<PixelBuffer.side
+            where behind[x, y] != world[x, y] && source[x, y] == behind[x, y] {
+                figure[x, y] = .clear
+                behindArt[x, y] = source[x, y]
+            }
+        }
+
+        // The rows face paint can occupy — anchored to the SOCKET, not to
+        // the gaze. A gaze down moves his eyes but not the white field
+        // framing them, and a band that followed the eyes down left the
+        // field's top row behind to spin on alone.
+        let faceRows = (eyeY + dy + min(pose.gazeY, 0) - 1)...(18 + dy)
+        let fading = faceHalf < turnFaceFadeHalf
+
+        for y in 0...min(legBottom, PixelBuffer.side - 1) where y >= 0 {
+            for x in 0..<PixelBuffer.side { b[x, y] = .clear }
+            // The world stays where it fell. A flame is not wearing him.
+            for x in 0..<PixelBuffer.side where world[x, y] != .clear {
+                b[x, y] = world[x, y]
+            }
+
+            let isShellRow = y >= shellTop && y <= shellBottom
+            let isLegRow = y > shellBottom
+
+            // A. Legs and feet ride a ground plane: they converge under the
+            // narrowing body instead of standing where they always stood.
+            // Four legs spread twenty cells wide under a six-wide pillar is
+            // the loudest possible way to say "a rectangle got thinner".
+            if isLegRow {
+                for x in max(0, shellLeft - 3)...min(PixelBuffer.side - 1, shellRight + 3) {
+                    let ink = source[x, y]
+                    guard ink != .clear, ink != world[x, y] else { continue }
+                    let tx = silLeft + Int((Double(x - shellLeft) * Double(silWidth)
+                                            / Double(fullWidth)).rounded(.down))
+                    b[tx, y] = ink
+                }
+                continue
+            }
+
+            let wrap = isShellRow && (shellLeft...shellRight).reduce(0) { run, x in
+                let ink = source[x, y]
+                return run + (ink != .clear && ink != .body && ink != .bodyShade ? 1 : 0)
+            } >= turnWrapRun
+            let ridge = isShellRow && y == shellTop + turnRidgeRow
+
+            for x in 0..<PixelBuffer.side {
+                let e = Double(x) + 0.5 - axis
+
+                // B. Behind him, first and lowest.
+                var ink = PixelBuffer.Ink.clear
+                if abs(c) > 0.001 {
+                    ink = turnSample(behindArt, row: y,
+                                     from: axis + min((e - 0.5 - faceCentre) / c,
+                                                      (e + 0.5 - faceCentre) / c),
+                                     to: axis + max((e - 0.5 - faceCentre) / c,
+                                                    (e + 0.5 - faceCentre) / c),
+                                     fading: false, faceRows: faceRows).ink
+                }
+
+                // C. The flank that has come round: one flat step, the whole
+                // height of the shell, carrying no detail at all. A flank is
+                // a side, and a side of a pixel crab is a colour.
+                if isShellRow, sideHalf > 0.001, abs(e - sideCentre) < sideHalf {
+                    ink = flankInk
+                }
+
+                // D. The figure, on top.
+                if abs(c) > 0.001 {
+                    let u = (e - faceCentre) / c
+                    let onShell = isShellRow && abs(u) <= halfW
+                    let sample = turnSample(figure, row: y,
+                                            from: axis + min((e - 0.5 - faceCentre) / c,
+                                                             (e + 0.5 - faceCentre) / c),
+                                            to: axis + max((e - 0.5 - faceCentre) / c,
+                                                           (e + 0.5 - faceCentre) / c),
+                                            fading: fading && onShell, faceRows: faceRows)
+                    var front = sample.ink
+                    if c < 0, onShell, front != .clear {
+                        // His BACK. No face — a crab seen from behind has
+                        // none — and one step darker everywhere but the
+                        // ridge, which is the single lit row that keeps the
+                        // carapace from reading as a hole. What survives is
+                        // what genuinely wraps: a headband, a tee, a scarf,
+                        // and whatever rides his outermost columns.
+                        let sx = sample.x
+                        let onEdge = sx - shellLeft < turnEdgeFurniture
+                            || shellRight - sx < turnEdgeFurniture
+                        let shaded: PixelBuffer.Ink = ridge ? .body : .bodyShade
+                        switch front {
+                        // His face goes, and the wrap rule does NOT get a
+                        // say in it: the ninja's headband, the gundam's
+                        // chest band and the skater's tee all cross a face
+                        // row, and each of them was carrying a pair of eyes
+                        // around to the back of his head.
+                        case .eye, .mouth: front = shaded
+                        // The catchlight goes with the eye it belongs to,
+                        // and so does any face paint under it — a white
+                        // field with no eyes in it is the wardrobe covering
+                        // a face, which is the one thing the wardrobe may
+                        // never do.
+                        case .paper where faceRows.contains(y): front = shaded
+                        case .body: front = shaded
+                        case .bodyShade: break
+                        default: if !wrap && !onEdge { front = shaded }
+                        }
+                    }
+                    if front != .clear { ink = front }
+                }
+
+                if ink != .clear { b[x, y] = ink }
+            }
+        }
+
+        // The turned silhouette gets the same carved corners the square one
+        // has, or he spins from a rounded crab into a rectangle and back.
+        guard silRight - silLeft + 1 >= 4 else { return }
+        for cell in [(silLeft, shellTop), (silRight, shellTop),
+                     (silLeft, shellBottom), (silRight, shellBottom)] {
+            b[cell.0, cell.1] = .clear
+        }
+        if silWidth >= 8 {
+            for cell in [(silLeft + 1, shellTop), (silRight - 1, shellTop),
+                         (silLeft, shellTop + 1), (silRight, shellTop + 1)] {
+                b[cell.0, cell.1] = .clear
+            }
+        }
+
+        // The catchlight is the life in a face, and priority sampling loses
+        // it first — the eye out-ranks it. Put it back wherever an eye still
+        // has two cells to hold one.
+        let lightRow = eyeY + dy + pose.gazeY
+        guard lightRow >= 0, lightRow < PixelBuffer.side, c > 0 else { return }
+        var x = 0
+        while x < PixelBuffer.side {
+            guard b[x, lightRow] == .eye else { x += 1; continue }
+            var end = x
+            while end + 1 < PixelBuffer.side && b[end + 1, lightRow] == .eye { end += 1 }
+            if end > x { b[x, lightRow] = .paper }
+            x = end + 1
+        }
+    }
+
+    /// What wins a cell when several source cells land on it: his face first,
+    /// then anything the wardrobe painted, then the shell itself. Ties go to
+    /// whichever sat nearest the middle of the span.
+    private static func turnPriority(_ ink: PixelBuffer.Ink) -> Int {
+        switch ink {
+        case .clear: -1
+        case .eye, .mouth: 3
+        case .body, .bodyShade: 0
+        default: 2
+        }
+    }
+
+    private static func turnSample(_ src: PixelBuffer, row y: Int,
+                                   from lo: Double, to hi: Double,
+                                   fading: Bool,
+                                   faceRows: ClosedRange<Int>) -> (ink: PixelBuffer.Ink, x: Int) {
+        let first = Int(lo.rounded(.down)), last = Int(hi.rounded(.up)) - 1
+        var best = PixelBuffer.Ink.clear, bestScore = -1
+        var bestX = first, bestDistance = Double.infinity
+        let centre = (lo + hi) / 2
+        guard first <= last else { return (.clear, first) }
+        // A span narrower than the threshold still has to sample something,
+        // or a face nearly square to the camera renders as nothing at all.
+        let needed = min(turnSampleOverlap, hi - lo)
+        for k in first...last {
+            guard min(hi, Double(k) + 1) - max(lo, Double(k)) >= needed else { continue }
+            let ink = src[k, y]
+            var score = turnPriority(ink)
+            if fading, score > 0, faceRows.contains(y) { score = -1 }
+            guard score >= 0 else { continue }
+            let distance = abs(Double(k) + 0.5 - centre)
+            if score > bestScore || (score == bestScore && distance < bestDistance) {
+                best = ink; bestScore = score; bestX = k; bestDistance = distance
+            }
+        }
+        return (best, bestX)
     }
 
     /// One prop at a given visibility. Full visibility draws straight into the
