@@ -9,6 +9,17 @@ public enum ServiceGlyph: String, Sendable, Equatable, CaseIterable {
 }
 
 extension ServiceGlyph {
+    /// Which glyph the PIXEL pass should stamp — nil when the vector overlay
+    /// owns the airspace box. Only GitHub goes vector, and only while its
+    /// asset actually loaded; every other combination passes through, so a
+    /// missing or broken asset degrades to today's pixel glyph exactly.
+    /// Pure, so the fallback table is testable without a bundle — which is
+    /// also why readiness arrives as a parameter.
+    public static func pixelGlyph(for kind: ServiceGlyph?,
+                                  vectorReady: Bool) -> ServiceGlyph? {
+        kind == .github && vectorReady ? nil : kind
+    }
+
     /// Word-boundary matchers over the lowercased raw command, in precedence
     /// order — a compound `npm run build && git push` is a push first. Each
     /// compiled once; an invalid pattern would be a programmer error, so the

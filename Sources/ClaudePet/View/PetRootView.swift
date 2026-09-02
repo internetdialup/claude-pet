@@ -255,7 +255,14 @@ public struct PetRootView: View {
                     completedAt: model.badgeCompletionAt?.timeIntervalSinceReferenceDate,
                     badgeShownAt: model.badgeShownAt?.timeIntervalSinceReferenceDate,
                     badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate,
-                    serviceGlyph: model.serviceGlyphKind,
+                    // Routed through the seam: the GitHub mark goes vector
+                    // (the overlay below) and its pixel stamp stands down;
+                    // every other glyph, and a failed asset load, stamps
+                    // pixels exactly as before. The timestamps still flow —
+                    // harmless with a nil glyph, and the overlay reads the
+                    // same latch for its own envelope.
+                    serviceGlyph: ServiceGlyph.pixelGlyph(for: model.serviceGlyphKind,
+                                                          vectorReady: VectorServiceGlyph.available),
                     serviceGlyphShownAt: model.serviceGlyphShownAt?.timeIntervalSinceReferenceDate,
                     serviceGlyphEndedAt: model.serviceGlyphEndedAt?.timeIntervalSinceReferenceDate,
                     unseen: model.unseen,
@@ -265,6 +272,20 @@ public struct PetRootView: View {
                     costumeClock: model.costumeClock
                 )
                 .frame(width: spriteSize, height: spriteSize)
+
+                // GitHub's actual mark in the glyph box, live-only — under
+                // the attention badge, over the sprite. See VectorServiceGlyph.
+                if model.serviceGlyphKind == .github, VectorServiceGlyph.available {
+                    Color.clear
+                        .frame(width: spriteSize, height: spriteSize)
+                        .overlay(alignment: .topLeading) {
+                            VectorServiceGlyph(
+                                shownAt: model.serviceGlyphShownAt?.timeIntervalSinceReferenceDate,
+                                endedAt: model.serviceGlyphEndedAt?.timeIntervalSinceReferenceDate,
+                                pixelSize: pixelSize)
+                        }
+                        .allowsHitTesting(false)
+                }
 
                 if model.state.attentionCount > 0 {
                     Text("\(model.state.attentionCount)")

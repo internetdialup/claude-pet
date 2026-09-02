@@ -26,6 +26,10 @@ let package = Package(
             resources: [
                 .copy("Resources/claude-pet-hook.sh"),
                 .copy("Resources/AppIcon.icns"),
+                // GitHub's actual mark, for the floating service glyph — the
+                // one place the art goes vector. Absence degrades to the
+                // pixel glyph; see VectorServiceGlyph.
+                .copy("Resources/github-mark.svg"),
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
