@@ -161,8 +161,8 @@ enum CostumeSheet {
             }(),
             {
                 var pose = CrabAnimator.flourishPose(.ollie, at: 0.9)
-                pose.headwear = .greenCap
-                return tile(CrabRig.render(pose), .none, "green cap rise")
+                pose.headwear = .cap(.alert)
+                return tile(CrabRig.render(pose), .none, "red cap rise")
             }(),
         ]
 

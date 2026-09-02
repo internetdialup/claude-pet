@@ -153,7 +153,12 @@ public struct CrabPose: Sendable, Equatable {
     /// by placement, so committed media never wears either. Drawn only on the
     /// bare crab — headwear over a costume's crown would fight every helmet
     /// in the wardrobe.
-    public enum Headwear: Sendable { case none, blackBeanie, greenCap }
+    public enum Headwear: Sendable, Equatable {
+        case none, blackBeanie
+        /// The cap comes in colours, rolled per wearing — the operator's
+        /// "randomize colors, and just go with a black beanie".
+        case cap(PixelBuffer.Ink)
+    }
     public var headwear: Headwear = .none
 
     /// 🌠 The stargaze session's rare streak: the head's cell, its sky row,
@@ -1060,20 +1065,21 @@ public enum CrabRig {
             b.rect(12 + dx, crown, 8, 1, .slate)
             b.rect(13 + dx, crown - 1, 6, 1, .slate)
             b.rect(14 + dx, crown - 2, 4, 1, .slate)
-        case .greenCap:
-            // The green cap: low dome plus a brim off the right, the way he
-            // rides — a hat, not a stripe.
-            b.rect(12 + dx, crown, 8, 1, .green)
-            b.rect(13 + dx, crown - 1, 6, 1, .green)
-            b.rect(14 + dx, crown - 2, 4, 1, .green)
-            b.rect(20 + dx, crown, 3, 1, .green)
+        case .cap(let ink):
+            // The cap: low dome plus a brim off the right, the way he
+            // rides — a hat, not a stripe — in whatever colour the dice
+            // dealt this wearing.
+            b.rect(12 + dx, crown, 8, 1, ink)
+            b.rect(13 + dx, crown - 1, 6, 1, ink)
+            b.rect(14 + dx, crown - 2, 4, 1, ink)
+            b.rect(20 + dx, crown, 3, 1, ink)
         }
     }
 
     /// ✨ A one-cell flash on a wheel, riding the prop's own clock — weight,
     /// per the operator. ~7% of the phase, glint-class by size and nature.
     private static func wheelShimmer(_ phase: Double) -> Bool {
-        (phase * 2.6).truncatingRemainder(dividingBy: 1) < 0.07
+        (phase * 2.6).truncatingRemainder(dividingBy: 1) < 0.11
     }
 
     // MARK: - Ground
@@ -1846,16 +1852,43 @@ public enum CrabRig {
         ],
     ]
 
+    /// Where the blaze may anchor: off his back into the sky band (the
+    /// classic), or LOW — rising off the floor past his left flank, the
+    /// operator's "put it by his feet sometimes". One placement per 45-second
+    /// stretch, rolled on `47 &+ 11` (the 47 family over yet another domain);
+    /// cycle zero keeps the classic, the frozen renders' sentinel.
+    private static func fireBurnsLow(cycle: Int) -> Bool {
+        cycle > 0 && CrabAnimator.noise(cycle &* 47 &+ 11) < 0.35
+    }
+
     private static func drawFire(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
         let key: [Character: PixelBuffer.Ink] = [
             "c": .flameCore, "f": .flame, "e": .ember,
         ]
         // Slow enough to read as flame rather than strobe.
         let frame = flameFrames[Int(phase * 6) % flameFrames.count]
-        // Sits behind his back, rising into the free band above him. The old
-        // version anchored at the frame edge and clamped, so most of its flicker
-        // produced an identical bar.
-        b.stamp(frame, at: (x: 17 + dx, y: 1 + dy), key: key)
+        // Two anchors: behind his back rising into the free band (the
+        // classic), or by his feet climbing his flank. A placement change
+        // CROSS-DISSOLVES over the first second of its cycle — a blaze that
+        // teleports is exactly the cut the no-snap rule bans — via the same
+        // scratch-and-composite the prop dissolve uses (seeds 770/771).
+        func anchor(low: Bool) -> (x: Int, y: Int) {
+            low ? (x: 2 + dx, y: 17 + dy) : (x: 17 + dx, y: 1 + dy)
+        }
+        let cycle = Int(floor(phase / 45))
+        let into = phase - Double(cycle) * 45
+        let current = fireBurnsLow(cycle: cycle)
+        let previous = fireBurnsLow(cycle: cycle - 1)
+        if into < 1, current != previous {
+            var out = PixelBuffer()
+            out.stamp(frame, at: anchor(low: previous), key: key)
+            b.composite(out, visibility: 1 - into, seed: 770)
+            var inc = PixelBuffer()
+            inc.stamp(frame, at: anchor(low: current), key: key)
+            b.composite(inc, visibility: into, seed: 771)
+        } else {
+            b.stamp(frame, at: anchor(low: current), key: key)
+        }
     }
 
     /// Sparks thrown off the blaze, drawn in FRONT of him.

@@ -347,7 +347,7 @@ public struct PixelCanvasView: View {
         // Deliberately NOT override-consulting — see the case's own comment.
         case .memeBlack: Palette.ink
         case .shadow: Palette.slate.opacity(0.45)
-        case .deck: Color(red: 0.04, green: 0.04, blue: 0.045)
+        case .deck: Color(red: 0.012, green: 0.012, blue: 0.016)
         }
     }
 }

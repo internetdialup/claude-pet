@@ -46,7 +46,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - **🛹 The skate set got a drip pass.** The deck went properly black with
   faint slanted grip tape when a flip shows its top face, the wheels catch a
   glint of light now and then, and about a skate beat in three he comes out
-  in headwear — a black beanie or a green cap, dealt on his own dice.
+  in headwear — a black beanie, or a cap dealt in a different colour each
+  wearing.
+- **🔥 The blaze moved house sometimes.** The cooking fire usually burns off
+  his back the way it always has, but now and then a stretch of it burns low
+  by his feet instead — and when it moves, it crossfades, never jumps.
 - **👀 He looks more alive everywhere.** A soft dithered shadow under him
   that shrinks when he jumps, dust where he lands, scuffs where he scuttles,
   a catchlight in each eye — and once in a while, idling, a little red heart
