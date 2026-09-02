@@ -56,7 +56,8 @@ public enum CrabAnimator {
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
-    /// shot), `43 &+ 13` (idle chatter, per seed).
+    /// shot), `43 &+ 13` (idle chatter, per seed), `47 &+ 7` (the gundam's
+    /// darker-turquoise cameras, per wear timestamp).
     ///
     /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen |
     ///
@@ -2085,6 +2086,19 @@ public struct CrabView: View {
         let blanch = CrabView.composedBlanch(mood: mood, t: localT,
                                              celebrating: celebrating,
                                              epic: epicCelebration) * flashScale
+        // 👁 The gundam's rare cameras: about one wearing in four loads with
+        // darker-turquoise eyes instead of camera-yellow — the operator's
+        // "sometimes on random load". The wear moment is the seed (one
+        // wearing, one pair of eyes; a re-wear re-rolls), the dice is
+        // `47 &+ 7` over the wear-timestamp domain, and the whole thing is
+        // live-only: frozen and offline renders never consult it, so every
+        // committed byte shows the yellow default.
+        let eyeVariant: (r: Double, g: Double, b: Double)? = {
+            guard frozenTime == nil, costume == .gundam,
+                  CrabAnimator.noise(Int(costumeClock.changedAt.rounded()) &* 47 &+ 7) < 0.25
+            else { return nil }
+            return (r: 0x2E / 255.0, g: 0x9C / 255.0, b: 0x80 / 255.0)
+        }()
         return PixelCanvasView(buffer: CrabRig.render(pose,
                                                       costume: costume,
                                                       ghostCostume: ghostCostume,
@@ -2092,7 +2106,8 @@ public struct CrabView: View {
                                bodyTint: tint,
                                inkOverrides: CostumeStyle.blendedOverrides(from: ghostCostume,
                                                                            to: costume,
-                                                                           u: costumeProgress),
+                                                                           u: costumeProgress,
+                                                                           eyeVariant: eyeVariant),
                                blanch: blanch)
             .drawingGroup()
     }

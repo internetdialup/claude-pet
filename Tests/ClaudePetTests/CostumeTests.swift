@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftUI
 @testable import ClaudePet
 
 /// The wardrobe contract: every costume renders on every mood without touching
@@ -160,6 +161,34 @@ struct SonicRingTests {
             }
         }
         #expect(sweep, "no flight instant drew any ring at all")
+    }
+}
+
+/// The gundam's rare cameras: the eye-variant plumbing is live-only by
+/// construction, and these pin the two facts the view relies on — the
+/// substitution reaches the blend's output, and the default path is
+/// untouched so no offline render can ever roll it.
+@Suite("Gundam eye variant")
+struct GundamEyeVariantTests {
+
+    @Test func variantSubstitutesTheIncomingEye() {
+        let variant = (r: 0x2E / 255.0, g: 0x9C / 255.0, b: 0x80 / 255.0)
+        let dressed = CostumeStyle.blendedOverrides(from: .none, to: .gundam, u: 1,
+                                                    eyeVariant: variant)
+        #expect(dressed[.eye] == Color(red: variant.r, green: variant.g, blue: variant.b))
+        let plain = CostumeStyle.blendedOverrides(from: .none, to: .gundam, u: 1)
+        #expect(plain[.eye] != dressed[.eye],
+                "the default must stay camera-yellow — committed media depends on it")
+    }
+
+    /// About one wearing in four, over a spread of plausible wear stamps.
+    @Test func variantDiceLandNearAQuarter() {
+        var rolled = 0
+        for stamp in 0..<4000 where CrabAnimator.noise((700_000_000 + stamp) &* 47 &+ 7) < 0.25 {
+            rolled += 1
+        }
+        let rate = Double(rolled) / 4000
+        #expect(rate > 0.22 && rate < 0.28, "variant dice fire at \(rate)")
     }
 }
 

@@ -171,9 +171,17 @@ struct CostumeStyle {
     /// incoming wardrobe so a costume change glides. Slots one side lacks fall
     /// back to the other side's colour (their pixels are dissolving anyway) and
     /// a missing `.body` mixes against Claw'd's own terracotta.
-    static func blendedOverrides(from: Costume, to: Costume, u: Double) -> [PixelBuffer.Ink: Color] {
+    /// - Parameter eyeVariant: a substitute `.eye` colour for the INCOMING
+    ///   wardrobe — the gundam's rare darker-turquoise cameras, rolled once
+    ///   per wearing by the live view and never by an offline renderer, so
+    ///   committed media always shows the camera-yellow default. Routed
+    ///   through the blend so even the variant eases in with the costume.
+    static func blendedOverrides(from: Costume, to: Costume, u: Double,
+                                 eyeVariant: (r: Double, g: Double, b: Double)? = nil)
+        -> [PixelBuffer.Ink: Color] {
         let a = of(from).inks
-        let b = of(to).inks
+        var b = of(to).inks
+        if let eyeVariant { b[.eye] = eyeVariant }
         var out: [PixelBuffer.Ink: Color] = [:]
         for slot in Set(a.keys).union(b.keys) {
             let fallback = defaultRGB(for: slot) ?? a[slot] ?? b[slot]
@@ -529,37 +537,90 @@ enum CrabCostume {
                 // helmet, and the old red pixel here read as a third eye.
                 b.rect(15 + dx, 13 + dy, 3, 1, .body)
                 b.pixel(16 + dx, 14 + dy, .body)
+                // The nose: a small steel block dropping from the brow
+                // wedge's point, splitting the visor's black between the eye
+                // recesses the way every reference mask does. Body pass, so
+                // the eyes still paint after it — the face stays his.
+                b.pixel(16 + dx, 15 + dy, .steel)
+                b.pixel(16 + dx, 16 + dy, .steel)
+                // THE CARVE — the operator's grant: "you can adjust clawd's
+                // body so it isn't a full square, angle it like the
+                // reference." Three cells off each dome corner and one off
+                // each jaw corner turn the [ ] into a helmet silhouette.
+                // `.clear` is a raw erase; the cells track the squash the
+                // way the flanks do. On the body pass, so the shape survives
+                // a crown prop (the yield suppresses `.front` only) — and a
+                // costume crossfade re-squares the corners until it settles,
+                // which the whole-shell pixel dissolve visually absorbs.
+                let dome = bodyY + dy + squash
+                for side in [bodyX + dx - squash, bodyX + bodyW - 2 + dx + squash] {
+                    b.pixel(side, dome, .clear)
+                    b.pixel(side + 1, dome, .clear)
+                }
+                b.pixel(bodyX + dx - squash, dome + 1, .clear)
+                b.pixel(bodyX + bodyW - 1 + dx + squash, dome + 1, .clear)
+                b.pixel(bodyX + dx - squash, 20 + dy, .clear)
+                b.pixel(bodyX + bodyW - 1 + dx + squash, 20 + dy, .clear)
                 break
             }
             guard layer == .front else { break }
             let crown = bodyY + dy + squash
-            // The RX-78 merge, per the operator's reference sheet, on its
-            // second fitting: "more thickness". The V-fin is a two-pixel
-            // blade now, the shoulders three columns of plate, the chest
-            // band two rows, the feet proper boots. Same silhouette, more
-            // mecha in it.
-            // The V-fin, off the operator's reference sheet (third fitting):
-            // LONG, THIN and wide-spread — one pixel of blade per row, seven
-            // rows of reach. The thickness belongs in the armor below, never
-            // in the antennae; the chunky two-pixel fin read as horns.
+            // The RX-78 head, fifth fitting — the operator's 16-bit
+            // reference, "almost 1:1". The stack from the top: green sensor
+            // gem in a steel housing, the red shield running from under it
+            // DOWN ONTO the white forehead, and the two-tone fin blades
+            // rooting INTO the helmet beside it.
+            //
+            // The blades: orange (`.ember`) bodies with a gold highlight
+            // riding the top edge over the root half, gold tips — metal
+            // catching light, not a drawn line. The last step drops
+            // vertically INTO the shell edge, per the operator: "bring the
+            // little \ / down into the white part."
             for step in 0..<7 {
-                b.pixel(8 + step + dx, crown - 7 + step, .yellow)
-                b.pixel(23 - step + dx, crown - 7 + step, .yellow)
+                let blade: PixelBuffer.Ink = step == 0 ? .yellow : .ember
+                b.pixel(8 + step + dx, crown - 7 + step, blade)
+                b.pixel(23 - step + dx, crown - 7 + step, blade)
+                if step >= 4 {                          // 2px roots → 1px tips
+                    b.pixel(8 + step + dx, crown - 8 + step, .yellow)
+                    b.pixel(23 - step + dx, crown - 8 + step, .yellow)
+                }
             }
-            // The crest: a red diamond at the fin root, running down the
-            // forehead — every reference makes it the head's centerpiece.
-            // Narrow-wide-wide-narrow, so it reads as a blade catching light
-            // rather than the cross the first cut accidentally drew.
-            // A kite, not a cross: tip, two wide rows, taper — and it stops
-            // there. A stem down to the helmet re-read as a crucifix, and the
-            // old red tip inside the visor read as a third eye; the
-            // references keep the visor's black unbroken.
-            b.pixel(16 + dx, crown - 5, .costumeB)
-            b.rect(15 + dx, crown - 4, 3, 1, .costumeB)
-            b.rect(15 + dx, crown - 3, 3, 1, .costumeB)
-            b.pixel(16 + dx, crown - 2, .costumeB)
-            b.rect(bodyX + dx - squash, crown, 3, 2, .costumeA)
-            b.rect(bodyX + bodyW - 3 + dx + squash, crown, 3, 2, .costumeA)
+            b.pixel(14 + dx, crown, .ember)             // the roots land on the shell
+            b.pixel(17 + dx, crown, .ember)
+            // The sensor gem: a green square in a steel housing above the
+            // blades' crossing — the head's brightest jewel after the eyes.
+            b.pixel(14 + dx, crown - 4, .steel)
+            b.pixel(17 + dx, crown - 4, .steel)
+            b.rect(15 + dx, crown - 4, 2, 1, .green)
+            b.pixel(14 + dx, crown - 3, .steel)
+            b.pixel(17 + dx, crown - 3, .steel)
+            b.rect(15 + dx, crown - 3, 2, 1, .green)
+            // The red shield, ON the white part per the operator: a column
+            // from under the gem down the forehead, widest just above the
+            // brow, tapering into the wedge's point. Rows crown-2…crown+2 —
+            // the top two ride the helmet edge, the bottom three are on the
+            // shell itself.
+            b.rect(15 + dx, crown - 2, 2, 1, .costumeB)
+            b.rect(15 + dx, crown - 1, 2, 1, .costumeB)
+            b.rect(15 + dx, crown, 2, 1, .costumeB)
+            b.rect(14 + dx, crown + 1, 4, 1, .costumeB)
+            b.rect(15 + dx, crown + 2, 2, 1, .costumeB)
+            // Angled shoulders following the carve: a blue step down each
+            // dome corner, meeting the flank armor at its top.
+            b.pixel(bodyX + 2 + dx - squash, crown, .costumeA)
+            b.rect(bodyX + 1 + dx - squash, crown + 1, 2, 1, .costumeA)
+            b.pixel(bodyX + bodyW - 3 + dx + squash, crown, .costumeA)
+            b.rect(bodyX + bodyW - 3 + dx + squash, crown + 1, 2, 1, .costumeA)
+            // Dome shading beside the shoulder steps — the reference's
+            // two-tone plates, one darker step, sparingly. These cells stop
+            // being `.body`, so the camera sweep skips them: accepted, the
+            // beam keeps the whole white midfield.
+            b.rect(bodyX + 3 + dx - squash, crown, 1, 2, .bodyShade)
+            b.rect(bodyX + bodyW - 4 + dx + squash, crown, 1, 2, .bodyShade)
+            b.rect(bodyX + 2 + dx, 17 + dy, 2, 1, .bodyShade)
+            b.rect(bodyX + bodyW - 4 + dx, 17 + dy, 2, 1, .bodyShade)
+            b.rect(bodyX + dx - squash, 17 + dy, 2, 3, .bodyShade)
+            b.rect(bodyX + bodyW - 2 + dx + squash, 17 + dy, 2, 3, .bodyShade)
             // Side armor running down both flanks from the shoulders. Two
             // columns, not three: the visor recess starts at `bodyX + 2`, and
             // a wider flank would eat its frame.
@@ -569,12 +630,22 @@ enum CrabCostume {
             // reference heads all carry them.
             b.pixel(bodyX + 1 + dx - squash, crown + 4, .yellow)
             b.pixel(bodyX + bodyW - 2 + dx + squash, crown + 4, .yellow)
+            // Vent slits cut into the side armor, bracketing each temple
+            // pod — visor-black so the cuts read as depth, not decoration.
+            for flank in [bodyX + dx - squash, bodyX + bodyW - 2 + dx + squash] {
+                b.rect(flank, crown + 3, 2, 1, .costumeC)
+                b.rect(flank, crown + 5, 2, 1, .costumeC)
+            }
             // The chest band is two rows of plate now, widening with the
             // squash the way the shell does — anchored to the same
             // expressions as the shoulder plates, so a kickflip crouch cannot
             // open white gaps at its ends. Drawn FIRST so the collar, chin
             // and vents read as fittings on the plate rather than under it.
             b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 2, .costumeA)
+            // The COLLAR, per the reference: the band's top row re-plated
+            // orange — an armor collar directly under the head, the fin
+            // body's own ink, so head and collar rhyme.
+            b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 1, .ember)
             // The chin is a downward TRIANGLE, not a bar — five cells, then
             // three, converging the way the whole reference face does. ONE
             // pair of vents beside its point, nothing else: the first cut
@@ -802,7 +873,9 @@ public final class CostumeClock {
 
     private(set) var current: Costume = .none
     private(set) var previous: Costume = .none
-    private var changedAt: Double = -.infinity
+    /// Read by the gundam's eye-variant dice: the wear moment is the seed,
+    /// so one wearing keeps one pair of eyes.
+    private(set) var changedAt: Double = -.infinity
 
     func note(_ costume: Costume) {
         guard costume != current else { return }
