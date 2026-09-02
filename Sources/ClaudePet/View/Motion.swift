@@ -146,6 +146,16 @@ extension CrabPose {
         out.stargaze = lerp(from.stargaze, to.stargaze)
         out.sunPatch = lerp(from.sunPatch, to.sunPatch)
 
+        // `torsoTurn` is an angle too, and it IS lerped: the trick that owns
+        // it dies the moment a mood changes, and a six-wide pillar snapping
+        // to a twenty-wide face is the whole-pose pop this function exists to
+        // remove. The short way round — 0.7 → 0 finishes forward to 1.0,
+        // which renders as rest; 0.3 → 0 unwinds — so no blend ever whirls
+        // him backwards through most of a turn. The endpoint guards above
+        // still return `from` and `to` exactly.
+        let turnTarget = to.torsoTurn + (from.torsoTurn - to.torsoTurn).rounded()
+        out.torsoTurn = lerp(from.torsoTurn, turnTarget)
+
         // `legPhase` is an angle; averaging two unrelated phases produces a
         // third, unrelated one. The incoming pose owns the walk.
 
