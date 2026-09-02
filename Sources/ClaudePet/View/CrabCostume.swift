@@ -30,6 +30,13 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x8B_AC0F),      // the same green, now a complexion
+                    // One step under the green. Every recoloured shell needs
+                    // its own step: without one the hero flank and the turn
+                    // shade fall through to the bare crab's terracotta, which
+                    // is a brown smear on a green monster. Five costumes
+                    // shipped that way for a while; `everyShellOverrideHasAStep`
+                    // stops the sixth.
+                    .bodyShade: rgb(0x76_930C),
                     .eye: rgb(0x0F_380F),
                     .mouth: rgb(0x0F_380F),     // dark, or his face vanishes into it
                     .costumeA: rgb(0x30_6230),  // the seam
@@ -51,6 +58,7 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x1A_1A22),      // cabinet black
+                    .bodyShade: rgb(0x10_1016), // one step under — see frankenstein's note
                     .eye: rgb(0x4D_F2FF),       // phosphor, lit from within
                     .mouth: rgb(0x4D_F2FF),
                     .costumeA: rgb(0xFF_2E88),  // the marquee
@@ -90,6 +98,7 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the code carries
+                    .bodyShade: rgb(0x02_0602), // one step under — see frankenstein's note
                     .costumeA: rgb(0x7C_F08D),  // rain heads
                     .costumeB: rgb(0x2E_A845),  // the streak body
                     .costumeC: rgb(0x1D_7431),  // tails, and the code-lines under them
@@ -105,6 +114,7 @@ struct CostumeStyle {
                 inks: [
                     .body: rgb(0xE0_8A2E),      // tiger orange — the operator's
                                                 // ruling: green never read cat
+                    .bodyShade: rgb(0xC4_7620), // one step under — see frankenstein's note
                     .costumeA: rgb(0x8A_3A0A),  // the stripes: a "blacker orange",
                                                 // per the operator — burnt, not
                                                 // black; black read as holes
@@ -116,6 +126,7 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0xEC_EAE2),      // warm arctic white
+                    .bodyShade: rgb(0xD6_D3CA), // one step under — see frankenstein's note
                     .mouth: rgb(0x3D_3D3A),     // a white mouth on a white shell is no mouth
                 ],
                 yieldsCrownToProps: false)
