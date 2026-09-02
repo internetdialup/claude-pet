@@ -50,7 +50,7 @@ enum PaletteTricks {
     ]
 
     static let tricks: [CrabAnimator.Flourish] =
-        [.ollie, .kickflip, .varialFlip, .manual, .shoveIt, .cruise]
+        [.ollie, .kickflip, .varialFlip, .manual, .shoveIt, .nollie, .cruise]
 
     /// Trick → (line, golden). All real lines; the reserved gold line pays
     /// for itself with a genuinely golden deck.
@@ -60,6 +60,7 @@ enum PaletteTricks {
         (.varialFlip, "Kowbunga 🤙!", false),
         (.manual, "Sponsor me 🛹", false),
         (.shoveIt, "Kowbunga 🤙!", false),
+        (.nollie, "Nollie! Nose first 🛹", false),
         (.cruise, "GOLD BOARD. No notes 🏆", true),
     ]
 
@@ -192,9 +193,11 @@ enum PaletteTricks {
         var images: [CGImage] = []
         for frame in 0..<frames {
             let local = Double(frame) * frameDelay
+            // The trick rides the SAME frozen stance the bookends hold, so
+            // the only thing that changes at either seam is the trick.
             var pose = local < lead || local >= lead + trick.duration
                 ? stance
-                : CrabAnimator.flourishPose(trick, at: local - lead)
+                : CrabAnimator.flourishPose(trick, at: local - lead, base: stance)
             if golden { pose.goldenBoard = true }
             pose.headwear = headwear
             guard let image = SpriteImage.cgImage(
@@ -214,6 +217,7 @@ enum PaletteTricks {
         case .ollie: .skateboardOllie
         case .manual: .skateboardManual
         case .shoveIt: .skateboardShoveIt
+        case .nollie: .skateboardNollie
         default: .skateboardRoll
         }
     }

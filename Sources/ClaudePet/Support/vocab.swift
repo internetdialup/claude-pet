@@ -118,6 +118,7 @@ public enum Vocab {
             "See you at the Hall of Meat 🍖!",
             "Tony Clawd 900 🦅",
             "Sponsor me 🛹",
+            "Nollie! Nose first 🛹",
         ]
 
         // 🛹✨ The golden board — one skate beat in fifty. The lines are

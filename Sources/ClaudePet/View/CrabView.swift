@@ -106,23 +106,25 @@ public enum CrabAnimator {
              // `flourishDeck`, whose head IS `allCases`.
              ollie,
              // The skateboarder round: the balance ride and the flat spin.
-             manual, shoveIt
+             manual, shoveIt,
+             // The ollie off the nose.
+             nollie
 
-        /// The two skate tricks, so the line he shouts after one does not have
-        /// to name them individually.
-        /// Everything he does on a board. Two are tricks and one is a cruise,
+        /// Everything he does on a board. Six are tricks and one is a cruise,
         /// which is why this is not called `skateTricks` — he shouts after all
-        /// three, and "Do a Kickflip!" lands funnier over a roll-away than it
+        /// of them, and "Do a Kickflip!" lands funnier over a roll-away than it
         /// does over an actual kickflip.
         static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
-                                                .manual, .shoveIt]
+                                                .manual, .shoveIt, .nollie]
 
         var duration: Double {
             switch self {
             case .kickflip, .varialFlip: 2.8
             // Longer than the flips on purpose: the whole point of this one
-            // is the hang, and hang needs clock to hang in.
-            case .ollie: 3.2
+            // is the hang, and hang needs clock to hang in. The nollie is
+            // the same trick off the other end of the board, so it hangs
+            // just as long.
+            case .ollie, .nollie: 3.2
             case .cruise: 2.6
             case .jump: 0.9
             case .wave: 1.8
@@ -180,13 +182,14 @@ public enum CrabAnimator {
     /// over 600 cycles) and the quiet stretches rise from 80% to 86%.
     /// "He should move sometimes, and be still most of the time."
     /// What the choice die deals from. The enum stays append-only; TASTE
-    /// lives here. The three tricks appear twice and the cruise once — the
+    /// lives here. Every trick appears twice and the cruise once — the
     /// operator skates, and the shout deck lands harder on tricks than on a
-    /// roll-away. Thirteen entries put skate beats at ~54% of fired
-    /// flourishes (measured over the real dice, up from 40%), each trick at
-    /// ~15%, cruise at ~7.5%, every other flourish at ~7.7%.
+    /// roll-away. Nineteen entries (thirteen cases plus the six doubled
+    /// tricks) put skate beats at 13/19 of fired flourishes, each trick at
+    /// 2/19, cruise and every other flourish at 1/19. `theDeckLeansSkate`
+    /// pins the lean, not these fractions, so the deck can grow.
     static let flourishDeck: [Flourish] = Flourish.allCases
-        + [.kickflip, .varialFlip, .ollie, .manual, .shoveIt]
+        + [.kickflip, .varialFlip, .ollie, .manual, .shoveIt, .nollie]
 
     /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
     /// flourish family's multiplier, new addend, same cycle domain.
@@ -223,15 +226,17 @@ public enum CrabAnimator {
     }
 
     /// 🛹 THE SKATE SESSION: a rare long spell where he really skates —
-    /// cruise, ollie, cruise, kickflip, roll-away, strung together. A
-    /// stargaze-class idle spell, not a flourish: the 7-second flourish
-    /// scheduler cannot hold a 14.5-second beat. Dice `89 &+ 17` (the
+    /// cruise, ollie, cruise, kickflip, nollie, roll-away, strung together.
+    /// A stargaze-class idle spell, not a flourish: the 7-second flourish
+    /// scheduler cannot hold a 17-second beat. Dice `89 &+ 17` (the
     /// whether-a-cycle-fires family) over 180-second cycles, ~one idle
-    /// session in four and a half cycles; never cycle zero.
+    /// session in four and a half cycles; never cycle zero. The nollie
+    /// joined at the operator's call, and the window grew by its length.
     static let skateSessionBeats: [(Flourish, Double)] = [
-        (.cruise, 2.6), (.ollie, 3.2), (.cruise, 2.6), (.kickflip, 2.8), (.cruise, 2.6),
+        (.cruise, 2.6), (.ollie, 3.2), (.cruise, 2.6), (.kickflip, 2.8),
+        (.nollie, 3.2), (.cruise, 2.6),
     ]
-    static let skateSessionLength = 14.5    // the beats plus a settling beat
+    static let skateSessionLength = 17.7    // the beats plus a settling beat
 
     static func skateSession(idleT t: Double) -> Double? {
         let cycle = Int(floor(t / 180))
@@ -696,8 +701,8 @@ public enum CrabAnimator {
             pose.holidayGround = true
 
         case .skateSession:
-            // The whole ride on a loop: a beat of rest, then the 14.5-second
-            // sequence. Rest FIRST — the frozen sentinel — and the `until`
+            // The whole ride on a loop: a beat of rest, then the session's
+            // full length. Rest FIRST — the frozen sentinel — and the `until`
             // contract on release: a ride mid-trick finishes out.
             let rideCycle = 1.0 + skateSessionLength
             let rideStart = (frame.t / rideCycle).rounded(.down) * rideCycle
@@ -1630,7 +1635,19 @@ public enum CrabAnimator {
     /// oscillating ones start at a fixed phase rather than an arbitrary one.
     /// `jumpPose` has always made that trade.
     static func flourishPose(_ kind: Flourish, at t: Double) -> CrabPose {
-        var pose = pose(mood: .idle, t: t, flourishes: false)
+        flourishPose(kind, at: t, base: pose(mood: .idle, t: t, flourishes: false))
+    }
+
+    /// The same overlay on a caller-supplied base.
+    ///
+    /// The idle base breathes, blinks and glances on its own clock, so a
+    /// clip that bookends a trick with a FROZEN stance had a second seam at
+    /// the trick's end — the base at t = duration is not the base at t =
+    /// 0.4 — on top of whatever the trick itself did. Handing the clip's
+    /// own stance in as the base closes that seam by construction; the
+    /// live path and the README loops keep the breathing base above.
+    static func flourishPose(_ kind: Flourish, at t: Double, base: CrabPose) -> CrabPose {
+        var pose = base
         if t < kind.duration {
             apply(kind, progress: t / kind.duration, t: t, to: &pose)
         }
@@ -1773,6 +1790,47 @@ public enum CrabAnimator {
                     / (1 - Self.ollieAirStart - Self.ollieAirSpan)
             }
 
+        case .nollie:
+            // The ollie off the nose — same air, same hang, the board's pitch
+            // mirrored (see the prop). What changes on HIM is the weight:
+            // popping the nose means the front foot does the work, so the
+            // balance arms swap roles — front arm low over the pop, back
+            // arm high — and the turn shade goes the OTHER way, the
+            // opposite shoulder coming round. He still watches the nose,
+            // which is still on his right.
+            pose.prop = .skateboardNollie
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            if progress < Self.ollieAirStart {
+                pose.squash = 1
+                pose.bob = 1
+            } else if progress < Self.ollieAirStart + Self.ollieAirSpan {
+                let air = (progress - Self.ollieAirStart) / Self.ollieAirSpan
+                let hang = pow(sin(air * .pi), 0.55)
+                pose.bob = -Int((hang * 10).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.propPhase = air
+                if air < 0.18 {
+                    pose.eyes = .squint
+                } else {
+                    let sway = sin(t * 5)
+                    pose.armLeft = 0.7 + 0.25 * sway
+                    pose.armRight = 0.35 - 0.2 * sway
+                    pose.gazeX = 1
+                    pose.torsoShade = -1
+                    pose.torsoShadeAmount = 0.5 * sin(air * .pi)
+                }
+                pose.mouth = .open
+            } else {
+                pose.squash = 1
+                pose.bob = 1
+                pose.mouth = .open
+                pose.dustBurst = (progress - Self.ollieAirStart - Self.ollieAirSpan)
+                    / (1 - Self.ollieAirStart - Self.ollieAirSpan)
+            }
+
         case .jump:
             // Crouch, launch, arc, land heavy.
             if progress < 0.16 {
@@ -1825,15 +1883,22 @@ public enum CrabAnimator {
             pose.propVisibility = 1
             pose.propPhase = progress
             let held = Ease.smoothstep(min(progress, 1 - progress) * 5)
-            if held > 0.5 {
-                pose.bob = -1
-                pose.eyes = .determined
-                pose.mouth = .flat
-                let saw = sin(t * 6)
-                pose.armLeft = 0.5 + 0.3 * saw
-                pose.armRight = 0.5 - 0.3 * saw
-                pose.gazeX = 1
-            }
+            // The rider comes off the wheelie the way the board does: eased,
+            // and one thing at a time. The first cut gated every channel on a
+            // single `held > 0.5`, so at 90% of the ride the arms (0.8 of
+            // their range), the eyes, the mouth, the gaze and the rise all
+            // let go in ONE frame while the nose was still easing down — the
+            // operator's "it ends abruptly". Now the arms ride `held` as a
+            // continuous scale, and the four whole-pixel switches sit on
+            // thresholds 0.2 apart — `held` moves about 0.15 per frame at
+            // the live 20 fps, so anything closer puts two on one frame.
+            let saw = sin(t * 6)
+            pose.armLeft = held * (0.5 + 0.3 * saw)
+            pose.armRight = held * (0.5 - 0.3 * saw)
+            if held > 0.25 { pose.mouth = .flat }
+            if held > 0.45 { pose.bob = -1 }
+            if held > 0.65 { pose.gazeX = 1 }
+            if held > 0.85 { pose.eyes = .determined }
 
         case .shoveIt:
             // The flat spin: he hops, the board does a half turn UNDERNEATH

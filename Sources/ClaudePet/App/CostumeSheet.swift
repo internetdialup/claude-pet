@@ -260,6 +260,7 @@ enum CostumeSheet {
             dressed(CrabAnimator.flourishPose(.ollie, at: 0.9), "ollie rise"),
             dressed(CrabAnimator.flourishPose(.kickflip, at: 1.4), "kickflip air"),
             dressed(CrabAnimator.flourishPose(.shoveIt, at: 1.0), "shove-it"),
+            dressed(CrabAnimator.flourishPose(.nollie, at: 0.9), "nollie rise"),
             dressed(CrabAnimator.pose(mood: .sleeping, t: 2, flourishes: false), "asleep in it"),
         ]
         return write("THE SKATER — the fit · on the board",

@@ -14,9 +14,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   own hop — plus, rarely, a whole session: cruise, ollie, cruise, kickflip,
   roll-away, strung into one ride. And a Skater fit in the costume menu:
   backwards cap, charcoal tee, pads, with a kick-push of dust when the mood
-  takes him. Twelve idle moves, twenty props, fourteen looks.
+  takes him. Thirteen idle moves, twenty-one props, fourteen looks.
+- **🛹 The nollie.** The ollie popped off the nose — the tail rises first,
+  the board levels in the hang, and he lands it tail-first, watching the
+  nose the whole way. It joins the dice, the shout deck, and the session
+  (now cruise, ollie, cruise, kickflip, nollie, roll-away).
 
 ### Changed
+
+- **🛹 The manual lands like it should.** The rider used to let go of
+  everything — arms, eyes, mouth, gaze, the lift — on one frame near the
+  end while the board was still easing its nose down. Now each releases on
+  its own beat and the ground rush fades with the wheelie.
 
 - **👀 Sonic got his eyes.** Tall ones, the way he's drawn — a row taller
   than Claw'd's own, catchlight riding up with them. Blinks and winks stay

@@ -93,11 +93,15 @@ public struct CrabPose: Sendable, Equatable {
         // the shove-it's flat spin — each its own geometry, like every
         // board before them.
         case skateboardManual, skateboardShoveIt
+        // Appended: the board mid-NOLLIE — the ollie's pitch mirrored, the
+        // nose popping and the tail rising first.
+        case skateboardNollie
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
-             .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt: true
+             .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt,
+             .skateboardNollie: true
             default: false
             }
         }
@@ -1109,7 +1113,11 @@ public enum CrabRig {
     /// shadow inherits the jump's own easing.
     private static func drawShadow(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
         switch pose.prop {
-        case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie: return
+        // Every board, not just the first four: the manual and shove-it
+        // boards were missed when they joined, and drew a ground shadow
+        // under an airborne deck.
+        case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
+             .skateboardManual, .skateboardShoveIt, .skateboardNollie: return
         default: break
         }
         let rise = max(0, -dy)
@@ -1642,6 +1650,49 @@ public enum CrabRig {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
             }
 
+        case .skateboardNollie:
+            // The NOLLIE: the ollie popped off the nose. Same air, same
+            // profiles, the pitch mirrored end for end — the nose slaps down
+            // and tucks where the ollie's tail did, the tail rises where the
+            // ollie's nose did, and the deck levels for the wheels the same
+            // way. The joining pixels mirror too: they sit on the HIGHER
+            // slab's inner end here, because the steps now climb toward
+            // the tail.
+            let air = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let tilt: Double =
+                air < 0.35 ? Ease.smoothstep(air / 0.35)
+                : air < 0.75 ? 1 - 0.55 * Ease.smoothstep((air - 0.35) / 0.4)
+                : 0.45 * (1 - Ease.smoothstep((air - 0.75) / 0.25))
+            let cx = 16 + dx, deckY = 25 + dy
+            let rise = Int((5 * tilt).rounded())          // tail lift, in cells
+            let tuck: Double =
+                air < 0.35 ? 2 * Ease.smoothstep(air / 0.35)
+                : air < 0.6 ? 2 - 3 * Ease.smoothstep((air - 0.35) / 0.25)
+                : air < 0.75 ? -1
+                : -1 * (1 - Ease.smoothstep((air - 0.75) / 0.25))
+            let dip = Int(tuck.rounded())                 // nose offset, signed
+            let yTail = deckY - rise
+            let yMid = deckY + dip - (rise + dip) / 2
+            let yNose = deckY + dip
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - 8, yTail, 6, 1, deckInk)
+            b.rect(cx - 2, yMid, 6, 1, deckInk)
+            b.rect(cx + 4, yNose, 5, 1, deckInk)
+            if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
+            if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
+
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                b.rect(hub, y + 1, 3, 1, wheelInk)
+                b.pixel(hub, y + 2, wheelInk)
+                b.pixel(hub + 1, y + 2, .screenDark)
+                b.pixel(hub + 2, y + 2, wheelInk)
+                b.rect(hub, y + 3, 3, 1, wheelInk)
+            }
+            if wheelShimmer(pose.propPhase) {
+                b.pixel(cx + 4, yNose + 1, .flameCore)
+            }
+
         case .skateboardManual:
             // The wheelie, held: tail on the ground, nose stepping up through
             // an eased pitch, the back wheel planted and the front one riding
@@ -1672,11 +1723,18 @@ public enum CrabRig {
                 b.pixel(cx - 5, yTail + 1, .flameCore)
             }
             // Ground rush: three dashes streaming left under the wheels,
-            // stepped whole-pixel off the ride's own clock.
+            // stepped whole-pixel off the ride's own clock. Their LENGTH
+            // rides the same pitch envelope as the nose, so the rush grows
+            // a cell at a time as the wheelie comes up and is gone before
+            // the board levels — it used to stream at full strength until
+            // the prop vanished, which is the other half of the abrupt end.
             let rush = Int((p * 34).rounded())
-            for lane in 0..<3 {
-                let x = ((28 - rush + lane * 11) % 32 + 32) % 32
-                b.rect(x, 29, 3, 1, .shadow)
+            let dash = Int((3 * pitch).rounded())
+            if dash > 0 {
+                for lane in 0..<3 {
+                    let x = ((28 - rush + lane * 11) % 32 + 32) % 32
+                    b.rect(x, 29, dash, 1, .shadow)
+                }
             }
 
         case .skateboardShoveIt:

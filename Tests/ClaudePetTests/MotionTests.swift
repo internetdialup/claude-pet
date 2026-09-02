@@ -407,6 +407,72 @@ struct MotionContinuityTests {
                 "he landed on the underside — wheels at row \(landed.wheelRow), deck at \(landed.deckRow)")
     }
 
+    /// The nollie is the ollie's pitch mirrored: mid-pop the TAIL is the
+    /// high end, and the deck still lands level, wheels underneath. Measured
+    /// on the rendered deck ink, end by end, so a draw that quietly copied
+    /// the ollie's slabs without mirroring them would fail here first.
+    @Test("The nollie pops the nose, lifts the tail, and lands wheels-down")
+    func nollieLiftsTheTailAndLandsWheelsDown() {
+        let duration = CrabAnimator.Flourish.nollie.duration
+        func deckTops(at t: Double) -> (tail: Int, nose: Int) {
+            let buffer = CrabRig.render(CrabAnimator.flourishPose(.nollie, at: t))
+            var tail = 99, nose = 99
+            for y in 0..<32 {
+                for x in 0..<32 where buffer[x, y] == .deck {
+                    if x <= 12 { tail = min(tail, y) }
+                    if x >= 20 { nose = min(nose, y) }
+                }
+            }
+            return (tail, nose)
+        }
+        // Air 0.35 is the pop's peak: progress = airStart + 0.35 · airSpan.
+        let peak = (CrabAnimator.ollieAirStart + 0.35 * CrabAnimator.ollieAirSpan) * duration
+        let popped = deckTops(at: peak)
+        #expect(popped.nose - popped.tail >= 3,
+                "the tail should ride high off the nose pop — tail at row \(popped.tail), nose at \(popped.nose)")
+
+        let landed = deckTops(at: duration - 0.05)
+        #expect(landed.tail == landed.nose, "the nollie landed on a tilt")
+        let buffer = CrabRig.render(CrabAnimator.flourishPose(.nollie, at: duration - 0.05))
+        var deckRow = 0, wheelRow = 0
+        for y in 0..<32 {
+            for x in 0..<32 {
+                if buffer[x, y] == .deck { deckRow = max(deckRow, y) }
+                if buffer[x, y] == .yellow { wheelRow = max(wheelRow, y) }
+            }
+        }
+        #expect(wheelRow > deckRow, "he landed primo — wheels at row \(wheelRow), deck at \(deckRow)")
+    }
+
+    /// The manual's rider lets go the way the board does: one thing at a
+    /// time. The first cut released the arms, eyes, mouth, gaze and rise on
+    /// a single frame at 90% of the ride — the operator's "ends abruptly".
+    /// Swept at the live 20 fps over the whole ride, so a future threshold
+    /// that lines two switches up again is caught on the frame it happens.
+    /// On a FROZEN base: the idle base under a live trick glances and
+    /// breathes on its own clock, and this pins the trick's own contract,
+    /// not a coincidence with the base.
+    @Test("The manual releases its channels on separate frames")
+    func manualReleasesAreStaggered() {
+        let duration = CrabAnimator.Flourish.manual.duration
+        let base = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+        var previous = CrabAnimator.flourishPose(.manual, at: 0, base: base)
+        for frame in 1...Int(duration * 20) {
+            let t = Double(frame) / 20
+            let pose = CrabAnimator.flourishPose(.manual, at: t, base: base)
+            var switches = 0
+            if pose.eyes != previous.eyes { switches += 1 }
+            if pose.mouth != previous.mouth { switches += 1 }
+            if pose.gazeX != previous.gazeX { switches += 1 }
+            if pose.bob != previous.bob { switches += 1 }
+            #expect(switches <= 1, "\(switches) channels switched together at t = \(t)")
+            #expect(abs(pose.armLeft - previous.armLeft) <= 0.12
+                    && abs(pose.armRight - previous.armRight) <= 0.12,
+                    "the arms jumped at t = \(t)")
+            previous = pose
+        }
+    }
+
     /// **The cruise is the one where HE does not move and the ground does.**
     ///
     /// Its whole identity is that nothing about the board changes: it does not
