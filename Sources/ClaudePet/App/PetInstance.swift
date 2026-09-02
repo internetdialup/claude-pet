@@ -48,6 +48,49 @@ final class PetInstance {
     /// envelope's 0.5s release land together.
     static let rudeWakeStirDelay: TimeInterval = 1.2
 
+    /// A poke train: consecutive clicks with gaps at most this far apart.
+    /// ONE constant serves double duty as the roster's settle delay, and the
+    /// two must never diverge: the roster opens exactly when a train has
+    /// provably ended, so by construction no counted poke can ever meet an
+    /// open popover — whose transient dismissal monitor EATS the click, which
+    /// is half of why the triple-poke party "never fired". (The other half:
+    /// `NSEvent.clickCount` only accumulates inside the OS double-click
+    /// interval, and a human poking deliberately at ~0.6s gaps reads as
+    /// 1, 1, 1.) 0.75s sits above the deliberate cadence and below feeling
+    /// broken — the squash and squeal still answer every press instantly;
+    /// only the panel waits for the beat after.
+    nonisolated static let pokeGap: TimeInterval = 0.75
+
+    /// How many pokes the train ending at `now` contains, counting `now`.
+    /// `times` are the previous poke instants, ascending; a gap wider than
+    /// `gap` anywhere breaks the train. Pure, so the party's arithmetic is
+    /// testable without a window — the `hoverCountsAsStir` pattern.
+    nonisolated static func pokeVerdict(times: [Date], now: Date,
+                                        gap: TimeInterval = pokeGap) -> Int {
+        var count = 1
+        var edge = now
+        for time in times.reversed() {
+            guard edge.timeIntervalSince(time) <= gap, time <= edge else { break }
+            count += 1
+            edge = time
+        }
+        return count
+    }
+
+    /// What an awake, non-shift, non-bug click does — the poke ladder:
+    /// one poke opens the roster (after the settle beat), two feeds him,
+    /// three throws the party. Double-poke rather than dice for the snack,
+    /// per the house's own doctrine: dice are for the things that happen TO
+    /// you; feeding him is something you DO, and a deliberate snack attempt
+    /// answered by a roster panel would punish the one interaction sought.
+    enum ClickAction: Equatable { case party, snack, pokeThenRoster }
+    nonisolated static func clickAction(verdict: Int, mood: PetMood,
+                                        onBody: Bool, snackBusy: Bool) -> ClickAction {
+        if verdict >= 3 { return .party }
+        if verdict == 2, mood == .idle, onBody, !snackBusy { return .snack }
+        return .pokeThenRoster
+    }
+
     /// Whether a hover that started at `startedAt` still counts as attention
     /// when its dwell timer fires at `queuedFor`.
     ///
@@ -111,6 +154,15 @@ final class PetInstance {
     /// The same generation trick for the hello, which schedules twice: once to
     /// begin after the window has settled, and once to clear itself afterwards.
     private var helloSeq = 0
+    /// The poke train's memory — recent click instants, pruned to the last
+    /// six. `pokeVerdict` reads it so three DELIBERATE pokes count even when
+    /// the OS click counter reads them as three singles.
+    private var pokeTimes: [Date] = []
+    /// Every press bumps this, cancelling any pending roster open — a multi-
+    /// poke never flashes the panel. The generation pattern, like `skateSeq`.
+    private var rosterSeq = 0
+    /// This pet's draw counter for the long-pet thank-you line.
+    private var petCursor = LineCursor()
 
     /// How long after launch he waves.
     ///
@@ -271,12 +323,23 @@ final class PetInstance {
             // woken, and a fast triple-poke on a sleeper gets a rude wake,
             // not a party — the party needs him awake, which is right.
             if self.model.state.mood == .sleeping {
+                // Pokes during the wake still COUNT: a determined triple-poker
+                // gets the party the moment he is up (checked in the deferred
+                // stir below). Appended before every return in this branch, or
+                // that promise silently never fires.
+                self.pokeTimes.append(Date())
+                self.pokeTimes = Array(self.pokeTimes.suffix(6))
                 guard self.model.rudeWakeStartedAt == nil else { return }
                 let wokenAt = Date()
                 self.model.rudeWakeStartedAt = wokenAt
                 DispatchQueue.main.asyncAfter(deadline: .now() + Self.rudeWakeStirDelay) { [weak self] in
                     guard let self, self.model.rudeWakeStartedAt == wokenAt else { return }
                     self.onStir?()
+                    // Three pokes since the wake began: he is up, and the
+                    // party he owes them starts on his first waking breath.
+                    if self.pokeTimes.filter({ $0 >= wokenAt }).count >= 3 {
+                        self.startParty()
+                    }
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.rudeWakeDuration + 0.1) { [weak self] in
                     guard let self, self.model.rudeWakeStartedAt == wokenAt else { return }
@@ -285,31 +348,28 @@ final class PetInstance {
                 return
             }
 
-            // Any AWAKE click is contact. The paths below all return early
-            // (triple-poke, bug pounce), so stirring here is the one place
-            // that catches every one of them without repetition.
+            // Any AWAKE click is contact. The paths below all return early,
+            // so stirring here is the one place that catches every one of
+            // them without repetition.
             self.onStir?()
 
-            // 🎉🪄 Poke him three times and he throws a party.
-            //
-            // The clear is guarded on the stamp it was queued for. Without
-            // that, a second triple-poke rebases the latch while the FIRST
-            // clear is still in flight, and that older timer then ends the new
-            // party early — mid-plateau, so the rainbow vanishes in a frame
-            // rather than easing out. Every latch in this file that already
-            // does this (the badge, the petting release) does it the same way.
-            if clicks >= 3 {
-                let started = Date()
-                self.model.rainbowStartedAt = started
-                DispatchQueue.main.asyncAfter(deadline: .now() + CrabView.rainbowDuration) { [weak self] in
-                    guard let self, self.model.rainbowStartedAt == started else { return }
-                    self.model.rainbowStartedAt = nil
-                }
-            }
+            // Every press cancels any pending roster open — a multi-poke
+            // never flashes the panel — and joins the train. The verdict is
+            // the FRESHER of our own train and the OS click counter: the
+            // counter keeps the machine-gun fast path, the train counts the
+            // deliberate ~0.6s pokes the counter reads as singles.
+            self.rosterSeq &+= 1
+            let now = Date()
+            let verdict = max(Self.pokeVerdict(times: self.pokeTimes, now: now), clicks)
+            self.pokeTimes.append(now)
+            self.pokeTimes = Array(self.pokeTimes.suffix(6))
 
             // 🐛 A click on the visiting floor bug is a pounce, not a roster
             // request. The bug's schedule is pure, so ask it where it is —
             // through THIS pet's clock; the shared one is nobody's clock now.
+            // The pending roster is already cancelled above, and pounce
+            // clicks keep counting toward the train — the party check has
+            // always preceded the pounce.
             if let zone = self.currentBugZone(),
                let cell = self.gridCell(for: location), zone.contains(cell) {
                 SoundBank.play(.pounce)
@@ -329,40 +389,92 @@ final class PetInstance {
                 return
             }
 
-            // (The 🍤 sleeping-snack branch lived here, and an autopsy found
-            // it had been unreachable since the day it shipped: the
-            // stir-first ordering flipped the mood before its `.sleeping`
-            // check ever ran. The rude wake above now owns the sleeping
-            // click; `applySnack`, the shrimp art and their tests all stay in
-            // the rig, one trigger away from a comeback — a snack for an
-            // AWAKE crab is a plausible future round.)
+            // The poke ladder: one opens the roster, two feeds him, three
+            // throws the party. 🎉🍤📋
+            let onBody = self.gridCell(for: location)
+                .map { CrabHitMask.body[$0.x, $0.y] } ?? false
+            switch Self.clickAction(verdict: verdict, mood: self.model.state.mood,
+                                    onBody: onBody,
+                                    snackBusy: self.model.snackStartedAt != nil) {
+            case .party:
+                // 🎉🪄 The squeal tops out, the rainbow latches, and the
+                // roster stays shut — a party is not a roster request. The
+                // train resets so a fourth poke starts fresh instead of
+                // rebasing the party mid-plateau (a rebase restarts
+                // `rainbowMood` at t=0, a pose jump no-snap forbids).
+                SoundBank.play(.squeal(step: 3))
+                self.startParty()
+                self.pokeTimes.removeAll()
+                let clickedAt = Date()
+                self.model.clickedAt = clickedAt
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) { [weak self] in
+                    guard let self, self.model.clickedAt == clickedAt else { return }
+                    self.model.clickedAt = nil
+                }
 
-            // Squash first, roster second — the reaction is feedback for the
-            // click, and the roster is what the click is for. The squeal
-            // steps up with the click count into the triple-poke party.
-            SoundBank.play(.squeal(step: min(clicks, 3)))
-            let clickedAt = Date()
-            self.model.clickedAt = clickedAt
-            self.onRosterRequested?()
-            // Clear it once the animation is done so the view drops back to its
-            // mood frame rate instead of holding 30fps forever — but only if it
-            // is still OUR click. A double-click delivers two mouseUps about
-            // 0.2s apart, each queuing a clear; unguarded, the first one fired
-            // while the second click's envelope was two-thirds through and cut
-            // it off in a single frame. Every double-click ended in a snap.
-            DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) { [weak self] in
-                guard let self, self.model.clickedAt == clickedAt else { return }
-                self.model.clickedAt = nil
+            case .snack:
+                // 🍤 The shrimp's comeback — the branch the autopsy found
+                // stillborn on the sleeping click, resurrected piece for
+                // piece on the double-poke, where feeding a crab you can see
+                // is a thing you DO. The body-cell gate stays for the same
+                // reason it always had: mouseUp location can drift a few
+                // points off him.
+                SoundBank.play(.squeal(step: 2))
+                let snackAt = Date()
+                self.model.snackStartedAt = snackAt
+                self.model.clickedAt = snackAt        // the squash still answers
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) { [weak self] in
+                    guard let self, self.model.clickedAt == snackAt else { return }
+                    self.model.clickedAt = nil
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) { [weak self] in
+                    guard let self, self.model.snackStartedAt == snackAt else { return }
+                    self.model.snackStartedAt = nil
+                }
+
+            case .pokeThenRoster:
+                // Squash and squeal instantly — the click always FEELS
+                // answered — then the roster opens on the settle beat, when
+                // the train has provably ended. The guard chain: a newer
+                // press cancels (generation), a party that latched meanwhile
+                // keeps the panel shut.
+                SoundBank.play(.squeal(step: min(verdict, 3)))
+                let clickedAt = Date()
+                self.model.clickedAt = clickedAt
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) { [weak self] in
+                    guard let self, self.model.clickedAt == clickedAt else { return }
+                    self.model.clickedAt = nil
+                }
+                let seq = self.rosterSeq
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.pokeGap) { [weak self] in
+                    guard let self, self.rosterSeq == seq,
+                          self.model.rainbowStartedAt == nil else { return }
+                    self.onRosterRequested?()
+                }
             }
         }
         controller.onPetStart = { [weak self] in
+            guard let self else { return }
             SoundBank.play(.purr)
             // The most deliberate gesture there is. Once per hold — `onPetEnd`
             // does not re-stir, because a second stamp inside one gesture buys
             // nothing against a fifteen-minute window.
-            self?.onStir?()
-            self?.model.pettingStartedAt = Date()
-            self?.model.pettingEndedAt = nil
+            self.onStir?()
+            let start = Date()
+            self.model.pettingStartedAt = start
+            self.model.pettingEndedAt = nil
+            // 💛 The crescendo's thank-you: ten seconds of unbroken petting
+            // earns three quick hearts (pure in `heartSpawns`) and one line.
+            // Stamp-guarded like every timer here — release-then-regrab arms
+            // a fresh ten-second clock, and an early release fires nothing.
+            DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.longPetCrescendoAt + 0.15) { [weak self] in
+                guard let self, self.model.pettingStartedAt == start,
+                      self.model.pettingEndedAt == nil else { return }
+                SoundBank.play(.shimmer)
+                let line = self.petCursor.advance(Vocab.lines(for: .longPet), id: "longPet")
+                self.model.transientBubble = (line ?? "Best. Human. Ever 💛",
+                                              Date().addingTimeInterval(2.4), .done)
+            }
         }
         controller.onPetEnd = { [weak self] in
             guard let self else { return }
@@ -524,6 +636,18 @@ final class PetInstance {
         }
     }
 
+    /// 🎉🪄 The triple-poke party, latched with the guarded clear every latch
+    /// in this file uses: a stale timer finds a newer stamp and does nothing.
+    /// Shared by the awake poke ladder and the sleeper's deferred payoff.
+    private func startParty() {
+        let started = Date()
+        model.rainbowStartedAt = started
+        DispatchQueue.main.asyncAfter(deadline: .now() + CrabView.rainbowDuration) { [weak self] in
+            guard let self, self.model.rainbowStartedAt == started else { return }
+            self.model.rainbowStartedAt = nil
+        }
+    }
+
     /// Meet the next skate beat at the moment it lands.
     ///
     /// **Scheduled, not detected.** The flourish schedule is pure in the mood
@@ -561,8 +685,13 @@ final class PetInstance {
             // whether the trick actually happened, not the timer.
             guard self.model.state.mood == .idle,
                   self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
-            let line = self.skateCursor.advance(Vocab.lines(for: .kickflip),
-                                                id: "kickflip")
+            // 🛹✨ Golden landings get the reserved deck. `skateLandingIsGolden`
+            // is the SAME derivation the pose used to paint the board, asked
+            // at the same landing instant — so the shout can never call an
+            // ordinary trick golden, or stay quiet about the jackpot.
+            let line = CrabAnimator.skateLandingIsGolden(at: landing)
+                ? self.skateCursor.advance(Vocab.lines(for: .goldenSkate), id: "goldenSkate")
+                : self.skateCursor.advance(Vocab.lines(for: .kickflip), id: "kickflip")
             // Long enough for the longest line to finish SCROLLING, not just to
             // appear: the Hall of Meat line is 31 columns, so it goes to the
             // marquee and needs about 2.1s to walk past.

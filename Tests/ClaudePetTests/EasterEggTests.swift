@@ -550,7 +550,11 @@ struct EasterEggScheduleTests {
                 counted[mark] = seen.count
             }
         }
-        let expected: [Double: Int] = [1.0: 1, 3.0: 2, 10.0: 4, 30.0: 9, 60.0: 16]
+        // 30s and 60s grew by three with the long-pet crescendo — three quick
+        // hearts at 10.1/11.0/11.9, the ten-second thank-you. Deliberate:
+        // every OTHER hearts invariant (spacing, airborne peak, loop seam)
+        // passes unmodified, which is the evidence the burst is shaped right.
+        let expected: [Double: Int] = [1.0: 1, 3.0: 2, 10.0: 4, 30.0: 12, 60.0: 19]
         for mark in checkpoints {
             #expect(counted[mark] == expected[mark],
                     "a \(mark)s hold should give \(expected[mark] ?? -1) hearts, got \(counted[mark] ?? -1)")
