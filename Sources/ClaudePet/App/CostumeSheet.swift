@@ -118,6 +118,11 @@ enum CostumeSheet {
                 p.shadesDrop = -6
             }, .none, "shades mid-drop"),
             tile(posed { p in p.idleHeart = 0.5 }, .none, "idle heart"),
+            {
+                var pose = CrabAnimator.flourishPose(.ollie, at: 1.6)
+                pose.beanie = true
+                return tile(CrabRig.render(pose), .none, "beanie ollie")
+            }(),
         ]
 
         let light = [

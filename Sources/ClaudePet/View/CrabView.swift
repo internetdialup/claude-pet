@@ -32,6 +32,7 @@ public enum CrabAnimator {
     /// | --- | --- |
     /// | `7 &+ 3` | which idle flourish |
     /// | `7 &+ 11` | whether a skate beat rides the golden board — 7 shared by addend |
+    /// | `7 &+ 13` | whether a skate beat wears the green beanie — same family |
     /// | `13 &+ 5` | the working prop re-roll |
     /// | `17 &+ 7` | whether an idle cycle is a fun fact |
     /// | `17 &+ 11` | whether a fact showing drops the shades — 17 shared by addend |
@@ -183,6 +184,14 @@ public enum CrabAnimator {
     nonisolated static let goldenSkateChance = 0.02
     static func skateBeatIsGolden(cycle: Int) -> Bool {
         cycle > 0 && noise(cycle &* 7 &+ 11) < goldenSkateChance
+    }
+
+    /// 🧢 About a skate beat in three comes out in the green beanie — the
+    /// operator's drip. Salt 7 &+ 13: the flourish family's multiplier,
+    /// another distinct addend, same cycle domain, same cycle-zero sentinel.
+    nonisolated static let beanieChance = 0.3
+    static func skateBeatWearsBeanie(cycle: Int) -> Bool {
+        cycle > 0 && noise(cycle &* 7 &+ 13) < beanieChance
     }
 
     /// The same question asked at a LANDING instant — the one derivation
@@ -682,13 +691,19 @@ public enum CrabAnimator {
 
             if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
-                // 🛹✨ The jackpot ride. LIVE-only by placement: this branch
-                // is the schedule's, and `flourishPose` — every renderer's
-                // and the sampler's door — never runs it, so the golden deck
-                // cannot leak into a committed byte.
-                if Flourish.skateBeats.contains(kind),
-                   skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod))) {
-                    pose.goldenBoard = true
+                if Flourish.skateBeats.contains(kind) {
+                    // 🛹✨ The jackpot ride. LIVE-only by placement: this
+                    // branch is the schedule's, and `flourishPose` — every
+                    // renderer's and the sampler's door — never runs it, so
+                    // the golden deck cannot leak into a committed byte.
+                    if skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod))) {
+                        pose.goldenBoard = true
+                    }
+                    // 🧢 …and sometimes the beanie comes out. Same contract,
+                    // its own dice.
+                    if skateBeatWearsBeanie(cycle: Int(floor(t / flourishPeriod))) {
+                        pose.beanie = true
+                    }
                 }
             }
 
