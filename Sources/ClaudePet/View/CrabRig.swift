@@ -1064,11 +1064,16 @@ public enum CrabRig {
         case .none:
             break
         case .blackBeanie:
-            // Charcoal, folded band over the brow, low dome.
-            b.rect(12 + dx, crown + 1, 8, 1, .slate)
+            // TALLER, and ON the head — the operator's second note: a
+            // proper standing beanie, band on the brow, folded cuff, dome
+            // rising four rows clear of the shell. The ollie apex still
+            // crops it against the grid top (the lofty pin's ceiling), and
+            // every other airborne frame shows the whole hat.
             b.rect(12 + dx, crown, 8, 1, .slate)
-            b.rect(13 + dx, crown - 1, 6, 1, .slate)
-            b.rect(14 + dx, crown - 2, 4, 1, .slate)
+            b.rect(12 + dx, crown - 1, 8, 1, .slate)
+            b.rect(13 + dx, crown - 2, 6, 1, .slate)
+            b.rect(13 + dx, crown - 3, 6, 1, .slate)
+            b.rect(14 + dx, crown - 4, 4, 1, .slate)
         case .cap(let ink):
             // The cap: low dome plus a brim off the right, the way he
             // rides — a hat, not a stripe — in whatever colour the dice

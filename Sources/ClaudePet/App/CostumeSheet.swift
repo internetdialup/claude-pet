@@ -87,6 +87,7 @@ enum CostumeSheet {
             && clawdSheet(to: root.appendingPathComponent("sheet-clawd.png"))
             && holidaySheet(to: root.appendingPathComponent("sheet-holiday.png"))
             && skaterSheet(to: root.appendingPathComponent("sheet-skater.png"))
+            && headwearSheet(to: root.appendingPathComponent("sheet-headwear.png"))
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
     }
 
@@ -123,6 +124,29 @@ enum CostumeSheet {
         ]
         return write("THE SEASONS — costumes · ambience",
                      rows: [costumes, ambience], to: url)
+    }
+
+    // MARK: Headwear
+
+    private static func headwearSheet(to url: URL) -> Bool {
+        func hatted(_ wear: CrabPose.Headwear, t: Double, flourish: CrabAnimator.Flourish?,
+                    _ label: String) -> Tile {
+            var pose = flourish.map { CrabAnimator.flourishPose($0, at: t) }
+                ?? CrabAnimator.pose(mood: .idle, t: t, flourishes: false)
+            pose.headwear = wear
+            return tile(CrabRig.render(pose), .none, label)
+        }
+        let beanie = [
+            hatted(.blackBeanie, t: 0.9, flourish: nil, "beanie, idle"),
+            hatted(.blackBeanie, t: 0.9, flourish: .ollie, "beanie, ollie rise"),
+            hatted(.blackBeanie, t: 1.6, flourish: .ollie, "beanie, apex (crops)"),
+            hatted(.blackBeanie, t: 1.3, flourish: .manual, "beanie, manual"),
+        ]
+        let caps = CrabAnimator.capColours.map { ink in
+            hatted(.cap(ink), t: 0.9, flourish: nil, "cap: \(ink)")
+        } + [hatted(.cap(.alert), t: 0.9, flourish: .ollie, "cap, ollie rise")]
+        return write("HEADWEAR — the taller beanie · the baseball hat",
+                     rows: [beanie, caps], to: url)
     }
 
     // MARK: The skater
