@@ -186,12 +186,18 @@ public enum CrabAnimator {
         cycle > 0 && noise(cycle &* 7 &+ 11) < goldenSkateChance
     }
 
-    /// 🧢 About a skate beat in three comes out in the green beanie — the
-    /// operator's drip. Salt 7 &+ 13: the flourish family's multiplier,
-    /// another distinct addend, same cycle domain, same cycle-zero sentinel.
-    nonisolated static let beanieChance = 0.3
-    static func skateBeatWearsBeanie(cycle: Int) -> Bool {
-        cycle > 0 && noise(cycle &* 7 &+ 13) < beanieChance
+    /// 🧢 About a skate beat in three comes out in headwear — the operator's
+    /// drip, split into two cuts on ONE dice: the low band is the black
+    /// beanie, the upper the green cap. Salt 7 &+ 13: the flourish family's
+    /// multiplier, another distinct addend, same cycle domain, same
+    /// cycle-zero sentinel.
+    nonisolated static let headwearChance = 0.3
+    static func skateHeadwear(cycle: Int) -> CrabPose.Headwear {
+        guard cycle > 0 else { return .none }
+        let roll = noise(cycle &* 7 &+ 13)
+        if roll < headwearChance / 2 { return .blackBeanie }
+        if roll < headwearChance { return .greenCap }
+        return .none
     }
 
     /// The same question asked at a LANDING instant — the one derivation
@@ -699,11 +705,9 @@ public enum CrabAnimator {
                     if skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod))) {
                         pose.goldenBoard = true
                     }
-                    // 🧢 …and sometimes the beanie comes out. Same contract,
-                    // its own dice.
-                    if skateBeatWearsBeanie(cycle: Int(floor(t / flourishPeriod))) {
-                        pose.beanie = true
-                    }
+                    // 🧢 …and sometimes the headwear comes out. Same
+                    // contract, its own dice.
+                    pose.headwear = skateHeadwear(cycle: Int(floor(t / flourishPeriod)))
                 }
             }
 

@@ -312,7 +312,7 @@ struct MotionContinuityTests {
         for y in 0..<PixelBuffer.side {
             var run = 0
             for x in 0..<PixelBuffer.side {
-                if buffer[x, y] == .slate {
+                if buffer[x, y] == .deck {
                     run += 1
                     longest = max(longest, run)
                     minY = min(minY, y); maxY = max(maxY, y)
@@ -362,7 +362,7 @@ struct MotionContinuityTests {
             var run = 0, start = 0
             for x in 0..<PixelBuffer.side {
                 if buffer[x, y] == .yellow { wheelSum += y; wheelCount += 1 }
-                if buffer[x, y] == .slate {
+                if buffer[x, y] == .deck {
                     if run == 0 { start = x }
                     run += 1
                     if run > longest { longest = run; deckRow = y; deckLeft = start }

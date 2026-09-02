@@ -113,7 +113,7 @@ struct ReelDeterminismTests {
                 * CrabAnimator.Flourish.ollie.duration
             let pose = CrabAnimator.flourishPose(.ollie, at: t)
             let buffer = CrabRig.render(pose)
-            for y in 0..<PixelBuffer.side where buffer[8, y] == .slate {
+            for y in 0..<PixelBuffer.side where buffer[8, y] == .deck {
                 return (y, 25 + pose.bob)
             }
             return (nil, 25 + pose.bob)
