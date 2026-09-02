@@ -378,10 +378,12 @@ public enum CrabRig {
     private static let armH = 3
     private static let armY = 14
 
-    private static let eyeSize = 3
-    private static let eyeY = 13
-    private static let eyeLeftX = 10
-    private static let eyeRightX = 19
+    // Internal like `legSwing`, and for the same reason: a costume that
+    // restyles the eyes has to agree with the face about where they are.
+    static let eyeSize = 3
+    static let eyeY = 13
+    static let eyeLeftX = 10
+    static let eyeRightX = 19
 
     /// - Parameters:
     ///   - costume: the wardrobe drawn into the sprite. Defaults to `.none`, so
@@ -1064,16 +1066,21 @@ public enum CrabRig {
         case .none:
             break
         case .blackBeanie:
-            // TALLER, and ON the head — the operator's second note: a
-            // proper standing beanie, band on the brow, folded cuff, dome
-            // rising four rows clear of the shell. The ollie apex still
-            // crops it against the grid top (the lofty pin's ceiling), and
-            // every other airborne frame shows the whole hat.
+            // Third fitting, to the operator's spec: "like the santa cap
+            // but mirrored and black." So it is — the santa hat's exact
+            // geometry reflected about the sprite's centre (x → 31−x, the
+            // mirror that maps the shell onto itself), every row in black,
+            // and a white pom at the tip because a pom that isn't white
+            // isn't a pom. It sags LEFT where santa's sags right, which
+            // also keeps the two hats apart in December. Same crown−4
+            // ceiling as the fitting before, so the ollie-apex crop
+            // behaves identically.
             b.rect(11 + dx, crown, 10, 1, .slate)
-            b.rect(11 + dx, crown - 1, 10, 1, .slate)
-            b.rect(12 + dx, crown - 2, 8, 1, .slate)
-            b.rect(12 + dx, crown - 3, 8, 1, .slate)
-            b.rect(13 + dx, crown - 4, 6, 1, .slate)
+            b.rect(9 + dx, crown - 1, 12, 1, .slate)
+            b.rect(10 + dx, crown - 2, 9, 1, .slate)
+            b.rect(10 + dx, crown - 3, 6, 1, .slate)
+            b.pixel(10 + dx, crown - 4, .slate)
+            b.pixel(9 + dx, crown - 4, .paper)
         case .cap(let ink):
             // The cap, ANGLED — the operator's note: tipped back off the
             // brow, the dome climbing toward the front, and the brim

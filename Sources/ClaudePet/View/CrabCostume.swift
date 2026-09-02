@@ -328,40 +328,41 @@ enum CrabCostume {
             // eyes, which is the one thing the wardrobe may never do. The
             // charge stays at each bolt and jitters, which is what a spark
             // looks like from a distance anyway.
+            // ⚡ Juiced, per the operator: the first cut jittered three
+            // pale pixels at each bolt and read as nothing at desk size. Now
+            // each bolt throws a real spark — a four-point star that climbs
+            // up and away from the bolt, flaring open mid-flight and closing
+            // back to a single cell before it dies (glint-class at both
+            // ends, so the no-snap rule holds by geometry). The right bolt
+            // fires a beat behind the left, which is what makes it read as
+            // arcing electricity rather than two synchronized lamps.
             let sparkBrow = bodyY + dy + squash
-            let frame = Int(arc * 9)
-            for (index, hub) in [bodyX + dx, bodyX + bodyW + dx - 2].enumerated() {
-                for spark in 0..<3 {
-                    let ox = Int(CrabAnimator.noise(frame &* 31 &+ spark &* 7 &+ index &* 3) * 4) - 1
-                    let oy = Int(CrabAnimator.noise(frame &* 17 &+ spark &+ index) * 4) - 1
-                    b.pixel(hub + ox, sparkBrow + 4 + oy, .paper)
+            for (index, hub) in [bodyX + dx, bodyX + bodyW + dx - 1].enumerated() {
+                let u = min(1, max(0, arc * 1.4 - Double(index) * 0.4))
+                guard u > 0, u < 1 else { continue }
+                let away = index == 0 ? -1 : 1
+                let cx = hub + away * (1 + Int(u * 2))
+                let cy = sparkBrow + 3 - Int(u * 4)
+                let flare = sin(u * .pi)
+                b.pixel(cx, cy, .paper)
+                if flare > 0.35 {
+                    b.pixel(cx - 1, cy, .yellow)
+                    b.pixel(cx + 1, cy, .yellow)
+                    b.pixel(cx, cy - 1, .yellow)
+                    b.pixel(cx, cy + 1, .yellow)
                 }
+                // A stub of charge left glowing on the bolt itself while
+                // the star is in flight — the source reads, not just the arc.
+                b.pixel(hub, sparkBrow + 4, .yellow)
             }
 
         case .arcade:
-            guard layer == .onBody else { break }
-            // A marquee across his lower body, and NOTHING on his face — which
-            // is the whole reason this costume exists separately. Every mark up
-            // there reads as a feature, and that is how the first attempt at
-            // this became Frankenstein.
-            //
-            // Rows 19 and 20 are the only clear band below his mouth: two rows,
-            // which is exactly a two-colour stripe and nothing more ambitious.
-            // A cabinet is a dark box with a lit band on it, and so is he.
-            //
-            // And it CHASES. Two solid bars are a paint job; bulbs running
-            // along a cabinet's crown are what a marquee actually is, and the
-            // travel is the entire difference between a lit sign and a stripe.
-            // Continuous, because a marquee that only ran on a dice would look
-            // broken rather than restrained.
-            let marquee = bodyY + dy + squash + 9
-            let chase = Int(pose.propPhase * 7)
-            for step in 0..<(bodyW - 4) {
-                let x = bodyX + 2 + dx + step
-                let lit = (step + chase) % 4 < 2
-                b.pixel(x, marquee, lit ? .costumeA : .costumeB)
-                b.pixel(x, marquee + 1, lit ? .costumeB : .costumeA)
-            }
+            // The chasing marquee stripe lived here and died on the
+            // operator's review — at desk size it read as a glitch band
+            // crossing his belly, not a cabinet's lit sign. The costume is
+            // its palette now: black cabinet shell, phosphor face, nothing
+            // animated. `break` on purpose, not an unfinished case.
+            break
 
         case .ninja:
             let crown = bodyY + dy + squash
@@ -449,6 +450,23 @@ enum CrabCostume {
             //
             // Heat outranks it: a cell mid-cascade is `.bodyHot`, not `.body`,
             // so the fire burns through the code.
+            if layer == .onBody {
+                // 🤓 The glasses — what turned "Matrix" into "Coder" on the
+                // operator's call. Steel rims framing each eye window, a
+                // bridge between them. Body pass, so the face paints the
+                // eyes over the rim interiors and the eye-cover ban holds
+                // by draw order; the rain and code-lines above only write
+                // `.body` cells, so they part around the frames on their
+                // own — which is exactly the way light behaves on glasses.
+                for rim in [9, 18] {
+                    b.rect(rim + dx, 12 + dy, 5, 1, .steel)
+                    b.rect(rim + dx, 16 + dy, 5, 1, .steel)
+                    b.rect(rim + dx, 13 + dy, 1, 3, .steel)
+                    b.rect(rim + 4 + dx, 13 + dy, 1, 3, .steel)
+                }
+                b.rect(14 + dx, 14 + dy, 4, 1, .steel)
+                break
+            }
             guard layer == .front else { break }
             let top = bodyY + dy + squash
             let height = bodyH - squash
@@ -788,20 +806,38 @@ enum CrabCostume {
         case .turkey:
             let crown = bodyY + dy + squash
             if layer == .behind {
-                // The tail fan: seven spokes arcing over the crown, gold and
-                // dark alternating, gold tips — drawn behind him, so the
-                // shell cuts through and the fan reads as HIS.
+                // The tail fan, third cut. The first was seven thin spokes
+                // with a yellow dot on each tip, and the operator's "a bit
+                // confusing" was right: it read as candles on a stand. The
+                // second was five wide paddles with banded tips, and those
+                // read as bottles. Both drew feathers as THINGS standing on
+                // his head, and that is the actual mistake — a tom's fan is
+                // not a row of objects, it is one SHAPE: a half-disc split
+                // into radial wedges. So this draws exactly that. Every cell
+                // inside a half-circle over the crown is painted by its
+                // angle from the centre — five wedges, gold and dark
+                // alternating — and the outer two cells of radius flip to
+                // the wedge's contrast colour, the eyespot band real fans
+                // carry along their rim. No yellow anywhere. Drawn behind
+                // him, so the shell cuts through and the fan reads as HIS.
                 let strut = Self.effectWindow(at: pose.propPhase, salt: 7,
                                               period: 9, duration: 0.9, chance: 0.5) != nil
-                let lift = strut ? 1 : 0
-                for (i, spokeX) in [7, 10, 13, 16, 19, 22, 25].enumerated() {
-                    let ink: PixelBuffer.Ink = i % 2 == 0 ? .costumeC : .costumeA
-                    let reach = (i == 0 || i == 6) ? 2 : (i == 3 ? 4 : 3)
-                    let baseY = crown - 1 - lift
-                    for step in 0..<reach {
-                        b.rect(spokeX + dx, baseY - step * 2, 2, 2, ink)
+                // The strut spreads the fan a cell wider all round.
+                let radius = 9.0 + (strut ? 1.0 : 0.0)
+                let centreX = Double(bodyX) + Double(bodyW) / 2
+                let baseline = Double(crown)
+                let reach = Int(radius.rounded(.up))
+                for y in (crown - reach)...(crown - 1) {
+                    for x in (Int(centreX) - reach - 1)...(Int(centreX) + reach) {
+                        let ex = Double(x) + 0.5 - centreX
+                        let ey = baseline - Double(y) - 0.5
+                        let r = (ex * ex + ey * ey).squareRoot()
+                        guard r <= radius else { continue }
+                        let wedge = min(4, Int(atan2(ey, ex) / (.pi / 5)))
+                        let gold = wedge % 2 == 0
+                        let band = r > radius - 2
+                        b.pixel(x + dx, y, gold != band ? .costumeC : .costumeA)
                     }
-                    b.pixel(spokeX + dx, baseY - reach * 2, .yellow)
                 }
                 break
             }
@@ -926,6 +962,32 @@ enum CrabCostume {
             b.rect(3 + dx, 13 + dy, 2, 1, .costumeA)
             b.rect(26 + dx, 12 + dy, 3, 1, .costumeA)
             b.rect(27 + dx, 13 + dy, 2, 1, .costumeA)
+
+            // 👀 Bigger eyes — the operator's note, and the canonical Sonic
+            // read: TALL ovals, not wide ones. The costume adds one row above
+            // each open eye in the eye's own ink and walks the catchlight up
+            // with it (repainting the old catchlight cell, or the eye carries
+            // two lights). Drawn on the front pass, AFTER drawFace, so this
+            // extends what the face drew instead of racing it — the same
+            // draw-order trick the eye field uses underneath. Round eyes
+            // only: `.determined` carves its brow slant into the top row and
+            // growing it would flatten the focus back out, `.wide` is already
+            // a row taller, and a shut lid is one row by design — a bar
+            // floating above a blink reads as a second eyebrow.
+            if pose.eyes == .round {
+                for (side, baseX) in [(CrabPose.EyeSide.left, CrabRig.eyeLeftX),
+                                      (.right, CrabRig.eyeRightX)] {
+                    let shut = (pose.blink > 0.5 && !pose.asleepOverride)
+                        || pose.winkEye == side
+                    guard !shut else { continue }
+                    let x = baseX + dx + pose.gazeX
+                    let top = CrabRig.eyeY + dy + pose.gazeY - 1
+                        + (side == .left ? -pose.tilt : pose.tilt)
+                    b.rect(x, top, CrabRig.eyeSize, 1, .eye)
+                    b.pixel(x, top + 1, .eye)
+                    b.pixel(x, top, .paper)
+                }
+            }
 
             // 💍 The golden rings, arcing through his airspace right to left.
             // Scheduled on their own addend (salt 29), or handed a flight

@@ -46,7 +46,9 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .none: "Classic Claw'd"
         case .ninja: "Ninja"
         case .retroBlack: "Retro Black"
-        case .matrix: "Matrix"
+        // Retitled from "Matrix" on the operator's call — same raw value,
+        // same stored prefs, the look just grew glasses and a day job.
+        case .matrix: "Coder"
         case .tiger: "Tiger"
         case .white: "Arctic White"
         case .gundam: "Gundam"

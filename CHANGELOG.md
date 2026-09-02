@@ -16,6 +16,28 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   backwards cap, charcoal tee, pads, with a kick-push of dust when the mood
   takes him. Twelve idle moves, twenty props, fourteen looks.
 
+### Changed
+
+- **👀 Sonic got his eyes.** Tall ones, the way he's drawn — a row taller
+  than Claw'd's own, catchlight riding up with them. Blinks and winks stay
+  his: the extension only shows on an open eye.
+- **⚡ Frankenstein's bolts actually spark now.** Each bolt throws a real
+  four-point star that climbs up and away, flares open mid-flight, and dies
+  to a single cell — the right one a beat behind the left. The old version
+  was three pale pixels you'd only notice with your nose on the screen.
+- **🦃 The turkey's tail is a fan, not a candelabra.** One half-disc of
+  radial wedges with a rim band, gold and dark alternating, in place of the
+  seven spokes with yellow tips that read as candles. It still spreads on
+  the strut.
+- **🧢 The black beanie is a mirrored santa hat.** Same silhouette
+  reflected, sagging left where santa's sags right, black with a white pom.
+- **🤓 Matrix is Coder now.** Same green rain, same stored preference —
+  he just wears steel-rimmed glasses under it. The rain parts around the
+  frames on its own.
+- **🕹️ The arcade marquee is gone.** The chasing stripe across his belly
+  read as a glitch band at desk size. Arcade is its cabinet-black shell and
+  phosphor face, nothing animated.
+
 ## [1.7.0] — 2026-09-02
 
 ### Added
