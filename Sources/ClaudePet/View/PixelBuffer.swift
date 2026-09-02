@@ -70,6 +70,11 @@ public struct PixelBuffer: Sendable {
         /// TRANSLUCENT, because a solid pool would fight every wallpaper it
         /// lands on. Appended, like every ink before it.
         case shadow
+        /// The skate deck's own black — darker than `.slate` at the
+        /// operator's call, and its own case so the board tests can keep
+        /// measuring the deck by its ink alone (the bearing comment's
+        /// argument, now with a name instead of a loan).
+        case deck
     }
 
     private(set) var cells: [UInt8]
@@ -342,6 +347,7 @@ public struct PixelCanvasView: View {
         // Deliberately NOT override-consulting — see the case's own comment.
         case .memeBlack: Palette.ink
         case .shadow: Palette.slate.opacity(0.45)
+        case .deck: Color(red: 0.04, green: 0.04, blue: 0.045)
         }
     }
 }

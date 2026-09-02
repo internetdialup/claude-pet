@@ -134,6 +134,42 @@ struct CostumeStyle {
                     .mouth: rgb(0xC9_CDD8),
                 ],
                 yieldsCrownToProps: true)       // the V-fin yields the crown to the hard hat
+        case .pumpkin:
+            // 🎃 The jack-o'-lantern: his own eyes ARE the carving — the
+            // eye-cover ban honored by concept, not just geometry.
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0xE0_7A1E),      // pumpkin orange shell
+                    .bodyShade: rgb(0xB8_5E10), // the turn shade's step — see ninja's note
+                    .costumeA: rgb(0x2E_6224),  // stem + leaf green
+                    .costumeB: rgb(0x2A_160A),  // carved-dark accents
+                    .costumeC: rgb(0xC0_5A10),  // rib shadow
+                    .mouth: rgb(0x1A_0E06),     // dark, so his own mouth reads carved
+                ],
+                yieldsCrownToProps: true)       // the stem steps aside for the hard hat
+        case .turkey:
+            // 🦃 The turkey: the first big behind-layer costume — the tail
+            // fan lives behind him, the ninja-ribbon precedent at scale.
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x8A_5530),      // brown shell
+                    .bodyShade: rgb(0x6E_4224), // the turn shade's step
+                    .costumeA: rgb(0x53_311B),  // dark feather
+                    .costumeB: rgb(0xC2_3A2A),  // the wattle
+                    .costumeC: rgb(0xE0_A050),  // tail-fan gold
+                    .mouth: rgb(0x3D_3D3A),
+                ],
+                yieldsCrownToProps: false)      // the fan is behind, not crown furniture
+        case .santa:
+            // 🎅 An OUTFIT, not a respray: his own terracotta stays — the
+            // one seasonal look that keeps the shell, which also varies the
+            // montage.
+            return CostumeStyle(
+                inks: [
+                    .costumeA: rgb(0xC0_3030),  // hat + scarf red
+                    .costumeB: rgb(0xF2_EFE4),  // trim, pom, fringe
+                ],
+                yieldsCrownToProps: true)       // a hat is crown furniture
         case .sonic:
             return CostumeStyle(
                 inks: [
@@ -507,14 +543,7 @@ enum CrabCostume {
             // behind him instead of over him, which is where snow goes.
             //
             // Continuous rather than scheduled: weather does not take turns.
-            for (column, speed) in [(2, 0.62), (8, 0.9), (14, 0.5), (21, 0.78), (27, 1.05)] {
-                let fall = (pose.propPhase * speed * 5 + Double(column * 3))
-                    .truncatingRemainder(dividingBy: Double(PixelBuffer.side))
-                let drift = Int(sin(pose.propPhase * 0.8 + Double(column)) * 1.4)
-                let x = column + drift, y = Int(fall)
-                guard x >= 0, x < PixelBuffer.side, b[x, y] == .clear else { continue }
-                b.pixel(x, y, .paper)
-            }
+            HolidayAmbience.drawSnow(&b, phase: pose.propPhase)
         case .gundam:
             if layer == .onBody {
                 // The face is built on black: a visor recess across the eye
@@ -713,6 +742,93 @@ enum CrabCostume {
                 guard x >= 0, x < PixelBuffer.side else { continue }
                 for row in 0..<PixelBuffer.side where b[x, row] == .body {
                     b.pixel(x, row, ink)
+                }
+            }
+
+        case .pumpkin:
+            let crown = bodyY + dy + squash
+            if layer == .onBody {
+                // Rib shadows in the brow band — the gourd's segments —
+                // and a carved zigzag grin across the chin band. His own
+                // dark mouth sits between them and reads as more carving.
+                for x in [9, 16, 23] {
+                    b.rect(x + dx, crown, 1, 3, .costumeC)
+                }
+                for (i, x) in stride(from: 12, through: 20, by: 2).enumerated() {
+                    b.pixel(x + dx, 19 + dy + (i % 2), .costumeB)
+                }
+                break
+            }
+            guard layer == .front else { break }
+            // The stem, with one leaf curl.
+            b.rect(15 + dx, crown - 2, 2, 2, .costumeA)
+            b.pixel(17 + dx, crown - 1, .costumeA)
+            // 🕯 The candle flicker: the carved teeth glow from inside for a
+            // beat — the arcade's "lit from within" move. Salt 97 &+ 41 is
+            // the gundam flare's; this family shares by addend, and the
+            // holiday round's reserved addends are 3/5/7/17/37 — the flicker
+            // takes 5.
+            if Self.effectWindow(at: pose.propPhase, salt: 5,
+                                 period: 8, duration: 0.6, chance: 0.5) != nil {
+                for (i, x) in stride(from: 12, through: 20, by: 2).enumerated() {
+                    b.pixel(x + dx, 19 + dy + (i % 2), .yellow)
+                }
+            }
+
+        case .turkey:
+            let crown = bodyY + dy + squash
+            if layer == .behind {
+                // The tail fan: seven spokes arcing over the crown, gold and
+                // dark alternating, gold tips — drawn behind him, so the
+                // shell cuts through and the fan reads as HIS.
+                let strut = Self.effectWindow(at: pose.propPhase, salt: 7,
+                                              period: 9, duration: 0.9, chance: 0.5) != nil
+                let lift = strut ? 1 : 0
+                for (i, spokeX) in [7, 10, 13, 16, 19, 22, 25].enumerated() {
+                    let ink: PixelBuffer.Ink = i % 2 == 0 ? .costumeC : .costumeA
+                    let reach = (i == 0 || i == 6) ? 2 : (i == 3 ? 4 : 3)
+                    let baseY = crown - 1 - lift
+                    for step in 0..<reach {
+                        b.rect(spokeX + dx, baseY - step * 2, 2, 2, ink)
+                    }
+                    b.pixel(spokeX + dx, baseY - reach * 2, .yellow)
+                }
+                break
+            }
+            if layer == .onBody {
+                // The wattle, hanging beside his mouth.
+                b.rect(14 + dx, 18 + dy, 1, 2, .costumeB)
+                break
+            }
+
+        case .santa:
+            let crown = bodyY + dy + squash
+            if layer == .onBody {
+                // The scarf: a red band across the chin rows with a dropped
+                // tail in the leg gap and one trim fringe pixel.
+                b.rect(bodyX + 1 + dx - squash, 19 + dy, bodyW - 2 + squash * 2, 1, .costumeA)
+                b.rect(22 + dx, 20 + dy, 2, 1, .costumeA)
+                b.pixel(22 + dx, 21 + dy, .costumeB)
+                break
+            }
+            guard layer == .front else { break }
+            // The hat: white brim over the crown edge, red triangle sagging
+            // right, pom at its tip.
+            b.rect(bodyX + 2 + dx - squash, crown, bodyW - 4 + squash * 2, 1, .costumeB)
+            b.rect(11 + dx, crown - 1, 12, 1, .costumeA)
+            b.rect(13 + dx, crown - 2, 9, 1, .costumeA)
+            b.rect(16 + dx, crown - 3, 6, 1, .costumeA)
+            b.pixel(21 + dx, crown - 4, .costumeA)
+            b.pixel(22 + dx, crown - 4, .costumeB)
+            // ❄️ The breath: two paper puffs drifting off his face on cold
+            // dice — clear cells only, never over him.
+            if let puff = Self.effectWindow(at: pose.propPhase, salt: 17,
+                                            period: 10, duration: 0.8, chance: 0.4) {
+                let drift = Int((puff * 3).rounded())
+                for (i, cell) in [(27 + drift, 14), (28 + drift, 13)].enumerated() where i <= drift {
+                    if b[cell.0 + dx, cell.1 + dy] == .clear {
+                        b.pixel(cell.0 + dx, cell.1 + dy, .paper)
+                    }
                 }
             }
 

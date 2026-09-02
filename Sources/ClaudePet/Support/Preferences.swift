@@ -136,6 +136,26 @@ public final class Preferences {
         set { store.set(newValue.rawValue, forKey: Key.costume) }
     }
 
+    /// 🗓 The auto-wear-once flags, one per (holiday, season-year) — e.g.
+    /// `pet.holiday.greeted.halloween-2026`. A greeted season never
+    /// re-dresses him, however many launches it sees.
+    public func holidayGreeted(_ holiday: Holiday, seasonYear: Int) -> Bool {
+        store.bool(forKey: "pet.holiday.greeted.\(holiday.rawValue)-\(seasonYear)")
+    }
+    public func markHolidayGreeted(_ holiday: Holiday, seasonYear: Int) {
+        store.set(true, forKey: "pet.holiday.greeted.\(holiday.rawValue)-\(seasonYear)")
+    }
+
+    /// The costume he wore before a season auto-dressed him — restored when
+    /// the window closes. Distinct key from `costume`; nil when no stash.
+    public var preSeasonCostume: Costume? {
+        get { store.string(forKey: "pet.holiday.stash").flatMap(Costume.init(rawValue:)) }
+        set {
+            if let newValue { store.set(newValue.rawValue, forKey: "pet.holiday.stash") }
+            else { store.removeObject(forKey: "pet.holiday.stash") }
+        }
+    }
+
     /// The window's bottom-left origin in global screen coordinates.
     ///
     /// Absolute rather than screen-relative: with several displays, a fraction

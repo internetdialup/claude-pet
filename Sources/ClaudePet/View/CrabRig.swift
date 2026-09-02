@@ -147,12 +147,14 @@ public struct CrabPose: Sendable, Equatable {
     /// construction.
     public var goldenBoard: Bool = false
 
-    /// 🧢 The green beanie, on dice for about a skate beat in three — the
-    /// operator's drip ("sometimes"). The golden board's exact contract:
-    /// live-schedule-only by placement, so committed media never wears it.
-    /// Drawn only on the bare crab — a beanie over a costume's crown would
-    /// fight every helmet in the wardrobe.
-    public var beanie: Bool = false
+    /// 🧢 The skate headwear, on dice for about a skate beat in three — the
+    /// operator's drip, in two cuts: a black beanie pulled low, or a green
+    /// cap with a brim. The golden board's exact contract: live-schedule-only
+    /// by placement, so committed media never wears either. Drawn only on the
+    /// bare crab — headwear over a costume's crown would fight every helmet
+    /// in the wardrobe.
+    public enum Headwear: Sendable { case none, blackBeanie, greenCap }
+    public var headwear: Headwear = .none
 
     /// 🌠 The stargaze session's rare streak: the head's cell, its sky row,
     /// and its travel direction (the trail extends opposite). nil = no
@@ -177,6 +179,19 @@ public struct CrabPose: Sendable, Equatable {
     /// 💗 The idle heart's flight, 0…1, or nil — the sticker heart drifting
     /// up off his crown. A travel parameter; the blend leaves it alone.
     public var idleHeart: Double?
+
+    /// 🗓 The season, resolved LIVE-ONLY by the view (`LocalDay` behind the
+    /// frozen-sentinel lock) and defaulted nil everywhere else — offline
+    /// renderers can never see one. Drives the weather; `blend` starts from
+    /// the incoming pose, so none of these four lerp.
+    public var holiday: Holiday?
+    /// Halloween's floor pumpkins — idle-only, suppressed with the bug and
+    /// the balloon whenever the telescope or the sun owns the spell.
+    public var holidayGround: Bool = false
+    /// A New Year's firework in flight, 0…1, or nil — and the cycle that
+    /// launched it, for its colour and column.
+    public var fireworkProgress: Double?
+    public var fireworkCycle: Int = 0
     /// A single gait scuff cell behind a scuttling leg, or nil. Glint-class:
     /// one cell, locked to the leg cycle.
     public var scuffX: Int?
@@ -437,11 +452,28 @@ public enum CrabRig {
         // After the face, so it reads as light coming off the eye rather than
         // as something behind it.
         if pose.winkGlint { drawWinkGlint(&buffer, dx: dx, dy: dy) }
-        // The beanie rides the bare crab only — see its channel doc.
-        if pose.beanie, costume == .none, ghostCostume == .none {
-            drawBeanie(&buffer, dx: dx, dy: dy, squash: squash)
+        // Headwear rides the bare crab only — see its channel doc.
+        if pose.headwear != .none, costume == .none, ghostCostume == .none {
+            drawHeadwear(&buffer, kind: pose.headwear, dx: dx, dy: dy, squash: squash)
         }
         costumeLayer(.front)
+        // 🗓 The season's weather, for EVERYONE in the window — the white
+        // costume's snow rule generalised: clear cells only, continuous, no
+        // dice. Winter skips anyone already wearing Arctic White, or the
+        // snow would double.
+        switch pose.holiday {
+        case .halloween, .thanksgiving:
+            HolidayAmbience.drawLeaves(&buffer, phase: pose.propPhase)
+        case .winter where costume != .white && ghostCostume != .white:
+            HolidayAmbience.drawSnow(&buffer, phase: pose.propPhase)
+        default:
+            break
+        }
+        if pose.holidayGround { HolidayAmbience.drawFloorPumpkins(&buffer) }
+        if let firework = pose.fireworkProgress {
+            HolidayAmbience.drawFireworks(&buffer, progress: firework,
+                                          cycle: pose.fireworkCycle)
+        }
 
         // Ghost first, so an incoming prop paints over an outgoing one where
         // they overlap.
@@ -677,18 +709,18 @@ public enum CrabRig {
         let x = 7 + (u > 0.35 && u < 0.7 ? 1 : 0) + dx
         var heart = PixelBuffer()
         if u < 0.12 {
-            heart.pixel(x + 3, top, .pink)
+            heart.pixel(x + 3, top, .alert)
         } else if u < 0.28 {
-            heart.stamp(["p.p", "ppp", ".p."], at: (x: x + 2, y: top), key: ["p": .pink])
+            heart.stamp(["r.r", "rrr", ".r."], at: (x: x + 2, y: top), key: ["r": .alert])
         } else {
             heart.stamp([
-                ".pp.pp.",
-                "ppppppp",
-                "ppppppp",
-                ".ppppp.",
-                "..ppp..",
-                "...p...",
-            ], at: (x: x, y: top), key: ["p": .pink])
+                ".rr.rr.",
+                "rprrrrr",
+                "rrrrrrr",
+                ".rrrrr.",
+                "..rrr..",
+                "...r...",
+            ], at: (x: x, y: top), key: ["r": .alert, "p": .pink])
         }
         b.composite(heart, visibility: 1, seed: 703, preservingExisting: true)
     }
@@ -1012,14 +1044,36 @@ public enum CrabRig {
         }
     }
 
-    /// 🧢 The skater's green beanie: a band pulled over the crown edge, a
-    /// two-step dome, a pom. Rides `bob` and `squash` with the head.
-    private static func drawBeanie(_ b: inout PixelBuffer, dx: Int, dy: Int, squash: Int) {
+    /// 🧢 The skater's headwear, both cuts pulled LOW over the crown — two
+    /// rows sit ON the shell, so even the ollie apex (crown at the grid's
+    /// top row) keeps a real hat instead of a cropped line, which was the
+    /// operator's note on the first beanie.
+    private static func drawHeadwear(_ b: inout PixelBuffer, kind: CrabPose.Headwear,
+                                     dx: Int, dy: Int, squash: Int) {
         let crown = bodyY + dy + squash
-        b.rect(12 + dx, crown, 8, 1, .green)
-        b.rect(13 + dx, crown - 1, 6, 1, .green)
-        b.rect(14 + dx, crown - 2, 4, 1, .green)
-        b.pixel(16 + dx, crown - 3, .green)
+        switch kind {
+        case .none:
+            break
+        case .blackBeanie:
+            // Charcoal, folded band over the brow, low dome.
+            b.rect(12 + dx, crown + 1, 8, 1, .slate)
+            b.rect(12 + dx, crown, 8, 1, .slate)
+            b.rect(13 + dx, crown - 1, 6, 1, .slate)
+            b.rect(14 + dx, crown - 2, 4, 1, .slate)
+        case .greenCap:
+            // The green cap: low dome plus a brim off the right, the way he
+            // rides — a hat, not a stripe.
+            b.rect(12 + dx, crown, 8, 1, .green)
+            b.rect(13 + dx, crown - 1, 6, 1, .green)
+            b.rect(14 + dx, crown - 2, 4, 1, .green)
+            b.rect(20 + dx, crown, 3, 1, .green)
+        }
+    }
+
+    /// ✨ A one-cell flash on a wheel, riding the prop's own clock — weight,
+    /// per the operator. ~7% of the phase, glint-class by size and nature.
+    private static func wheelShimmer(_ phase: Double) -> Bool {
+        (phase * 2.6).truncatingRemainder(dividingBy: 1) < 0.07
     }
 
     // MARK: - Ground
@@ -1413,7 +1467,7 @@ public enum CrabRig {
             // wheels' own ink and the star's — and the inversion (rather than
             // gold-on-gold) keeps the deck/wheel boundary the board tests
             // measure. Same swap in all four board cases.
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
             let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
             b.rect(cx - 8, deckY - thick / 2, 17, thick, deckInk)
             // Grip tape, the operator's ask: when the flip brings the TOP
@@ -1423,10 +1477,14 @@ public enum CrabRig {
             // deck — grit catches light against near-black — and slate grit
             // on the golden deck, where dark specks read as the tape itself.
             // Deterministic in the turn, whole-pixel, gone with the face.
-            if sin(theta) < 0, thick >= 4 {
-                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .steel
-                for (i, gx) in stride(from: cx - 7, through: cx + 7, by: 3).enumerated() {
-                    b.pixel(gx, deckY - thick / 2 + 1 + (i % 2) * (thick >= 6 ? 3 : 1), grit)
+            if sin(theta) < 0, thick >= 5 {
+                // SLANTED and barely-there, per the operator: two-cell `/`
+                // slashes in `.screenDark` — one step off the deck's black,
+                // texture you feel more than see. Slate slashes on gold.
+                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+                for gx in stride(from: cx - 6, through: cx + 6, by: 4) {
+                    b.pixel(gx, deckY + 1, grit)
+                    b.pixel(gx + 1, deckY, grit)
                 }
             }
 
@@ -1443,6 +1501,10 @@ public enum CrabRig {
                     b.pixel(hub + 1, deckY + orbit, .screenDark)   // the bearing
                     b.pixel(hub + 2, deckY + orbit, wheelInk)
                     b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
+                }
+                // ✨ Weight: a one-cell flash off a wheel now and then.
+                if wheelShimmer(pose.propPhase) {
+                    b.pixel(cx - 5, deckY + orbit - 1, .flameCore)
                 }
             }
 
@@ -1473,15 +1535,16 @@ public enum CrabRig {
             // looking straight down the nose-tail axis.
             let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
             let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
             let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
             b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
             // Grip tape on the varial's top face too — same rule as the
             // kickflip's, spanning whatever width the yaw has left the deck.
             if sin(roll) < 0, thick >= 4 {
-                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .steel
-                for (i, gx) in stride(from: cx - half + 1, through: cx + half - 1, by: 3).enumerated() {
-                    b.pixel(gx, deckY - thick / 2 + 1 + (i % 2), grit)
+                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+                for gx in stride(from: cx - half + 1, through: cx + half - 2, by: 4) {
+                    b.pixel(gx, deckY + 1, grit)
+                    b.pixel(gx + 1, deckY, grit)
                 }
             }
 
@@ -1494,6 +1557,9 @@ public enum CrabRig {
                     b.pixel(hub + 1, deckY + orbit, .screenDark)
                     b.pixel(hub + 2, deckY + orbit, wheelInk)
                     b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
+                }
+                if wheelShimmer(pose.propPhase) {
+                    b.pixel(cx + reach - 1, deckY + orbit - 1, .flameCore)
                 }
             }
 
@@ -1536,7 +1602,7 @@ public enum CrabRig {
             let yTail = deckY + dip
             let yMid = deckY + dip - (rise + dip) / 2
             let yNose = deckY - rise
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
             let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
             b.rect(cx - 8, yTail, 6, 1, deckInk)
             b.rect(cx - 2, yMid, 6, 1, deckInk)
@@ -1552,6 +1618,9 @@ public enum CrabRig {
                 b.pixel(hub + 1, y + 2, .screenDark)      // the bearing
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
+            }
+            if wheelShimmer(pose.propPhase) {
+                b.pixel(cx + 4, yNose + 1, .flameCore)
             }
 
         case .skateboardRoll:
@@ -1572,7 +1641,7 @@ public enum CrabRig {
             let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
             let deckY = 25 + dy
             let cx = 16 + dx
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
             let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
             b.rect(cx - 8, deckY, 17, 1, deckInk)
 

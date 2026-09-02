@@ -170,8 +170,8 @@ struct SkyAndDeckTests {
         var stockSlate = 0, goldenYellowGain = 0
         for y in 0..<PixelBuffer.side {
             for x in 0..<PixelBuffer.side {
-                if stock[x, y] == .slate { stockSlate += 1 }
-                if golden[x, y] == .yellow && stock[x, y] == .slate { goldenYellowGain += 1 }
+                if stock[x, y] == .deck { stockSlate += 1 }
+                if golden[x, y] == .yellow && stock[x, y] == .deck { goldenYellowGain += 1 }
             }
         }
         #expect(stockSlate > 10, "the probe frame has no deck to measure")
@@ -184,21 +184,28 @@ struct SkyAndDeckTests {
     /// actually wears green on the crown while standing down under a costume.
     @Test("About a skate beat in three wears the beanie, and it cannot leak")
     func beanieRateAndLeak() {
-        var wears = 0
+        var beanies = 0, caps = 0
         let n = 20_000
-        for cycle in 1...n where CrabAnimator.skateBeatWearsBeanie(cycle: cycle) { wears += 1 }
-        let rate = Double(wears) / Double(n)
-        #expect(rate > 0.27 && rate < 0.33, "beanie rate \(rate), wanted ~0.3")
-        #expect(!CrabAnimator.skateBeatWearsBeanie(cycle: 0), "cycle zero must stay bare")
+        for cycle in 1...n {
+            switch CrabAnimator.skateHeadwear(cycle: cycle) {
+            case .blackBeanie: beanies += 1
+            case .greenCap: caps += 1
+            case .none: break
+            }
+        }
+        let rate = Double(beanies + caps) / Double(n)
+        #expect(rate > 0.27 && rate < 0.33, "headwear rate \(rate), wanted ~0.3")
+        #expect(beanies > 2_000 && caps > 2_000, "both cuts must actually occur")
+        #expect(CrabAnimator.skateHeadwear(cycle: 0) == .none, "cycle zero must stay bare")
         for t in stride(from: 0.0, through: 3.2, by: 0.4) {
-            #expect(CrabAnimator.flourishPose(.ollie, at: t).beanie == false)
+            #expect(CrabAnimator.flourishPose(.ollie, at: t).headwear == .none)
         }
 
         // t = 0.9, not the apex: at bob −10 the crown IS the grid's top row
         // and the dome legitimately crops (the lofty pin's own ceiling), so
         // the full-hat probe sits a little earlier in the rise.
         var pose = CrabAnimator.flourishPose(.ollie, at: 0.9)
-        pose.beanie = true
+        pose.headwear = .greenCap
         let hatted = CrabRig.render(pose)
         var green = 0
         for y in 0..<PixelBuffer.side {

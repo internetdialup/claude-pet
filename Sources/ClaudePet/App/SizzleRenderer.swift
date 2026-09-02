@@ -578,10 +578,14 @@ enum SizzleRenderer {
         (.done, 0.3), (.working, SizzleScript.workBase + 1.0), (.nudging, 0.5),
         (.cooking, SizzleScript.cookBase + 1.0), (.done, 0.2), (.thinking, 1.0),
         (.needsAttention, 0.3), (.done, 0.4),
-        // Arcade glows from inside, so the screen-lit working pose; and the
-        // Classic closer is CALM on purpose — it is the loop seam, and the
-        // reel wraps back to a resting crab.
-        (.working, SizzleScript.workBase + 2.0), (.idle, 1.0),
+        // Arcade glows from inside, so the screen-lit working pose.
+        (.working, SizzleScript.workBase + 2.0),
+        // The seasonal three: the pumpkin grins through a nudge, the turkey
+        // struts a wave-adjacent done, the santa naps — and the Classic
+        // closer is CALM on purpose: it is the loop seam, and the reel wraps
+        // back to a resting crab.
+        (.nudging, 0.6), (.done, 0.7), (.idle, 2.2),
+        (.idle, 1.0),
     ]
 
     private static func montageScene(t: Double, fmt: Format) -> some View {
