@@ -587,7 +587,7 @@ struct MoodDecayTests {
         let id = "s-churn"
         let coordinator = try quietCoordinator([id])
 
-        var quiet = 0
+        var restful = 0
         var samples = 0
         for step in 0..<24 {
             // A brand-new label every single tick — the worst case.
@@ -595,12 +595,20 @@ struct MoodDecayTests {
                                               kind: .toolStarted(name: "Bash",
                                                                  detail: "step \(step) of the sprint"))])
             samples += 1
-            if coordinator.state.bubble == nil { quiet += 1 }
+            // Silence AND a shielded fact both count as rest: what this test
+            // exists to forbid is the BURST BANNER owning his face. A fact
+            // mid-read is the readable-once shield doing its job — under a
+            // shrunk cadence the quiet-beat die deals one within a tick or
+            // two, and the shield rightly holds it through the whole churn.
+            if coordinator.state.bubble == nil
+                || coordinator.state.bubbleTone == .knowledge {
+                restful += 1
+            }
             try await Task.sleep(for: .milliseconds(60))
         }
 
-        #expect(quiet > samples / 3,
-                "he spoke on \(samples - quiet) of \(samples) ticks — the refractory is gone")
+        #expect(restful > samples / 3,
+                "the banner owned \(samples - restful) of \(samples) ticks — the refractory is gone")
         // And the information was never destroyed, only the repetition.
         #expect(coordinator.state.bubbleContent != nil,
                 "the live task must survive the quiet for the tooltip")
@@ -655,5 +663,150 @@ struct MoodDecayTests {
             try await Task.sleep(for: .milliseconds(25))
         }
         #expect(sawKnowledge, "no fact surfaced in 14s (~35 cycles) — the gate itself is broken")
+    }
+
+    // MARK: - The readable-once shield
+
+    /// Drives a shrunk-cadence working session until a SCROLLING fact from
+    /// the pools is on his head, or gives up past the deadline — the tone
+    /// test's technique: the fact dice ride wall-clock cycles nothing can
+    /// seed, so the loop asks until the dice answer.
+    private func surfaceMarqueeFact(_ coordinator: ActivityCoordinator,
+                                    id: String) async throws -> String? {
+        let knowable = Set(FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
+                           + ClaudeTips.all)
+        // ONE real event, then neutral ticks — the tone test's technique. A
+        // probe that changes the label every pass IS news every pass, which
+        // rebases the epoch forever and keeps the quiet beat (the only door a
+        // fact can arrive through) permanently shut.
+        coordinator.ingest([ActivityEvent(sessionID: id,
+                                          kind: .toolStarted(name: "Bash",
+                                                             detail: "shield probe"))])
+        let deadline = Date().addingTimeInterval(14)
+        while Date() < deadline {
+            tick(coordinator)
+            if let bubble = coordinator.state.bubble,
+               coordinator.state.bubbleTone == .knowledge,
+               coordinator.state.bubbleStyle == .marquee,
+               knowable.contains(bubble) {
+                return bubble
+            }
+            try await Task.sleep(for: .milliseconds(60))
+        }
+        return nil
+    }
+
+    /// **The shield's headline.** A label churning every 60ms — the busy
+    /// session the operator actually watches — cannot replace a scrolling
+    /// fact before its first read completes. Every marquee line's shield is
+    /// at least ~2.4s (the 29-column minimum read plus grace), so 1.2s of
+    /// worst-case churn must leave the same sentence on his head. This test
+    /// FAILS on the pre-shield code, where the first label change past the
+    /// refractory cleared the hold on the spot.
+    @Test("A churning label cannot kill a fact before it is read once")
+    func theShieldHoldsAgainstChurn() async throws {
+        let fast = BubbleCadence(period: 0.4, dwell: 0.3, chance: 0.4,
+                                 newsDwell: 0.05, newsRefractory: 0.05)
+        let stored = ActivityCoordinator.bubbleCadences[.working]
+        ActivityCoordinator.bubbleCadences[.working] = fast
+        defer { ActivityCoordinator.bubbleCadences[.working] = stored }
+
+        let id = "s-shield"
+        let coordinator = try quietCoordinator([id])
+        guard let fact = try await surfaceMarqueeFact(coordinator, id: id) else {
+            Issue.record("no scrolling fact surfaced inside the deadline — dice, not defect")
+            return
+        }
+
+        for step in 0..<20 {
+            coordinator.ingest([ActivityEvent(sessionID: id,
+                                              kind: .toolStarted(name: "Bash",
+                                                                 detail: "churn \(step)"))])
+            #expect(coordinator.state.bubble == fact,
+                    "the fact died at churn step \(step), inside its first read")
+            try await Task.sleep(for: .milliseconds(60))
+        }
+        // And the live label was never destroyed, only its moment deferred.
+        #expect(coordinator.state.bubbleContent != nil)
+    }
+
+    /// The ruling's other half: once the read completes, the very next piece
+    /// of news takes the face immediately.
+    @Test("After the read, news wins instantly")
+    func newsWinsAfterTheRead() async throws {
+        let fast = BubbleCadence(period: 0.4, dwell: 0.3, chance: 0.4,
+                                 newsDwell: 0.05, newsRefractory: 0.05)
+        let storedCadence = ActivityCoordinator.bubbleCadences[.working]
+        let storedGrace = ActivityCoordinator.readableGrace
+        ActivityCoordinator.bubbleCadences[.working] = fast
+        ActivityCoordinator.readableGrace = 0.1
+        defer {
+            ActivityCoordinator.bubbleCadences[.working] = storedCadence
+            ActivityCoordinator.readableGrace = storedGrace
+        }
+
+        let id = "s-afterread"
+        let coordinator = try quietCoordinator([id])
+        guard let fact = try await surfaceMarqueeFact(coordinator, id: id) else {
+            Issue.record("no scrolling fact surfaced inside the deadline — dice, not defect")
+            return
+        }
+
+        let window = ActivityCoordinator.readableWindow(for: fact) + 0.1 + 0.2
+        try await Task.sleep(for: .milliseconds(Int(window * 1000)))
+        coordinator.ingest([ActivityEvent(sessionID: id,
+                                          kind: .toolStarted(name: "Bash",
+                                                             detail: "the news after the read"))])
+        #expect(coordinator.state.bubble != fact,
+                "the shield outlived the read — news must win the instant it lifts")
+    }
+
+    /// The idle path used to take no hold at all: a fact died at the 14s
+    /// seed edge, or whenever the quiet gate rolled silent. Shrunk to a
+    /// 0.25s seed clock, a scrolling fact must now sit through dozens of
+    /// edges. This test FAILS on the pre-shield code.
+    @Test("An idle fact survives the seed edge and the rolling quiet")
+    func idleFactsSurviveTheSeedEdge() async throws {
+        let knowable = Set(FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
+                           + ClaudeTips.all)
+        let storedSeed = ActivityCoordinator.chatterSeedInterval
+        let storedDone = ActivityCoordinator.doneDecay
+        ActivityCoordinator.chatterSeedInterval = 0.25
+        ActivityCoordinator.doneDecay = 0.2
+        defer {
+            ActivityCoordinator.chatterSeedInterval = storedSeed
+            ActivityCoordinator.doneDecay = storedDone
+        }
+
+        let id = "s-idlefact"
+        let coordinator = try quietCoordinator([id])
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .turnEnded)])
+        try await Task.sleep(for: .milliseconds(300))
+        tick(coordinator)
+        #expect(coordinator.state.mood == .idle, "the fixture never reached idle")
+
+        var fact: String?
+        let deadline = Date().addingTimeInterval(14)
+        while Date() < deadline, fact == nil {
+            tick(coordinator)
+            if let bubble = coordinator.state.bubble,
+               coordinator.state.bubbleTone == .knowledge,
+               coordinator.state.bubbleStyle == .marquee,
+               knowable.contains(bubble) {
+                fact = bubble
+            }
+            try await Task.sleep(for: .milliseconds(60))
+        }
+        guard let fact else {
+            Issue.record("no idle fact surfaced inside the deadline — dice, not defect")
+            return
+        }
+
+        for _ in 0..<25 {
+            tick(coordinator)
+            #expect(coordinator.state.bubble == fact,
+                    "an idle fact was decapitated mid-read")
+            try await Task.sleep(for: .milliseconds(60))
+        }
     }
 }

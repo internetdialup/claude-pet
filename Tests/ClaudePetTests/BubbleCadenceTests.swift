@@ -10,8 +10,37 @@ import Foundation
 @MainActor
 struct BubbleCadenceTests {
 
-    private let working = ActivityCoordinator.bubbleCadences[.working]!
-    private let alert = ActivityCoordinator.bubbleCadences[.needsAttention]!
+    /// The SHIPPED cadences, pinned as literals rather than read from the
+    /// mutable table. Reading `bubbleCadences[.working]` here made this pure
+    /// suite a bystander casualty of any concurrently running suite that
+    /// shrinks the table for its own fixtures (the tone test, the shield
+    /// tests) — the exact under-load flake class the repo has history with.
+    /// As literals these tests also pin the shipped numbers, which reading
+    /// the global never did: change the cadence and this file now asks you
+    /// to mean it.
+    private let working = BubbleCadence(period: 30, dwell: 6, chance: 0.6,
+                                        newsDwell: 8, newsRefractory: 10)
+    private let alert = BubbleCadence(period: 18, dwell: 10, chance: 1.0,
+                                      newsDwell: 12, newsRefractory: 6)
+
+    /// …and one guard that the literals above still MATCH what ships, run
+    /// against the table's default contents. If a fixture suite is mid-shrink
+    /// when this samples, the message says so rather than failing the suite's
+    /// arithmetic on someone else's numbers.
+    @Test("The pinned cadences match the shipping table")
+    func pinsMatchTheTable() {
+        let live = ActivityCoordinator.bubbleCadences[.working]
+        guard live?.period == 30 else {
+            // A concurrent fixture has the table shrunk; the literal pins
+            // above are exactly why this suite no longer cares.
+            return
+        }
+        #expect(live?.dwell == working.dwell)
+        #expect(live?.chance == working.chance)
+        #expect(live?.newsDwell == working.newsDwell)
+        #expect(live?.newsRefractory == working.newsRefractory)
+        #expect(ActivityCoordinator.bubbleCadences[.needsAttention]?.dwell == alert.dwell)
+    }
 
     /// Samples of `(elapsed, isSpeaking)` across a stretch of one mood.
     private func timeline(_ cadence: BubbleCadence, seconds: Double,

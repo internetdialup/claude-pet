@@ -99,6 +99,14 @@ public struct PetState: Sendable, Equatable {
     /// what he feels stays in colour, what he knows reads like a note.
     public var bubbleTone: BubbleTone = .mood
     public enum BubbleTone: Sendable, Equatable { case mood, knowledge }
+    /// The showing's garnish, dealt with the fact on the fact's own seed —
+    /// coordinator-side, so it is deterministic and testable and the view
+    /// rolls no dice of its own. `.shades` drops the deal-with-it pair onto
+    /// his face for the fact's stay; `.shadesDing` adds the sparkle at the
+    /// landing. `.none` for every non-knowledge bubble, and always for
+    /// cooking and sleeping facts (see `ActivityCoordinator.shadesMoods`).
+    public var bubbleFlair: BubbleFlair = .none
+    public enum BubbleFlair: Sendable, Equatable { case none, shades, shadesDing }
     /// How many facts he has muttered in his sleep this session — the 🐑 tally
     /// the roster shows once it is off zero. A joke, not a metric: it does not
     /// survive a restart.

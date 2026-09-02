@@ -248,6 +248,10 @@ public struct PetRootView: View {
                     pouncedAt: model.pouncedAt?.timeIntervalSinceReferenceDate,
                     snackSince: model.snackStartedAt?.timeIntervalSinceReferenceDate,
                     rudeWakeSince: model.rudeWakeStartedAt?.timeIntervalSinceReferenceDate,
+                    shadesSince: model.shadesStartedAt?.timeIntervalSinceReferenceDate,
+                    shadesEndedAt: model.shadesEndedAt?.timeIntervalSinceReferenceDate,
+                    shadesDing: model.shadesDing,
+                    shadesDropping: model.shadesDropping,
                     completedAt: model.badgeCompletionAt?.timeIntervalSinceReferenceDate,
                     badgeShownAt: model.badgeShownAt?.timeIntervalSinceReferenceDate,
                     badgeEndedAt: model.badgeEndedAt?.timeIntervalSinceReferenceDate,
@@ -653,6 +657,13 @@ public final class PetViewModel: ObservableObject {
     @Published public var snackStartedAt: Date?
     /// A sleeping crab was poked awake — the rude-wake sequence is playing.
     @Published public var rudeWakeStartedAt: Date?
+    /// The deal-with-it latch: a flaired fun fact arrived (the shades drop)
+    /// and left (the standard prop fade). `shadesDropping` is a RATE input
+    /// only — it holds the 30fps tier for the fall's beat, never a pose.
+    @Published public var shadesStartedAt: Date?
+    @Published public var shadesEndedAt: Date?
+    @Published public var shadesDing = false
+    @Published public var shadesDropping = false
     /// A short-lived line that outranks the state's bubble — the pounce
     /// one-liner, the skate shout, the first-run hello. Cleared by its own
     /// deadline.

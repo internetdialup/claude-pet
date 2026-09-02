@@ -35,6 +35,10 @@ public enum SoundBank {
         /// combo climbing into the party.
         case squeal(step: Int)
         case pounce, purr, shimmer, ignition, fanfare
+        /// The deal-with-it landing: two bright triangle notes as the shades
+        /// touch down on a dinging fact. Its own cue, not `.shimmer` — the
+        /// wardrobe keeps its sound and the meme gets one of its own.
+        case ding
     }
 
     // MARK: - The gates
@@ -129,6 +133,12 @@ public enum SoundBank {
                      Note(frequency: 1568.0, duration: 0.045, wave: .triangle, level: 0.4),
                      Note(frequency: 1975.5, duration: 0.045, wave: .triangle, level: 0.45),
                      Note(frequency: 2637.0, duration: 0.06, wave: .triangle, level: 0.5)], 10)
+        case .ding:
+            // The deal-with-it touchdown: G6 then E7, quick and bright — a
+            // two-note wink, pitched above the shimmer's run so the two
+            // never read as the same event.
+            return ([Note(frequency: 1568.0, duration: 0.05, wave: .triangle, level: 0.45),
+                     Note(frequency: 2637.0, duration: 0.09, wave: .triangle, level: 0.5)], 12)
         case .ignition:
             // The fwoosh: a noise burst, a rising flame, a crackle of embers.
             return ([Note(frequency: 1, duration: 0.07, wave: .noise, level: 0.6),
