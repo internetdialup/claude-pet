@@ -8,6 +8,11 @@ import SwiftUI
 /// - `costumes/`: each ground paired with ONE costume, picked for contrast
 ///   (sonic pops on lemon, the gundam on violet, tiger on lilac, ninja on
 ///   mint, the skater's terracotta on azure), across all six tricks.
+/// - `tricks/`: BASIC Claw'd, every trick on every ground — the plain set.
+/// - `vfx/`: no board at all — his own effects looping on each ground,
+///   through the same envelopes the secret-menu previews use.
+/// - `states/`: the message states — each mood with a REAL line from its own
+///   pool in the bubble, one ground each.
 /// - `bubbles/`: basic Claw'd, a trick, and a REAL line off the skate shout
 ///   decks in his speech bubble — a sample that says marketing copy is a
 ///   sample of nothing, so every line here is one he actually says. The
@@ -62,6 +67,61 @@ enum PaletteTricks {
             try FileManager.default.createDirectory(at: bubblesDir, withIntermediateDirectories: true)
         } catch { return false }
 
+        let tricksDir = root.appendingPathComponent("tricks")
+        let vfxDir = root.appendingPathComponent("vfx")
+        let statesDir = root.appendingPathComponent("states")
+        do {
+            try FileManager.default.createDirectory(at: tricksDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: vfxDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: statesDir, withIntermediateDirectories: true)
+        } catch { return false }
+
+        // The plain set: basic Claw'd, every trick on every ground.
+        for ground in grounds {
+            for trick in tricks {
+                let name = "clawd-\(trick.rawValue)-\(ground.name).gif"
+                guard clip(trick: trick, ground: ground.color, costume: .none,
+                           line: nil, golden: false,
+                           to: tricksDir.appendingPathComponent(name)) else { return false }
+            }
+        }
+
+        // The VFX set: no board — his own effects on the preview loops.
+        let effects: [(CrabAnimator.PreviewEffect, Double, String)] = [
+            (.glint, 8.0, "glint"),          // two 4s passes
+            (.ting, 3.0, "wink-ting"),       // two 1.5s winks
+            (.idleHeart, 8.6, "idle-heart"), // two 4.3s flights
+        ]
+        for (index, ground) in grounds.enumerated() {
+            for (effect, seconds, label) in effects {
+                let name = "clawd-\(label)-\(ground.name).gif"
+                guard vfxClip(effect: effect, seconds: seconds, ground: ground.color,
+                              to: vfxDir.appendingPathComponent(name)) else { return false }
+            }
+            // …plus the party, which is its own kind of weather.
+            if index < 1 {
+                for g in grounds {
+                    guard partyClip(ground: g.color,
+                                    to: vfxDir.appendingPathComponent("clawd-party-\(g.name).gif"))
+                    else { return false }
+                }
+            }
+        }
+
+        // The message states: each mood speaking a real line from its pool.
+        let stateCast: [(PetMood, ShoutoutOccasion)] = [
+            (.idle, .idle), (.thinking, .thinking), (.working, .working),
+            (.cooking, .cooking), (.nudging, .planReady), (.done, .finished),
+            (.needsAttention, .needsYou), (.sleeping, .sleeping),
+        ]
+        for (index, member) in stateCast.enumerated() {
+            let ground = grounds[index % grounds.count]
+            let line = Vocab.lines(for: member.1).first ?? ""
+            let name = "clawd-state-\(member.0.rawValue)-\(ground.name).gif"
+            guard stateClip(mood: member.0, line: line, ground: ground.color,
+                            to: statesDir.appendingPathComponent(name)) else { return false }
+        }
+
         for pair in wardrobePairs {
             for trick in tricks {
                 let name = "clawd-\(trick.rawValue)-\(pair.ground.name)-\(pair.costume.rawValue).gif"
@@ -77,7 +137,7 @@ enum PaletteTricks {
                        line: member.line, golden: member.golden,
                        to: bubblesDir.appendingPathComponent(name)) else { return false }
         }
-        print("wrote \(wardrobePairs.count * tricks.count) costume loops and \(bubbleCast.count) bubble loops to \(root.path)")
+        print("wrote tricks/costumes/vfx/states/bubbles drip sets to \(root.path)")
         return true
     }
 
@@ -96,6 +156,63 @@ enum PaletteTricks {
             if golden { pose.goldenBoard = true }
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: costume, line: line, at: local),
+                scale: 1, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    /// A preview-envelope effect looping on a fixed idle stance — no board.
+    private static func vfxClip(effect: CrabAnimator.PreviewEffect, seconds: Double,
+                                ground: Color, to url: URL) -> Bool {
+        let frames = Int((seconds / frameDelay).rounded())
+        let stance = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            var pose = stance
+            CrabAnimator.applyPreview(
+                CrabAnimator.PreviewFrame(effect: effect, t: local), to: &pose)
+            guard let image = SpriteImage.cgImage(
+                of: scene(pose, on: ground, costume: .none, line: nil, at: local),
+                scale: 1, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    /// Three seconds of confetti on a grinning stance.
+    private static func partyClip(ground: Color, to url: URL) -> Bool {
+        let frames = Int((3.0 / frameDelay).rounded())
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+            pose.mouth = .open
+            pose.confettiElapsed = local
+            guard let image = SpriteImage.cgImage(
+                of: scene(pose, on: ground, costume: .none, line: nil, at: local),
+                scale: 1, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    /// A mood loop with its real line in the bubble. Duration leans on each
+    /// mood's own dominant oscillator so the wrap lands near a whole cycle.
+    private static func stateClip(mood: PetMood, line: String,
+                                  ground: Color, to url: URL) -> Bool {
+        let seconds = mood == .sleeping ? 5.0 : 6.0
+        let frames = Int((seconds / frameDelay).rounded())
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            let pose = CrabAnimator.pose(mood: mood, t: local, flourishes: false)
+            guard let image = SpriteImage.cgImage(
+                of: scene(pose, on: ground, costume: .none, line: line, at: local),
                 scale: 1, isOpaque: true)
             else { return false }
             images.append(image)

@@ -1108,15 +1108,11 @@ public enum CrabRig {
         let rise = max(0, -dy)
         let width = 20 - rise * 2
         guard width >= 8 else { return }
-        // DITHERED, not solid: a GIF's one-bit alpha collapses translucency
-        // to a solid bar, so the softness lives in the checkerboard — the
-        // pixel-art half-tone — and the ink's own translucency only sweetens
-        // it live. Anchored on even columns so the pattern holds still while
-        // the width breathes.
-        let left = 16 + dx - width / 2
-        for x in left..<(left + width) where x % 2 == 0 {
-            b.pixel(x, 25, .shadow)
-        }
+        // A SOLID line, at the operator's call: the checkerboard dots read
+        // as grit to a viewer, not softness. The ink's own translucency
+        // keeps it gentle live; in a GIF it collapses to a clean dark line,
+        // which is the look.
+        b.rect(16 + dx - width / 2, 25, width, 1, .shadow)
     }
 
     /// 💨 Landing dust: two puffs racing outward from the feet, chunky at
