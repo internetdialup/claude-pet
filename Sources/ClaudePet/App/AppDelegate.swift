@@ -122,6 +122,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 if costume != Preferences.shared.costume { SoundBank.play(.shimmer) }
                 Preferences.shared.costume = costume
                 self?.primary.model.costume = costume
+                // A deliberate pick clears the seasonal stash: switching
+                // mid-season is respected, and a stale stash can't ambush
+                // the wardrobe when the window closes.
+                Preferences.shared.preSeasonCostume = nil
             },
             onToggleStepAside: { [weak self] in
                 guard let self else { return }
@@ -153,6 +157,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             },
             onQuit: { NSApp.terminate(nil) }
         )
+        // 🗓 The seasonal wardrobe verdict, BEFORE the read-back: greet a new
+        // season once (stashing the operator's own pick), or restore the
+        // stash when a window has closed. Silent by construction — the boot
+        // path never routes through the shimmer callback, and an unattended
+        // launch sound would be a jump-scare, not feedback. The policy is
+        // pure (`HolidayWardrobe`); this is the two-line shim it promised.
+        let verdict = HolidayWardrobe.atLaunch(
+            now: Date(),
+            worn: Preferences.shared.costume,
+            stashed: Preferences.shared.preSeasonCostume,
+            alreadyGreeted: Holiday.current().map {
+                Preferences.shared.holidayGreeted($0, seasonYear: $0.seasonYear(for: Date()))
+            } ?? false)
+        if let wear = verdict.wear { Preferences.shared.costume = wear }
+        if let stash = verdict.stash { Preferences.shared.preSeasonCostume = stash }
+        if verdict.clearStash { Preferences.shared.preSeasonCostume = nil }
+        if verdict.markGreeted, let holiday = Holiday.current() {
+            Preferences.shared.markHolidayGreeted(holiday,
+                                                  seasonYear: holiday.seasonYear(for: Date()))
+        }
         primary.model.costume = Preferences.shared.costume
         primary.startFilmWatch()
 
@@ -207,6 +231,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // and pet one applies it live rather than being torn down — he should
         // not flinch because someone else arrived.
         pets.forEach { $0.hasCompany = true }
+        // Pet two never auto-wears a season (a greeting is for one; two
+        // matching crabs is a uniform) but an EXPIRED seasonal pick still
+        // reverts to Classic here.
+        if Preferences.shared.pet2Costume.holiday != nil,
+           !Preferences.shared.pet2Costume.isAvailable() {
+            Preferences.shared.pet2Costume = .none
+        }
         pet.model.costume = Preferences.shared.pet2Costume
         pet.rebuildWindow()
         pet.startFilmWatch()
@@ -341,6 +372,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         .cruise: "🛹 Cruise",
         .rings: "💍 Golden rings",
         .idleHeart: "💗 Idle heart",
+        .leaves: "🍂 Autumn leaves",
+        .pumpkins: "🎃 Floor pumpkins",
+        .snowfall: "❄️ Snowfall",
+        .fireworks: "🎆 Fireworks",
     ]
 
     /// Replays the first-run wave. `force` so it plays every time, and so it

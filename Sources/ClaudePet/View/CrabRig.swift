@@ -179,6 +179,19 @@ public struct CrabPose: Sendable, Equatable {
     /// 💗 The idle heart's flight, 0…1, or nil — the sticker heart drifting
     /// up off his crown. A travel parameter; the blend leaves it alone.
     public var idleHeart: Double?
+
+    /// 🗓 The season, resolved LIVE-ONLY by the view (`LocalDay` behind the
+    /// frozen-sentinel lock) and defaulted nil everywhere else — offline
+    /// renderers can never see one. Drives the weather; `blend` starts from
+    /// the incoming pose, so none of these four lerp.
+    public var holiday: Holiday?
+    /// Halloween's floor pumpkins — idle-only, suppressed with the bug and
+    /// the balloon whenever the telescope or the sun owns the spell.
+    public var holidayGround: Bool = false
+    /// A New Year's firework in flight, 0…1, or nil — and the cycle that
+    /// launched it, for its colour and column.
+    public var fireworkProgress: Double?
+    public var fireworkCycle: Int = 0
     /// A single gait scuff cell behind a scuttling leg, or nil. Glint-class:
     /// one cell, locked to the leg cycle.
     public var scuffX: Int?
@@ -444,6 +457,23 @@ public enum CrabRig {
             drawHeadwear(&buffer, kind: pose.headwear, dx: dx, dy: dy, squash: squash)
         }
         costumeLayer(.front)
+        // 🗓 The season's weather, for EVERYONE in the window — the white
+        // costume's snow rule generalised: clear cells only, continuous, no
+        // dice. Winter skips anyone already wearing Arctic White, or the
+        // snow would double.
+        switch pose.holiday {
+        case .halloween, .thanksgiving:
+            HolidayAmbience.drawLeaves(&buffer, phase: pose.propPhase)
+        case .winter where costume != .white && ghostCostume != .white:
+            HolidayAmbience.drawSnow(&buffer, phase: pose.propPhase)
+        default:
+            break
+        }
+        if pose.holidayGround { HolidayAmbience.drawFloorPumpkins(&buffer) }
+        if let firework = pose.fireworkProgress {
+            HolidayAmbience.drawFireworks(&buffer, progress: firework,
+                                          cycle: pose.fireworkCycle)
+        }
 
         // Ghost first, so an incoming prop paints over an outgoing one where
         // they overlap.

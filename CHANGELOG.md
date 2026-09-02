@@ -35,6 +35,23 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - **🖼️ A release banner.** The release pages open with a masthead now:
   Claw'd mid-ollie beside the name, rendered from the same rig as everything
   else and checked byte-for-byte like the rest of the committed art.
+- **🗓️ He keeps a calendar now.** Four windows a year — the last two weeks
+  before Halloween and Thanksgiving, mid-December through Christmas, and the
+  week into New Year's — bring their own weather: falling leaves, little
+  floor pumpkins, snow for everyone, fireworks in his sky. Three seasonal
+  costumes (a jack-o'-lantern, a turkey, a Santa fit) appear in the menu
+  only inside their windows, and on your first launch of a season he tries
+  the look on once. Switch straight back if it's not you; he remembers what
+  you wore before and puts it back when the season ends.
+- **🛹 The skate set got a drip pass.** The deck went properly black with
+  faint slanted grip tape when a flip shows its top face, the wheels catch a
+  glint of light now and then, and about a skate beat in three he comes out
+  in headwear — a black beanie or a green cap, dealt on his own dice.
+- **👀 He looks more alive everywhere.** A soft dithered shadow under him
+  that shrinks when he jumps, dust where he lands, scuffs where he scuttles,
+  a catchlight in each eye — and once in a while, idling, a little red heart
+  just happens. The base shell also softened: carved shoulders, a lit flank,
+  and his body turns slightly through an ollie.
 
 - **😾 Wake him up and he lets you know about it.** Click a sleeping crab and
   one claw stretches out from under the covers with a zzz still rising. Then

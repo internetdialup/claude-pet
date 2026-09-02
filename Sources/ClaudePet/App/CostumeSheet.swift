@@ -85,7 +85,43 @@ enum CostumeSheet {
             && sonicSheet(to: root.appendingPathComponent("sheet-sonic.png"))
             && ollieSheet(to: root.appendingPathComponent("sheet-ollie.png"))
             && clawdSheet(to: root.appendingPathComponent("sheet-clawd.png"))
+            && holidaySheet(to: root.appendingPathComponent("sheet-holiday.png"))
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
+    }
+
+    // MARK: The seasons
+
+    private static func holidaySheet(to url: URL) -> Bool {
+        func dressed(_ costume: Costume, t: Double = 0.9,
+                     phase: Double? = nil, label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false)
+            if let phase { pose.propPhase = phase }
+            return tile(CrabRig.render(pose, costume: costume), costume, label)
+        }
+        // Effects staged at solved windows: pumpkin flicker salt 5 cycle 1
+        // (8.0-8.6), turkey strut salt 7 cycle 1 (9.0-9.9), santa breath
+        // salt 17 cycle 3 (30.0-30.8).
+        let costumes = [
+            dressed(.pumpkin, label: "pumpkin"),
+            dressed(.pumpkin, phase: 8.2, label: "pumpkin flicker"),
+            dressed(.turkey, label: "turkey"),
+            dressed(.turkey, phase: 9.4, label: "turkey strut"),
+            dressed(.santa, phase: 30.3, label: "santa + breath"),
+        ]
+        func ambient(_ label: String, mutate: (inout CrabPose) -> Void) -> Tile {
+            var pose = CrabAnimator.pose(mood: .idle, t: 2.3, flourishes: false)
+            mutate(&pose)
+            return tile(CrabRig.render(pose), .none, label)
+        }
+        let ambience = [
+            ambient("autumn leaves") { $0.holiday = .halloween },
+            ambient("snow for everyone") { $0.holiday = .winter },
+            ambient("floor pumpkins") { $0.holidayGround = true },
+            ambient("firework rise") { $0.fireworkProgress = 0.2; $0.fireworkCycle = 3 },
+            ambient("firework burst") { $0.fireworkProgress = 0.6; $0.fireworkCycle = 3 },
+        ]
+        return write("THE SEASONS — costumes · ambience",
+                     rows: [costumes, ambience], to: url)
     }
 
     // MARK: Normal Claw'd

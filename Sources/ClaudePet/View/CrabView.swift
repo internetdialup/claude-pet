@@ -61,7 +61,7 @@ public enum CrabAnimator {
     /// per 45s idle cycle — 43 shared by addend), `47 &+ 7` (the gundam's
     /// darker-turquoise cameras, per wear timestamp).
     ///
-    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 41 = the Gundam's eye flare (3/5/7/17/37 reserved for the holiday round) |
+    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 3 = New Year fireworks (scheduler), 5 = the pumpkin's candle flicker, 7 = the turkey's strut, 11 = the shuriken, 13 = Frankenstein's sparks, 17 = the santa's breath, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 37 = firework colour/column (per burst cycle), 41 = the Gundam's eye flare |
     ///
     /// **Free:** none. 97 is the last multiplier and the costumes share it by
     /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.
@@ -401,6 +401,9 @@ public enum CrabAnimator {
         // The idle heart: a 45-second cycle at 30% — reachable by waiting,
         // but not by any sequence of clicks.
         case idleHeart
+        // The seasons: gated on a two-week wall-calendar window, the most
+        // unreachable gate in the app — the exact case this menu exists for.
+        case leaves, pumpkins, snowfall, fireworks
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -415,6 +418,8 @@ public enum CrabAnimator {
             case .kickflip, .varial, .cruise: 0
             case .rings: 0          // a flight in progress finishes
             case .idleHeart: 0      // same contract
+            case .leaves, .snowfall, .pumpkins: 0   // weather stops falling
+            case .fireworks: 0      // a burst in flight finishes
             }
         }
 
@@ -616,6 +621,36 @@ public enum CrabAnimator {
             guard heartSince >= 0.8 else { return }
             pose.idleHeart = (heartSince - 0.8) / 3.5
 
+        case .leaves:
+            // Weather is continuous — the preview just supplies the season.
+            // Ends by stopping: cells this sparse are glint-class.
+            guard frame.endedT == nil else { return }
+            guard frame.t >= 0.2 else { return }   // one breath, not frame 0
+            pose.holiday = .halloween
+
+        case .snowfall:
+            guard frame.endedT == nil else { return }
+            guard frame.t >= 0.2 else { return }
+            pose.holiday = .winter
+
+        case .pumpkins:
+            // The ground flag alone — pumpkins without the leaves, so each
+            // preview shows ONE thing.
+            guard frame.endedT == nil else { return }
+            guard frame.t >= 0.2 else { return }
+            pose.holidayGround = true
+
+        case .fireworks:
+            // A burst every 4s, rest first, deterministic from the preview's
+            // own clock — the glint pattern. The cycle number colours it.
+            let burstCycle = 4.0
+            let burstStart = (frame.t / burstCycle).rounded(.down) * burstCycle
+            if let endedT = frame.endedT, burstStart > endedT { return }
+            let since = frame.t - burstStart
+            guard since >= 0.6 else { return }
+            pose.fireworkProgress = min(1, (since - 0.6) / 1.9)
+            pose.fireworkCycle = Int(burstStart / burstCycle) + 1
+
         case .beacon:
             break       // composition layer; `PetRootView` draws it
         }
@@ -680,9 +715,14 @@ public enum CrabAnimator {
     ///     renderers pass nothing, so the telescope can never appear in a
     ///     committed asset by accident.
     static func pose(mood: PetMood, t: Double, flourishes: Bool,
-                     hourOfDay: Int? = nil) -> CrabPose {
+                     hourOfDay: Int? = nil, holiday: Holiday? = nil) -> CrabPose {
         var pose = CrabPose()
         pose.propPhase = t
+        // 🗓 The RESOLVED season, or nil — the view passes `LocalDay`'s
+        // answer live-only, offline callers pass nothing, and tests inject
+        // a case directly. The weather rides `propPhase`, the same clock
+        // the white costume's snow always rode.
+        pose.holiday = holiday
 
         switch mood {
         case .idle:
@@ -758,6 +798,22 @@ public enum CrabAnimator {
                 // the balloon under the telescope and the sun for the same
                 // reason they are.
                 pose.idleHeart = idleHeart(idleT: t)
+
+                // 🎃 Halloween's floor pumpkins keep the same company —
+                // attention-owning ground furniture, so the telescope and
+                // the sun suppress them with everything else here.
+                pose.holidayGround = holiday == .halloween
+            }
+
+            // 🎆 New Year's fireworks are weather-class sky content: dice on
+            // `97 &+ 3` (the costume-effect family's shared cycle>0 sentinel
+            // via `effectWindow`), colour and column on `97 &+ 37`.
+            if holiday == .newYear,
+               let flight = CrabCostume.effectWindow(at: t, salt: 3,
+                                                     period: 13, duration: 1.9,
+                                                     chance: 0.45) {
+                pose.fireworkProgress = flight
+                pose.fireworkCycle = Int(floor(t / 13))
             }
 
             if let sun {
@@ -966,6 +1022,16 @@ public enum CrabAnimator {
             // after dark; see `sleepZInterval`.
             pose.sleepZElapsed = t
             pose.sleepZInterval = sleepZInterval(hourOfDay: hourOfDay)
+            // 🎆 New Year's fireworks light a sleeping sky too — he sleeps
+            // through them, which is its own joke. Same dice as the idle
+            // branch's.
+            if holiday == .newYear,
+               let flight = CrabCostume.effectWindow(at: t, salt: 3,
+                                                     period: 13, duration: 1.9,
+                                                     chance: 0.45) {
+                pose.fireworkProgress = flight
+                pose.fireworkCycle = Int(floor(t / 13))
+            }
         }
 
         return pose
@@ -2125,6 +2191,13 @@ public struct CrabView: View {
         frozenTime == nil ? LocalHour.current : nil
     }
 
+    /// The season, or nil — `hourOfDay`'s twin lock, one flight up: only a
+    /// live view ever consults the wall calendar, so a frozen or offline
+    /// render can never carry a holiday.
+    private var holiday: Holiday? {
+        frozenTime == nil ? LocalDay.holiday : nil
+    }
+
     private func render(at time: Double) -> some View {
         // ONE derivation of the preview clock, handed to BOTH consumers.
         // Deriving it twice is what put the floor pool and the warm on his
@@ -2204,7 +2277,7 @@ public struct CrabView: View {
         }
 
         var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
-                                     hourOfDay: hourOfDay)
+                                     hourOfDay: hourOfDay, holiday: holiday)
         if mood == .done, celebrating, frozenTime == nil {
             CrabAnimator.applyCelebration(t: t, epic: epicCelebration, to: &pose)
         }

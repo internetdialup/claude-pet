@@ -109,6 +109,8 @@ animation. Frankenstein has bolts at the temples and throws sparks. Arcade is
 lit from inside like a cabinet. Arctic White gets falling snow, Gundam a
 scanning visor, Tiger a swishing tail.
 
+He also keeps a calendar. Some weeks of the year, the menu grows.
+
 ## 📋 Every session at once
 
 <div align="center">

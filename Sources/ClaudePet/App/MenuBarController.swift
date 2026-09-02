@@ -128,7 +128,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let costumeItem = NSMenuItem(title: "Costume", action: nil, keyEquivalent: "")
         let costumeMenu = NSMenu()
         let worn = Preferences.shared.costume
-        for costume in Costume.allCases {
+        for costume in Costume.allCases where costume.isAvailable() {
             let entry = action(costume.title) { [weak self] in
                 self?.onSetCostume(costume)
             }
@@ -186,7 +186,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             let costume2Item = NSMenuItem(title: "Costume", action: nil, keyEquivalent: "")
             let costume2Menu = NSMenu()
             let worn2 = Preferences.shared.pet2Costume
-            for costume in Costume.allCases {
+            for costume in Costume.allCases where costume.isAvailable() {
                 let entry = action(costume.title) { [weak self] in
                     self?.onSetSecondCostume(costume)
                 }

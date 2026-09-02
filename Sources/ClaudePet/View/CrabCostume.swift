@@ -543,14 +543,7 @@ enum CrabCostume {
             // behind him instead of over him, which is where snow goes.
             //
             // Continuous rather than scheduled: weather does not take turns.
-            for (column, speed) in [(2, 0.62), (8, 0.9), (14, 0.5), (21, 0.78), (27, 1.05)] {
-                let fall = (pose.propPhase * speed * 5 + Double(column * 3))
-                    .truncatingRemainder(dividingBy: Double(PixelBuffer.side))
-                let drift = Int(sin(pose.propPhase * 0.8 + Double(column)) * 1.4)
-                let x = column + drift, y = Int(fall)
-                guard x >= 0, x < PixelBuffer.side, b[x, y] == .clear else { continue }
-                b.pixel(x, y, .paper)
-            }
+            HolidayAmbience.drawSnow(&b, phase: pose.propPhase)
         case .gundam:
             if layer == .onBody {
                 // The face is built on black: a visor recess across the eye
