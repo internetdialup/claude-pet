@@ -11,10 +11,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 - **🛹 He's a skateboarder now.** Two new tricks — a held manual with the
   ground rushing under him, and a flat shove-it he watches spin beneath his
-  own hop — plus, rarely, a whole session: cruise, ollie, cruise, kickflip,
-  roll-away, strung into one ride. And a Skater fit in the costume menu:
-  backwards cap, charcoal tee, pads, with a kick-push of dust when the mood
-  takes him. Thirteen idle moves, twenty-one props, fourteen looks.
+  own hop — plus, rarely, a whole session: several tricks and roll-aways
+  strung into one long ride. And a Skater fit in the costume menu:
+  backwards cap, charcoal tee, baggy black pants, with a kick-push of dust
+  when the mood takes him. Thirteen idle moves, twenty-one props, fourteen
+  looks.
 - **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
   out through the float — foot slid three cells wide, knee bent — and tucks
   back before the stomp. A die on the desk; the README's ollie stays clean
@@ -37,7 +38,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   everything — arms, eyes, mouth, gaze, the lift — on one frame near the
   end while the board was still easing its nose down. Now each releases on
   its own beat and the ground rush fades with the wheelie.
-
 - **👀 Sonic got his eyes.** Tall ones, the way he's drawn — a row taller
   than Claw'd's own, catchlight riding up with them. Blinks and winks stay
   his: the extension only shows on an open eye.
