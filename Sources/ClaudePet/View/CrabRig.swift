@@ -1069,19 +1069,20 @@ public enum CrabRig {
             // rising four rows clear of the shell. The ollie apex still
             // crops it against the grid top (the lofty pin's ceiling), and
             // every other airborne frame shows the whole hat.
-            b.rect(12 + dx, crown, 8, 1, .slate)
-            b.rect(12 + dx, crown - 1, 8, 1, .slate)
-            b.rect(13 + dx, crown - 2, 6, 1, .slate)
-            b.rect(13 + dx, crown - 3, 6, 1, .slate)
-            b.rect(14 + dx, crown - 4, 4, 1, .slate)
+            b.rect(11 + dx, crown, 10, 1, .slate)
+            b.rect(11 + dx, crown - 1, 10, 1, .slate)
+            b.rect(12 + dx, crown - 2, 8, 1, .slate)
+            b.rect(12 + dx, crown - 3, 8, 1, .slate)
+            b.rect(13 + dx, crown - 4, 6, 1, .slate)
         case .cap(let ink):
-            // The cap: low dome plus a brim off the right, the way he
-            // rides — a hat, not a stripe — in whatever colour the dice
-            // dealt this wearing.
-            b.rect(12 + dx, crown, 8, 1, ink)
-            b.rect(13 + dx, crown - 1, 6, 1, ink)
-            b.rect(14 + dx, crown - 2, 4, 1, ink)
-            b.rect(20 + dx, crown, 3, 1, ink)
+            // The cap, ANGLED — the operator's note: tipped back off the
+            // brow, the dome climbing toward the front, and the brim
+            // jutting out a row clear of the head so there is AIR under it.
+            // The empty cells at (19…22, crown−1) are the whole look.
+            b.rect(11 + dx, crown, 7, 1, ink)
+            b.rect(12 + dx, crown - 1, 8, 1, ink)
+            b.rect(13 + dx, crown - 2, 6, 1, ink)
+            b.rect(19 + dx, crown - 2, 4, 1, ink)
         }
     }
 
