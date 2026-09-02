@@ -468,6 +468,9 @@ public enum CrabRig {
             drawHeadwear(&buffer, kind: pose.headwear, dx: dx, dy: dy, squash: squash)
         }
         costumeLayer(.front)
+        // The wardrobe's own weather goes on after the last worn layer, so
+        // the figure is finished before the sky is.
+        costumeLayer(.weather)
         // 🗓 The season's weather, for EVERYONE in the window — the white
         // costume's snow rule generalised: clear cells only, continuous, no
         // dice. Winter skips anyone already wearing Arctic White, or the

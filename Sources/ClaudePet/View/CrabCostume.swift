@@ -243,11 +243,14 @@ struct CostumeStyle {
     }
 }
 
-/// Rasterises costume accessories onto the sprite grid, in three passes so the
+/// Rasterises costume accessories onto the sprite grid, in four passes so the
 /// rig can interleave them with its own: `behind` before the legs, `onBody`
-/// after the body rect but before the face, `front` after the face.
+/// after the body rect but before the face, `front` after the face, and
+/// `weather` after everything worn — world-anchored cells (the white
+/// costume's snow) that fall around him rather than ride on him, so a pass
+/// that reshapes the dressed figure never reshapes the sky.
 enum CrabCostume {
-    enum Layer { case behind, onBody, front }
+    enum Layer { case behind, onBody, front, weather }
 
     /// Body geometry from `CrabRig` — the accessories are tailored to the
     /// same measurements the shell is drawn with. Aliases, not copies, so the
@@ -405,6 +408,8 @@ enum CrabCostume {
                 // inks a costume cannot repaint, so it stays a blade whatever
                 // else the wardrobe does.
                 b.stamp(art, at: (x: x, y: 4), key: ["s": .steel])
+            case .weather:
+                break
             }
 
 
@@ -590,11 +595,15 @@ enum CrabCostume {
 
         case .white:
             // The colourway is most of the costume; the weather is the rest.
-            guard layer == .front else { break }
+            guard layer == .weather else { break }
             // Snow, drawn ONLY where the cell is still clear. White flakes on
             // an arctic-white shell would simply disappear — the mask makes
             // that impossible rather than merely unlikely, and it puts the snow
             // behind him instead of over him, which is where snow goes.
+            //
+            // On the weather layer, not `.front`: the flakes are the world's,
+            // and a pass over the worn figure must find them already out of
+            // its reach.
             //
             // Continuous rather than scheduled: weather does not take turns.
             HolidayAmbience.drawSnow(&b, phase: pose.propPhase)
