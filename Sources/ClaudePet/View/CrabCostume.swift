@@ -545,22 +545,40 @@ enum CrabCostume {
                 b.pixel(16 + dx, 16 + dy, .steel)
                 // THE CARVE — the operator's grant: "you can adjust clawd's
                 // body so it isn't a full square, angle it like the
-                // reference." Three cells off each dome corner and one off
-                // each jaw corner turn the [ ] into a helmet silhouette.
-                // `.clear` is a raw erase; the cells track the squash the
-                // way the flanks do. On the body pass, so the shape survives
-                // a crown prop (the yield suppresses `.front` only) — and a
-                // costume crossfade re-squares the corners until it settles,
-                // which the whole-shell pixel dissolve visually absorbs.
+                // reference", deepened on the sixth fitting ("the angled
+                // parts more apparent"): a five-cell diagonal off each dome
+                // corner and one cell off each jaw corner. `.clear` is a raw
+                // erase; the cells track the squash the way the flanks do.
+                // On the body pass, so the shape survives a crown prop (the
+                // yield suppresses `.front` only) — and a costume crossfade
+                // re-squares the corners until it settles, which the
+                // whole-shell pixel dissolve visually absorbs.
                 let dome = bodyY + dy + squash
-                for side in [bodyX + dx - squash, bodyX + bodyW - 2 + dx + squash] {
+                for side in [bodyX + dx - squash, bodyX + bodyW - 3 + dx + squash] {
                     b.pixel(side, dome, .clear)
                     b.pixel(side + 1, dome, .clear)
+                    b.pixel(side + 2, dome, .clear)
                 }
-                b.pixel(bodyX + dx - squash, dome + 1, .clear)
-                b.pixel(bodyX + bodyW - 1 + dx + squash, dome + 1, .clear)
+                for side in [bodyX + dx - squash, bodyX + bodyW - 2 + dx + squash] {
+                    b.pixel(side, dome + 1, .clear)
+                    b.pixel(side + 1, dome + 1, .clear)
+                }
                 b.pixel(bodyX + dx - squash, 20 + dy, .clear)
                 b.pixel(bodyX + bodyW - 1 + dx + squash, 20 + dy, .clear)
+                // 👁 The glow — "the eyes more glowly": a warm bloom
+                // spilling off each camera into the visor's black, one
+                // column outboard of each eye. Ember at rest; during a flare
+                // window (`97 &+ 41`, next free costume-effect addend — the
+                // holiday round has 3/5/7/17/37 reserved) it steps to gold.
+                // A re-ink between adjacent warm tones on cells already lit
+                // — the arcade marquee's class of scheduled swap, not an
+                // appearance — and it lives on the body pass, so a sideways
+                // gaze draws the eye OVER the bloom, never under it.
+                let flare = Self.effectWindow(at: pose.propPhase, salt: 41,
+                                              period: 7, duration: 0.6, chance: 0.5) != nil
+                let bloom: PixelBuffer.Ink = flare ? .yellow : .ember
+                b.pixel(9 + dx, 14 + dy, bloom)
+                b.pixel(22 + dx, 14 + dy, bloom)
                 break
             }
             guard layer == .front else { break }
@@ -605,18 +623,16 @@ enum CrabCostume {
             b.rect(15 + dx, crown, 2, 1, .costumeB)
             b.rect(14 + dx, crown + 1, 4, 1, .costumeB)
             b.rect(15 + dx, crown + 2, 2, 1, .costumeB)
-            // Angled shoulders following the carve: a blue step down each
-            // dome corner, meeting the flank armor at its top.
-            b.pixel(bodyX + 2 + dx - squash, crown, .costumeA)
-            b.rect(bodyX + 1 + dx - squash, crown + 1, 2, 1, .costumeA)
-            b.pixel(bodyX + bodyW - 3 + dx + squash, crown, .costumeA)
-            b.rect(bodyX + bodyW - 3 + dx + squash, crown + 1, 2, 1, .costumeA)
-            // Dome shading beside the shoulder steps — the reference's
-            // two-tone plates, one darker step, sparingly. These cells stop
-            // being `.body`, so the camera sweep skips them: accepted, the
-            // beam keeps the whole white midfield.
-            b.rect(bodyX + 3 + dx - squash, crown, 1, 2, .bodyShade)
-            b.rect(bodyX + bodyW - 4 + dx + squash, crown, 1, 2, .bodyShade)
+            // The dome corners, sixth fitting: RED duct cells riding the
+            // carved diagonal's edge — the operator's "on each side on the
+            // top we get the red part", and nothing else up there. The
+            // first cut stacked red, blue AND a shadow down each angle,
+            // one pixel of each, and the crown read as confetti: at this
+            // scale an angle gets ONE colour.
+            b.pixel(bodyX + 3 + dx - squash, crown, .costumeB)
+            b.pixel(bodyX + 2 + dx - squash, crown + 1, .costumeB)
+            b.pixel(bodyX + bodyW - 4 + dx + squash, crown, .costumeB)
+            b.pixel(bodyX + bodyW - 3 + dx + squash, crown + 1, .costumeB)
             b.rect(bodyX + 2 + dx, 17 + dy, 2, 1, .bodyShade)
             b.rect(bodyX + bodyW - 4 + dx, 17 + dy, 2, 1, .bodyShade)
             b.rect(bodyX + dx - squash, 17 + dy, 2, 3, .bodyShade)

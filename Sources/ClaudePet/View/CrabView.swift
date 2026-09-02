@@ -59,7 +59,7 @@ public enum CrabAnimator {
     /// shot), `43 &+ 13` (idle chatter, per seed), `47 &+ 7` (the gundam's
     /// darker-turquoise cameras, per wear timestamp).
     ///
-    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen |
+    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 41 = the Gundam's eye flare (3/5/7/17/37 reserved for the holiday round) |
     ///
     /// **Free:** none. 97 is the last multiplier and the costumes share it by
     /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.
