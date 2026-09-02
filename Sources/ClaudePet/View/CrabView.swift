@@ -1515,6 +1515,7 @@ public enum CrabAnimator {
                 pose.squash = 1                       // stomp it
                 pose.bob = 1
                 pose.mouth = .open
+                pose.dustBurst = (progress - 0.80) / 0.20
             }
 
         case .ollie:
@@ -1561,6 +1562,8 @@ public enum CrabAnimator {
                 pose.squash = 1                       // stomp it flat
                 pose.bob = 1
                 pose.mouth = .open
+                pose.dustBurst = (progress - Self.ollieAirStart - Self.ollieAirSpan)
+                    / (1 - Self.ollieAirStart - Self.ollieAirSpan)
             }
 
         case .jump:
@@ -1581,6 +1584,7 @@ public enum CrabAnimator {
                 pose.squash = 1                       // landing
                 pose.bob = 1
                 pose.mouth = .open
+                pose.dustBurst = (progress - 0.82) / 0.18
             }
 
         case .wave:
@@ -1609,6 +1613,14 @@ public enum CrabAnimator {
             pose.legPhase = t * 6
             pose.legAmplitude = 1.4
             pose.lean = progress < 0.5 ? -1 : 1
+            // 💨 A scuff kicked up behind the trailing side at each gait
+            // peak — one cell, locked to the leg cycle, on the side he is
+            // moving AWAY from.
+            if sin(pose.legPhase) > 0.75 {
+                pose.scuffX = pose.lean < 0 ? 27 : 4
+            } else if sin(pose.legPhase) < -0.75 {
+                pose.scuffX = pose.lean < 0 ? 28 : 3
+            }
         }
     }
 }

@@ -84,6 +84,121 @@ enum CostumeSheet {
         return gundamSheet(to: root.appendingPathComponent("sheet-gundam.png"))
             && sonicSheet(to: root.appendingPathComponent("sheet-sonic.png"))
             && ollieSheet(to: root.appendingPathComponent("sheet-ollie.png"))
+            && clawdSheet(to: root.appendingPathComponent("sheet-clawd.png"))
+            && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
+    }
+
+    // MARK: Normal Claw'd
+
+    /// The base crab and his whole current VFX inventory, staged — the
+    /// operator's pointing surface for the clawd-polish round.
+    private static func clawdSheet(to url: URL) -> Bool {
+        func posed(_ mutate: (inout CrabPose) -> Void = { _ in }) -> PixelBuffer {
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+            mutate(&pose)
+            return CrabRig.render(pose)
+        }
+
+        let poses = [
+            tile(posed(), .none, "idle"),
+            tile(CrabRig.render(CrabAnimator.flourishPose(.jump, at: 0.45)), .none, "jump apex"),
+            tile(CrabRig.render(CrabAnimator.flourishPose(.kickflip, at: 1.4)), .none, "kickflip air"),
+            tile(CrabRig.render(CrabAnimator.flourishPose(.scuttle, at: 0.6)), .none, "scuttle"),
+            tile(CrabRig.render(CrabAnimator.pose(mood: .sleeping, t: 2, flourishes: false)),
+                 .none, "asleep"),
+        ]
+
+        let reactions = [
+            tile(CrabRig.render(CrabAnimator.flourishPose(.wave, at: 0.9)), .none, "wave"),
+            tile(posed { p in p.confettiElapsed = 1.2; p.mouth = .open }, .none, "party confetti"),
+            tile(posed { p in p.heartsElapsed = 3.0 }, .none, "petting hearts"),
+            tile(posed { p in p.snackElapsed = 1.0 }, .none, "the shrimp"),
+            tile(posed { p in
+                p.prop = .shades
+                p.shadesDrop = -6
+            }, .none, "shades mid-drop"),
+        ]
+
+        let light = [
+            tile(posed { p in p.glint = 0.5 }, .none, "shell glint"),
+            tile(posed { p in
+                p.sunPatch = 1
+                p.sunPatchPhase = 7
+                p.blink = 1
+                p.mouth = .smile
+            }, .none, "patch of sun"),
+            tile(posed { p in
+                p.stargaze = 1
+                p.stargazePhase = 3
+                p.shootingStarX = 20
+                p.shootingStarY = 3
+                p.shootingStarDX = -1
+            }, .none, "stargaze + star"),
+            tile(posed { p in p.doneBadge = 1 }, .none, "done badge"),
+            tile(posed { p in
+                p.winkEye = .right
+                p.winkGlint = true
+                p.mouth = .smile
+            }, .none, "wink ting"),
+        ]
+
+        return write("NORMAL CLAW'D — poses · reactions · light",
+                     rows: [poses, reactions, light], to: url)
+    }
+
+    /// Candidate looks for the clawd-polish round, painted as MOCKS on the
+    /// rendered idle frame — the quill-options pattern. Whatever the
+    /// operator picks gets built properly in the rig.
+    private static func clawdVariantSheet(to url: URL) -> Bool {
+        func mock(_ label: String, paint: (inout PixelBuffer) -> Void) -> Tile {
+            var b = CrabRig.render(CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false))
+            paint(&b)
+            return Tile(buffer: b, costume: .none, caption: label)
+        }
+        // The idle body at t=0.9: bob 0, squash 0 — rows 10…20, x6…25.
+        func nip(_ b: inout PixelBuffer) {
+            for (x, y) in [(6, 10), (25, 10), (6, 20), (25, 20)] { b.pixel(x, y, .clear) }
+        }
+        func carve(_ b: inout PixelBuffer) {
+            for (x, y) in [(6, 10), (7, 10), (6, 11), (25, 10), (24, 10), (25, 11),
+                           (6, 20), (25, 20)] { b.pixel(x, y, .clear) }
+        }
+        func catchlight(_ b: inout PixelBuffer) {
+            b.pixel(10, 13, .paper)
+            b.pixel(19, 13, .paper)
+        }
+        func bellyShade(_ b: inout PixelBuffer) {
+            for x in 6...25 where b[x, 20] == .body { b.pixel(x, 20, .bodyShade) }
+        }
+        func sideShade(_ b: inout PixelBuffer) {
+            for x in 6...25 where b[x, 20] == .body { b.pixel(x, 20, .bodyShade) }
+            for y in 11...19 where b[25, y] == .body { b.pixel(25, y, .bodyShade) }
+        }
+
+        let silhouette = [
+            mock("today: the [ ]") { _ in },
+            mock("A: corner nips") { b in nip(&b) },
+            mock("B: carved corners") { b in carve(&b) },
+        ]
+        let face = [
+            mock("eyes today") { _ in },
+            mock("C: catchlights") { b in catchlight(&b) },
+        ]
+        let shade = [
+            mock("flat today") { _ in },
+            mock("D: belly shade") { b in bellyShade(&b) },
+            mock("E: belly + side") { b in sideShade(&b) },
+        ]
+        let hero = [
+            mock("HERO: A + C + D") { b in
+                nip(&b); catchlight(&b); bellyShade(&b)
+            },
+            mock("HERO: B + C + E") { b in
+                carve(&b); catchlight(&b); sideShade(&b)
+            },
+        ]
+        return write("CLAW'D CANDIDATES — silhouette · face · shading · heroes",
+                     rows: [silhouette, face, shade, hero], to: url)
     }
 
     // MARK: Gundam

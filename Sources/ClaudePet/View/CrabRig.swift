@@ -162,6 +162,14 @@ public struct CrabPose: Sendable, Equatable {
     /// only by the secret-menu preview, which must bypass those dice.
     public var ringFlight: Double?
 
+    /// 💨 Landing dust: 0…1 through a stomp's puff, or nil. Written fresh
+    /// each frame by the flourish that lands (pure in its own progress), so
+    /// the blend leaves it alone like every travel parameter.
+    public var dustBurst: Double?
+    /// A single gait scuff cell behind a scuttling leg, or nil. Glint-class:
+    /// one cell, locked to the leg cycle.
+    public var scuffX: Int?
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
@@ -367,12 +375,16 @@ public enum CrabRig {
                         dx: dx, dy: dy, squash: squash)
         }
 
+        // The ground shadow goes down before anything stands on it.
+        drawShadow(&buffer, dx: dx, dy: dy, pose: pose)
+
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
         firePass(&buffer, pose: pose, dx: dx, dy: dy)
         costumeLayer(.behind)
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
+        drawDust(&buffer, dx: dx, dy: dy, pose: pose)
         drawArms(&buffer, dx: dx, dy: dy, pose: pose)
 
         // Squash widens and shortens the body, keeping its feet on the ground.
@@ -932,6 +944,54 @@ public enum CrabRig {
         }
     }
 
+    // MARK: - Ground
+
+    /// The soft pool under him: full width with his feet on the floor,
+    /// shrinking two cells per row of air and gone past three — high enough
+    /// that he reads as flying, not hovering. Skipped while a board is worn:
+    /// the deck grounds him already, and a shadow under wheels reads as
+    /// grease. Whole-pixel steps riding the already-eased `bob`, so the
+    /// shadow inherits the jump's own easing.
+    private static func drawShadow(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
+        switch pose.prop {
+        case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie: return
+        default: break
+        }
+        let rise = max(0, -dy)
+        let width = 20 - rise * 2
+        guard width >= 8 else { return }
+        // DITHERED, not solid: a GIF's one-bit alpha collapses translucency
+        // to a solid bar, so the softness lives in the checkerboard — the
+        // pixel-art half-tone — and the ink's own translucency only sweetens
+        // it live. Anchored on even columns so the pattern holds still while
+        // the width breathes.
+        let left = 16 + dx - width / 2
+        for x in left..<(left + width) where x % 2 == 0 {
+            b.pixel(x, 25, .shadow)
+        }
+    }
+
+    /// 💨 Landing dust: two puffs racing outward from the feet, chunky at
+    /// impact, thinning as they go, gone under their own travel. The burst's
+    /// first frame IS the impact — a stomp is snap-by-nature, the landing
+    /// squash's own exemption — and the exit is two lone cells, glint-class.
+    private static func drawDust(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
+        if let u = pose.dustBurst, u < 1 {
+            // A row above the floor line, or the puffs vanish into the
+            // shadow's own dither.
+            let spread = 2 + Int((u * 4).rounded())
+            b.pixel(16 + dx - 8 - spread, 23 + dy, .steel)
+            b.pixel(16 + dx + 8 + spread, 23 + dy, .steel)
+            if u < 0.5 {
+                b.pixel(16 + dx - 7 - spread, 22 + dy, .steel)
+                b.pixel(16 + dx + 7 + spread, 22 + dy, .steel)
+            }
+        }
+        if let scuff = pose.scuffX {
+            b.pixel(scuff + dx, 23 + dy, .steel)
+        }
+    }
+
     // MARK: - Legs
 
     private static func drawLegs(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
@@ -1003,9 +1063,15 @@ public enum CrabRig {
             switch pose.eyes {
             case .round:
                 b.rect(x, top, eyeSize, eyeSize, .eye)
+                // The catchlight: one cell of light in the upper-left of
+                // each open eye — the sprite trick that reads as life at
+                // any size. Round and wide only: the squint has no room and
+                // the determined carve owns its corners.
+                b.pixel(x, top, .paper)
             case .wide:
                 // One row taller, for the expectant "well?" of the nudge.
                 b.rect(x, top - 1, eyeSize, eyeSize + 1, .eye)
+                b.pixel(x, top - 1, .paper)
             case .squint:
                 // >_< . Two chevrons pointing at each other — the scrunched
                 // face off the stickers, which read at two centimetres with no
