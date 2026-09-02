@@ -80,4 +80,25 @@ struct ReelDeterminismTests {
             isStable(ReelRenderer.heroScene(at: t), "hero frame at t=\(t)")
         }
     }
+
+    /// The release-page masthead. Gated where wordmark and social-preview are
+    /// not because it is new — no years of byte history vouch for it — and it
+    /// carries 54pt type, the largest in any committed asset, over the warm
+    /// ground. Type is where the drift lived.
+    @Test("The release banner renders byte-identically on every repeat")
+    func bannerRepeats() {
+        isStable(ReelRenderer.bannerScene(), "release banner")
+    }
+
+    /// The masthead's whole premise is the float. If someone retimes the
+    /// ollie, `ollieApex` follows the animator's numbers — but a shape change
+    /// (a shallower arc, a shifted window) could still quietly turn the
+    /// banner into a crab barely off the ground, which is exactly how the
+    /// og-image once rotted. Pin the read, not the arithmetic.
+    @Test("The banner samples the ollie at full float, board under him")
+    func bannerApexIsAirborne() {
+        let pose = CrabAnimator.flourishPose(.ollie, at: ReelRenderer.ollieApex)
+        #expect(pose.prop == .skateboardOllie)
+        #expect(pose.bob <= -9)
+    }
 }
