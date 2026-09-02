@@ -311,7 +311,18 @@ public enum CrabRig {
     private static let legTop = 21
     private static let legH = 4
     private static let legW = 2
-    private static let legX = [7, 11, 20, 24]
+    // Internal like the body block, and for the same reason: the costume
+    // shoes stand on these legs, and the gait math must live once. A shoe
+    // computing its own lift from a copied table is how feet detach.
+    static let legX = [7, 11, 20, 24]
+
+    /// Leg `index`'s gait swing in whole rows — positive lifts the foot,
+    /// negative drops the knee. `drawLegs` shortens the legs by exactly this,
+    /// and it is internal so a costume's shoe can ride the same number
+    /// instead of waiting on the floor for the foot to come back.
+    static func legSwing(_ index: Int, pose: CrabPose) -> Int {
+        Int((sin(pose.legPhase + Double(index) * .pi / 2) * pose.legAmplitude).rounded())
+    }
 
     private static let armW = 2
     private static let armH = 3
@@ -919,8 +930,7 @@ public enum CrabRig {
     private static func drawLegs(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
         for (index, x) in legX.enumerated() {
             // Alternating pairs, so the scuttle reads as a gait rather than a jitter.
-            let swing = sin(pose.legPhase + Double(index) * .pi / 2) * pose.legAmplitude
-            let lift = Int(swing.rounded())
+            let lift = legSwing(index, pose: pose)
             b.rect(x + dx, legTop + dy - min(0, lift), legW, legH - abs(lift), .body)
         }
     }

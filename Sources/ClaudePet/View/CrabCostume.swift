@@ -133,6 +133,7 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x23_50D2),      // that blue
+                    .bodyShade: rgb(0x16_348E), // the turn shade's step — see ninja's note
                     .costumeA: rgb(0x15_2F8E),  // quill shadow-blue
                     .costumeB: rgb(0xD8_3030),  // the sneakers
                     .costumeC: rgb(0xF2_CE9E),  // muzzle-and-belly tan
@@ -543,15 +544,20 @@ enum CrabCostume {
             b.pixel(13 + dx, 19 + dy, .yellow)          // collar, per the reference
             b.pixel(19 + dx, 19 + dy, .yellow)
             b.rect(15 + dx, 19 + dy, 3, 1, .costumeB)   // chin
-            b.rect(12 + dx, 20 + dy, 9, 1, .costumeA)   // chest band, full width
+            // The chest band widens with the squash the way the shell does —
+            // anchored to the same expressions as the shoulder plates, so a
+            // kickflip crouch cannot open white gaps at its ends.
+            b.rect(12 + dx - squash, 20 + dy, 9 + squash * 2, 1, .costumeA)
             b.pixel(15 + dx, 20 + dy, .yellow)          // twin vents
             b.pixel(17 + dx, 20 + dy, .yellow)
-            for leg in [7, 11, 20, 24] {                // red feet
-                b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
+            for (index, leg) in CrabRig.legX.enumerated() {  // red feet, riding the gait
+                let lift = max(0, CrabRig.legSwing(index, pose: pose))
+                b.rect(leg + dx, 23 + dy - lift, 2, 2, .costumeB)
             }
 
-            guard layer == .front,
-                  let scan = Self.effectWindow(at: pose.propPhase, salt: 19,
+            // Already narrowed to the front pass by the guard above — the
+            // sonic case's own note tells this exact story.
+            guard let scan = Self.effectWindow(at: pose.propPhase, salt: 19,
                                                period: 6, duration: 1.1, chance: 0.7)
             else { break }
             // The camera sweeping: one bright column crossing his shell, drawn
@@ -574,10 +580,13 @@ enum CrabCostume {
                 // The muzzle-and-belly tan; the face pass draws the mouth
                 // over it, and the eyes stay his own.
                 b.rect(12 + dx, 16 + dy, 8, 4, .costumeC)
-                // Red sneakers with white socks, on all four feet.
-                for leg in [7, 11, 20, 24] {
-                    b.rect(leg + dx, 22 + dy, 2, 1, .paper)
-                    b.rect(leg + dx, 23 + dy, 2, 2, .costumeB)
+                // Red sneakers with white socks, on all four feet — offset by
+                // the same gait swing the legs shorten by, so a scuttle's
+                // lifted foot takes its shoe with it.
+                for (index, leg) in CrabRig.legX.enumerated() {
+                    let lift = max(0, CrabRig.legSwing(index, pose: pose))
+                    b.rect(leg + dx, 22 + dy - lift, 2, 1, .paper)
+                    b.rect(leg + dx, 23 + dy - lift, 2, 2, .costumeB)
                 }
                 break
             }
@@ -612,7 +621,11 @@ enum CrabCostume {
             // moves and the character does not.
             for lane in 0..<3 {
                 let y = bodyY + dy + 3 + lane * 5
-                let reach = Int(dash * 9)
+                // `sin(π·u)`-shaped: the lines extend through the first half
+                // of the window and pull back through the second, so the
+                // window closing is the lines already gone — not eighteen lit
+                // cells vanishing in one frame.
+                let reach = Int((sin(dash * .pi) * 9).rounded())
                 // `.paper`, not `.costumeA`. That slot is his quill
                 // shadow-blue — a dark blue streak beside a blue crab on a dark
                 // desktop is three kinds of invisible, and the render proved it
