@@ -32,6 +32,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   hearts surge, with a line he saves for exactly this.
 - **🛹 More skating overall.** The idle rotation now leans harder into the
   board: tricks come up about twice as often as before.
+- **🖼️ A release banner.** The release pages open with a masthead now:
+  Claw'd mid-ollie beside the name, rendered from the same rig as everything
+  else and checked byte-for-byte like the rest of the committed art.
 
 - **😾 Wake him up and he lets you know about it.** Click a sleeping crab and
   one claw stretches out from under the covers with a zzz still rising. Then

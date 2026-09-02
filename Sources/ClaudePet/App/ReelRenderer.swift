@@ -273,6 +273,7 @@ enum ReelRenderer {
             && renderCostumes(to: root.appendingPathComponent("costumes.gif"))
             && renderWordmark(to: root.appendingPathComponent("wordmark.png"))
             && renderSocialPreview(to: root.appendingPathComponent("social-preview.png"))
+            && renderBanner(to: root.appendingPathComponent("release-banner.png"))
     }
 
     // MARK: - The hero
@@ -562,6 +563,48 @@ enum ReelRenderer {
         }
         .frame(width: 640, height: 320)
         return SpriteImage.write(SpriteImage.png(of: view, scale: 2, isOpaque: true), to: url)
+    }
+
+    /// The instant the ollie hangs highest: the middle of the air window,
+    /// scaled to the trick's clock. DERIVED from the animator's own numbers,
+    /// not restated — the same lesson `midFlip` above carries. 1.6s today.
+    static let ollieApex = (CrabAnimator.ollieAirStart + CrabAnimator.ollieAirSpan / 2)
+        * CrabAnimator.Flourish.ollie.duration
+
+    /// The release pages' masthead: him mid-ollie on the warm white, beside
+    /// the name. 640×160 at 2× — the committed 1280×320.
+    ///
+    /// The wordmark's shape on the solos' ground. No scrim: the wordmark
+    /// scrims because white type crosses the sky's streak, but dark type on
+    /// warm white doesn't need the help, and a wash over this backdrop would
+    /// undo the one thing it is for — a quiet ground with the character as
+    /// the only saturated thing in frame. The tagline is solid `slateSoft`
+    /// rather than an opacity of `slate`, so a star cell under a letterform
+    /// cannot ghost through the glyph fill.
+    @ViewBuilder
+    static func bannerScene() -> some View {
+        ZStack {
+            MarketingBackdrop.warmWhite
+            HStack(spacing: 26) {
+                PixelCanvasView(buffer: CrabRig.render(
+                                    CrabAnimator.flourishPose(.ollie, at: ollieApex)),
+                                seamBleed: 0)
+                    .frame(width: 128, height: 128)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Claude Pet")
+                        .font(.system(size: 54, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Palette.slate)
+                    Text("Your Claude Code sessions, as a crab on your desk")
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundStyle(Palette.slateSoft)
+                }
+            }
+        }
+        .frame(width: 640, height: 160)
+    }
+
+    static func renderBanner(to url: URL) -> Bool {
+        SpriteImage.write(SpriteImage.png(of: bannerScene(), scale: 2, isOpaque: true), to: url)
     }
 
     // MARK: - The wardrobe
