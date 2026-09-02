@@ -340,6 +340,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         .varial: "🛹 Varial flip",
         .cruise: "🛹 Cruise",
         .rings: "💍 Golden rings",
+        .idleHeart: "💗 Idle heart",
     ]
 
     /// Replays the first-run wave. `force` so it plays every time, and so it

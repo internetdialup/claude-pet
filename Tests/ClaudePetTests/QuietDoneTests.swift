@@ -110,7 +110,8 @@ struct QuietDoneTests {
             for x in 0..<PixelBuffer.side where bare[x, y] != badged[x, y] {
                 #expect(x >= 25 && x <= 30 && y >= 19 && y <= 24,
                         "badge cell outside its footline patch at (\(x),\(y))")
-                #expect(bare[x, y] == .clear || bare[x, y] == .body,
+                #expect(bare[x, y] == .clear || bare[x, y] == .body
+                            || bare[x, y] == .bodyShade,
                         "badge may cover shell, never \(bare[x, y]) at (\(x),\(y))")
             }
         }

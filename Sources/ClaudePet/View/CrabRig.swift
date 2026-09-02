@@ -166,6 +166,10 @@ public struct CrabPose: Sendable, Equatable {
     /// each frame by the flourish that lands (pure in its own progress), so
     /// the blend leaves it alone like every travel parameter.
     public var dustBurst: Double?
+
+    /// 💗 The idle heart's flight, 0…1, or nil — the sticker heart drifting
+    /// up off his crown. A travel parameter; the blend leaves it alone.
+    public var idleHeart: Double?
     /// A single gait scuff cell behind a scuttling leg, or nil. Glint-class:
     /// one cell, locked to the leg cycle.
     public var scuffX: Int?
@@ -391,6 +395,31 @@ public enum CrabRig {
         buffer.rect(bodyX + dx - squash, bodyY + dy + squash,
                     bodyW + squash * 2, bodyH - squash, .body)
 
+        // The hero pick, off the candidates sheet (B + E): the [ ] loses its
+        // corners — a two-step carve at each shoulder, a nip at each jaw —
+        // and the shell takes one flat step of shade along the belly and the
+        // right flank, lit from the upper left the way the catchlights
+        // already claim. This is a permanent look, not the sampler's
+        // turn-shade event; the ink doc's event-only rule bends here at the
+        // operator's explicit pick. Costumes draw over all of it and keep
+        // their own opinions.
+        let shellTop = bodyY + dy + squash
+        let shellLeft = bodyX + dx - squash
+        let shellRight = bodyX + bodyW - 1 + dx + squash
+        for cell in [(shellLeft, shellTop), (shellLeft + 1, shellTop),
+                     (shellLeft, shellTop + 1),
+                     (shellRight, shellTop), (shellRight - 1, shellTop),
+                     (shellRight, shellTop + 1),
+                     (shellLeft, 20 + dy), (shellRight, 20 + dy)] {
+            buffer.pixel(cell.0, cell.1, .clear)
+        }
+        for x in shellLeft...shellRight where buffer[x, 20 + dy] == .body {
+            buffer.pixel(x, 20 + dy, .bodyShade)
+        }
+        for y in (shellTop + 1)...(19 + dy) where buffer[shellRight, y] == .body {
+            buffer.pixel(shellRight, y, .bodyShade)
+        }
+
         costumeLayer(.onBody)
         if pose.heat > 0.001 { heatPass(&buffer, pose: pose, dy: dy, squash: squash) }
         if let glint = pose.glint { glintPass(&buffer, u: glint, dy: dy, squash: squash) }
@@ -437,6 +466,7 @@ public enum CrabRig {
         if let hearts = pose.heartsElapsed {
             drawHearts(&buffer, elapsed: hearts, until: pose.heartsUntil)
         }
+        if let idleHeart = pose.idleHeart { drawIdleHeart(&buffer, u: idleHeart, dx: dx) }
         if let sleepZ = pose.sleepZElapsed, pose.sleepZInterval > 0 {
             drawSleepZ(&buffer, elapsed: sleepZ, interval: pose.sleepZInterval)
         }
@@ -623,6 +653,33 @@ public enum CrabRig {
                key: ["p": .pink])
             b.composite(heart, visibility: visibility, seed: 700 + ordinal % 3)
         }
+    }
+
+    /// 💗 The idle heart, straight off the operator's sticker: a chunky red
+    /// heart drifting up past his crown. It GROWS in — one cell, then the
+    /// petting hearts' small glyph, then the sticker's full shape — and
+    /// leaves by rising off-grid, so both ends are eased by geometry. One
+    /// whole-pixel sway on the way up, the hearts' own quantum. Clear-cell
+    /// masked: sky furniture never overdraws him or a prop.
+    private static func drawIdleHeart(_ b: inout PixelBuffer, u: Double, dx: Int) {
+        let top = 12 - Int((u * 20).rounded())
+        let x = 7 + (u > 0.35 && u < 0.7 ? 1 : 0) + dx
+        var heart = PixelBuffer()
+        if u < 0.12 {
+            heart.pixel(x + 3, top, .pink)
+        } else if u < 0.28 {
+            heart.stamp(["p.p", "ppp", ".p."], at: (x: x + 2, y: top), key: ["p": .pink])
+        } else {
+            heart.stamp([
+                ".pp.pp.",
+                "ppppppp",
+                "ppppppp",
+                ".ppppp.",
+                "..ppp..",
+                "...p...",
+            ], at: (x: x, y: top), key: ["p": .pink])
+        }
+        b.composite(heart, visibility: 1, seed: 703, preservingExisting: true)
     }
 
     /// Where a zZz may sit. Right of centre and clear of the crown, so the
@@ -988,7 +1045,7 @@ public enum CrabRig {
             }
         }
         if let scuff = pose.scuffX {
-            b.pixel(scuff + dx, 23 + dy, .steel)
+            b.pixel(scuff + dx, 23 + dy, .shadow)
         }
     }
 

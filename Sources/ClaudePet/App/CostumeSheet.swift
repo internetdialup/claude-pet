@@ -117,6 +117,7 @@ enum CostumeSheet {
                 p.prop = .shades
                 p.shadesDrop = -6
             }, .none, "shades mid-drop"),
+            tile(posed { p in p.idleHeart = 0.5 }, .none, "idle heart"),
         ]
 
         let light = [
