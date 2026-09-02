@@ -34,6 +34,7 @@ public enum CrabAnimator {
     /// | `7 &+ 11` | whether a skate beat rides the golden board — 7 shared by addend |
     /// | `7 &+ 13` | whether a skate beat wears headwear — same family |
     /// | `7 &+ 19` | which colour the cap comes in — same family |
+    /// | `7 &+ 23` | whether an ollie is steezed (the leg kicks out) — same family |
     /// | `13 &+ 5` | the working prop re-roll |
     /// | `17 &+ 7` | whether an idle cycle is a fun fact |
     /// | `17 &+ 11` | whether a fact showing drops the shades — 17 shared by addend |
@@ -832,6 +833,13 @@ public enum CrabAnimator {
                     // 🧢 …and sometimes the headwear comes out. Same
                     // contract, its own dice.
                     pose.headwear = skateHeadwear(cycle: Int(floor(t / flourishPeriod)))
+                    // 🦵 …and about one ollie in three is STEEZED — the
+                    // back leg boned out through the float. Same contract
+                    // again: live-only by placement, its own dice, and the
+                    // README's ollie stays the clean one.
+                    if kind == .ollie, ollieIsSteezed(cycle: Int(floor(t / flourishPeriod))) {
+                        pose.legKick = steezeKick(progress: progress)
+                    }
                 }
             }
 
@@ -1647,12 +1655,34 @@ public enum CrabAnimator {
     /// 0.4 — on top of whatever the trick itself did. Handing the clip's
     /// own stance in as the base closes that seam by construction; the
     /// live path and the README loops keep the breathing base above.
-    static func flourishPose(_ kind: Flourish, at t: Double, base: CrabPose) -> CrabPose {
+    static func flourishPose(_ kind: Flourish, at t: Double, base: CrabPose,
+                             steeze: Bool = false) -> CrabPose {
         var pose = base
         if t < kind.duration {
             apply(kind, progress: t / kind.duration, t: t, to: &pose)
+            // The steeze is a live die on the desk; a clip asks for it by
+            // name, the way the drip asks for the golden board.
+            if steeze, kind == .ollie {
+                pose.legKick = steezeKick(progress: t / kind.duration)
+            }
         }
         return pose
+    }
+
+    /// 🦵 The steezed ollie's leg kick across the ollie's own air: out
+    /// through the first third of the float, held, and tucked back before
+    /// the level-out — zero at the pop and the stomp, so the kick can never
+    /// be the thing that snaps at either end. About one live ollie in three,
+    /// on `7 &+ 23`.
+    static func steezeKick(progress: Double) -> Double {
+        let air = (progress - ollieAirStart) / ollieAirSpan
+        guard air > 0, air < 1 else { return 0 }
+        return Ease.smoothstep((air - 0.2) / 0.2) * (1 - Ease.smoothstep((air - 0.7) / 0.2))
+    }
+
+    nonisolated static let steezeChance = 0.33
+    static func ollieIsSteezed(cycle: Int) -> Bool {
+        noise(cycle &* 7 &+ 23) < steezeChance
     }
 
     /// The jump at a given point in its arc, for the contact sheet.

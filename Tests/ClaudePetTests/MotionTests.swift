@@ -481,6 +481,59 @@ struct MotionContinuityTests {
         }
     }
 
+    /// The steezed ollie's kick lives inside the float and nowhere else:
+    /// zero at the pop and the stomp (so it can never be the thing that
+    /// snaps at either end), fully out mid-hang, and it moves the foot one
+    /// cell at a time at the live 20 fps. The rendered leg stays on the
+    /// grid and stays one leg — the same number of cells as the tucked leg
+    /// plus at most the knee.
+    @Test("The steeze kicks inside the float, a cell at a time, and stays on the grid")
+    func steezeKicksInsideTheFloat() {
+        let duration = CrabAnimator.Flourish.ollie.duration
+        let base = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+        var peak = 0.0, previousShift = 0
+        for frame in 0...Int(duration * 20) {
+            let t = Double(frame) / 20
+            let pose = CrabAnimator.flourishPose(.ollie, at: t, base: base, steeze: true)
+            let progress = t / duration
+            if progress < CrabAnimator.ollieAirStart
+                || progress >= CrabAnimator.ollieAirStart + CrabAnimator.ollieAirSpan {
+                #expect(pose.legKick == 0, "the kick leaked outside the air at t = \(t)")
+            }
+            peak = max(peak, pose.legKick)
+            let shift = CrabRig.legKickShift(pose: pose)
+            #expect(abs(shift - previousShift) <= 1, "the foot jumped \(abs(shift - previousShift)) cells at t = \(t)")
+            previousShift = shift
+
+            // On the grid, and one leg: count the body cells in the leg rows
+            // under the back-right leg's reach against the same pose tucked.
+            // Without the board: the ollie's nose slab covers a cell of the
+            // tucked foot, which made the kicked leg look a cell bigger than
+            // it is.
+            var bare = pose
+            bare.prop = .none
+            var tucked = bare
+            tucked.legKick = 0
+            let kicked = CrabRig.render(bare), still = CrabRig.render(tucked)
+            func legCells(_ b: PixelBuffer) -> Int {
+                var n = 0
+                for y in 21...24 { for x in 23..<32 where b[x, y + pose.bob] == .body { n += 1 } }
+                return n
+            }
+            let extra = legCells(kicked) - legCells(still)
+            #expect(extra >= 0 && extra <= 1,
+                    "the kicked leg has \(extra) cells more than the tucked one at t = \(t), shift \(shift)")
+        }
+        #expect(peak > 0.99, "the kick never reached full extension (peak \(peak))")
+        #expect(CrabAnimator.flourishPose(.ollie, at: 1.6).legKick == 0,
+                "the plain ollie kicked without the die")
+
+        var fired = 0
+        for cycle in 1...3000 where CrabAnimator.ollieIsSteezed(cycle: cycle) { fired += 1 }
+        let rate = Double(fired) / 3000
+        #expect(rate > 0.29 && rate < 0.37, "steeze rate \(rate)")
+    }
+
     /// **The cruise is the one where HE does not move and the ground does.**
     ///
     /// Its whole identity is that nothing about the board changes: it does not

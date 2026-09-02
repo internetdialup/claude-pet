@@ -54,6 +54,15 @@ public struct CrabPose: Sendable, Equatable {
     /// Walk cycle phase, and how much the legs actually move.
     public var legPhase: Double = 0
     public var legAmplitude: Double = 0
+    /// 🦵 The steeze: his back-right leg kicks out sideways, 0 tucked under
+    /// him, 1 the foot slid three cells out with the knee bent. An ollie
+    /// with the leg boned out. Envelope-owned like `torsoShade` — set only
+    /// by the live ollie on its own dice and by the drip's explicit steeze
+    /// clips, zero in every frozen render, and NOT lerped by `blend`: the
+    /// foot moves in whole cells and a mood interrupt mid-kick loses a
+    /// two-cell slide, which the doctrine allows and a lerp could not make
+    /// smaller.
+    public var legKick: Double = 0
 
     public var mouth: Mouth = .smile
     public enum Mouth: Sendable { case smile, flat, open, none }
@@ -1153,11 +1162,33 @@ public enum CrabRig {
 
     // MARK: - Legs
 
+    /// How far the steezed foot has slid out, in cells (0…3). Internal for
+    /// the same reason `legSwing` is: a costume's shoe on that leg has to
+    /// slide with the foot.
+    static func legKickShift(pose: CrabPose) -> Int {
+        Int((3 * max(0, min(1, pose.legKick))).rounded())
+    }
+
     private static func drawLegs(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
+        let kick = legKickShift(pose: pose)
         for (index, x) in legX.enumerated() {
             // Alternating pairs, so the scuttle reads as a gait rather than a jitter.
             let lift = legSwing(index, pose: pose)
-            b.rect(x + dx, legTop + dy - min(0, lift), legW, legH - abs(lift), .body)
+            let top = legTop + dy - min(0, lift)
+            let height = legH - abs(lift)
+            // 🦵 The steeze, on the back-right leg only: the thigh stays
+            // put, the foot slides out a cell at a time, and a knee pixel
+            // bridges them once the gap opens. Whole-pixel every step —
+            // the foot is a 2×2 block moving one cell per step, which is
+            // the doctrine's single-step exemption. A leg with fewer than
+            // three rows to give (a gait lift of two) does not kick.
+            guard index == legX.count - 1, kick > 0, height >= 3 else {
+                b.rect(x + dx, top, legW, height, .body)
+                continue
+            }
+            b.rect(x + dx, top, legW, height - 2, .body)
+            b.rect(x + kick + dx, top + height - 2, legW, 2, .body)
+            if kick >= 2 { b.pixel(x + kick - 1 + dx, top + height - 2, .body) }
         }
     }
 

@@ -82,7 +82,8 @@ enum PaletteTricks {
             try FileManager.default.createDirectory(at: statesDir, withIntermediateDirectories: true)
         } catch { return false }
 
-        // The plain set: basic Claw'd, every trick on every ground.
+        // The plain set: basic Claw'd, every trick on every ground — and the
+        // steezed ollie beside the clean one, since on the desk it is a die.
         for ground in grounds {
             for trick in tricks {
                 let name = "clawd-\(trick.rawValue)-\(ground.name).gif"
@@ -90,6 +91,10 @@ enum PaletteTricks {
                            line: nil, golden: false,
                            to: tricksDir.appendingPathComponent(name)) else { return false }
             }
+            guard clip(trick: .ollie, ground: ground.color, costume: .none,
+                       line: nil, golden: false, steeze: true,
+                       to: tricksDir.appendingPathComponent("clawd-ollie-steeze-\(ground.name).gif"))
+            else { return false }
         }
 
         // The VFX set: no board — his own effects on the preview loops.
@@ -179,7 +184,8 @@ enum PaletteTricks {
 
     private static func clip(trick: CrabAnimator.Flourish, ground: Color, costume: Costume,
                              line: String?, golden: Bool,
-                             headwear: CrabPose.Headwear = .none, to url: URL) -> Bool {
+                             headwear: CrabPose.Headwear = .none, steeze: Bool = false,
+                             to url: URL) -> Bool {
         let lead = 0.6, settle = 0.9
         let seconds = lead + trick.duration + settle
         let frames = Int((seconds / frameDelay).rounded())
@@ -197,7 +203,7 @@ enum PaletteTricks {
             // the only thing that changes at either seam is the trick.
             var pose = local < lead || local >= lead + trick.duration
                 ? stance
-                : CrabAnimator.flourishPose(trick, at: local - lead, base: stance)
+                : CrabAnimator.flourishPose(trick, at: local - lead, base: stance, steeze: steeze)
             if golden { pose.goldenBoard = true }
             pose.headwear = headwear
             guard let image = SpriteImage.cgImage(

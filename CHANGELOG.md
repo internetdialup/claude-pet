@@ -15,6 +15,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   roll-away, strung into one ride. And a Skater fit in the costume menu:
   backwards cap, charcoal tee, pads, with a kick-push of dust when the mood
   takes him. Thirteen idle moves, twenty-one props, fourteen looks.
+- **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
+  out through the float — foot slid three cells wide, knee bent — and tucks
+  back before the stomp. A die on the desk; the README's ollie stays clean
+  and the drip catalog renders both.
 - **🛹 The nollie.** The ollie popped off the nose — the tail rises first,
   the board levels in the hang, and he lands it tail-first, watching the
   nose the whole way. It joins the dice, the shout deck, and the session

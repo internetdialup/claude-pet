@@ -772,8 +772,11 @@ enum CrabCostume {
                 // row up onto the shell for the whole of a kickflip's air —
                 // the audit's catch, invisible on the contact sheet because
                 // no staged frame was mid-air.
-                let height = min(3, 4 - lift)
-                b.rect(leg + dx, 24 + dy - lift - height + 1, 2, height, .costumeB)
+                // A steezed foot takes its boot with it — and only the
+                // foot: the boot's third row would float beside the thigh.
+                let shift = index == CrabRig.legX.count - 1 ? CrabRig.legKickShift(pose: pose) : 0
+                let height = min(shift > 0 ? 2 : 3, 4 - lift)
+                b.rect(leg + shift + dx, 24 + dy - lift - height + 1, 2, height, .costumeB)
             }
 
             // Already narrowed to the front pass by the guard above — the
@@ -933,9 +936,13 @@ enum CrabCostume {
                 for (index, leg) in CrabRig.legX.enumerated() {
                     let lift = max(0, CrabRig.legSwing(index, pose: pose))
                     let cuff = 24 + dy - lift
-                    let rows = cuff - (21 + dy)
-                    if rows > 0 { b.rect(leg - 1 + dx, 21 + dy, 3, rows, .slate) }
-                    b.rect(leg - 1 + dx, cuff, 3, 1, .steel)
+                    // A steezed leg bends: the thigh's pant stays, the
+                    // bottom row and the cuff slide out with the foot.
+                    let shift = index == CrabRig.legX.count - 1 ? CrabRig.legKickShift(pose: pose) : 0
+                    let thigh = cuff - (21 + dy) - (shift > 0 ? 1 : 0)
+                    if thigh > 0 { b.rect(leg - 1 + dx, 21 + dy, 3, thigh, .slate) }
+                    if shift > 0 { b.rect(leg - 1 + shift + dx, cuff - 1, 3, 1, .slate) }
+                    b.rect(leg - 1 + shift + dx, cuff, 3, 1, .steel)
                 }
                 break
             }
@@ -985,10 +992,14 @@ enum CrabCostume {
                 // same breach the audit caught on the gundam boots).
                 for (index, leg) in CrabRig.legX.enumerated() {
                     let lift = max(0, CrabRig.legSwing(index, pose: pose))
-                    let height = min(3, 4 - lift)
+                    // A steezed foot takes its sneaker out with it; the sock
+                    // row sits that one out, since it would float beside
+                    // the thigh.
+                    let shift = index == CrabRig.legX.count - 1 ? CrabRig.legKickShift(pose: pose) : 0
+                    let height = min(shift > 0 ? 2 : 3, 4 - lift)
                     let top = 24 + dy - lift - height + 1
                     if height == 3 { b.rect(leg + dx, top, 2, 1, .paper) }
-                    b.rect(leg + dx, top + (height == 3 ? 1 : 0), 2, min(2, height), .costumeB)
+                    b.rect(leg + shift + dx, top + (height == 3 ? 1 : 0), 2, min(2, height), .costumeB)
                 }
                 break
             }
