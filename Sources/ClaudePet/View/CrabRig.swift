@@ -147,6 +147,13 @@ public struct CrabPose: Sendable, Equatable {
     /// construction.
     public var goldenBoard: Bool = false
 
+    /// 🧢 The green beanie, on dice for about a skate beat in three — the
+    /// operator's drip ("sometimes"). The golden board's exact contract:
+    /// live-schedule-only by placement, so committed media never wears it.
+    /// Drawn only on the bare crab — a beanie over a costume's crown would
+    /// fight every helmet in the wardrobe.
+    public var beanie: Bool = false
+
     /// 🌠 The stargaze session's rare streak: the head's cell, its sky row,
     /// and its travel direction (the trail extends opposite). nil = no
     /// sighting. Set only inside the live stargaze branch, whose hour gate
@@ -430,6 +437,10 @@ public enum CrabRig {
         // After the face, so it reads as light coming off the eye rather than
         // as something behind it.
         if pose.winkGlint { drawWinkGlint(&buffer, dx: dx, dy: dy) }
+        // The beanie rides the bare crab only — see its channel doc.
+        if pose.beanie, costume == .none, ghostCostume == .none {
+            drawBeanie(&buffer, dx: dx, dy: dy, squash: squash)
+        }
         costumeLayer(.front)
 
         // Ghost first, so an incoming prop paints over an outgoing one where
@@ -1001,6 +1012,16 @@ public enum CrabRig {
         }
     }
 
+    /// 🧢 The skater's green beanie: a band pulled over the crown edge, a
+    /// two-step dome, a pom. Rides `bob` and `squash` with the head.
+    private static func drawBeanie(_ b: inout PixelBuffer, dx: Int, dy: Int, squash: Int) {
+        let crown = bodyY + dy + squash
+        b.rect(12 + dx, crown, 8, 1, .green)
+        b.rect(13 + dx, crown - 1, 6, 1, .green)
+        b.rect(14 + dx, crown - 2, 4, 1, .green)
+        b.pixel(16 + dx, crown - 3, .green)
+    }
+
     // MARK: - Ground
 
     /// The soft pool under him: full width with his feet on the floor,
@@ -1395,6 +1416,19 @@ public enum CrabRig {
             let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
             let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
             b.rect(cx - 8, deckY - thick / 2, 17, thick, deckInk)
+            // Grip tape, the operator's ask: when the flip brings the TOP
+            // face round (the far half of the turn — the wheels hide behind
+            // the slab there) and the slab is fat enough to read as a face,
+            // it carries a sparse grit of texture cells. Steel on the slate
+            // deck — grit catches light against near-black — and slate grit
+            // on the golden deck, where dark specks read as the tape itself.
+            // Deterministic in the turn, whole-pixel, gone with the face.
+            if sin(theta) < 0, thick >= 4 {
+                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .steel
+                for (i, gx) in stride(from: cx - 7, through: cx + 7, by: 3).enumerated() {
+                    b.pixel(gx, deckY - thick / 2 + 1 + (i % 2) * (thick >= 6 ? 3 : 1), grit)
+                }
+            }
 
             let orbit = Int((3 * cos(theta)).rounded())     // + is below: y grows down
             if sin(theta) >= 0 || abs(orbit) > thick / 2 {
@@ -1442,6 +1476,14 @@ public enum CrabRig {
             let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .slate
             let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
             b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
+            // Grip tape on the varial's top face too — same rule as the
+            // kickflip's, spanning whatever width the yaw has left the deck.
+            if sin(roll) < 0, thick >= 4 {
+                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .steel
+                for (i, gx) in stride(from: cx - half + 1, through: cx + half - 1, by: 3).enumerated() {
+                    b.pixel(gx, deckY - thick / 2 + 1 + (i % 2), grit)
+                }
+            }
 
             let orbit = Int((3 * cos(roll)).rounded())
             if sin(roll) >= 0 || abs(orbit) > thick / 2 {

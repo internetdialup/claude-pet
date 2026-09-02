@@ -179,6 +179,42 @@ struct SkyAndDeckTests {
                 "every slate deck cell must turn gold — got \(goldenYellowGain) of \(stockSlate)")
     }
 
+    /// The beanie: the golden board's contract on its own dice — the stated
+    /// rate, the cycle-zero sentinel, no flourishPose leak, and a render that
+    /// actually wears green on the crown while standing down under a costume.
+    @Test("About a skate beat in three wears the beanie, and it cannot leak")
+    func beanieRateAndLeak() {
+        var wears = 0
+        let n = 20_000
+        for cycle in 1...n where CrabAnimator.skateBeatWearsBeanie(cycle: cycle) { wears += 1 }
+        let rate = Double(wears) / Double(n)
+        #expect(rate > 0.27 && rate < 0.33, "beanie rate \(rate), wanted ~0.3")
+        #expect(!CrabAnimator.skateBeatWearsBeanie(cycle: 0), "cycle zero must stay bare")
+        for t in stride(from: 0.0, through: 3.2, by: 0.4) {
+            #expect(CrabAnimator.flourishPose(.ollie, at: t).beanie == false)
+        }
+
+        // t = 0.9, not the apex: at bob −10 the crown IS the grid's top row
+        // and the dome legitimately crops (the lofty pin's own ceiling), so
+        // the full-hat probe sits a little earlier in the rise.
+        var pose = CrabAnimator.flourishPose(.ollie, at: 0.9)
+        pose.beanie = true
+        let hatted = CrabRig.render(pose)
+        var green = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where hatted[x, y] == .green { green += 1 }
+        }
+        #expect(green >= 15, "the beanie is missing from the crown — \(green) green cells")
+        // Under a costume it stands down: the only green left is whatever the
+        // wardrobe itself wears (the gundam's gem).
+        let dressed = CrabRig.render(pose, costume: .gundam)
+        var dressedGreen = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where dressed[x, y] == .green { dressedGreen += 1 }
+        }
+        #expect(dressedGreen < green, "the beanie must stand down under a costume")
+    }
+
     // MARK: - The weighted rotation
 
     /// The operator skates: skate beats now take a bit over half the fired
