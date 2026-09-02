@@ -124,17 +124,32 @@ public struct CrabPose: Sendable, Equatable {
     public var heat: Double = 0
     public var heatPhase: Double = 0
 
-    /// Torso-turn shading, for the drip-feed sampler's ollie variants: which
-    /// body edge the torso rotates away from (-1 = the left columns darken,
-    /// +1 = the right, 0 = none), and how much of the turn is on him, 0…1.
+    /// Torso-turn shading, the ollie's edge band: which body edge the torso
+    /// rotates away from (-1 = the left columns darken, +1 = the right,
+    /// 0 = none), and how much of the turn is on him, 0…1.
     ///
-    /// Envelope-owned like `doneBadge`: the sampler's variant map writes both
-    /// fresh every frame from the trick's own air fraction, no live pose ever
-    /// sets them, and `CrabPose.blend` deliberately does not lerp them — a
-    /// blend could only ever see zeros, and averaging a shade that is pure in
+    /// Envelope-owned like `doneBadge`: the sampler's variant map and the
+    /// live ollie both write them fresh every frame from the trick's own air
+    /// fraction, so they are zero in every frozen render and outside every
+    /// air, and `CrabPose.blend` deliberately does not lerp them — a blend
+    /// can only see what a trick wrote, and averaging a shade that is pure in
     /// someone else's clock would invent a third turn nobody performed.
     public var torsoShade: Int = 0
     public var torsoShadeAmount: Double = 0
+
+    /// The body's yaw about his own vertical axis, in TURNS: 0 faces the
+    /// camera, 0.25 shows his right flank edge-on, 0.5 his back, 0.75 his
+    /// left flank, and 1 is a whole turn, which renders byte-identically to 0
+    /// (the rig takes turn − floor(turn)). Positive brings his right shoulder
+    /// toward the camera first. Set only by the varial's air inside
+    /// `flourishPose` — pure in the trick's clock and exactly 0 at both
+    /// bounds, so every ground frame, every other trick and every frozen
+    /// render is untouched by construction.
+    ///
+    /// Unlike `torsoShade`, this IS lerped by `blend`, the short way round:
+    /// the envelope that owns it dies the moment a mood changes, and only the
+    /// blend can finish the turn without a whole-pose pop.
+    public var torsoTurn: Double = 0
 
     /// The deal-with-it entrance: rows the shades still have to FALL
     /// (negative mid-drop, +1 during the overshoot beat, 0 at rest), and the

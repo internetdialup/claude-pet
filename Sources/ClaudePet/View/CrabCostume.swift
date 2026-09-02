@@ -68,11 +68,11 @@ struct CostumeStyle {
                     // needs somewhere to put a headband. A cool near-black
                     // keeps the red legible on top of it.
                     .body: rgb(0x23_232B),      // near-black, cool
-                    // One step below the shell, for the sampler's torso-turn
-                    // shade — the ollie variants sell a slight body rotation
-                    // with an edge band, and "one step darker" is relative to
-                    // whichever shell is worn. Inert in every live buffer:
-                    // only the drip-feed sampler ever sets `torsoShade`.
+                    // One step below the shell, for the torso-turn shade —
+                    // the ollie's edge band and the yaw pass's flank and
+                    // back — because "one step darker" is relative to
+                    // whichever shell is worn. An event inside a trick's
+                    // air, live or sampled; zero in every frozen render.
                     .bodyShade: rgb(0x15_1519),
                     .costumeA: rgb(0xC2_4141),  // headband + tails
                     .costumeB: rgb(0xCE_7B5C),  // the mask's eye window — his own terracotta

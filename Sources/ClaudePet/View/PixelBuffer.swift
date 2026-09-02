@@ -50,14 +50,16 @@ public struct PixelBuffer: Sendable {
         /// wardrobe. The GitHub mark used to be drawn in `.eye` and turned
         /// pale green under the Matrix look and yellow under the Gundam.
         case slate
-        /// The torso-turn shade — the sampler's ollie variants selling a
-        /// slight body rotation. This is NOT the shading ramp the header
+        /// The torso-turn shade. This is NOT the shading ramp the header
         /// bans: it is one flat step below the shell, override-consulting so
-        /// every wardrobe supplies its own step, raised and lowered inside a
-        /// single trick's air by the drip-feed sampler, and never set by any
-        /// live pose. An EVENT, not a state — the glint's defence, borrowed
-        /// whole. If it ever reads as a ramp sneaking in, delete it; do not
-        /// soften it into one.
+        /// every wardrobe supplies its own step, and raised and lowered
+        /// inside a single trick's air — the ollie's edge band, live and in
+        /// the drip-feed sampler alike, and the yaw pass's flank slab and
+        /// back. Zero in every frozen render, and never a third value. An
+        /// EVENT, not a state — the glint's defence, borrowed whole. (The
+        /// hero look's belly row and right flank are the one standing use,
+        /// at the operator's explicit pick.) If it ever reads as a ramp
+        /// sneaking in, delete it; do not soften it into one.
         case bodyShade
         /// The deal-with-it black — the meme shades off the operator's desk
         /// sticker, which are PURE black on the print. `.slate` renders as
