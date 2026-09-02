@@ -155,6 +155,13 @@ public struct CrabPose: Sendable, Equatable {
     public var shootingStarY: Int = 0
     public var shootingStarDX: Int = 1
 
+    /// 💍 Sonic's ring flight, 0…1, or nil for no rings. A travel parameter
+    /// like `glint`, so the blend leaves it alone (`blend` starts from the
+    /// incoming pose, so a non-lerped field takes its value by construction).
+    /// Normally nil — the costume rolls its own dice on `propPhase` — and set
+    /// only by the secret-menu preview, which must bypass those dice.
+    public var ringFlight: Double?
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
@@ -311,7 +318,18 @@ public enum CrabRig {
     private static let legTop = 21
     private static let legH = 4
     private static let legW = 2
-    private static let legX = [7, 11, 20, 24]
+    // Internal like the body block, and for the same reason: the costume
+    // shoes stand on these legs, and the gait math must live once. A shoe
+    // computing its own lift from a copied table is how feet detach.
+    static let legX = [7, 11, 20, 24]
+
+    /// Leg `index`'s gait swing in whole rows — positive lifts the foot,
+    /// negative drops the knee. `drawLegs` shortens the legs by exactly this,
+    /// and it is internal so a costume's shoe can ride the same number
+    /// instead of waiting on the floor for the foot to come back.
+    static func legSwing(_ index: Int, pose: CrabPose) -> Int {
+        Int((sin(pose.legPhase + Double(index) * .pi / 2) * pose.legAmplitude).rounded())
+    }
 
     private static let armW = 2
     private static let armH = 3
@@ -919,8 +937,7 @@ public enum CrabRig {
     private static func drawLegs(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
         for (index, x) in legX.enumerated() {
             // Alternating pairs, so the scuttle reads as a gait rather than a jitter.
-            let swing = sin(pose.legPhase + Double(index) * .pi / 2) * pose.legAmplitude
-            let lift = Int(swing.rounded())
+            let lift = legSwing(index, pose: pose)
             b.rect(x + dx, legTop + dy - min(0, lift), legW, legH - abs(lift), .body)
         }
     }
@@ -1338,7 +1355,18 @@ public enum CrabRig {
                 : 0.45 * (1 - Ease.smoothstep((air - 0.75) / 0.25))      // level out: → 0
             let cx = 16 + dx, deckY = 25 + dy
             let rise = Int((5 * tilt).rounded())          // nose lift, in cells
-            let dip = Int((2 * tilt).rounded())           // tail drop
+            // The tail SLAPS down on the pop, then TUCKS up through the float
+            // to meet the back foot — the operator's note, and the physics:
+            // after the pop the back foot carries the tail, so a tail still
+            // drooping two rows under his feet mid-float read as the board
+            // hanging off him rather than glued to him. Eased at every
+            // segment; ends level, same as before.
+            let tuck: Double =
+                air < 0.35 ? 2 * Ease.smoothstep(air / 0.35)             // slap: 0 → +2
+                : air < 0.6 ? 2 - 3 * Ease.smoothstep((air - 0.35) / 0.25) // tuck: +2 → −1
+                : air < 0.75 ? -1
+                : -1 * (1 - Ease.smoothstep((air - 0.75) / 0.25))        // level out: → 0
+            let dip = Int(tuck.rounded())                 // tail offset, signed
             // Tail, middle, nose — each a third of the deck, stepping.
             let yTail = deckY + dip
             let yMid = deckY + dip - (rise + dip) / 2

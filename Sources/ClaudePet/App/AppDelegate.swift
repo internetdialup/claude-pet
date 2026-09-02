@@ -300,6 +300,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             item.target = self
             item.representedObject = effect
             item.state = debugEffect == effect ? .on : .off
+            // A costume's own effect needs its costume. Disabled rather than
+            // dressing him automatically — a review must not write
+            // preferences as a side effect.
+            if effect.wardrobe != .none, pet.model.costume != effect.wardrobe {
+                item.action = nil
+                item.title += "  (wear \(effect.wardrobe.rawValue.capitalized))"
+            }
             menu.addItem(item)
         }
 
@@ -332,6 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         .kickflip: "🛹 Kickflip",
         .varial: "🛹 Varial flip",
         .cruise: "🛹 Cruise",
+        .rings: "💍 Golden rings",
     ]
 
     /// Replays the first-run wave. `force` so it plays every time, and so it

@@ -56,9 +56,10 @@ public enum CrabAnimator {
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
-    /// shot), `43 &+ 13` (idle chatter, per seed).
+    /// shot), `43 &+ 13` (idle chatter, per seed), `47 &+ 7` (the gundam's
+    /// darker-turquoise cameras, per wear timestamp).
     ///
-    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each (11 = the shuriken) |
+    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 41 = the Gundam's eye flare (3/5/7/17/37 reserved for the holiday round) |
     ///
     /// **Free:** none. 97 is the last multiplier and the costumes share it by
     /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.
@@ -378,6 +379,9 @@ public enum CrabAnimator {
         // no sequence of clicks that produces one — which is the exact case
         // this menu's own note says it exists for.
         case kickflip, varial, cruise
+        // Sonic's rings: dice on top of a worn costume, the same
+        // no-sequence-of-clicks argument as the tricks.
+        case rings
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -390,6 +394,19 @@ public enum CrabAnimator {
             case .glint, .hearts, .ting: 0
             // The tricks release by finishing the pass already in flight.
             case .kickflip, .varial, .cruise: 0
+            case .rings: 0          // a flight in progress finishes
+            }
+        }
+
+        /// The costume this effect belongs to — `.none` for the ones that are
+        /// his. The menu disables a preview whose wardrobe is not worn rather
+        /// than dressing him as a side effect of a review, and the preview
+        /// tests render each effect in its own wardrobe so the diff they
+        /// measure is the preview, not the costume.
+        nonisolated var wardrobe: Costume {
+            switch self {
+            case .rings: .sonic
+            default: .none
             }
         }
     }
@@ -555,6 +572,19 @@ public enum CrabAnimator {
                 pose.blink = 1
                 pose.mouth = .smile
             }
+
+        case .rings:
+            // A flight every 2.8s: a beat of rest, then the two-second
+            // crossing. The REST COMES FIRST — the frozen sentinel, exactly
+            // the tricks' argument above — and the release is the glint's
+            // `until` contract: a flight already crossing when you let go
+            // finishes, and no new one starts.
+            let cycle = 2.8
+            let passStart = (frame.t / cycle).rounded(.down) * cycle
+            if let endedT = frame.endedT, passStart > endedT { return }
+            let since = frame.t - passStart
+            guard since >= 0.8 else { return }
+            pose.ringFlight = (since - 0.8) / 2.0
 
         case .beacon:
             break       // composition layer; `PetRootView` draws it
@@ -2056,6 +2086,19 @@ public struct CrabView: View {
         let blanch = CrabView.composedBlanch(mood: mood, t: localT,
                                              celebrating: celebrating,
                                              epic: epicCelebration) * flashScale
+        // 👁 The gundam's rare cameras: about one wearing in four loads with
+        // darker-turquoise eyes instead of camera-yellow — the operator's
+        // "sometimes on random load". The wear moment is the seed (one
+        // wearing, one pair of eyes; a re-wear re-rolls), the dice is
+        // `47 &+ 7` over the wear-timestamp domain, and the whole thing is
+        // live-only: frozen and offline renders never consult it, so every
+        // committed byte shows the yellow default.
+        let eyeVariant: (r: Double, g: Double, b: Double)? = {
+            guard frozenTime == nil, costume == .gundam,
+                  CrabAnimator.noise(Int(costumeClock.changedAt.rounded()) &* 47 &+ 7) < 0.25
+            else { return nil }
+            return (r: 0x2E / 255.0, g: 0x9C / 255.0, b: 0x80 / 255.0)
+        }()
         return PixelCanvasView(buffer: CrabRig.render(pose,
                                                       costume: costume,
                                                       ghostCostume: ghostCostume,
@@ -2063,7 +2106,8 @@ public struct CrabView: View {
                                bodyTint: tint,
                                inkOverrides: CostumeStyle.blendedOverrides(from: ghostCostume,
                                                                            to: costume,
-                                                                           u: costumeProgress),
+                                                                           u: costumeProgress,
+                                                                           eyeVariant: eyeVariant),
                                blanch: blanch)
             .drawingGroup()
     }

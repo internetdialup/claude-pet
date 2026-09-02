@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftUI
 @testable import ClaudePet
 
 /// The wardrobe contract: every costume renders on every mood without touching
@@ -110,6 +111,117 @@ struct CostumeTests {
 }
 
 /// The tiger reads tiger: orange shell, darker stripes, lighter belly.
+/// Sonic's golden rings: scheduled on `97 &+ 29`, drawn only into empty sky,
+/// and never in a first cycle — the frozen sentinel every dice answers to.
+@Suite("Sonic rings")
+struct SonicRingTests {
+
+    /// The cadence pin: chance 0.4 on the dice means about two cycles in five
+    /// carry a flight. A drifted salt or chance moves this immediately.
+    @Test func ringsFireAboutTwoCyclesInFive() {
+        var fired = 0
+        for cycle in 1...2000 where CrabAnimator.noise(cycle &* 97 &+ 29) < 0.4 {
+            fired += 1
+        }
+        let rate = Double(fired) / 2000
+        #expect(rate > 0.36 && rate < 0.44, "ring dice fire at \(rate)")
+    }
+
+    /// No scheduled flight in cycle zero, at any instant of it — a frozen
+    /// render at small t must be a clean crab.
+    @Test func scheduledRingsRespectTheSentinel() {
+        for step in 0..<80 {
+            #expect(CrabCostume.effectWindow(at: Double(step) * 0.1, salt: 29,
+                                             period: 8, duration: 2.0, chance: 0.4) == nil)
+        }
+    }
+
+    /// A flight paints gold into cells that were empty, and nowhere else: not
+    /// over the quills, not below the sky rows, never anything but ring inks.
+    @Test func ringsOnlyFillEmptySky() {
+        // Cycle 0 on the prop clock, so the costume's own scheduled dash and
+        // rings are silent and the staged flight is the only delta.
+        var pose = CrabAnimator.pose(mood: .idle, t: 0.5, flourishes: false)
+        pose.propPhase = 0.5
+        let bare = CrabRig.render(pose, costume: .sonic)
+        var sweep = false
+        for step in 1...19 {
+            var staged = pose
+            staged.ringFlight = Double(step) * 0.05
+            let dressed = CrabRig.render(staged, costume: .sonic)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where dressed[x, y] != bare[x, y] {
+                    sweep = true
+                    #expect(bare[x, y] == .clear,
+                            "a ring painted over \(bare[x, y]) at (\(x),\(y))")
+                    #expect(dressed[x, y] == .yellow || dressed[x, y] == .flameCore,
+                            "a ring drew \(dressed[x, y])")
+                    #expect(y < 8, "a ring left the sky rows at (\(x),\(y))")
+                }
+            }
+        }
+        #expect(sweep, "no flight instant drew any ring at all")
+    }
+}
+
+/// The gundam's rare cameras: the eye-variant plumbing is live-only by
+/// construction, and these pin the two facts the view relies on — the
+/// substitution reaches the blend's output, and the default path is
+/// untouched so no offline render can ever roll it.
+@Suite("Gundam eye variant")
+struct GundamEyeVariantTests {
+
+    @Test func variantSubstitutesTheIncomingEye() {
+        let variant = (r: 0x2E / 255.0, g: 0x9C / 255.0, b: 0x80 / 255.0)
+        let dressed = CostumeStyle.blendedOverrides(from: .none, to: .gundam, u: 1,
+                                                    eyeVariant: variant)
+        #expect(dressed[.eye] == Color(red: variant.r, green: variant.g, blue: variant.b))
+        let plain = CostumeStyle.blendedOverrides(from: .none, to: .gundam, u: 1)
+        #expect(plain[.eye] != dressed[.eye],
+                "the default must stay camera-yellow — committed media depends on it")
+    }
+
+    /// About one wearing in four, over a spread of plausible wear stamps.
+    @Test func variantDiceLandNearAQuarter() {
+        var rolled = 0
+        for stamp in 0..<4000 where CrabAnimator.noise((700_000_000 + stamp) &* 47 &+ 7) < 0.25 {
+            rolled += 1
+        }
+        let rate = Double(rolled) / 4000
+        #expect(rate > 0.22 && rate < 0.28, "variant dice fire at \(rate)")
+    }
+}
+
+/// The gundam scan's visibility pin — the gap that let the original scan ship
+/// white-on-white: no test ever rendered a live scan window, so an invisible
+/// ink (or a deleted block) kept all 483 tests green.
+@Suite("Gundam scan")
+struct GundamScanTests {
+
+    /// Mid-sweep vs no-sweep: the delta must exist, land only on cells that
+    /// were shell, and use only the two beam inks — both of which must stay
+    /// legible against the RX-78 white by more than a rounding error.
+    @Test func theScanPaintsVisibleGold() {
+        var lit = CrabAnimator.pose(mood: .idle, t: 1.0, flourishes: false)
+        lit.propPhase = 36.9        // salt 19, cycle 3 (dice .145 < .35): 36.0…37.8
+        var dark = lit
+        dark.propPhase = 34.5       // cycle 2 misses (dice .587) — no window
+        let swept = CrabRig.render(lit, costume: .gundam)
+        let plain = CrabRig.render(dark, costume: .gundam)
+        var cells = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where swept[x, y] != plain[x, y] {
+                cells += 1
+                #expect(plain[x, y] == .body,
+                        "the beam painted over \(plain[x, y]) at (\(x),\(y))")
+                #expect(swept[x, y] == .yellow || swept[x, y] == .steel,
+                        "the beam drew \(swept[x, y])")
+            }
+        }
+        #expect(cells > 0, "a live scan window painted nothing — the white-on-white bug again")
+    }
+}
+
 @Suite("Tiger palette")
 @MainActor
 struct TigerPaletteTests {

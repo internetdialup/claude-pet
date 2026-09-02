@@ -110,8 +110,11 @@ enum CostumeSampler {
                        flourish: CrabAnimator.Flourish, onset: Double,
                        line: String)] = [
         (.ninja,        88.0, .wave,       3.4, "Red-teaming a model means trying hard to make it misbehave 😈"),
-        (.gundam,       10.0, .wiggle,     3.6, "Anthropic's AI Safety Levels are modeled on biosafety levels"),
-        (.sonic,         3.0, .scuttle,    3.4, "Claude Code launched as a coding agent in your terminal"),
+        // Scan A: salt 19 first fires cycle 3 (dice .145 < .35) → t=36–37.8.
+        (.gundam,       34.0, .wiggle,     3.6, "Anthropic's AI Safety Levels are modeled on biosafety levels"),
+        // Rings fire cycle 3 (dice .011) → t=24–26; dash A fires cycle 3
+        // (dice .319 < .4) → t=27–28.6. One t0 catches both on camera.
+        (.sonic,        23.0, .scuttle,    3.4, "Claude Code launched as a coding agent in your terminal"),
         (.frankenstein, 33.0, .wiggle,     3.6, "Constitutional AI trains a model against written principles"),
         (.retroBlack,   31.0, .stretch,    3.6, "Claude is reachable by API, not only a chat window"),
         (.matrix,        4.0, .lookAround, 3.2, "A token can be a whole word or just a piece of one"),

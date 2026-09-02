@@ -32,6 +32,13 @@ if let index = arguments.firstIndex(of: "--render-comps"), index + 1 < arguments
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-costume-sheet"), index + 1 < arguments.count {
+    // Contact sheets for the costume-refinement rounds — operator review
+    // material, never committed.
+    let ok = MainActor.assumeIsolated { CostumeSheet.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-solos"), index + 1 < arguments.count {
     // The drip-feed solo matrix — costumes × tricks-and-variants × shouts.
     // Marketing review material, never committed.

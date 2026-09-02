@@ -286,4 +286,20 @@ struct ServiceGlyphSpriteTests {
         #expect(mid.serviceGlyphVisibility == 0.3,
                 "the envelope owns the glyph; the blend must not lerp it")
     }
+
+    /// The vector-overlay seam: GitHub's pixel stamp stands down only while
+    /// the vector asset is genuinely loaded; everything else — every other
+    /// service, a missing asset, no glyph at all — passes through untouched.
+    /// Pure on purpose, so this table needs no bundle.
+    @Test("Only a ready vector mark suppresses the pixel GitHub stamp")
+    func pixelGlyphSeam() {
+        for kind in ServiceGlyph.allCases {
+            #expect(ServiceGlyph.pixelGlyph(for: kind, vectorReady: false) == kind,
+                    "an unready vector must change nothing")
+            let ready = ServiceGlyph.pixelGlyph(for: kind, vectorReady: true)
+            #expect(ready == (kind == .github ? nil : kind))
+        }
+        #expect(ServiceGlyph.pixelGlyph(for: nil, vectorReady: true) == nil)
+        #expect(ServiceGlyph.pixelGlyph(for: nil, vectorReady: false) == nil)
+    }
 }
