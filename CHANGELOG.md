@@ -37,6 +37,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - **🕹️ The arcade marquee is gone.** The chasing stripe across his belly
   read as a glitch band at desk size. Arcade is its cabinet-black shell and
   phosphor face, nothing animated.
+- **🐯 The tiger got real stripes.** Diagonal slashes leaning off a centre
+  spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
+  with the forehead V. The five vertical bars read as a pattern on a box.
 
 ## [1.7.0] — 2026-09-02
 

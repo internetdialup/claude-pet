@@ -105,7 +105,9 @@ struct CostumeStyle {
                 inks: [
                     .body: rgb(0xE0_8A2E),      // tiger orange — the operator's
                                                 // ruling: green never read cat
-                    .costumeA: rgb(0x26_1C10),  // warm near-black stripes
+                    .costumeA: rgb(0x8A_3A0A),  // the stripes: a "blacker orange",
+                                                // per the operator — burnt, not
+                                                // black; black read as holes
                     .costumeC: rgb(0xF2_EFE4),  // the white belly patch
                     .mouth: rgb(0x3D_3D3A),     // dark mouth on the white patch
                 ],
@@ -524,22 +526,46 @@ enum CrabCostume {
 
         case .tiger:
             if layer == .onBody {
-            // Three bold 2-wide stripes per band, staggered — the first draft
-            // ran twelve thin dashes and read cactus, not cat. Columns chosen
-            // clear of the eye windows (10-12 and 19-21), where a stripe just
-            // vanishes behind the face.
+            // Third fitting, to the operator's note: "he doesn't have like
+            // stripes... more Tony the Tiger diagonal." The five vertical
+            // bars read as a pattern on a box; a tiger's stripes SLANT, and
+            // they come in numbers. So: diagonal slashes, two cells wide,
+            // three rows long, leaning outward from a centre spine — `/` on
+            // his left flank, `\` on his right, mirror-symmetric — hanging
+            // off the crown, crossing each flank at eye level, and rising
+            // off the belly, plus the forehead V that Tony actually wears.
+            // Every cell is clipped to the shell (`.body` only), so a slash
+            // running off his edge stops at the edge instead of floating in
+            // the air beside him. The face draws after this pass, so the eye
+            // windows and the mouth win their cells by order, not by
+            // geometry — the stripes may run right up to them.
             let base = bodyY + dy + squash
             // The white belly patch first, under the mouth — the stripes and
             // the face paint over it.
             b.rect(13 + dx, base + 8, 7, 2, .costumeC)
-            // Stripes hang from the back and rise from the belly — staggered
-            // bars, not spots; spots read leopard.
-            for column in [7, 14, 22] {
-                b.rect(column + dx, base, 2, 3, .costumeA)
+            @inline(__always) func slash(_ x: Int, _ y: Int) {
+                for cell in 0..<2 where b[x + cell + dx, y] == .body {
+                    b.pixel(x + cell + dx, y, .costumeA)
+                }
             }
-            for column in [10, 18] {
-                b.rect(column + dx, base + 7, 2, 3, .costumeA)
+            // (start column, start row, lean): lean −1 steps the slash left
+            // as it descends (`/`), +1 steps it right (`\`).
+            let slashes: [(x: Int, y: Int, lean: Int)] = [
+                (11, 0, -1), (7, 0, -1),      // crown, left
+                (19, 0, 1), (23, 0, 1),       // crown, right
+                (8, 4, -1), (22, 4, 1),       // flanks, eye level
+                (10, 11, 1), (20, 11, -1),    // belly, rising outward
+            ]
+            for stroke in slashes {
+                for step in 0..<3 {
+                    let y = stroke.y + (stroke.y >= 11 ? -step : step)
+                    slash(stroke.x + stroke.lean * step, base + y)
+                }
             }
+            // The forehead V, converging just above the bridge of the eyes.
+            slash(13, base); slash(17, base)
+            slash(14, base + 1); slash(16, base + 1)
+            slash(15, base + 2)
             }
 
             guard layer == .behind else { break }
