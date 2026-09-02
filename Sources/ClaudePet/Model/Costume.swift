@@ -29,6 +29,14 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
     case sonic
     case frankenstein
     case arcade
+    // Appended (dissolve seeds are allCases indices — order is load-bearing):
+    // the seasonal wardrobe. Each is menu-listed only inside its holiday's
+    // window (`isAvailable(on:)` in Holiday.swift), but RENDERS everywhere —
+    // the montage, the sampler and the tests draw them date-free. Old builds
+    // decode the unknown raw values to Classic via the existing fallback.
+    case pumpkin
+    case turkey
+    case santa
 
     /// The menu label.
     public var title: String {
@@ -43,6 +51,9 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .sonic: "Sonic"
         case .frankenstein: "Frankenstein"
         case .arcade: "Arcade"
+        case .pumpkin: "🎃 Jack-o'-Lantern"
+        case .turkey: "🦃 Turkey"
+        case .santa: "🎅 Santa"
         }
     }
 }
