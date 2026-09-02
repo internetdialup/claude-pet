@@ -163,6 +163,36 @@ struct SonicRingTests {
     }
 }
 
+/// The gundam scan's visibility pin — the gap that let the original scan ship
+/// white-on-white: no test ever rendered a live scan window, so an invisible
+/// ink (or a deleted block) kept all 483 tests green.
+@Suite("Gundam scan")
+struct GundamScanTests {
+
+    /// Mid-sweep vs no-sweep: the delta must exist, land only on cells that
+    /// were shell, and use only the two beam inks — both of which must stay
+    /// legible against the RX-78 white by more than a rounding error.
+    @Test func theScanPaintsVisibleGold() {
+        var lit = CrabAnimator.pose(mood: .idle, t: 1.0, flourishes: false)
+        lit.propPhase = 36.9        // salt 19, cycle 3 (dice .145 < .35): 36.0…37.8
+        var dark = lit
+        dark.propPhase = 34.5       // cycle 2 misses (dice .587) — no window
+        let swept = CrabRig.render(lit, costume: .gundam)
+        let plain = CrabRig.render(dark, costume: .gundam)
+        var cells = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where swept[x, y] != plain[x, y] {
+                cells += 1
+                #expect(plain[x, y] == .body,
+                        "the beam painted over \(plain[x, y]) at (\(x),\(y))")
+                #expect(swept[x, y] == .yellow || swept[x, y] == .steel,
+                        "the beam drew \(swept[x, y])")
+            }
+        }
+        #expect(cells > 0, "a live scan window painted nothing — the white-on-white bug again")
+    }
+}
+
 @Suite("Tiger palette")
 @MainActor
 struct TigerPaletteTests {

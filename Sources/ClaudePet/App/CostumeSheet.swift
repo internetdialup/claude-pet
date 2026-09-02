@@ -109,45 +109,15 @@ enum CostumeSheet {
                  g, "scuttle b (feet?)"),
         ]
 
-        // The scan as shipped: salt 19, period 6 — cycle 2 fires (dice 0.587
-        // < 0.7), so propPhase 12.0…13.1 is a live window.
-        let scanToday = [12.05, 12.3, 12.6, 12.9].map {
+        // Scan A as shipped: salt 19, period 12 — cycle 3 fires (dice 0.145
+        // < 0.35), so propPhase 36.0…37.8 is a live window.
+        let scan = [36.1, 36.55, 37.0, 37.45].map {
             tile(CrabRig.render(staged(1.0, phase: $0), costume: g),
-                 g, "scan today p=\($0)")
+                 g, "scan p=\($0)")
         }
 
-        // Ink/width options, painted as mocks at the same mid-sweep column.
-        func scanMock(_ label: String, paint: (inout PixelBuffer, Int) -> Void) -> Tile {
-            var b = CrabRig.render(CrabAnimator.pose(mood: .idle, t: 1.0, flourishes: false),
-                                   costume: g)
-            let column = CrabRig.bodyX + Int(0.45 * Double(CrabRig.bodyW))
-            paint(&b, column)
-            return tile(b, g, label)
-        }
-        let options = [
-            scanMock("A: 2-col gold+steel") { b, c in
-                for row in 0..<PixelBuffer.side {
-                    if b[c, row] == .body { b.pixel(c, row, .yellow) }
-                    if b[c - 1, row] == .body { b.pixel(c - 1, row, .steel) }
-                }
-            },
-            scanMock("B: visor glow (no sweep)") { b, _ in
-                for row in [13, 16] {
-                    for x in (CrabRig.bodyX + 2)..<(CrabRig.bodyX + CrabRig.bodyW - 2)
-                    where b[x, row] == .costumeC {
-                        b.pixel(x, row, .yellow)
-                    }
-                }
-            },
-            scanMock("C: 1-col gold") { b, c in
-                for row in 0..<PixelBuffer.side where b[c, row] == .body {
-                    b.pixel(c, row, .yellow)
-                }
-            },
-        ]
-
-        return write("GUNDAM — idle · motion · the scan · scan options",
-                     rows: [idle, motion, scanToday, options], to: url)
+        return write("GUNDAM — idle · motion · the scan (option A, thickened)",
+                     rows: [idle, motion, scan], to: url)
     }
 
     // MARK: Sonic
@@ -160,85 +130,28 @@ enum CostumeSheet {
                                 costume: s), s, "idle t=\($0)")
         }
 
-        // Salt 23, period 5 — cycle 1 fires (dice 0.012 < 0.5): 5.0…5.75.
+        // Dash A: salt 23, period 9 — cycle 1 fires (dice 0.012 < 0.4):
+        // 9.0…10.6. The middle instants carry the afterimage ticks.
         let motion = [
             tile(CrabRig.render(CrabAnimator.flourishPose(.scuttle, at: 0.3), costume: s),
-                 s, "scuttle a (sneakers?)"),
+                 s, "scuttle a"),
             tile(CrabRig.render(CrabAnimator.flourishPose(.scuttle, at: 0.6), costume: s),
-                 s, "scuttle b (sneakers?)"),
-            tile(CrabRig.render(staged(1.0, phase: 5.1), costume: s), s, "lines today p=5.1"),
-            tile(CrabRig.render(staged(1.0, phase: 5.4), costume: s), s, "lines today p=5.4"),
-            tile(CrabRig.render(staged(1.0, phase: 5.7), costume: s), s, "lines today p=5.7"),
+                 s, "scuttle b"),
+            tile(CrabRig.render(staged(1.0, phase: 9.2), costume: s), s, "dash p=9.2"),
+            tile(CrabRig.render(staged(1.0, phase: 9.8), costume: s), s, "dash peak p=9.8"),
+            tile(CrabRig.render(staged(1.0, phase: 10.4), costume: s), s, "dash exit p=10.4"),
         ]
 
-        // Quill and eye variants, painted as mocks on the idle frame.
-        func mock(_ label: String, paint: (inout PixelBuffer) -> Void) -> Tile {
-            var b = CrabRig.render(CrabAnimator.pose(mood: .idle, t: 0, flourishes: false),
-                                   costume: s)
-            paint(&b)
-            return tile(b, s, label)
+        // The golden rings in flight, through the real draw.
+        let rings = [0.15, 0.4, 0.65, 0.9].map { p in
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.5, flourishes: false)
+            pose.propPhase = 0.5   // cycle 0: scheduled effects silent
+            pose.ringFlight = p
+            return tile(CrabRig.render(pose, costume: s), s, "rings p=\(p)")
         }
-        let crown = CrabRig.bodyY  // idle t=0: dy = 0, squash = 0
-        let variants = [
-            mock("quills today") { _ in },
-            mock("quills +1 taller") { b in
-                b.rect(14, crown - 3, 4, 1, .costumeA)
-                b.pixel(15, crown - 4, .costumeA)
-                b.pixel(16, crown - 4, .costumeA)
-                b.pixel(11, crown - 3, .costumeA)
-                b.pixel(20, crown - 3, .costumeA)
-            },
-            mock("quills sharp spike") { b in
-                b.rect(14, crown - 3, 4, 1, .costumeA)
-                b.pixel(15, crown - 4, .costumeA)
-                b.pixel(16, crown - 4, .costumeA)
-                b.pixel(16, crown - 5, .costumeA)
-            },
-            mock("eye field (mock)") { b in
-                for x in 9...22 where b[x, 12] == .body { b.pixel(x, 12, .paper) }
-                for x in [9, 13, 18, 22] {
-                    for y in 13...15 where b[x, y] == .body { b.pixel(x, y, .paper) }
-                }
-            },
-            mock("eyes today") { _ in },
-        ]
 
-        // The golden rings: the three spin stamps alone, then in flight.
-        func stamp(_ b: inout PixelBuffer, x: Int, y: Int, frame: Int) {
-            switch frame % 4 {
-            case 0:  // full, 5 wide
-                b.rect(x + 1, y, 3, 1, .yellow)
-                b.rect(x + 1, y + 4, 3, 1, .yellow)
-                for r in 1...3 { b.pixel(x, y + r, .yellow); b.pixel(x + 4, y + r, .yellow) }
-                b.pixel(x + 4, y + 2, .flameCore)
-            case 2:  // edge-on, 1 wide
-                for r in 0...4 { b.pixel(x + 2, y + r, .yellow) }
-                b.pixel(x + 2, y + 2, .flameCore)
-            default: // three-quarter, 3 wide
-                for r in 0...4 { b.pixel(x + 1, y + r, .yellow) }
-                b.pixel(x + 3, y + 2, .yellow)
-                b.pixel(x + 2, y + 2, .flameCore)
-            }
-        }
-        var stampsAlone = PixelBuffer()
-        stamp(&stampsAlone, x: 4, y: 13, frame: 0)
-        stamp(&stampsAlone, x: 13, y: 13, frame: 1)
-        stamp(&stampsAlone, x: 22, y: 13, frame: 2)
-        let rings = [tile(stampsAlone, s, "ring stamps 5w/3w/1w")]
-            + [0.15, 0.4, 0.65, 0.9].map { p in
-                mock("rings in flight p=\(p)") { b in
-                    for k in 0..<3 {
-                        let q = min(1, max(0, p * 1.3 - Double(k) * 0.15))
-                        guard q > 0, q < 1 else { continue }
-                        let x = 30 - Int(q * 38)
-                        let y = 2 + ((0.35...0.65).contains(q) ? -1 : 0)
-                        stamp(&b, x: x, y: y, frame: Int(q * 16))
-                    }
-                }
-            }
-
-        return write("SONIC — idle · motion+lines · quill/eye options · rings",
-                     rows: [idle, motion, variants, rings], to: url)
+        return write("SONIC — idle · motion+dash · rings (spike quills, eye field)",
+                     rows: [idle, motion, rings], to: url)
     }
 
     // MARK: The ollie

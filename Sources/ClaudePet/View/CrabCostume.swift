@@ -126,7 +126,12 @@ struct CostumeStyle {
                     .costumeB: rgb(0xC6_3A3A),  // the red — crest, chin, feet
                     .costumeC: rgb(0x14_161A),  // the visor recess — the black the face is built on
                     .eye: rgb(0xF2_D23C),       // camera-yellow, straight off the reference
-                    .mouth: rgb(0x3D_3D3A),
+                    // Faint grey, one step under the shell — a Gundam face is
+                    // a MASK, and the crab's dark smile read as a grille
+                    // floating between visor and chin (the operator's "the
+                    // bottom part looks odd"). The expression survives as a
+                    // subtle mask seam instead of vanishing outright.
+                    .mouth: rgb(0xC9_CDD8),
                 ],
                 yieldsCrownToProps: true)       // the V-fin yields the crown to the hard hat
         case .sonic:
@@ -510,101 +515,174 @@ enum CrabCostume {
                 // them. Same window geometry as the ninja mask, opposite
                 // intent: the ninja lets his own shell through, the Gundam
                 // sinks the eyes into shadow.
-                b.rect(bodyX + 2 + dx, 13 + dy, bodyW - 4, 4, .costumeC)
-                b.pixel(16 + dx, 13 + dy, .costumeB)
+                // The visor TAPERS — the reference's whole face is
+                // triangular: full width through the eye rows, then cut in
+                // two cells a side on the bottom row, so the black converges
+                // toward the chin instead of sitting as a slab. The white
+                // that reappears at the corners is the mask's cheeks.
+                b.rect(bodyX + 2 + dx, 13 + dy, bodyW - 4, 3, .costumeC)
+                b.rect(bodyX + 4 + dx, 16 + dy, bodyW - 8, 1, .costumeC)
+                // And the helmet brow dips to a point BETWEEN the eyes — the
+                // wedge that turns one black band into two angled eye
+                // recesses, which is most of what makes a Gundam face a
+                // Gundam face. White, not red: the crest stays up on the
+                // helmet, and the old red pixel here read as a third eye.
+                b.rect(15 + dx, 13 + dy, 3, 1, .body)
+                b.pixel(16 + dx, 14 + dy, .body)
                 break
             }
             guard layer == .front else { break }
             let crown = bodyY + dy + squash
-            // The RX-78 merge, per the operator's reference sheet: long V-fin
-            // antennae sweeping up and out, the red crest at their root, blue
-            // shoulder plates, red chin under the mouth, a blue chest band
-            // with yellow vents, and red feet on all four legs. The camera
-            // eyes go yellow through the ink override.
-            b.pixel(10 + dx, crown - 6, .yellow)        // antenna tips, high and wide
-            b.pixel(22 + dx, crown - 6, .yellow)
-            b.pixel(11 + dx, crown - 5, .yellow)
-            b.pixel(21 + dx, crown - 5, .yellow)
-            b.pixel(12 + dx, crown - 4, .yellow)
-            b.pixel(20 + dx, crown - 4, .yellow)
-            b.pixel(13 + dx, crown - 3, .yellow)
-            b.pixel(19 + dx, crown - 3, .yellow)
-            b.pixel(14 + dx, crown - 2, .yellow)
-            b.pixel(18 + dx, crown - 2, .yellow)
-            b.rect(16 + dx, crown - 3, 1, 3, .costumeB) // crest: a proper red blade
-            b.pixel(15 + dx, crown - 1, .yellow)
-            b.pixel(17 + dx, crown - 1, .yellow)
-            b.rect(bodyX + dx - squash, crown, 2, 2, .costumeA)
-            b.rect(bodyX + bodyW - 2 + dx + squash, crown, 2, 2, .costumeA)
-            // Side armor running down both flanks from the shoulders — the
-            // punch-up pass: more federation blue down the sides, framing
-            // the visor's black.
+            // The RX-78 merge, per the operator's reference sheet, on its
+            // second fitting: "more thickness". The V-fin is a two-pixel
+            // blade now, the shoulders three columns of plate, the chest
+            // band two rows, the feet proper boots. Same silhouette, more
+            // mecha in it.
+            // The V-fin, off the operator's reference sheet (third fitting):
+            // LONG, THIN and wide-spread — one pixel of blade per row, seven
+            // rows of reach. The thickness belongs in the armor below, never
+            // in the antennae; the chunky two-pixel fin read as horns.
+            for step in 0..<7 {
+                b.pixel(8 + step + dx, crown - 7 + step, .yellow)
+                b.pixel(23 - step + dx, crown - 7 + step, .yellow)
+            }
+            // The crest: a red diamond at the fin root, running down the
+            // forehead — every reference makes it the head's centerpiece.
+            // Narrow-wide-wide-narrow, so it reads as a blade catching light
+            // rather than the cross the first cut accidentally drew.
+            // A kite, not a cross: tip, two wide rows, taper — and it stops
+            // there. A stem down to the helmet re-read as a crucifix, and the
+            // old red tip inside the visor read as a third eye; the
+            // references keep the visor's black unbroken.
+            b.pixel(16 + dx, crown - 5, .costumeB)
+            b.rect(15 + dx, crown - 4, 3, 1, .costumeB)
+            b.rect(15 + dx, crown - 3, 3, 1, .costumeB)
+            b.pixel(16 + dx, crown - 2, .costumeB)
+            b.rect(bodyX + dx - squash, crown, 3, 2, .costumeA)
+            b.rect(bodyX + bodyW - 3 + dx + squash, crown, 3, 2, .costumeA)
+            // Side armor running down both flanks from the shoulders. Two
+            // columns, not three: the visor recess starts at `bodyX + 2`, and
+            // a wider flank would eat its frame.
             b.rect(bodyX + dx - squash, crown + 2, 2, 5, .costumeA)
             b.rect(bodyX + bodyW - 2 + dx + squash, crown + 2, 2, 5, .costumeA)
-            b.pixel(13 + dx, 19 + dy, .yellow)          // collar, per the reference
-            b.pixel(19 + dx, 19 + dy, .yellow)
-            b.rect(15 + dx, 19 + dy, 3, 1, .costumeB)   // chin
-            // The chest band widens with the squash the way the shell does —
-            // anchored to the same expressions as the shoulder plates, so a
-            // kickflip crouch cannot open white gaps at its ends.
-            b.rect(12 + dx - squash, 20 + dy, 9 + squash * 2, 1, .costumeA)
-            b.pixel(15 + dx, 20 + dy, .yellow)          // twin vents
-            b.pixel(17 + dx, 20 + dy, .yellow)
-            for (index, leg) in CrabRig.legX.enumerated() {  // red feet, riding the gait
+            // Yellow temple pods on the cheeks, level with the visor — the
+            // reference heads all carry them.
+            b.pixel(bodyX + 1 + dx - squash, crown + 4, .yellow)
+            b.pixel(bodyX + bodyW - 2 + dx + squash, crown + 4, .yellow)
+            // The chest band is two rows of plate now, widening with the
+            // squash the way the shell does — anchored to the same
+            // expressions as the shoulder plates, so a kickflip crouch cannot
+            // open white gaps at its ends. Drawn FIRST so the collar, chin
+            // and vents read as fittings on the plate rather than under it.
+            b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 2, .costumeA)
+            // The chin is a downward TRIANGLE, not a bar — five cells, then
+            // three, converging the way the whole reference face does. ONE
+            // pair of vents beside its point, nothing else: the first cut
+            // scattered four yellow dots across two rows and the bottom read
+            // as clutter instead of armor (the operator's note).
+            b.rect(14 + dx, 19 + dy, 5, 1, .costumeB)
+            b.rect(15 + dx, 20 + dy, 3, 1, .costumeB)
+            b.pixel(13 + dx, 20 + dy, .yellow)
+            b.pixel(19 + dx, 20 + dy, .yellow)
+            for (index, leg) in CrabRig.legX.enumerated() {  // boots, riding the gait
                 let lift = max(0, CrabRig.legSwing(index, pose: pose))
-                b.rect(leg + dx, 23 + dy - lift, 2, 2, .costumeB)
+                // The boot is as tall as the leg has room for: a lift of two
+                // leaves a two-row leg, and a three-row boot on it rode one
+                // row up onto the shell for the whole of a kickflip's air —
+                // the audit's catch, invisible on the contact sheet because
+                // no staged frame was mid-air.
+                let height = min(3, 4 - lift)
+                b.rect(leg + dx, 24 + dy - lift - height + 1, 2, height, .costumeB)
             }
 
             // Already narrowed to the front pass by the guard above — the
             // sonic case's own note tells this exact story.
             guard let scan = Self.effectWindow(at: pose.propPhase, salt: 19,
-                                               period: 6, duration: 1.1, chance: 0.7)
+                                               period: 12, duration: 1.8, chance: 0.35)
             else { break }
-            // The camera sweeping: one bright column crossing his shell, drawn
-            // only where the cell is still `.body`. That mask puts it BEHIND
-            // the visor and the eyes rather than over them — a scan that
-            // blanked the eyes it is meant to be looking through would be the
-            // wardrobe covering a face, which is the one forbidden thing.
-            let column = bodyX + dx + Int(scan * Double(bodyW))
-            guard column >= 0, column < PixelBuffer.side else { break }
-            // `.paper` rather than a costume slot: `.costumeB` here is the
-            // sneaker red, and a red bar sweeping his chest reads as an alarm
-            // going off rather than as a camera looking around.
-            for row in 0..<PixelBuffer.side where b[column, row] == .body {
-                b.pixel(column, row, .paper)
+            // The camera sweeping: a two-column beam easing across his shell
+            // — camera-gold leading, steel trailing — drawn only where the
+            // cell is still `.body`. That mask puts it BEHIND the visor and
+            // the eyes rather than over them: a scan that blanked the eyes it
+            // is meant to be looking through would be the wardrobe covering a
+            // face, which is the one forbidden thing.
+            //
+            // The first cut painted `.paper` — kraft white on an RX-78 white
+            // shell, a camera nobody ever saw. Ink and cadence are the
+            // operator's picks off the contact sheet: slower (12s period,
+            // 0.35 chance, 1.8s crossing) and gold, so when it happens it
+            // reads as an event.
+            // The eased sweep runs three columns PAST the shell on both
+            // sides, so smoothstep's zero-slope ends park the beam where the
+            // `.body` mask finds nothing — the audit caught it parking ON
+            // the shell for a quarter second at each end, popping a handful
+            // of gold cells in and out in one frame. Now entry and exit are
+            // the mask running out of shell: geometric, the shuriken's
+            // defense again.
+            let sweep = Ease.smoothstep(scan)
+            let column = bodyX - 3 + dx + Int(sweep * Double(bodyW + 6))
+            for (offset, ink) in [(0, PixelBuffer.Ink.yellow), (-1, .steel)] {
+                let x = column + offset
+                guard x >= 0, x < PixelBuffer.side else { continue }
+                for row in 0..<PixelBuffer.side where b[x, row] == .body {
+                    b.pixel(x, row, ink)
+                }
             }
 
         case .sonic:
             let crown = bodyY + dy + squash
             if layer == .onBody {
+                // The connected eye field — the canonical Sonic read, off the
+                // operator's pick from the contact sheet. One white patch
+                // spanning both sockets and the bridge between them, corners
+                // cut so it sits in the face rather than across it like a
+                // visor. Drawn on the body pass, so the face pass paints the
+                // eyes OVER it: the field frames them, the eye-cover ban is
+                // honored by draw order.
+                // One row deeper than the sockets on both sides of the
+                // middle band: his gaze shifts the eyes a row down (the
+                // standard working gaze), and the audit caught their bottom
+                // row sliding off the patch. The muzzle draws next and takes
+                // this bottom row's centre back, so the extra white survives
+                // only in the under-eye margins where it is needed.
+                b.rect(10 + dx, 12 + dy, 12, 1, .paper)
+                b.rect(9 + dx, 13 + dy, 14, 3, .paper)
+                b.rect(10 + dx, 16 + dy, 12, 1, .paper)
                 // The muzzle-and-belly tan; the face pass draws the mouth
                 // over it, and the eyes stay his own.
                 b.rect(12 + dx, 16 + dy, 8, 4, .costumeC)
                 // Red sneakers with white socks, on all four feet — offset by
                 // the same gait swing the legs shorten by, so a scuttle's
-                // lifted foot takes its shoe with it.
+                // lifted foot takes its shoe with it. The stack shrinks with
+                // the leg: a lift of two leaves two rows of leg, so the sock
+                // sits out that step rather than riding onto the shell (the
+                // same breach the audit caught on the gundam boots).
                 for (index, leg) in CrabRig.legX.enumerated() {
                     let lift = max(0, CrabRig.legSwing(index, pose: pose))
-                    b.rect(leg + dx, 22 + dy - lift, 2, 1, .paper)
-                    b.rect(leg + dx, 23 + dy - lift, 2, 2, .costumeB)
+                    let height = min(3, 4 - lift)
+                    let top = 24 + dy - lift - height + 1
+                    if height == 3 { b.rect(leg + dx, top, 2, 1, .paper) }
+                    b.rect(leg + dx, top + (height == 3 ? 1 : 0), 2, min(2, height), .costumeB)
                 }
                 break
             }
             guard layer == .front else { break }
             // The quills, all in the shadow blue so they read against the
-            // shell: three back-swept points across the crown and one
-            // flaring out past each flank, drooping at the tip.
-            b.rect(14 + dx, crown - 2, 4, 1, .costumeA)
-            b.pixel(15 + dx, crown - 3, .costumeA)
-            b.pixel(16 + dx, crown - 3, .costumeA)
+            // shell — recut to the operator's "sharp spike" pick, with more
+            // mass everywhere: a stacked crest narrowing to a single point
+            // over the crown, and two-row flares past each flank.
+            b.rect(13 + dx, crown - 2, 6, 1, .costumeA)
+            b.rect(14 + dx, crown - 3, 4, 1, .costumeA)
+            b.rect(15 + dx, crown - 4, 2, 1, .costumeA)
+            b.pixel(16 + dx, crown - 5, .costumeA)
             b.rect(10 + dx, crown - 1, 3, 1, .costumeA)
-            b.pixel(11 + dx, crown - 2, .costumeA)
+            b.rect(10 + dx, crown - 2, 2, 1, .costumeA)
             b.rect(19 + dx, crown - 1, 3, 1, .costumeA)
-            b.pixel(20 + dx, crown - 2, .costumeA)
+            b.rect(20 + dx, crown - 2, 2, 1, .costumeA)
             b.rect(3 + dx, 12 + dy, 3, 1, .costumeA)
-            b.pixel(3 + dx, 13 + dy, .costumeA)
+            b.rect(3 + dx, 13 + dy, 2, 1, .costumeA)
             b.rect(26 + dx, 12 + dy, 3, 1, .costumeA)
-            b.pixel(28 + dx, 13 + dy, .costumeA)
+            b.rect(27 + dx, 13 + dy, 2, 1, .costumeA)
 
             // 💍 The golden rings, arcing through his airspace right to left.
             // Scheduled on their own addend (salt 29), or handed a flight
@@ -627,26 +705,47 @@ enum CrabCostume {
             // render showed nothing at all and it took reading the case's
             // shape, not the effect's code, to see why.
             guard let dash = Self.effectWindow(at: pose.propPhase, salt: 23,
-                                               period: 5, duration: 0.75, chance: 0.5)
+                                               period: 9, duration: 1.6, chance: 0.4)
             else { break }
-            // Speed lines, in the margins beside him. He is standing
-            // still, so the lines do all the work — the same trick the skate
-            // cruise uses and for the same reason: on a fixed camera the world
-            // moves and the character does not.
-            for lane in 0..<3 {
-                let y = bodyY + dy + 3 + lane * 5
-                // `sin(π·u)`-shaped: the lines extend through the first half
-                // of the window and pull back through the second, so the
-                // window closing is the lines already gone — not eighteen lit
-                // cells vanishing in one frame.
-                let reach = Int((sin(dash * .pi) * 9).rounded())
-                // `.paper`, not `.costumeA`. That slot is his quill
-                // shadow-blue — a dark blue streak beside a blue crab on a dark
-                // desktop is three kinds of invisible, and the render proved it
-                // by showing nothing at all. Speed lines are white because
-                // speed lines have always been white.
-                b.rect(max(0, bodyX + dx - 4 - reach), y, 3, 1, .paper)
-                b.rect(min(PixelBuffer.side - 3, bodyX + bodyW + dx + 1 + reach), y, 3, 1, .paper)
+            // A real dash — the operator's pick: rarer (9s period, 0.4
+            // chance), longer (1.6s), TWO lanes instead of three blinky ones,
+            // and afterimage ticks off his back legs while it peaks. He is
+            // standing still, so the lines do all the work — the same trick
+            // the skate cruise uses and for the same reason: on a fixed
+            // camera the world moves and the character does not.
+            // TRAVELING segments, not parked bars — the audit caught the
+            // first cut appearing and vanishing a dozen cells at a time at
+            // the window edges while clamps pinned it motionless at the
+            // screen edge in between. Now the streak IS its own envelope:
+            // `reach` rides sin(π·u), the segment's length is min(3, reach),
+            // so it is born as a single cell beside him (glint-class), grows
+            // while it travels outward, runs off-grid, and comes back the
+            // same way — geometry eases both ends, the shuriken's defense.
+            let peak = sin(dash * .pi)
+            let reach = Int((peak * 6).rounded())
+            let len = min(3, reach)
+            if len > 0 {
+                for lane in 0..<2 {
+                    let y = bodyY + dy + 4 + lane * 6
+                    // `.paper`, not `.costumeA`. That slot is his quill
+                    // shadow-blue — a dark blue streak beside a blue crab on
+                    // a dark desktop is three kinds of invisible, and the
+                    // render proved it by showing nothing at all. Speed lines
+                    // are white because speed lines have always been white.
+                    b.rect(bodyX + dx - 2 - reach, y, len, 1, .paper)
+                    b.rect(bodyX + bodyW + dx + 2 + reach - len, y, len, 1, .paper)
+                }
+            }
+            // The afterimages: the back legs' trailing columns go quill-blue
+            // through the dash's peak — motion blur ON him, painted only over
+            // his own lit cells (masked to `.body`), never onto the desktop,
+            // where the audit showed shadow-blue floats invisibly. A two-cell
+            // repaint is glint-class: it snaps by nature, inside an eased
+            // window.
+            if peak > 0.45 {
+                for (x, y) in [(7, 22), (11, 22)] where b[x + dx, y + dy] == .body {
+                    b.pixel(x + dx, y + dy, .costumeA)
+                }
             }
 
         }

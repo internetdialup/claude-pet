@@ -101,4 +101,34 @@ struct ReelDeterminismTests {
         #expect(pose.prop == .skateboardOllie)
         #expect(pose.bob <= -9)
     }
+
+    /// The tail-tuck pin — the operator-visible fix of the polish round, and
+    /// the audit proved it revertible with every test green: the old droop
+    /// formula passed all 483. The tail's own column (x8, deck ink only —
+    /// wheels hang further in) is read straight out of the render.
+    @Test("The ollie tail tucks to his feet instead of drooping under them")
+    func ollieTailTucks() {
+        func tail(air: Double) -> (row: Int?, rest: Int) {
+            let t = (CrabAnimator.ollieAirStart + air * CrabAnimator.ollieAirSpan)
+                * CrabAnimator.Flourish.ollie.duration
+            let pose = CrabAnimator.flourishPose(.ollie, at: t)
+            let buffer = CrabRig.render(pose)
+            for y in 0..<PixelBuffer.side where buffer[8, y] == .slate {
+                return (y, 25 + pose.bob)
+            }
+            return (nil, 25 + pose.bob)
+        }
+        // Mid-float the tail rides AT or ABOVE its rest row — tucked to the
+        // back foot, not drooping below it. The old formula put it below.
+        let float = tail(air: 0.65)
+        #expect(float.row != nil && float.row! <= float.rest - 1,
+                "mid-float tail at \(String(describing: float.row)), rest \(float.rest)")
+        // At both air bounds the tail is level at rest — the zero-pixel seam
+        // the stance-hold depends on.
+        for edge in [0.02, 0.98] {
+            let bound = tail(air: edge)
+            #expect(bound.row == bound.rest,
+                    "tail at air \(edge): \(String(describing: bound.row)), rest \(bound.rest)")
+        }
+    }
 }

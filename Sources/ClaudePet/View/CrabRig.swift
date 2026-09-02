@@ -1355,7 +1355,18 @@ public enum CrabRig {
                 : 0.45 * (1 - Ease.smoothstep((air - 0.75) / 0.25))      // level out: → 0
             let cx = 16 + dx, deckY = 25 + dy
             let rise = Int((5 * tilt).rounded())          // nose lift, in cells
-            let dip = Int((2 * tilt).rounded())           // tail drop
+            // The tail SLAPS down on the pop, then TUCKS up through the float
+            // to meet the back foot — the operator's note, and the physics:
+            // after the pop the back foot carries the tail, so a tail still
+            // drooping two rows under his feet mid-float read as the board
+            // hanging off him rather than glued to him. Eased at every
+            // segment; ends level, same as before.
+            let tuck: Double =
+                air < 0.35 ? 2 * Ease.smoothstep(air / 0.35)             // slap: 0 → +2
+                : air < 0.6 ? 2 - 3 * Ease.smoothstep((air - 0.35) / 0.25) // tuck: +2 → −1
+                : air < 0.75 ? -1
+                : -1 * (1 - Ease.smoothstep((air - 0.75) / 0.25))        // level out: → 0
+            let dip = Int(tuck.rounded())                 // tail offset, signed
             // Tail, middle, nose — each a third of the deck, stepping.
             let yTail = deckY + dip
             let yMid = deckY + dip - (rise + dip) / 2
