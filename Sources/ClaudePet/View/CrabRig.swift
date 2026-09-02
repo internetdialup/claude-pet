@@ -1651,26 +1651,31 @@ public enum CrabRig {
             }
 
         case .skateboardNollie:
-            // The NOLLIE: the ollie popped off the nose. Same air, same
-            // profiles, the pitch mirrored end for end — the nose slaps down
-            // and tucks where the ollie's tail did, the tail rises where the
-            // ollie's nose did, and the deck levels for the wheels the same
-            // way. The joining pixels mirror too: they sit on the HIGHER
-            // slab's inner end here, because the steps now climb toward
-            // the tail.
+            // The NOLLIE: the ollie popped off the nose, and NOT just the
+            // ollie mirrored — the operator's read of the real trick: "it
+            // goes from the front bend down, THEN up." So the story is
+            // sequenced, not simultaneous. First the PRESS: the nose bends
+            // down under the front foot while the tail stays flat. Then the
+            // POP: the tail rises as the nose tucks back. Then a float held
+            // higher and longer than the ollie's — a nollie's whole look is
+            // a floatier float, because the rider's weight is forward and
+            // the tail rides high. The deck levels for the wheels the same
+            // way as the ollie. The joining pixels sit on the HIGHER slab's
+            // inner end, because the steps climb toward the tail.
             let air = pose.propPhase.truncatingRemainder(dividingBy: 1)
-            let tilt: Double =
-                air < 0.35 ? Ease.smoothstep(air / 0.35)
-                : air < 0.75 ? 1 - 0.55 * Ease.smoothstep((air - 0.35) / 0.4)
-                : 0.45 * (1 - Ease.smoothstep((air - 0.75) / 0.25))
+            let press: Double =                       // the nose, signed
+                air < 0.15 ? 2 * Ease.smoothstep(air / 0.15)                   // press: 0 → +2
+                : air < 0.4 ? 2 - 3 * Ease.smoothstep((air - 0.15) / 0.25)     // pop: +2 → −1
+                : air < 0.75 ? -1                                              // tucked through the float
+                : -1 * (1 - Ease.smoothstep((air - 0.75) / 0.25))             // level out: → 0
+            let tilt: Double =                        // the tail's lift
+                air < 0.15 ? 0                                                 // flat under the press
+                : air < 0.4 ? Ease.smoothstep((air - 0.15) / 0.25)             // pop: 0 → 1
+                : air < 0.75 ? 1 - 0.45 * Ease.smoothstep((air - 0.4) / 0.35)  // float: 1 → 0.55, higher than the ollie holds
+                : 0.55 * (1 - Ease.smoothstep((air - 0.75) / 0.25))           // level out: → 0
             let cx = 16 + dx, deckY = 25 + dy
             let rise = Int((5 * tilt).rounded())          // tail lift, in cells
-            let tuck: Double =
-                air < 0.35 ? 2 * Ease.smoothstep(air / 0.35)
-                : air < 0.6 ? 2 - 3 * Ease.smoothstep((air - 0.35) / 0.25)
-                : air < 0.75 ? -1
-                : -1 * (1 - Ease.smoothstep((air - 0.75) / 0.25))
-            let dip = Int(tuck.rounded())                 // nose offset, signed
+            let dip = Int(press.rounded())                // nose offset, signed
             let yTail = deckY - rise
             let yMid = deckY + dip - (rise + dip) / 2
             let yNose = deckY + dip

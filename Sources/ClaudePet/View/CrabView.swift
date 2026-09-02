@@ -121,10 +121,11 @@ public enum CrabAnimator {
             switch self {
             case .kickflip, .varialFlip: 2.8
             // Longer than the flips on purpose: the whole point of this one
-            // is the hang, and hang needs clock to hang in. The nollie is
-            // the same trick off the other end of the board, so it hangs
-            // just as long.
-            case .ollie, .nollie: 3.2
+            // is the hang, and hang needs clock to hang in.
+            case .ollie: 3.2
+            // Longer still: a nollie's whole look is a floatier float, and
+            // the press before the pop takes its own beat.
+            case .nollie: 3.6
             case .cruise: 2.6
             case .jump: 0.9
             case .wave: 1.8
@@ -228,15 +229,15 @@ public enum CrabAnimator {
     /// 🛹 THE SKATE SESSION: a rare long spell where he really skates —
     /// cruise, ollie, cruise, kickflip, nollie, roll-away, strung together.
     /// A stargaze-class idle spell, not a flourish: the 7-second flourish
-    /// scheduler cannot hold a 17-second beat. Dice `89 &+ 17` (the
+    /// scheduler cannot hold an 18-second beat. Dice `89 &+ 17` (the
     /// whether-a-cycle-fires family) over 180-second cycles, ~one idle
     /// session in four and a half cycles; never cycle zero. The nollie
     /// joined at the operator's call, and the window grew by its length.
     static let skateSessionBeats: [(Flourish, Double)] = [
         (.cruise, 2.6), (.ollie, 3.2), (.cruise, 2.6), (.kickflip, 2.8),
-        (.nollie, 3.2), (.cruise, 2.6),
+        (.nollie, 3.6), (.cruise, 2.6),
     ]
-    static let skateSessionLength = 17.7    // the beats plus a settling beat
+    static let skateSessionLength = 18.1    // the beats plus a settling beat
 
     static func skateSession(idleT t: Double) -> Double? {
         let cycle = Int(floor(t / 180))
@@ -1791,13 +1792,16 @@ public enum CrabAnimator {
             }
 
         case .nollie:
-            // The ollie off the nose — same air, same hang, the board's pitch
-            // mirrored (see the prop). What changes on HIM is the weight:
-            // popping the nose means the front foot does the work, so the
-            // balance arms swap roles — front arm low over the pop, back
-            // arm high — and the turn shade goes the OTHER way, the
-            // opposite shoulder coming round. He still watches the nose,
-            // which is still on his right.
+            // The ollie off the nose — the board presses, pops and floats on
+            // its own sequence (see the prop); what changes on HIM is the
+            // weight and the hang. Popping the nose means the front foot
+            // does the work, so the balance arms swap roles — front arm low
+            // over the pop, back arm high — and the turn shade goes the
+            // OTHER way, the opposite shoulder coming round. He still
+            // watches the nose, which is still on his right. And the hang
+            // is flatter than the ollie's (`pow 0.4` against 0.55): the
+            // apex is the grid's ceiling either way, so "a higher float" is
+            // spelled as MORE TIME at the top, not more rows.
             pose.prop = .skateboardNollie
             pose.propVisibility = 1
             pose.propPhase = 0
@@ -1806,7 +1810,7 @@ public enum CrabAnimator {
                 pose.bob = 1
             } else if progress < Self.ollieAirStart + Self.ollieAirSpan {
                 let air = (progress - Self.ollieAirStart) / Self.ollieAirSpan
-                let hang = pow(sin(air * .pi), 0.55)
+                let hang = pow(sin(air * .pi), 0.4)
                 pose.bob = -Int((hang * 10).rounded())
                 pose.legAmplitude = 1.6
                 pose.legPhase = .pi / 2

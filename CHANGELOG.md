@@ -22,6 +22,13 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **🛹 The varial spins him too.** A full body 360 with the board — his
+  right shoulder swings toward you, the face slides and squeezes to a
+  sliver, a six-wide pillar edge-on, then his back (a step darker, one lit
+  groove, no face, the headband or tee or scarf wrapped round), the lit side
+  coming back, the face sliding home, and the stomp facing you as before.
+  Every costume performs it dressed. The varial got 0.4 s more air to spin
+  in; the kickflip keeps its shoulders square.
 - **🛹 The manual lands like it should.** The rider used to let go of
   everything — arms, eyes, mouth, gaze, the lift — on one frame near the
   end while the board was still easing its nose down. Now each releases on

@@ -407,12 +407,13 @@ struct MotionContinuityTests {
                 "he landed on the underside — wheels at row \(landed.wheelRow), deck at \(landed.deckRow)")
     }
 
-    /// The nollie is the ollie's pitch mirrored: mid-pop the TAIL is the
-    /// high end, and the deck still lands level, wheels underneath. Measured
-    /// on the rendered deck ink, end by end, so a draw that quietly copied
-    /// the ollie's slabs without mirroring them would fail here first.
-    @Test("The nollie pops the nose, lifts the tail, and lands wheels-down")
-    func nollieLiftsTheTailAndLandsWheelsDown() {
+    /// The nollie is front-foot-first: the nose PRESSES down while the tail
+    /// is still flat, THEN the tail pops high, and the deck still lands
+    /// level, wheels underneath. Measured on the rendered deck ink, end by
+    /// end, so a draw that quietly mirrored the ollie's simultaneous slap
+    /// and rise — the first cut — would fail the press here first.
+    @Test("The nollie presses the nose, then lifts the tail, and lands wheels-down")
+    func nolliePressesThenLiftsAndLandsWheelsDown() {
         let duration = CrabAnimator.Flourish.nollie.duration
         func deckTops(at t: Double) -> (tail: Int, nose: Int) {
             let buffer = CrabRig.render(CrabAnimator.flourishPose(.nollie, at: t))
@@ -425,11 +426,18 @@ struct MotionContinuityTests {
             }
             return (tail, nose)
         }
-        // Air 0.35 is the pop's peak: progress = airStart + 0.35 · airSpan.
-        let peak = (CrabAnimator.ollieAirStart + 0.35 * CrabAnimator.ollieAirSpan) * duration
-        let popped = deckTops(at: peak)
+        func at(air: Double) -> Double {
+            (CrabAnimator.ollieAirStart + air * CrabAnimator.ollieAirSpan) * duration
+        }
+        // The press: nose two rows down, tail still flat on the deck line
+        // (which rides `bob`, so the two ends are compared to each other).
+        let pressed = deckTops(at: at(air: 0.14))
+        #expect(pressed.nose - pressed.tail == 2,
+                "the press should bend the nose down first — tail at row \(pressed.tail), nose at \(pressed.nose)")
+        // The pop: the tail rides high.
+        let popped = deckTops(at: at(air: 0.45))
         #expect(popped.nose - popped.tail >= 3,
-                "the tail should ride high off the nose pop — tail at row \(popped.tail), nose at \(popped.nose)")
+                "the tail should ride high off the pop — tail at row \(popped.tail), nose at \(popped.nose)")
 
         let landed = deckTops(at: duration - 0.05)
         #expect(landed.tail == landed.nose, "the nollie landed on a tilt")
