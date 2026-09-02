@@ -88,6 +88,7 @@ enum CostumeSheet {
             && holidaySheet(to: root.appendingPathComponent("sheet-holiday.png"))
             && skaterSheet(to: root.appendingPathComponent("sheet-skater.png"))
             && headwearSheet(to: root.appendingPathComponent("sheet-headwear.png"))
+            && effectsSheet(to: root.appendingPathComponent("sheet-effects.png"))
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
     }
 
@@ -124,6 +125,46 @@ enum CostumeSheet {
         ]
         return write("THE SEASONS — costumes · ambience",
                      rows: [costumes, ambience], to: url)
+    }
+
+    // MARK: Every effect
+
+    /// One tile per costume effect, each staged mid-window at its solved
+    /// dice instant — the whole wardrobe's motion on one page, for the
+    /// operator's per-costume VFX review.
+    private static func effectsSheet(to url: URL) -> Bool {
+        func staged(_ costume: Costume, _ phase: Double, _ label: String,
+                    mutate: (inout CrabPose) -> Void = { _ in }) -> Tile {
+            // t = 0.9: eyes open, no blink — a blinking tile reads as a
+            // broken face, which this sheet learned the hard way.
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+            pose.propPhase = phase
+            mutate(&pose)
+            return tile(CrabRig.render(pose, costume: costume), costume, label)
+        }
+        let rowOne = [
+            staged(.ninja, 90.9, "shuriken t=90.9"),
+            staged(.frankenstein, 35.3, "sparks t=35.3"),
+            staged(.retroBlack, 33.8, "sheen t=33.8"),
+            staged(.matrix, 2.0, "rain (continuous)"),
+            staged(.tiger, 2.0, "tail (continuous)"),
+        ]
+        let rowTwo = [
+            staged(.white, 2.0, "snow (continuous)"),
+            staged(.arcade, 2.0, "marquee (continuous)"),
+            staged(.gundam, 36.55, "scan t=36.55"),
+            staged(.gundam, 14.3, "eye flare t=14.3"),
+            staged(.sonic, 9.8, "dash t=9.8"),
+        ]
+        let rowThree = [
+            staged(.sonic, 1.0, "rings (staged)") { $0.ringFlight = 0.4 },
+            staged(.pumpkin, 8.2, "flicker t=8.2"),
+            staged(.turkey, 9.4, "strut t=9.4"),
+            staged(.santa, 30.3, "breath t=30.3"),
+            staged(.skater, 27.3, "kick-push t=27.3"),
+        ]
+        return write("EVERY EFFECT — one per costume, mid-window",
+                     rows: [rowOne, rowTwo, rowThree], to: url)
     }
 
     // MARK: Headwear
