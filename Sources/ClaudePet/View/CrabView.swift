@@ -63,7 +63,7 @@ public enum CrabAnimator {
     /// per 45s idle cycle — 43 shared by addend), `47 &+ 7` (the gundam's
     /// darker-turquoise cameras, per wear timestamp).
     ///
-    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 3 = New Year fireworks (scheduler), 5 = the pumpkin's candle flicker, 7 = the turkey's strut, 11 = the shuriken, 13 = Frankenstein's sparks, 17 = the santa's breath, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 37 = firework colour/column (per burst cycle), 41 = the Gundam's eye flare |
+    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 3 = New Year fireworks (scheduler), 5 = the pumpkin's candle flicker, 7 = the turkey's strut, 11 = the shuriken, 13 = Frankenstein's sparks, 17 = the santa's breath, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 37 = firework colour/column (per burst cycle), 41 = the Gundam's eye flare, 43 = the skater's kick-push |
     ///
     /// **Free:** none. 97 is the last multiplier and the costumes share it by
     /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.

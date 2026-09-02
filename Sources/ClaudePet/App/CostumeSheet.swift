@@ -86,6 +86,7 @@ enum CostumeSheet {
             && ollieSheet(to: root.appendingPathComponent("sheet-ollie.png"))
             && clawdSheet(to: root.appendingPathComponent("sheet-clawd.png"))
             && holidaySheet(to: root.appendingPathComponent("sheet-holiday.png"))
+            && skaterSheet(to: root.appendingPathComponent("sheet-skater.png"))
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
     }
 
@@ -122,6 +123,30 @@ enum CostumeSheet {
         ]
         return write("THE SEASONS — costumes · ambience",
                      rows: [costumes, ambience], to: url)
+    }
+
+    // MARK: The skater
+
+    private static func skaterSheet(to url: URL) -> Bool {
+        func dressed(_ pose: CrabPose, _ label: String) -> Tile {
+            tile(CrabRig.render(pose, costume: .skater), .skater, label)
+        }
+        let idle = [0.0, 0.9, 1.6].map {
+            dressed(CrabAnimator.pose(mood: .idle, t: $0, flourishes: false), "idle t=\($0)")
+        }
+        // Kick-push: salt 43 cycle 3 fires — 27.0…27.8.
+        var pushed = CrabAnimator.pose(mood: .idle, t: 1.0, flourishes: false)
+        pushed.propPhase = 27.3
+        let row = idle + [dressed(pushed, "kick-push")]
+        let tricks = [
+            dressed(CrabAnimator.flourishPose(.manual, at: 1.3), "manual"),
+            dressed(CrabAnimator.flourishPose(.ollie, at: 0.9), "ollie rise"),
+            dressed(CrabAnimator.flourishPose(.kickflip, at: 1.4), "kickflip air"),
+            dressed(CrabAnimator.flourishPose(.shoveIt, at: 1.0), "shove-it"),
+            dressed(CrabAnimator.pose(mood: .sleeping, t: 2, flourishes: false), "asleep in it"),
+        ]
+        return write("THE SKATER — the fit · on the board",
+                     rows: [row, tricks], to: url)
     }
 
     // MARK: Normal Claw'd

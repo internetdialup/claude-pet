@@ -7,7 +7,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **🛹 He's a skateboarder now.** Two new tricks — a held manual with the
+  ground rushing under him, and a flat shove-it he watches spin beneath his
+  own hop — plus, rarely, a whole session: cruise, ollie, cruise, kickflip,
+  roll-away, strung into one ride. And a Skater fit in the costume menu:
+  backwards cap, charcoal tee, pads, with a kick-push of dust when the mood
+  takes him. Twelve idle moves, twenty props, fourteen looks.
 
 ## [1.7.0] — 2026-09-02
 

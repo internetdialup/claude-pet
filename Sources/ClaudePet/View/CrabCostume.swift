@@ -170,6 +170,16 @@ struct CostumeStyle {
                     .costumeB: rgb(0xF2_EFE4),  // trim, pom, fringe
                 ],
                 yieldsCrownToProps: true)       // a hat is crown furniture
+        case .skater:
+            // 🛹 The skater fit: an OUTFIT on his own shell, like the santa —
+            // backwards cap, dark tee, pads. The board stays the prop system's.
+            return CostumeStyle(
+                inks: [
+                    .costumeA: rgb(0x2A_2A30),  // the tee, worn charcoal
+                    .costumeB: rgb(0x24_304A),  // the cap, navy
+                    .costumeC: rgb(0xB8_B4A8),  // pads, scuffed off-white
+                ],
+                yieldsCrownToProps: true)       // the cap is crown furniture
         case .sonic:
             return CostumeStyle(
                 inks: [
@@ -830,6 +840,36 @@ enum CrabCostume {
                         b.pixel(cell.0 + dx, cell.1 + dy, .paper)
                     }
                 }
+            }
+
+        case .skater:
+            let crown = bodyY + dy + squash
+            if layer == .onBody {
+                // The tee: a charcoal band across the lower shell with a
+                // two-cell chest mark, and pads on all four legs riding the
+                // gait the way every shoe here does.
+                b.rect(bodyX + 1 + dx - squash, 18 + dy, bodyW - 2 + squash * 2, 3, .costumeA)
+                b.rect(10 + dx, 19 + dy, 2, 1, .paper)
+                for (index, leg) in CrabRig.legX.enumerated() {
+                    let lift = max(0, CrabRig.legSwing(index, pose: pose))
+                    b.rect(leg + dx, 22 + dy - lift, 2, 1, .costumeC)
+                }
+                break
+            }
+            guard layer == .front else { break }
+            // The backwards cap: dome over the crown, the bill sticking out
+            // BEHIND him (his gaze rides right down the line, so the bill
+            // points left), button on top.
+            b.rect(12 + dx, crown, 8, 1, .costumeB)
+            b.rect(13 + dx, crown - 1, 6, 1, .costumeB)
+            b.pixel(16 + dx, crown - 2, .costumeB)
+            b.rect(8 + dx, crown - 1, 4, 1, .costumeB)
+            // 💨 The kick-push: two short dashes behind his feet now and
+            // then, like he just pushed off. Salt 43 on the 97 family.
+            if Self.effectWindow(at: pose.propPhase, salt: 43,
+                                 period: 9, duration: 0.8, chance: 0.45) != nil {
+                b.rect(3 + dx, 22 + dy, 2, 1, .shadow)
+                b.rect(2 + dx, 24 + dy, 2, 1, .shadow)
             }
 
         case .sonic:
