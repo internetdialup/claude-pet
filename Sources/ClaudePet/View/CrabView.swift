@@ -58,7 +58,7 @@ public enum CrabAnimator {
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
     /// shot), `43 &+ 13` (idle chatter, per seed).
     ///
-    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each (11 = the shuriken) |
+    /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen |
     ///
     /// **Free:** none. 97 is the last multiplier and the costumes share it by
     /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.
@@ -378,6 +378,9 @@ public enum CrabAnimator {
         // no sequence of clicks that produces one — which is the exact case
         // this menu's own note says it exists for.
         case kickflip, varial, cruise
+        // Sonic's rings: dice on top of a worn costume, the same
+        // no-sequence-of-clicks argument as the tricks.
+        case rings
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -390,6 +393,19 @@ public enum CrabAnimator {
             case .glint, .hearts, .ting: 0
             // The tricks release by finishing the pass already in flight.
             case .kickflip, .varial, .cruise: 0
+            case .rings: 0          // a flight in progress finishes
+            }
+        }
+
+        /// The costume this effect belongs to — `.none` for the ones that are
+        /// his. The menu disables a preview whose wardrobe is not worn rather
+        /// than dressing him as a side effect of a review, and the preview
+        /// tests render each effect in its own wardrobe so the diff they
+        /// measure is the preview, not the costume.
+        nonisolated var wardrobe: Costume {
+            switch self {
+            case .rings: .sonic
+            default: .none
             }
         }
     }
@@ -555,6 +571,19 @@ public enum CrabAnimator {
                 pose.blink = 1
                 pose.mouth = .smile
             }
+
+        case .rings:
+            // A flight every 2.8s: a beat of rest, then the two-second
+            // crossing. The REST COMES FIRST — the frozen sentinel, exactly
+            // the tricks' argument above — and the release is the glint's
+            // `until` contract: a flight already crossing when you let go
+            // finishes, and no new one starts.
+            let cycle = 2.8
+            let passStart = (frame.t / cycle).rounded(.down) * cycle
+            if let endedT = frame.endedT, passStart > endedT { return }
+            let since = frame.t - passStart
+            guard since >= 0.8 else { return }
+            pose.ringFlight = (since - 0.8) / 2.0
 
         case .beacon:
             break       // composition layer; `PetRootView` draws it

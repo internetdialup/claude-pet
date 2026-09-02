@@ -155,6 +155,13 @@ public struct CrabPose: Sendable, Equatable {
     public var shootingStarY: Int = 0
     public var shootingStarDX: Int = 1
 
+    /// 💍 Sonic's ring flight, 0…1, or nil for no rings. A travel parameter
+    /// like `glint`, so the blend leaves it alone (`blend` starts from the
+    /// incoming pose, so a non-lerped field takes its value by construction).
+    /// Normally nil — the costume rolls its own dice on `propPhase` — and set
+    /// only by the secret-menu preview, which must bypass those dice.
+    public var ringFlight: Double?
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?

@@ -166,14 +166,19 @@ struct EasterEggScheduleTests {
     @Test("Every previewable effect actually renders, at any hour")
     func previewsBypassTheirGates() {
         let plain = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
-        let baseline = CrabRig.render(plain)
 
         for effect in CrabAnimator.PreviewEffect.allCases where effect != .beacon {
+            // Rendered in the effect's own wardrobe, and so is its baseline —
+            // otherwise the costume itself trips the diff and the test proves
+            // nothing about the preview. The pose is held fixed, so the
+            // costume's scheduled effects cancel out of the comparison.
+            let baseline = CrabRig.render(plain, costume: effect.wardrobe)
             var everDrew = false
             for step in 0...(24 * 30) {
                 var pose = plain
                 CrabAnimator.applyPreview(frame(effect, Double(step) / 30), to: &pose)
-                if cellsDiffering(CrabRig.render(pose), baseline) > 0 { everDrew = true; break }
+                if cellsDiffering(CrabRig.render(pose, costume: effect.wardrobe),
+                                  baseline) > 0 { everDrew = true; break }
             }
             #expect(everDrew, "\(effect) never drew anything in twenty-four seconds")
         }
@@ -222,14 +227,16 @@ struct EasterEggScheduleTests {
     @Test("Nothing is mid-flight in a preview's first frame")
     func everyPreviewStartsFromNothing() {
         let plain = CrabAnimator.pose(mood: .idle, t: 5, flourishes: false)
-        let baseline = CrabRig.render(plain)
 
         // `.ting` is excluded on purpose: a wink and a twinkle both snap in
         // nature, which is the exemption `Ease` and `drawWinkGlint` grant.
         for effect in CrabAnimator.PreviewEffect.allCases where effect != .ting {
+            // Per-effect baseline in the effect's own wardrobe, as above.
+            let baseline = CrabRig.render(plain, costume: effect.wardrobe)
             var pose = plain
             CrabAnimator.applyPreview(frame(effect, 0), to: &pose)
-            #expect(cellsDiffering(CrabRig.render(pose), baseline) == 0,
+            #expect(cellsDiffering(CrabRig.render(pose, costume: effect.wardrobe),
+                                   baseline) == 0,
                     "\(effect) is already mid-flight on its first frame")
         }
         #expect(CrabView.composedTint(mood: .idle, t: 0, rainbowElapsed: nil,
@@ -239,7 +246,7 @@ struct EasterEggScheduleTests {
         #expect(WaitingLight.previewBreath(t: 0) == 0)
 
         // …and it does not reach full strength in two frames either.
-        var previous = baseline
+        var previous = CrabRig.render(plain)
         for step in 0...30 {
             var pose = plain
             CrabAnimator.applyPreview(frame(.basking, Double(step) / 30), to: &pose)

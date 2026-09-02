@@ -606,6 +606,20 @@ enum CrabCostume {
             b.rect(26 + dx, 12 + dy, 3, 1, .costumeA)
             b.pixel(28 + dx, 13 + dy, .costumeA)
 
+            // 💍 The golden rings, arcing through his airspace right to left.
+            // Scheduled on their own addend (salt 29), or handed a flight
+            // directly by the secret-menu preview — one draw, two triggers,
+            // and the preview wins because dice never roll when a flight is
+            // already in hand. BEFORE the dash guard, deliberately: the dash's
+            // `break` ends the whole case, and rings that only flew during a
+            // dash would be the unreachable-effect bug this case already
+            // documents once.
+            if let flight = pose.ringFlight
+                ?? Self.effectWindow(at: pose.propPhase, salt: 29,
+                                     period: 8, duration: 2.0, chance: 0.4) {
+                drawRings(&b, flight: flight)
+            }
+
             // No layer check here, and that is not an omission: the quills'
             // `guard layer == .front` above already narrowed this case to the
             // front pass, so everything below it is front-only. The first
@@ -635,6 +649,44 @@ enum CrabCostume {
                 b.rect(min(PixelBuffer.side - 3, bodyX + bodyW + dx + 1 + reach), y, 3, 1, .paper)
             }
 
+        }
+    }
+
+    /// Three rings in staggered flight: enter off-grid right, cross the sky
+    /// rows, exit off-grid left — geometry is the no-snap defense, exactly the
+    /// shuriken's. The spin is width: 5-wide, 3-wide, edge-on, 3-wide, the
+    /// shuriken's two-frame trick with one more step. `.yellow` ring,
+    /// `.flameCore` highlight — StarMark's costume-immune key. Every cell is
+    /// masked to `.clear`, so quills, props and the glyph box keep their own.
+    private static func drawRings(_ b: inout PixelBuffer, flight: Double) {
+        for k in 0..<3 {
+            let p = min(1.0, max(0.0, flight * 1.3 - Double(k) * 0.15))
+            guard p > 0, p < 1 else { continue }
+            let x = 30 - Int(p * 38)
+            // One whole-pixel crest over his head at mid-flight.
+            let y = 2 + ((0.35...0.65).contains(p) ? -1 : 0)
+            ringStamp(&b, x: x, y: y, frame: Int(p * 16))
+        }
+    }
+
+    private static func ringStamp(_ b: inout PixelBuffer, x: Int, y: Int, frame: Int) {
+        func put(_ px: Int, _ py: Int, _ ink: PixelBuffer.Ink) {
+            guard px >= 0, px < PixelBuffer.side, py >= 0, py < PixelBuffer.side,
+                  b[px, py] == .clear else { return }
+            b.pixel(px, py, ink)
+        }
+        switch frame % 4 {
+        case 0:  // full face, 5 wide
+            for c in 1...3 { put(x + c, y, .yellow); put(x + c, y + 4, .yellow) }
+            for r in 1...3 { put(x, y + r, .yellow); put(x + 4, y + r, .yellow) }
+            put(x + 4, y + 2, .flameCore)
+        case 2:  // edge-on, 1 wide
+            for r in 0...4 { put(x + 2, y + r, .yellow) }
+            put(x + 2, y + 2, .flameCore)
+        default: // three-quarter, 3 wide
+            for r in 0...4 { put(x + 1, y + r, .yellow) }
+            put(x + 3, y + 2, .yellow)
+            put(x + 2, y + 2, .flameCore)
         }
     }
 }

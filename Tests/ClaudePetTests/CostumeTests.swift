@@ -110,6 +110,59 @@ struct CostumeTests {
 }
 
 /// The tiger reads tiger: orange shell, darker stripes, lighter belly.
+/// Sonic's golden rings: scheduled on `97 &+ 29`, drawn only into empty sky,
+/// and never in a first cycle — the frozen sentinel every dice answers to.
+@Suite("Sonic rings")
+struct SonicRingTests {
+
+    /// The cadence pin: chance 0.4 on the dice means about two cycles in five
+    /// carry a flight. A drifted salt or chance moves this immediately.
+    @Test func ringsFireAboutTwoCyclesInFive() {
+        var fired = 0
+        for cycle in 1...2000 where CrabAnimator.noise(cycle &* 97 &+ 29) < 0.4 {
+            fired += 1
+        }
+        let rate = Double(fired) / 2000
+        #expect(rate > 0.36 && rate < 0.44, "ring dice fire at \(rate)")
+    }
+
+    /// No scheduled flight in cycle zero, at any instant of it — a frozen
+    /// render at small t must be a clean crab.
+    @Test func scheduledRingsRespectTheSentinel() {
+        for step in 0..<80 {
+            #expect(CrabCostume.effectWindow(at: Double(step) * 0.1, salt: 29,
+                                             period: 8, duration: 2.0, chance: 0.4) == nil)
+        }
+    }
+
+    /// A flight paints gold into cells that were empty, and nowhere else: not
+    /// over the quills, not below the sky rows, never anything but ring inks.
+    @Test func ringsOnlyFillEmptySky() {
+        // Cycle 0 on the prop clock, so the costume's own scheduled dash and
+        // rings are silent and the staged flight is the only delta.
+        var pose = CrabAnimator.pose(mood: .idle, t: 0.5, flourishes: false)
+        pose.propPhase = 0.5
+        let bare = CrabRig.render(pose, costume: .sonic)
+        var sweep = false
+        for step in 1...19 {
+            var staged = pose
+            staged.ringFlight = Double(step) * 0.05
+            let dressed = CrabRig.render(staged, costume: .sonic)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where dressed[x, y] != bare[x, y] {
+                    sweep = true
+                    #expect(bare[x, y] == .clear,
+                            "a ring painted over \(bare[x, y]) at (\(x),\(y))")
+                    #expect(dressed[x, y] == .yellow || dressed[x, y] == .flameCore,
+                            "a ring drew \(dressed[x, y])")
+                    #expect(y < 8, "a ring left the sky rows at (\(x),\(y))")
+                }
+            }
+        }
+        #expect(sweep, "no flight instant drew any ring at all")
+    }
+}
+
 @Suite("Tiger palette")
 @MainActor
 struct TigerPaletteTests {
