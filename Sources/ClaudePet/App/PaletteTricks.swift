@@ -142,12 +142,43 @@ enum PaletteTricks {
                        line: member.line, golden: member.golden,
                        to: bubblesDir.appendingPathComponent(name)) else { return false }
         }
-        print("wrote tricks/costumes/vfx/states/bubbles drip sets to \(root.path)")
+
+        // 🧢 The hats: every trick twice, once in the beanie and once in a
+        // cap, cap colours rotating through the live wardrobe's own list.
+        // Headwear is a live-only dice on the desk; here it is simply worn.
+        let hatsDir = root.appendingPathComponent("hats")
+        let specialDir = root.appendingPathComponent("special")
+        do {
+            try FileManager.default.createDirectory(at: hatsDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: specialDir, withIntermediateDirectories: true)
+        } catch { return false }
+        for (index, trick) in tricks.enumerated() {
+            let beanieGround = grounds[index % grounds.count]
+            let capGround = grounds[(index + 4) % grounds.count]
+            let capInk = CrabAnimator.capColours[index % CrabAnimator.capColours.count]
+            guard clip(trick: trick, ground: beanieGround.color, costume: .none,
+                       line: nil, golden: false, headwear: .blackBeanie,
+                       to: hatsDir.appendingPathComponent(
+                           "clawd-\(trick.rawValue)-beanie-\(beanieGround.name).gif")),
+                  clip(trick: trick, ground: capGround.color, costume: .none,
+                       line: nil, golden: false, headwear: .cap(capInk),
+                       to: hatsDir.appendingPathComponent(
+                           "clawd-\(trick.rawValue)-cap-\(capGround.name).gif"))
+            else { return false }
+        }
+
+        // 💨 The Green Hill run — Sonic-Claw'd sprinting across the
+        // checkered tiles, rings overhead. One clip; it owns its ground.
+        guard sonicRunClip(to: specialDir.appendingPathComponent("clawd-sonic-run.gif"))
+        else { return false }
+
+        print("wrote tricks/costumes/vfx/states/bubbles/hats/special drip sets to \(root.path)")
         return true
     }
 
     private static func clip(trick: CrabAnimator.Flourish, ground: Color, costume: Costume,
-                             line: String?, golden: Bool, to url: URL) -> Bool {
+                             line: String?, golden: Bool,
+                             headwear: CrabPose.Headwear = .none, to url: URL) -> Bool {
         let lead = 0.6, settle = 0.9
         let seconds = lead + trick.duration + settle
         let frames = Int((seconds / frameDelay).rounded())
@@ -165,6 +196,7 @@ enum PaletteTricks {
                 ? stance
                 : CrabAnimator.flourishPose(trick, at: local - lead)
             if golden { pose.goldenBoard = true }
+            pose.headwear = headwear
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: costume, line: line, at: local),
                 scale: 1, isOpaque: true)
@@ -243,6 +275,58 @@ enum PaletteTricks {
         return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
     }
 
+    // MARK: The Green Hill run
+
+    /// Sonic's two things, per the operator: gold rings and the checkered
+    /// ground. Claw'd in the sonic fit sprints right on a fixed camera — the
+    /// world scrolls and he does not, the cruise's own trick — with the dash
+    /// streaks riding one full window per loop and ring flights overhead.
+    private static let runSeconds = 3.2
+    private static let runGroundHeight: CGFloat = 176
+    /// 3.2 s × 100 px/s = 320 px = four 80 px checker periods, so the loop
+    /// closes on the ground as well as on him.
+    private static let runScrollSpeed: CGFloat = 100
+
+    private static func sonicRunClip(to url: URL) -> Bool {
+        let frames = Int((runSeconds / frameDelay).rounded())
+        let stance = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            var pose = stance
+            pose.legPhase = local * 12
+            pose.legAmplitude = 1.4
+            pose.gazeX = 1
+            // The dash's own envelope stretched over the whole clip: born a
+            // cell wide, peaking mid-loop, gone by the wrap — the loop seam
+            // is invisible by construction. Window solved at salt 23: the
+            // cycle-1 fire spans 9.0–10.6.
+            pose.propPhase = 9.0 + (local / runSeconds) * 1.6
+            pose.ringFlight = (local / 1.6).truncatingRemainder(dividingBy: 1)
+            guard let image = SpriteImage.cgImage(of: runScene(pose, at: local),
+                                                  scale: 1, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    @ViewBuilder
+    private static func runScene(_ pose: CrabPose, at local: Double) -> some View {
+        ZStack(alignment: .bottom) {
+            MarketingPalette.sky
+            GreenHillGround(scroll: CGFloat(local) * runScrollSpeed)
+                .frame(width: canvas.width, height: runGroundHeight)
+            PixelCanvasView(buffer: CrabRig.render(pose, costume: .sonic),
+                            inkOverrides: CostumeStyle.blendedOverrides(
+                                from: .sonic, to: .sonic, u: 1),
+                            seamBleed: 0)
+                .frame(width: spriteSide, height: spriteSide)
+                .offset(y: -100)   // sneakers on the grass line
+        }
+        .frame(width: canvas.width, height: canvas.height)
+    }
+
     @ViewBuilder
     private static func scene(_ pose: CrabPose, on ground: Color, costume: Costume,
                               line: String?, at local: Double) -> some View {
@@ -274,5 +358,41 @@ enum PaletteTricks {
             }
         }
         .frame(width: canvas.width, height: canvas.height)
+    }
+}
+
+/// Green Hill Zone's ground, quoted: a grass lip over brown-and-tan
+/// checkers, scrolling left. Its own palette on purpose — this is a
+/// reference to a place, not a marketing colour.
+private struct GreenHillGround: View {
+    var scroll: CGFloat
+
+    private static let grass = Color(hex: 0x3FD44A)
+    private static let grassEdge = Color(hex: 0x1F9E3A)
+    private static let tan = Color(hex: 0xD9A066)
+    private static let brown = Color(hex: 0x8F5A2B)
+    private static let check: CGFloat = 40
+
+    var body: some View {
+        Canvas { context, size in
+            let grassH: CGFloat = 32
+            context.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: grassH)),
+                         with: .color(Self.grass))
+            context.fill(Path(CGRect(x: 0, y: grassH, width: size.width, height: 8)),
+                         with: .color(Self.grassEdge))
+            let top = grassH + 8
+            let rows = Int(((size.height - top) / Self.check).rounded(.up))
+            let shift = scroll.truncatingRemainder(dividingBy: Self.check * 2)
+            let columns = Int((size.width / Self.check).rounded(.up)) + 2
+            for row in 0..<rows {
+                for column in -2..<columns {
+                    let x = CGFloat(column) * Self.check - shift
+                    let dark = (row + column) % 2 == 0
+                    let cell = CGRect(x: x, y: top + CGFloat(row) * Self.check,
+                                      width: Self.check, height: Self.check)
+                    context.fill(Path(cell), with: .color(dark ? Self.brown : Self.tan))
+                }
+            }
+        }
     }
 }

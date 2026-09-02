@@ -90,6 +90,56 @@ enum CostumeSheet {
             && headwearSheet(to: root.appendingPathComponent("sheet-headwear.png"))
             && effectsSheet(to: root.appendingPathComponent("sheet-effects.png"))
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
+            && tigerSheet(to: root.appendingPathComponent("sheet-tiger.png"))
+            && coderSheet(to: root.appendingPathComponent("sheet-coder.png"))
+    }
+
+    // MARK: The tiger, for pointing
+
+    /// The current tiger fitting across his moods — the pointing surface
+    /// for its refinement round, the way the gundam and sonic sheets were.
+    private static func tigerSheet(to url: URL) -> Bool {
+        func dressed(_ mood: PetMood, t: Double = 0.9, phase: Double = 0,
+                     _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+            pose.propPhase = phase
+            return tile(CrabRig.render(pose, costume: .tiger), .tiger, label)
+        }
+        let stills = [
+            dressed(.idle, "idle"),
+            dressed(.idle, phase: 0.9, "tail mid-swish"),
+            dressed(.idle, phase: 1.8, "tail far"),
+            dressed(.working, "working"),
+            dressed(.thinking, "thinking"),
+        ]
+        let moods = [
+            dressed(.done, "done"),
+            dressed(.nudging, "nudging"),
+            dressed(.cooking, "cooking"),
+            dressed(.needsAttention, "needs you"),
+            dressed(.sleeping, t: 2.0, "sleeping"),
+        ]
+        return write("TIGER — current fitting, for pointing", rows: [stills, moods], to: url)
+    }
+
+    // MARK: The coder
+
+    /// Matrix-turned-Coder: the glasses, with and without the rain.
+    private static func coderSheet(to url: URL) -> Bool {
+        func dressed(_ mood: PetMood, t: Double = 0.9, phase: Double,
+                     _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+            pose.propPhase = phase
+            return tile(CrabRig.render(pose, costume: .matrix), .matrix, label)
+        }
+        let row = [
+            dressed(.idle, phase: 0.0, "idle, rain t=0"),
+            dressed(.idle, phase: 2.0, "rain t=2"),
+            dressed(.idle, phase: 4.5, "rain t=4.5"),
+            dressed(.working, phase: 2.0, "working"),
+            dressed(.thinking, phase: 2.0, "thinking"),
+        ]
+        return write("CODER — glasses on, rain running", rows: [row], to: url)
     }
 
     // MARK: The seasons
@@ -151,7 +201,9 @@ enum CostumeSheet {
         ]
         let rowTwo = [
             staged(.white, 2.0, "snow (continuous)"),
-            staged(.arcade, 2.0, "marquee (continuous)"),
+            // The arcade marquee tile stood here until the operator killed
+            // the marquee; the second bolt's spark takes the slot.
+            staged(.frankenstein, 35.55, "sparks, right bolt t=35.55"),
             staged(.gundam, 36.55, "scan t=36.55"),
             staged(.gundam, 14.3, "eye flare t=14.3"),
             staged(.sonic, 9.8, "dash t=9.8"),
