@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/media/wordmark.png" width="100%" alt="Claude Pet — your Claude Code sessions, as a crab on your desk">
   <img src="docs/media/desktop.gif" width="100%" alt="Claw'd cycling through every state — idle, thinking, working, cooking, waiting on you, done, and the status ticker">
-  <p><em>Every state, in order. Rendered from the sprite rig, not screen-recorded.</em></p>
+  <p><em>Every state, in order. Rendered straight from the sprite rig.</em></p>
   <p>
     <a href="https://github.com/internetdialup/claude-pet/releases/latest"><strong>⬇️ Download for macOS</strong></a>
     &nbsp;·&nbsp; <a href="#-build-him-yourself">Build it yourself</a>
@@ -40,11 +40,12 @@ him opens a roster of them all.
 </tr>
 </table>
 
-None of these are decorative. **Cooking** fires on 8+ tool calls a minute or a
-live subagent fan-out — 8 because a measured ordinary session runs a median of 4
-and a 90th percentile of 7, while a fanned-out one runs 22. **Nudging** is an
-exact `ExitPlanMode` with no answer yet. **Thinking** shows three dots rather
-than words, because there is no honest label for that moment.
+Each state maps to something measurable. **Cooking** fires at 8+ tool calls a
+minute or a live subagent fan-out. Why 8? A normal session runs about 4 a
+minute and rarely passes 7, while a fanned-out sprint runs 22. **Nudging**
+means an `ExitPlanMode` is sitting there waiting for your answer.
+**Thinking** just shows three dots. There's no honest label for that moment,
+so he doesn't pretend to have one.
 
 ## ✨ Ten things he does when nobody asked
 
@@ -65,9 +66,10 @@ than words, because there is no honest label for that moment.
 </tr>
 </table>
 
-On a seven-second cycle, but only about seven cycles in ten fire — so the gaps
-stay irregular and he is still most of the time. Land a trick and he says
-something about it.
+These run on a seven-second cycle, but only about seven cycles in ten fire, so
+the gaps stay irregular and he is still most of the time. The rotation leans
+toward the skateboard. Land a trick and he says something about it, and about
+one trick in fifty rides a golden board.
 
 While he waits he shares what he knows: **76 fun facts** across computer
 science, AI and Claude, plus **16 tips** about Claude Code itself, every one
@@ -102,9 +104,10 @@ pet him and hearts rise. **Poke him three times quickly** for something else. �
   <img src="docs/media/costumes.gif" width="100%" alt="Claw'd front and centre landing a kickflip and shouting about it, Gundam reading an Anthropic fact on his left, the ninja thinking silently on his right">
 </div>
 
-Pick one from the menu bar. They are not recolours: Frankenstein has bolts at
-the temples, Arcade is lit from inside like a cabinet, and each has a movement
-of its own — sparks, falling snow, a scanning column, a swishing tail.
+Pick one from the menu bar. Each costume is its own drawing, with its own
+animation. Frankenstein has bolts at the temples and throws sparks. Arcade is
+lit from inside like a cabinet. Arctic White gets falling snow, Gundam a
+scanning visor, Tiger a swishing tail.
 
 ## 📋 Every session at once
 
@@ -112,8 +115,9 @@ of its own — sparks, falling snow, a scanning column, a swishing tail.
   <img src="docs/media/roster.png" width="340" alt="The session roster: three live sessions with status dots, activities and project names, one pinned">
 </div>
 
-<p align="center"><em>These sessions are invented. The real panel lists your
-actual project directories — which is exactly why the picture does not.</em></p>
+<p align="center"><em>These sessions are made up for the screenshot. The real
+panel shows your actual project directories, which is why we didn't
+screenshot the real one.</em></p>
 
 Click a row to pin him to that session; click again to go back to following the
 busiest. Summon a **second pet** from the menu bar and the two park beside each
@@ -121,8 +125,8 @@ other without their speech bubbles ever overlapping.
 
 ## 🗣️ Make him say your words
 
-Everything Claw'd says lives in **one file** — no strings scattered through the
-codebase, no config format to learn. Open
+Every line in his speech bubble lives in **one file**. No strings scattered
+through the codebase, no config format to learn. Open
 [`Sources/ClaudePet/Support/vocab.swift`](Sources/ClaudePet/Support/vocab.swift),
 change the strings, rebuild:
 
@@ -155,12 +159,12 @@ open it, drag Claw'd to Applications.
 > xattr -dr com.apple.quarantine /Applications/ClaudePet.app
 > ```
 >
-> Prefer the UI? Open it once, dismiss the warning, then **System Settings →
-> Privacy & Security → Open Anyway**. On macOS 14 you can right-click → **Open**
-> instead; macOS 15 removed that shortcut.
+> If you'd rather use the UI: open it once, dismiss the warning, then go to
+> **System Settings → Privacy & Security → Open Anyway**. On macOS 14 you can
+> also right-click → **Open**. macOS 15 removed that shortcut.
 >
-> Rather not run someone else's binary? Entirely fair —
-> [build it yourself](#-build-him-yourself), it takes about thirty seconds.
+> And if you'd rather not run someone else's binary at all, fair enough.
+> [Build it yourself](#-build-him-yourself) in about thirty seconds.
 
 **Claw'd has no Dock icon.** He lives in the menu bar: click the little crab
 there for size, sounds, **Open at login**, costumes, session pinning, a second
@@ -168,8 +172,8 @@ pet, and hook installation.
 
 ## 🔒 What he never does
 
-This app reads your live Claude Code session data. That earns you a specific
-account of what it does with it, not a privacy badge.
+This app reads your live Claude Code session data, so here is exactly what it
+does with it. Specifics, so you can check them yourself.
 
 - **No network. At all.** There is no `URLSession`, no socket, no analytics, no
   update check, and zero dependencies. Verifiable in one grep — which is most of
