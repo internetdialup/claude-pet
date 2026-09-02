@@ -7,6 +7,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.7.0] — 2026-09-02
+
 ### Added
 
 - **📖 Fun facts finish their sentence now.** A scrolling fact always
