@@ -322,6 +322,79 @@ struct TorsoTurnTests {
         }
     }
 
+    /// The varial turns exactly once, inside its own air, and no other
+    /// trick turns at all. The seams are the point: the first and last air
+    /// frames render as they always did, so the pop and the stomp are
+    /// today's frames byte for byte.
+    @Test("The varial turns once, and only the varial turns")
+    func varialSpinsExactlyOnce() {
+        let duration = CrabAnimator.Flourish.varialFlip.duration
+        var previous = -1.0
+        for step in 0...600 {
+            let t = Double(step) * duration / 600
+            let pose = CrabAnimator.flourishPose(.varialFlip, at: t)
+            let progress = t / duration
+            if progress < 0.15 || progress >= 0.80 {
+                #expect(pose.torsoTurn == 0, "the turn leaked outside the air at t = \(t)")
+            } else {
+                #expect(pose.torsoTurn >= previous, "the turn ran backwards at t = \(t)")
+                previous = pose.torsoTurn
+            }
+        }
+        #expect(abs(CrabAnimator.varialSpin(air: 0) - 0) < 1e-9)
+        #expect(abs(CrabAnimator.varialSpin(air: 1) - 1) < 1e-9)
+        #expect(abs(CrabAnimator.varialSpin(air: 0.5) - 0.5) < 1e-9,
+                "the dwell should be symmetric about the back")
+
+        for kind in CrabAnimator.Flourish.allCases where kind != .varialFlip {
+            for step in 0...60 {
+                let pose = CrabAnimator.flourishPose(kind, at: Double(step) * kind.duration / 60)
+                #expect(pose.torsoTurn == 0, "\(kind) turned, and only the varial may")
+            }
+        }
+
+        // The seams: the frame the air opens on and the frame it closes on
+        // are the frames they were before he could turn.
+        for t in [0.15 * duration, 0.7999 * duration] {
+            var pose = CrabAnimator.flourishPose(.varialFlip, at: t)
+            var flat = pose
+            flat.torsoTurn = 0
+            pose.torsoTurn = pose.torsoTurn < 0.5 ? pose.torsoTurn : pose.torsoTurn
+            #expect(CrabRig.render(pose).cells == CrabRig.render(flat).cells,
+                    "the air's seam at t = \(t) is not the frame it used to be")
+        }
+    }
+
+    /// At every rate anything renders him at, the silhouette's edges walk
+    /// rather than jump. The bounds are recorded per rate rather than
+    /// tightened to one: a 360 in two seconds simply moves more cells per
+    /// frame at ten a second than at thirty, and pretending otherwise would
+    /// mean pinning a number nothing can meet.
+    @Test("The turning silhouette never teleports")
+    func theTurningSilhouetteNeverTeleports() {
+        let duration = CrabAnimator.Flourish.varialFlip.duration
+        for (rate, bound) in [(30.0, 2), (20.0, 3), (12.0, 5), (10.0, 6)] {
+            var previous: (Int, Int)?
+            for frame in 0...Int(duration * rate) {
+                let pose = CrabAnimator.flourishPose(.varialFlip, at: Double(frame) / rate)
+                let b = CrabRig.render(pose)
+                var left = 99, right = -1
+                for y in (11 + pose.bob)...(19 + pose.bob) {
+                    for x in 0..<PixelBuffer.side
+                    where b[x, y] == .body || b[x, y] == .bodyShade {
+                        left = min(left, x); right = max(right, x)
+                    }
+                }
+                guard right >= 0 else { continue }
+                if let (wasLeft, wasRight) = previous {
+                    #expect(abs(left - wasLeft) <= bound && abs(right - wasRight) <= bound,
+                            "at \(Int(rate))fps an edge moved \(max(abs(left - wasLeft), abs(right - wasRight))) cells")
+                }
+                previous = (left, right)
+            }
+        }
+    }
+
     /// The mid-air stance the turn actually happens in.
     private func airborne() -> CrabPose {
         var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)

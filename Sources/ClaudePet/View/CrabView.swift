@@ -120,7 +120,12 @@ public enum CrabAnimator {
 
         var duration: Double {
             switch self {
-            case .kickflip, .varialFlip: 2.8
+            case .kickflip: 2.8
+            // Four tenths longer than the kickflip it was a twin of: a body
+            // 360 inside the old air put the edge-on pass on a single frame
+            // at the drip feed's ten a second, and there is no cure for
+            // that but more air.
+            case .varialFlip: 3.2
             // Longer than the flips on purpose: the whole point of this one
             // is the hang, and hang needs clock to hang in.
             case .ollie: 3.2
@@ -1685,6 +1690,22 @@ public enum CrabAnimator {
         noise(cycle &* 7 &+ 23) < steezeChance
     }
 
+    /// 🌀 One revolution across the varial's air.
+    ///
+    /// Smoothstepped, so he leaves the pop and meets the stomp at zero
+    /// angular speed and neither seam can be the thing that snaps. The
+    /// `sin(4πp)/32` term is a DWELL at the two edge-on crossings, where a
+    /// degree costs the most cells — the width of a box is steepest square
+    /// to the camera, so he spends longer there and hurries through facing
+    /// front and back, and the silhouette moves at a more even rate than
+    /// the angle does. Monotone by construction: the term's slope never
+    /// falls below 1 − π/8.
+    nonisolated static let spinDwell = 1.0 / 32
+    static func varialSpin(air: Double) -> Double {
+        let p = Ease.smoothstep(air)
+        return p + sin(4 * .pi * p) * spinDwell
+    }
+
     /// The jump at a given point in its arc, for the contact sheet.
     static func jumpPose(progress: Double) -> CrabPose {
         var pose = CrabPose()
@@ -1756,6 +1777,13 @@ public enum CrabAnimator {
                 if air < 0.25 { pose.eyes = .squint }  // >_< , off the stickers
                 pose.mouth = .open
                 pose.propPhase = air
+                // 🌀 …and on the VARIAL, he turns with it. The board yaws
+                // half a turn and rolls a whole one; he does a full 360 of
+                // his own on a separate clock, so at his edge-on the deck
+                // is at forty-five degrees and nothing marches in step.
+                // The kickflip keeps its shoulders square — that is the
+                // difference between the two tricks now.
+                if kind == .varialFlip { pose.torsoTurn = Self.varialSpin(air: air) }
             } else {
                 pose.squash = 1                       // stomp it
                 pose.bob = 1
