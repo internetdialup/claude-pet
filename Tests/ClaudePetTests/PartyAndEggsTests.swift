@@ -189,7 +189,7 @@ struct SkyAndDeckTests {
         for cycle in 1...n {
             switch CrabAnimator.skateHeadwear(cycle: cycle) {
             case .blackBeanie: beanies += 1
-            case .greenCap: caps += 1
+            case .cap: caps += 1
             case .none: break
             }
         }
@@ -205,7 +205,7 @@ struct SkyAndDeckTests {
         // and the dome legitimately crops (the lofty pin's own ceiling), so
         // the full-hat probe sits a little earlier in the rise.
         var pose = CrabAnimator.flourishPose(.ollie, at: 0.9)
-        pose.headwear = .greenCap
+        pose.headwear = .cap(.green)
         let hatted = CrabRig.render(pose)
         var green = 0
         for y in 0..<PixelBuffer.side {

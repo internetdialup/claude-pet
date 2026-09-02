@@ -32,7 +32,8 @@ public enum CrabAnimator {
     /// | --- | --- |
     /// | `7 &+ 3` | which idle flourish |
     /// | `7 &+ 11` | whether a skate beat rides the golden board — 7 shared by addend |
-    /// | `7 &+ 13` | whether a skate beat wears the green beanie — same family |
+    /// | `7 &+ 13` | whether a skate beat wears headwear — same family |
+    /// | `7 &+ 19` | which colour the cap comes in — same family |
     /// | `13 &+ 5` | the working prop re-roll |
     /// | `17 &+ 7` | whether an idle cycle is a fun fact |
     /// | `17 &+ 11` | whether a fact showing drops the shades — 17 shared by addend |
@@ -192,11 +193,17 @@ public enum CrabAnimator {
     /// multiplier, another distinct addend, same cycle domain, same
     /// cycle-zero sentinel.
     nonisolated static let headwearChance = 0.3
+    /// The cap's colour deck — dealt per wearing on `7 &+ 19` (the flourish
+    /// family's next addend; distinct mod 7 from 3/11/13).
+    nonisolated static let capColours: [PixelBuffer.Ink] = [.green, .alert, .yellow, .pink]
     static func skateHeadwear(cycle: Int) -> CrabPose.Headwear {
         guard cycle > 0 else { return .none }
         let roll = noise(cycle &* 7 &+ 13)
         if roll < headwearChance / 2 { return .blackBeanie }
-        if roll < headwearChance { return .greenCap }
+        if roll < headwearChance {
+            let pick = Int(noise(cycle &* 7 &+ 19) * Double(capColours.count))
+            return .cap(capColours[min(pick, capColours.count - 1)])
+        }
         return .none
     }
 
