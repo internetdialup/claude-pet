@@ -162,6 +162,18 @@ public struct CrabPose: Sendable, Equatable {
     /// only by the secret-menu preview, which must bypass those dice.
     public var ringFlight: Double?
 
+    /// 💨 Landing dust: 0…1 through a stomp's puff, or nil. Written fresh
+    /// each frame by the flourish that lands (pure in its own progress), so
+    /// the blend leaves it alone like every travel parameter.
+    public var dustBurst: Double?
+
+    /// 💗 The idle heart's flight, 0…1, or nil — the sticker heart drifting
+    /// up off his crown. A travel parameter; the blend leaves it alone.
+    public var idleHeart: Double?
+    /// A single gait scuff cell behind a scuttling leg, or nil. Glint-class:
+    /// one cell, locked to the leg cycle.
+    public var scuffX: Int?
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
@@ -367,17 +379,46 @@ public enum CrabRig {
                         dx: dx, dy: dy, squash: squash)
         }
 
+        // The ground shadow goes down before anything stands on it.
+        drawShadow(&buffer, dx: dx, dy: dy, pose: pose)
+
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
         firePass(&buffer, pose: pose, dx: dx, dy: dy)
         costumeLayer(.behind)
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
+        drawDust(&buffer, dx: dx, dy: dy, pose: pose)
         drawArms(&buffer, dx: dx, dy: dy, pose: pose)
 
         // Squash widens and shortens the body, keeping its feet on the ground.
         buffer.rect(bodyX + dx - squash, bodyY + dy + squash,
                     bodyW + squash * 2, bodyH - squash, .body)
+
+        // The hero pick, off the candidates sheet (B + E): the [ ] loses its
+        // corners — a two-step carve at each shoulder, a nip at each jaw —
+        // and the shell takes one flat step of shade along the belly and the
+        // right flank, lit from the upper left the way the catchlights
+        // already claim. This is a permanent look, not the sampler's
+        // turn-shade event; the ink doc's event-only rule bends here at the
+        // operator's explicit pick. Costumes draw over all of it and keep
+        // their own opinions.
+        let shellTop = bodyY + dy + squash
+        let shellLeft = bodyX + dx - squash
+        let shellRight = bodyX + bodyW - 1 + dx + squash
+        for cell in [(shellLeft, shellTop), (shellLeft + 1, shellTop),
+                     (shellLeft, shellTop + 1),
+                     (shellRight, shellTop), (shellRight - 1, shellTop),
+                     (shellRight, shellTop + 1),
+                     (shellLeft, 20 + dy), (shellRight, 20 + dy)] {
+            buffer.pixel(cell.0, cell.1, .clear)
+        }
+        for x in shellLeft...shellRight where buffer[x, 20 + dy] == .body {
+            buffer.pixel(x, 20 + dy, .bodyShade)
+        }
+        for y in (shellTop + 1)...(19 + dy) where buffer[shellRight, y] == .body {
+            buffer.pixel(shellRight, y, .bodyShade)
+        }
 
         costumeLayer(.onBody)
         if pose.heat > 0.001 { heatPass(&buffer, pose: pose, dy: dy, squash: squash) }
@@ -425,6 +466,7 @@ public enum CrabRig {
         if let hearts = pose.heartsElapsed {
             drawHearts(&buffer, elapsed: hearts, until: pose.heartsUntil)
         }
+        if let idleHeart = pose.idleHeart { drawIdleHeart(&buffer, u: idleHeart, dx: dx) }
         if let sleepZ = pose.sleepZElapsed, pose.sleepZInterval > 0 {
             drawSleepZ(&buffer, elapsed: sleepZ, interval: pose.sleepZInterval)
         }
@@ -611,6 +653,33 @@ public enum CrabRig {
                key: ["p": .pink])
             b.composite(heart, visibility: visibility, seed: 700 + ordinal % 3)
         }
+    }
+
+    /// 💗 The idle heart, straight off the operator's sticker: a chunky red
+    /// heart drifting up past his crown. It GROWS in — one cell, then the
+    /// petting hearts' small glyph, then the sticker's full shape — and
+    /// leaves by rising off-grid, so both ends are eased by geometry. One
+    /// whole-pixel sway on the way up, the hearts' own quantum. Clear-cell
+    /// masked: sky furniture never overdraws him or a prop.
+    private static func drawIdleHeart(_ b: inout PixelBuffer, u: Double, dx: Int) {
+        let top = 12 - Int((u * 20).rounded())
+        let x = 7 + (u > 0.35 && u < 0.7 ? 1 : 0) + dx
+        var heart = PixelBuffer()
+        if u < 0.12 {
+            heart.pixel(x + 3, top, .pink)
+        } else if u < 0.28 {
+            heart.stamp(["p.p", "ppp", ".p."], at: (x: x + 2, y: top), key: ["p": .pink])
+        } else {
+            heart.stamp([
+                ".pp.pp.",
+                "ppppppp",
+                "ppppppp",
+                ".ppppp.",
+                "..ppp..",
+                "...p...",
+            ], at: (x: x, y: top), key: ["p": .pink])
+        }
+        b.composite(heart, visibility: 1, seed: 703, preservingExisting: true)
     }
 
     /// Where a zZz may sit. Right of centre and clear of the crown, so the
@@ -932,6 +1001,54 @@ public enum CrabRig {
         }
     }
 
+    // MARK: - Ground
+
+    /// The soft pool under him: full width with his feet on the floor,
+    /// shrinking two cells per row of air and gone past three — high enough
+    /// that he reads as flying, not hovering. Skipped while a board is worn:
+    /// the deck grounds him already, and a shadow under wheels reads as
+    /// grease. Whole-pixel steps riding the already-eased `bob`, so the
+    /// shadow inherits the jump's own easing.
+    private static func drawShadow(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
+        switch pose.prop {
+        case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie: return
+        default: break
+        }
+        let rise = max(0, -dy)
+        let width = 20 - rise * 2
+        guard width >= 8 else { return }
+        // DITHERED, not solid: a GIF's one-bit alpha collapses translucency
+        // to a solid bar, so the softness lives in the checkerboard — the
+        // pixel-art half-tone — and the ink's own translucency only sweetens
+        // it live. Anchored on even columns so the pattern holds still while
+        // the width breathes.
+        let left = 16 + dx - width / 2
+        for x in left..<(left + width) where x % 2 == 0 {
+            b.pixel(x, 25, .shadow)
+        }
+    }
+
+    /// 💨 Landing dust: two puffs racing outward from the feet, chunky at
+    /// impact, thinning as they go, gone under their own travel. The burst's
+    /// first frame IS the impact — a stomp is snap-by-nature, the landing
+    /// squash's own exemption — and the exit is two lone cells, glint-class.
+    private static func drawDust(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
+        if let u = pose.dustBurst, u < 1 {
+            // A row above the floor line, or the puffs vanish into the
+            // shadow's own dither.
+            let spread = 2 + Int((u * 4).rounded())
+            b.pixel(16 + dx - 8 - spread, 23 + dy, .steel)
+            b.pixel(16 + dx + 8 + spread, 23 + dy, .steel)
+            if u < 0.5 {
+                b.pixel(16 + dx - 7 - spread, 22 + dy, .steel)
+                b.pixel(16 + dx + 7 + spread, 22 + dy, .steel)
+            }
+        }
+        if let scuff = pose.scuffX {
+            b.pixel(scuff + dx, 23 + dy, .shadow)
+        }
+    }
+
     // MARK: - Legs
 
     private static func drawLegs(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
@@ -1003,9 +1120,15 @@ public enum CrabRig {
             switch pose.eyes {
             case .round:
                 b.rect(x, top, eyeSize, eyeSize, .eye)
+                // The catchlight: one cell of light in the upper-left of
+                // each open eye — the sprite trick that reads as life at
+                // any size. Round and wide only: the squint has no room and
+                // the determined carve owns its corners.
+                b.pixel(x, top, .paper)
             case .wide:
                 // One row taller, for the expectant "well?" of the nudge.
                 b.rect(x, top - 1, eyeSize, eyeSize + 1, .eye)
+                b.pixel(x, top - 1, .paper)
             case .squint:
                 // >_< . Two chevrons pointing at each other — the scrunched
                 // face off the stickers, which read at two centimetres with no

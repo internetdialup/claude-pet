@@ -66,6 +66,10 @@ public struct PixelBuffer: Sendable {
         /// a different meme). No override lookup, so the lenses are the same
         /// black in every costume — which is the joke's whole uniform.
         case memeBlack
+        /// The ground shadow under him — the one ink that renders
+        /// TRANSLUCENT, because a solid pool would fight every wallpaper it
+        /// lands on. Appended, like every ink before it.
+        case shadow
     }
 
     private(set) var cells: [UInt8]
@@ -337,6 +341,7 @@ public struct PixelCanvasView: View {
         case .bodyShade: inkOverrides[.bodyShade] ?? Palette.bodyShade
         // Deliberately NOT override-consulting — see the case's own comment.
         case .memeBlack: Palette.ink
+        case .shadow: Palette.slate.opacity(0.45)
         }
     }
 }

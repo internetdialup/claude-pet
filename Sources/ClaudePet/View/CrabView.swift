@@ -56,7 +56,8 @@ public enum CrabAnimator {
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
     /// (matrix rain, per column), `31 &+ 7` and `53 &+ 11` (the sizzle, per
-    /// shot), `43 &+ 13` (idle chatter, per seed), `47 &+ 7` (the gundam's
+    /// shot), `43 &+ 13` (idle chatter, per seed), `43 &+ 17` (the idle heart,
+    /// per 45s idle cycle — 43 shared by addend), `47 &+ 7` (the gundam's
     /// darker-turquoise cameras, per wear timestamp).
     ///
     /// | `97 &+ n` | the COSTUME EFFECTS, one addend each: 11 = the shuriken, 13 = Frankenstein's sparks, 19 = the Gundam scan, 23 = Sonic's dash, 29 = Sonic's rings, 31 = Retro Black's sheen, 41 = the Gundam's eye flare (3/5/7/17/37 reserved for the holiday round) |
@@ -382,6 +383,9 @@ public enum CrabAnimator {
         // Sonic's rings: dice on top of a worn costume, the same
         // no-sequence-of-clicks argument as the tricks.
         case rings
+        // The idle heart: a 45-second cycle at 30% — reachable by waiting,
+        // but not by any sequence of clicks.
+        case idleHeart
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -395,6 +399,7 @@ public enum CrabAnimator {
             // The tricks release by finishing the pass already in flight.
             case .kickflip, .varial, .cruise: 0
             case .rings: 0          // a flight in progress finishes
+            case .idleHeart: 0      // same contract
             }
         }
 
@@ -586,9 +591,32 @@ public enum CrabAnimator {
             guard since >= 0.8 else { return }
             pose.ringFlight = (since - 0.8) / 2.0
 
+        case .idleHeart:
+            // One heart every 4.3s: rest first, then the 3.5s flight — the
+            // rings' shape on the heart's own clock.
+            let heartCycle = 4.3
+            let flightStart = (frame.t / heartCycle).rounded(.down) * heartCycle
+            if let endedT = frame.endedT, flightStart > endedT { return }
+            let heartSince = frame.t - flightStart
+            guard heartSince >= 0.8 else { return }
+            pose.idleHeart = (heartSince - 0.8) / 3.5
+
         case .beacon:
             break       // composition layer; `PetRootView` draws it
         }
+    }
+
+    /// 💗 The idle heart's flight, 0…1, or nil. Idle only, on dice — about
+    /// one 45-second cycle in three-and-a-bit carries one — never in cycle
+    /// zero, so a frozen render is heartless by construction. Salt `43 &+
+    /// 17`: 43 already carries the idle mug, and a shared multiplier takes a
+    /// distinct addend.
+    static func idleHeart(idleT t: Double) -> Double? {
+        let cycle = Int(floor(t / 45))
+        guard cycle > 0, noise(cycle &* 43 &+ 17) < 0.3 else { return nil }
+        let since = t - Double(cycle) * 45
+        guard since >= 4, since < 7.5 else { return nil }
+        return (since - 4) / 3.5
     }
 
     /// How far a glint has travelled across his shell, or nil. Idle only, on
@@ -705,6 +733,12 @@ public enum CrabAnimator {
                     pose.gazeX = bug < 14 ? -1 : (bug > 18 ? 1 : 0)
                     pose.gazeY = 1
                 }
+
+                // 💗 Sometimes, idling, a little heart just happens — the
+                // operator's sticker, animated. Suppressed with the bug and
+                // the balloon under the telescope and the sun for the same
+                // reason they are.
+                pose.idleHeart = idleHeart(idleT: t)
             }
 
             if let sun {
@@ -1515,6 +1549,7 @@ public enum CrabAnimator {
                 pose.squash = 1                       // stomp it
                 pose.bob = 1
                 pose.mouth = .open
+                pose.dustBurst = (progress - 0.80) / 0.20
             }
 
         case .ollie:
@@ -1555,12 +1590,24 @@ public enum CrabAnimator {
                     pose.armRight = 0.7 + 0.25 * sway
                     pose.armLeft = 0.35 - 0.2 * sway
                     pose.gazeX = 1                    // eyes down the line
+                    // The turn, off the operator's skate sticker: the body
+                    // reads slightly rotated through the float — the
+                    // frontside solo variant's edge-shade move, promoted to
+                    // the LIVE ollie at the operator's ask, at HALF the
+                    // variant's strength: "turnt a bit" is one column of
+                    // edge, and the drip-feed frontside keeps its full two.
+                    // sin(air·π) is zero at both air bounds, so the turn
+                    // eases on with the rise and is gone by the stomp.
+                    pose.torsoShade = 1
+                    pose.torsoShadeAmount = 0.5 * sin(air * .pi)
                 }
                 pose.mouth = .open
             } else {
                 pose.squash = 1                       // stomp it flat
                 pose.bob = 1
                 pose.mouth = .open
+                pose.dustBurst = (progress - Self.ollieAirStart - Self.ollieAirSpan)
+                    / (1 - Self.ollieAirStart - Self.ollieAirSpan)
             }
 
         case .jump:
@@ -1581,6 +1628,7 @@ public enum CrabAnimator {
                 pose.squash = 1                       // landing
                 pose.bob = 1
                 pose.mouth = .open
+                pose.dustBurst = (progress - 0.82) / 0.18
             }
 
         case .wave:
@@ -1609,6 +1657,16 @@ public enum CrabAnimator {
             pose.legPhase = t * 6
             pose.legAmplitude = 1.4
             pose.lean = progress < 0.5 ? -1 : 1
+            // 💨 A scuff kicked up behind the trailing side at each gait
+            // peak — one cell, locked to the leg cycle, on the side he is
+            // moving AWAY from. Thresholds at the very top of the swing and
+            // the translucent shadow ink, per the operator: the first cut
+            // in solid steel was "a little too visible".
+            if sin(pose.legPhase) > 0.9 {
+                pose.scuffX = pose.lean < 0 ? 27 : 4
+            } else if sin(pose.legPhase) < -0.9 {
+                pose.scuffX = pose.lean < 0 ? 28 : 3
+            }
         }
     }
 }

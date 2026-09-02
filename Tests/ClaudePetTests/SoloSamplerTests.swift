@@ -60,9 +60,21 @@ struct SoloSamplerTests {
         }
     }
 
+    /// The TURN's own shade cells: the render minus a zero-turn render of
+    /// the same instant. The hero look shades the belly and right flank
+    /// permanently, so an absolute shade-cell count stopped meaning "the
+    /// turn" — the delta is the event these tests were always about.
+    private func turnShadeCells(_ pose: CrabPose) -> Set<Cell> {
+        var flat = pose
+        flat.torsoShade = 0
+        flat.torsoShadeAmount = 0
+        return Set(shadeCells(CrabRig.render(pose)))
+            .subtracting(shadeCells(CrabRig.render(flat)))
+    }
+
     /// The frozen-sentinel promise, restated for the shade: no ground frame —
     /// pre-roll, crouch instant, landing, roll-away — carries a single cell
-    /// of it.
+    /// of TURN shade beyond the shell's permanent step.
     @Test("Ground frames carry no shade")
     func groundFramesCarryNoShade() {
         let landing = CostumeSampler.soloLanding(for: .ollie)
@@ -72,14 +84,9 @@ struct SoloSamplerTests {
                           landing - 0.05,                    // stomp, post-air
                           landing, landing + 0.5] {
                 let pose = CostumeSampler.soloPose(variant: variant, at: local)
-                let buffer = CrabRig.render(pose)
-                var shaded = 0
-                for y in 0..<PixelBuffer.side {
-                    for x in 0..<PixelBuffer.side
-                    where buffer[x, y] == .bodyShade { shaded += 1 }
-                }
+                let shaded = turnShadeCells(pose).count
                 #expect(shaded == 0,
-                        "\(variant) shows \(shaded) shade cells at \(local)s — on the ground")
+                        "\(variant) shows \(shaded) turn-shade cells at \(local)s — on the ground")
             }
         }
     }
@@ -95,19 +102,16 @@ struct SoloSamplerTests {
                                to: CostumeSampler.soloLanding(for: .ollie), by: 0.1) {
                 let pose = CostumeSampler.soloPose(variant: variant, at: step)
                 guard pose.torsoShadeAmount > 0.001 else { continue }
-                let buffer = CrabRig.render(pose)
                 let squash = max(0, pose.squash)
                 let left = CrabRig.bodyX + pose.lean - squash
                 let right = CrabRig.bodyX + CrabRig.bodyW - 1 + pose.lean + squash
-                for y in 0..<PixelBuffer.side {
-                    for x in 0..<PixelBuffer.side where buffer[x, y] == .bodyShade {
-                        sawAny = true
-                        let onEdge = variant == .ollieFrontside
-                            ? x >= right - 1 : x <= left + 1
-                        #expect(onEdge, "\(variant) shades column \(x) — not an edge")
-                        #expect(!((10...12).contains(x) || (19...21).contains(x)),
-                                "\(variant) shades an eye window column at \(step)s")
-                    }
+                for cell in turnShadeCells(pose) {
+                    sawAny = true
+                    let onEdge = variant == .ollieFrontside
+                        ? cell.x >= right - 1 : cell.x <= left + 1
+                    #expect(onEdge, "\(variant) shades column \(cell.x) — not an edge")
+                    #expect(!((10...12).contains(cell.x) || (19...21).contains(cell.x)),
+                            "\(variant) shades an eye window column at \(step)s")
                 }
             }
             #expect(sawAny, "\(variant) never shaded a single cell — the turn is invisible")
@@ -125,19 +129,41 @@ struct SoloSamplerTests {
             #expect(front.torsoShade == -back.torsoShade)
             #expect(abs(front.torsoShadeAmount - back.torsoShadeAmount) < 0.001)
 
-            // The board is stripped for the geometry compare: the nose slab
-            // never mirrors (a mirrored ollie still rides nose-right), and at
-            // apex height it legitimately occludes a frontside shade cell the
-            // backside keeps. The mirror under test is the SHADE's, and the
-            // shell it lands on is symmetric once the one asymmetric occluder
-            // steps out of the frame.
-            var bareFront = front, bareBack = back
-            bareFront.prop = .none
-            bareBack.prop = .none
-            let frontCells = shadeCells(CrabRig.render(bareFront))
-            let backCells = shadeCells(CrabRig.render(bareBack))
-            #expect(Set(frontCells.map { Cell(x: 31 - $0.x, y: $0.y) }) == Set(backCells),
-                    "the mirror breaks at \(step)s")
+            // The shell stopped being symmetric when the hero look put a
+            // permanent shade step on the right flank — so the RENDERED
+            // cells cannot mirror any more, and the pin moved one level
+            // down: each side's turn DELTA must be exactly the band
+            // `shadePass` promises — the outermost `cols` columns of that
+            // side, on cells the flat shell painted `.body`. Stronger than
+            // the old mirror, and true under any lighting.
+            for pose in [front, back] {
+                var bare = pose
+                bare.prop = .none
+                var flat = bare
+                flat.torsoShade = 0
+                flat.torsoShadeAmount = 0
+                let flatRender = CrabRig.render(flat)
+                let delta = Set(shadeCells(CrabRig.render(bare)))
+                    .subtracting(shadeCells(flatRender))
+                let squash = max(0, pose.squash)
+                let left = CrabRig.bodyX + pose.lean - squash
+                let right = CrabRig.bodyX + CrabRig.bodyW - 1 + pose.lean + squash
+                let cols = Int((min(1, max(0, pose.torsoShadeAmount)) * 2).rounded())
+                guard cols > 0 else {
+                    #expect(delta.isEmpty, "shade without a turn at \(step)s")
+                    continue
+                }
+                let band = pose.torsoShade > 0
+                    ? (right - cols + 1)...right : left...(left + cols - 1)
+                var expected = Set<Cell>()
+                let top = CrabRig.bodyY + pose.bob + squash
+                for y in top..<(top + 11 - squash) {
+                    for x in band where flatRender[x, y] == .body {
+                        expected.insert(Cell(x: x, y: y))
+                    }
+                }
+                #expect(delta == expected, "the turn band drifts at \(step)s")
+            }
 
             if front.torsoShadeAmount > 0.001, front.gazeX == 1 {
                 #expect(back.gazeX == -1, "the backside gaze does not flip at \(step)s")
