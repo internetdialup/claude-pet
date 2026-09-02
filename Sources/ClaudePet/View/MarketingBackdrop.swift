@@ -13,13 +13,16 @@ import SwiftUI
 /// from Figma, correct them HERE and re-render — this enum is the single
 /// source, nothing else may restate these values.
 enum MarketingPalette {
-    static let lemon = Color(hex: 0xFBF06B)
-    static let violet = Color(hex: 0x7463E9)
-    static let lilac = Color(hex: 0xC685EC)
-    static let mint = Color(hex: 0x7DFC9E)
-    static let azure = Color(hex: 0x2A79F6)
+    static let cream = Color(hex: 0xFCF4E0)
+    static let lemon = Color(hex: 0xFBF163)
+    static let coral = Color(hex: 0xF45050)
+    static let pink = Color(hex: 0xFA8FAB)
+    static let grape = Color(hex: 0x9A34F0)
+    static let gold = Color(hex: 0xFAD873)
+    static let cobalt = Color(hex: 0x2569F2)
+    static let sky = Color(hex: 0x2BB9FA)
     /// In the sheet's own order, for anything that deals the set.
-    static let all: [Color] = [lemon, violet, lilac, mint, azure]
+    static let all: [Color] = [cream, lemon, coral, pink, grape, gold, cobalt, sky]
 }
 
 @MainActor

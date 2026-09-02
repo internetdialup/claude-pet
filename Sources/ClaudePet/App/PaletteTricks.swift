@@ -31,17 +31,22 @@ enum PaletteTricks {
     static let spriteSide: CGFloat = 320
 
     static let grounds: [(name: String, color: Color)] = [
+        ("cream", MarketingPalette.cream),
         ("lemon", MarketingPalette.lemon),
-        ("violet", MarketingPalette.violet),
-        ("lilac", MarketingPalette.lilac),
-        ("mint", MarketingPalette.mint),
-        ("azure", MarketingPalette.azure),
+        ("coral", MarketingPalette.coral),
+        ("pink", MarketingPalette.pink),
+        ("grape", MarketingPalette.grape),
+        ("gold", MarketingPalette.gold),
+        ("cobalt", MarketingPalette.cobalt),
+        ("sky", MarketingPalette.sky),
     ]
 
-    /// Ground → costume, by contrast.
+    /// Ground → costume, by contrast — one wardrobe per ground now that
+    /// there are eight of each.
     static let wardrobePairs: [(ground: (name: String, color: Color), costume: Costume)] = [
-        (grounds[0], .sonic), (grounds[1], .gundam), (grounds[2], .tiger),
-        (grounds[3], .ninja), (grounds[4], .skater),
+        (grounds[0], .retroBlack), (grounds[1], .sonic), (grounds[2], .gundam),
+        (grounds[3], .ninja), (grounds[4], .skater), (grounds[5], .arcade),
+        (grounds[6], .tiger), (grounds[7], .frankenstein),
     ]
 
     static let tricks: [CrabAnimator.Flourish] =
@@ -146,7 +151,13 @@ enum PaletteTricks {
         let lead = 0.6, settle = 0.9
         let seconds = lead + trick.duration + settle
         let frames = Int((seconds / frameDelay).rounded())
-        let stance = CrabAnimator.flourishPose(trick, at: trick.duration + 1)
+        // The bookends RIDE: him standing on the trick's own board at rest —
+        // the operator's note, and the honest one: a board that despawns
+        // between tricks reads as a magic trick, not a skate clip.
+        var stance = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+        stance.prop = restingBoard(for: trick)
+        stance.propVisibility = 1
+        stance.propPhase = 0
         var images: [CGImage] = []
         for frame in 0..<frames {
             let local = Double(frame) * frameDelay
@@ -161,6 +172,18 @@ enum PaletteTricks {
             images.append(image)
         }
         return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    /// Each trick's own board, flat at rest, for the riding bookends.
+    private static func restingBoard(for trick: CrabAnimator.Flourish) -> CrabPose.Prop {
+        switch trick {
+        case .kickflip: .skateboard
+        case .varialFlip: .skateboardVarial
+        case .ollie: .skateboardOllie
+        case .manual: .skateboardManual
+        case .shoveIt: .skateboardShoveIt
+        default: .skateboardRoll
+        }
     }
 
     /// A preview-envelope effect looping on a fixed idle stance — no board.
