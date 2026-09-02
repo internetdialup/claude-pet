@@ -47,7 +47,7 @@ means an `ExitPlanMode` is sitting there waiting for your answer.
 **Thinking** just shows three dots. There's no honest label for that moment,
 so he doesn't pretend to have one.
 
-## ✨ Ten things he does when nobody asked
+## ✨ Twelve things he does when nobody asked
 
 <table>
 <tr>
@@ -63,6 +63,13 @@ so he doesn't pretend to have one.
   <td align="center"><img src="docs/media/flourish-varialFlip.gif" width="110"><br><strong>Varial flip</strong></td>
   <td align="center"><img src="docs/media/flourish-ollie.gif" width="110"><br><strong>Ollie</strong></td>
   <td align="center"><img src="docs/media/flourish-cruise.gif" width="110"><br><strong>Cruise</strong></td>
+</tr>
+<tr>
+  <td align="center"><img src="docs/media/flourish-manual.gif" width="110"><br><strong>Manual</strong></td>
+  <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
+  <td align="center"></td>
+  <td align="center"></td>
+  <td align="center"></td>
 </tr>
 </table>
 
@@ -213,7 +220,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All eighteen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and four skateboards">
+  <img src="docs/media/props.png" width="100%" alt="All twenty props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and six skateboards">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

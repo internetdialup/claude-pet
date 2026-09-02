@@ -54,6 +54,7 @@ public enum CrabAnimator {
     /// | `79 &+ 23` | whether a silent working beat carries a fact |
     /// | `83 &+ 13` | the shell glint |
     /// | `89 &+ 11` | whether an idle flourish plays at all |
+    /// | `89 &+ 17` | the skate session — 89 shared by addend |
     ///
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
@@ -103,7 +104,9 @@ public enum CrabAnimator {
              // Appended, never inserted — renderers and the sampler iterate
              // `allCases` by position, and the live dice index into
              // `flourishDeck`, whose head IS `allCases`.
-             ollie
+             ollie,
+             // The skateboarder round: the balance ride and the flat spin.
+             manual, shoveIt
 
         /// The two skate tricks, so the line he shouts after one does not have
         /// to name them individually.
@@ -111,7 +114,8 @@ public enum CrabAnimator {
         /// which is why this is not called `skateTricks` — he shouts after all
         /// three, and "Do a Kickflip!" lands funnier over a roll-away than it
         /// does over an actual kickflip.
-        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie]
+        static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
+                                                .manual, .shoveIt]
 
         var duration: Double {
             switch self {
@@ -126,6 +130,10 @@ public enum CrabAnimator {
             case .stretch: 1.6
             case .lookAround: 2.0
             case .scuttle: 1.2
+            // The manual is a HOLD — balance needs time on the clock the
+            // same way the ollie's hang does.
+            case .manual: 2.6
+            case .shoveIt: 2.2
             }
         }
     }
@@ -178,7 +186,7 @@ public enum CrabAnimator {
     /// flourishes (measured over the real dice, up from 40%), each trick at
     /// ~15%, cruise at ~7.5%, every other flourish at ~7.7%.
     static let flourishDeck: [Flourish] = Flourish.allCases
-        + [.kickflip, .varialFlip, .ollie]
+        + [.kickflip, .varialFlip, .ollie, .manual, .shoveIt]
 
     /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
     /// flourish family's multiplier, new addend, same cycle domain.
@@ -212,6 +220,42 @@ public enum CrabAnimator {
     /// disagree with the deck it is shouting about.
     static func skateLandingIsGolden(at landing: Double) -> Bool {
         skateBeatIsGolden(cycle: Int(floor((landing - 0.01) / flourishPeriod)))
+    }
+
+    /// 🛹 THE SKATE SESSION: a rare long spell where he really skates —
+    /// cruise, ollie, cruise, kickflip, roll-away, strung together. A
+    /// stargaze-class idle spell, not a flourish: the 7-second flourish
+    /// scheduler cannot hold a 14.5-second beat. Dice `89 &+ 17` (the
+    /// whether-a-cycle-fires family) over 180-second cycles, ~one idle
+    /// session in four and a half cycles; never cycle zero.
+    static let skateSessionBeats: [(Flourish, Double)] = [
+        (.cruise, 2.6), (.ollie, 3.2), (.cruise, 2.6), (.kickflip, 2.8), (.cruise, 2.6),
+    ]
+    static let skateSessionLength = 14.5    // the beats plus a settling beat
+
+    static func skateSession(idleT t: Double) -> Double? {
+        let cycle = Int(floor(t / 180))
+        guard cycle > 0, noise(cycle &* 89 &+ 17) < 0.22 else { return nil }
+        let since = t - Double(cycle) * 180
+        guard since >= 2, since < 2 + skateSessionLength else { return nil }
+        return since - 2
+    }
+
+    /// Maps a session instant onto the sub-trick that owns it. Each beat is
+    /// its trick's own full duration, so every sub-trick starts and ends at
+    /// its stance — the seams are the scheduler's own cuts, no worse.
+    static func applySkateSession(_ local: Double, t: Double, to pose: inout CrabPose) {
+        var cursor = 0.0
+        for (kind, seconds) in skateSessionBeats {
+            if local < cursor + seconds {
+                apply(kind, progress: (local - cursor) / seconds, t: t, to: &pose)
+                return
+            }
+            cursor += seconds
+        }
+        // The settling beat after the last roll-away: he just stands there,
+        // pleased with himself.
+        pose.mouth = .smile
     }
 
     static func flourish(at t: Double) -> (Flourish, Double)? {
@@ -411,6 +455,9 @@ public enum CrabAnimator {
         // The seasons: gated on a two-week wall-calendar window, the most
         // unreachable gate in the app — the exact case this menu exists for.
         case leaves, pumpkins, snowfall, fireworks
+        // The session: a 180-second cycle at 22% — you could wait a quarter
+        // hour, or you could pick this.
+        case skateSession
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -427,6 +474,7 @@ public enum CrabAnimator {
             case .idleHeart: 0      // same contract
             case .leaves, .snowfall, .pumpkins: 0   // weather stops falling
             case .fireworks: 0      // a burst in flight finishes
+            case .skateSession: 0   // the ride in progress finishes
             }
         }
 
@@ -647,6 +695,17 @@ public enum CrabAnimator {
             guard frame.t >= 0.2 else { return }
             pose.holidayGround = true
 
+        case .skateSession:
+            // The whole ride on a loop: a beat of rest, then the 14.5-second
+            // sequence. Rest FIRST — the frozen sentinel — and the `until`
+            // contract on release: a ride mid-trick finishes out.
+            let rideCycle = 1.0 + skateSessionLength
+            let rideStart = (frame.t / rideCycle).rounded(.down) * rideCycle
+            if let endedT = frame.endedT, rideStart > endedT { return }
+            let rideSince = frame.t - rideStart
+            guard rideSince >= 1.0 else { return }
+            applySkateSession(rideSince - 1.0, t: frame.t, to: &pose)
+
         case .fireworks:
             // A burst every 4s, rest first, deterministic from the preview's
             // own clock — the glint pattern. The cycle number colours it.
@@ -742,7 +801,19 @@ public enum CrabAnimator {
             // on a cycle unrelated to everything else so it feels incidental.
             if sin(t * 0.23) > 0.86 { pose.mouth = .flat }
 
-            if flourishes, let (kind, progress) = flourish(at: t) {
+            // 🛹 The session outranks single flourishes when its rare window
+            // opens (and it stands down for the telescope and the sun, whose
+            // spells outrank everything — the composed-moment rule).
+            let sessionLocal = flourishes
+                && stargaze(idleT: t, hourOfDay: hourOfDay) == nil
+                && sunPatch(idleT: t, hourOfDay: hourOfDay) == nil
+                ? skateSession(idleT: t) : nil
+            if let sessionLocal {
+                applySkateSession(sessionLocal, t: t, to: &pose)
+                // The session rides the same headwear dice as any skate beat —
+                // a long ride deserves the cap.
+                pose.headwear = skateHeadwear(cycle: Int(floor(t / 180)))
+            } else if flourishes, let (kind, progress) = flourish(at: t) {
                 apply(kind, progress: progress, t: t, to: &pose)
                 if Flourish.skateBeats.contains(kind) {
                     // 🛹✨ The jackpot ride. LIVE-only by placement: this
@@ -1743,6 +1814,53 @@ public enum CrabAnimator {
         case .lookAround:
             pose.gazeX = sin(t * 1.8) > 0 ? 1 : -1
             pose.gazeY = progress > 0.5 ? 1 : 0
+
+        case .manual:
+            // The balance ride: back wheels down, nose in the air, and HOLD.
+            // The board carries the pitch (its own envelope, eased at both
+            // ends of the ride); he carries the concentration — determined
+            // eyes, flat mouth, balance arms sawing in counterphase, one
+            // pixel of rise while the wheelie is properly up.
+            pose.prop = .skateboardManual
+            pose.propVisibility = 1
+            pose.propPhase = progress
+            let held = Ease.smoothstep(min(progress, 1 - progress) * 5)
+            if held > 0.5 {
+                pose.bob = -1
+                pose.eyes = .determined
+                pose.mouth = .flat
+                let saw = sin(t * 6)
+                pose.armLeft = 0.5 + 0.3 * saw
+                pose.armRight = 0.5 - 0.3 * saw
+                pose.gazeX = 1
+            }
+
+        case .shoveIt:
+            // The flat spin: he hops, the board does a half turn UNDERNEATH
+            // — yaw only, deck flat the whole way, which is exactly the
+            // motion the kickflip's own comment calls a shove-it.
+            pose.prop = .skateboardShoveIt
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            if progress < 0.2 {
+                pose.squash = 1
+                pose.bob = 1
+            } else if progress < 0.75 {
+                let air = (progress - 0.2) / 0.55
+                pose.bob = -Int((sin(air * .pi) * 5).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.propPhase = air
+                if air < 0.25 { pose.eyes = .squint }
+                pose.mouth = .open
+                pose.gazeY = 1                        // watching the spin
+            } else {
+                pose.squash = 1
+                pose.bob = 1
+                pose.mouth = .open
+                pose.dustBurst = (progress - 0.75) / 0.25
+            }
 
         case .scuttle:
             // A couple of steps one way, then back.

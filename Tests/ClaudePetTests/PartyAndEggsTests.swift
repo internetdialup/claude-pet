@@ -222,6 +222,29 @@ struct SkyAndDeckTests {
         #expect(dressedGreen < green, "the beanie must stand down under a costume")
     }
 
+    /// The session: its beats are each trick's OWN duration (the seam
+    /// argument depends on it), its dice honour the sentinel, and its rate
+    /// sits where the registry says.
+    @Test("The skate session's beats are the tricks' own")
+    func skateSessionContract() {
+        for (kind, seconds) in CrabAnimator.skateSessionBeats {
+            #expect(seconds == kind.duration,
+                    "\(kind) beat is \(seconds), its duration is \(kind.duration)")
+        }
+        let total = CrabAnimator.skateSessionBeats.reduce(0.0) { $0 + $1.1 }
+        #expect(total <= CrabAnimator.skateSessionLength,
+                "the beats overflow the session window")
+        for step in 0..<90 {
+            #expect(CrabAnimator.skateSession(idleT: Double(step) * 2) == nil
+                    || Double(step) * 2 >= 180,
+                    "a session fired inside cycle zero")
+        }
+        var fired = 0
+        for cycle in 1...4000 where CrabAnimator.noise(cycle &* 89 &+ 17) < 0.22 { fired += 1 }
+        let rate = Double(fired) / 4000
+        #expect(rate > 0.19 && rate < 0.25, "session rate \(rate)")
+    }
+
     // MARK: - The weighted rotation
 
     /// The operator skates: skate beats now take a bit over half the fired

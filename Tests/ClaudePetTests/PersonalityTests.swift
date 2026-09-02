@@ -123,9 +123,9 @@ struct PropInventoryTests {
     @Test("The prop strip publishes every prop")
     func propCountIsPinned() {
         // `.none` is a case but not a prop; the strip draws the rest.
-        // 18 since the ollie board joined (17 was pre-ollie).
+        // 20 since the manual and shove-it boards joined (18 before, 17 pre-ollie).
         let drawn = CrabPose.Prop.allCases.filter { $0 != .none }
-        #expect(drawn.count == 18,
+        #expect(drawn.count == 20,
                 "the prop count moved — docs/media/props.png needs re-rendering")
         #expect(!CrabPose.Prop.allCases.contains { $0.rawValue == "zzz" },
                 "the sleeping z's were removed; the enum should not carry them")

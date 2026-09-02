@@ -89,11 +89,15 @@ public struct CrabPose: Sendable, Equatable {
         // kickflip's comment calling tilt "an impossible". For an ollie the
         // tilt IS the trick.
         case skateboardOllie
+        // Appended, the skateboarder round: the manual's held wheelie and
+        // the shove-it's flat spin — each its own geometry, like every
+        // board before them.
+        case skateboardManual, skateboardShoveIt
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
-             .skateboardRoll, .skateboardOllie: true
+             .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt: true
             default: false
             }
         }
@@ -1627,6 +1631,62 @@ public enum CrabRig {
             }
             if wheelShimmer(pose.propPhase) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
+            }
+
+        case .skateboardManual:
+            // The wheelie, held: tail on the ground, nose stepping up through
+            // an eased pitch, the back wheel planted and the front one riding
+            // the nose. The ground streaks underneath — the cruise's trick,
+            // borrowed: on a fixed camera the world moves, not the rider.
+            let p = min(1, max(0, pose.propPhase))
+            let pitch = Ease.smoothstep(min(p, 1 - p) * 5)
+            let rise = Int((3 * pitch).rounded())
+            let cx = 16 + dx, deckY = 25 + dy
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let yTail = deckY
+            let yMid = deckY - rise / 2
+            let yNose = deckY - rise
+            b.rect(cx - 8, yTail, 6, 1, deckInk)
+            b.rect(cx - 2, yMid, 6, 1, deckInk)
+            b.rect(cx + 4, yNose, 5, 1, deckInk)
+            if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
+            if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                b.rect(hub, y + 1, 3, 1, wheelInk)
+                b.pixel(hub, y + 2, wheelInk)
+                b.pixel(hub + 1, y + 2, .screenDark)
+                b.pixel(hub + 2, y + 2, wheelInk)
+                b.rect(hub, y + 3, 3, 1, wheelInk)
+            }
+            if wheelShimmer(pose.propPhase * 2.6) {
+                b.pixel(cx - 5, yTail + 1, .flameCore)
+            }
+            // Ground rush: three dashes streaming left under the wheels,
+            // stepped whole-pixel off the ride's own clock.
+            let rush = Int((p * 34).rounded())
+            for lane in 0..<3 {
+                let x = ((28 - rush + lane * 11) % 32 + 32) % 32
+                b.rect(x, 29, 3, 1, .shadow)
+            }
+
+        case .skateboardShoveIt:
+            // The flat spin: yaw only. The deck narrows toward edge-on and
+            // widens back out — the varial's width math with the roll struck
+            // out — while the wheels ride the shrinking ends and duck behind
+            // the deck at the pass-through.
+            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let yaw = u * .pi
+            let cx = 16 + dx, deckY = 25 + dy
+            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
+            if half >= 5 {
+                for hub in [cx - half + 1, cx + half - 3] {
+                    b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                    b.pixel(hub + 1, deckY + 2, .screenDark)
+                }
             }
 
         case .skateboardRoll:
