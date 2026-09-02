@@ -33,6 +33,8 @@ public enum CrabAnimator {
     /// | `7 &+ 3` | which idle flourish |
     /// | `13 &+ 5` | the working prop re-roll |
     /// | `17 &+ 7` | whether an idle cycle is a fun fact |
+    /// | `17 &+ 11` | whether a fact showing drops the shades — 17 shared by addend |
+    /// | `17 &+ 13` | whether the shades land with a ding — same family |
     /// | `19 &+ 13` | the bubble shimmer |
     /// | `23 &+ 19` | whether an informational cycle is a tip, not a fact |
     /// | `29 &+ 11` | the cooking heat cascade |
@@ -1243,6 +1245,61 @@ public enum CrabAnimator {
         }
     }
 
+    // MARK: - The deal-with-it drop
+
+    /// The fall, in seconds. At 30fps a 16-row smoothstep fall peaks at two
+    /// rows per frame — the grid's own quantum, twice; if review calls it
+    /// chunky the retreat is 0.7, never an easing change.
+    public static let shadesDropDuration = 0.5
+    /// One row of overshoot on touchdown, then settle — the sticker bounce.
+    static let shadesOvershootBeat = 0.12
+    /// The exit dissolve, matched to `propFade` so leaving reads like every
+    /// other prop swap.
+    public static let shadesFade = 0.35
+
+    /// Rows still to fall at `elapsed`: −16 (the print's top line at row −4,
+    /// fully off-sprite) easing to 0, a +1 overshoot beat, then rest.
+    nonisolated static func shadesDropRows(elapsed: Double) -> Int {
+        if elapsed < shadesDropDuration {
+            let u = Ease.smoothstep(elapsed / shadesDropDuration)
+            return -16 + Int((16 * u).rounded())
+        }
+        if elapsed < shadesDropDuration + shadesOvershootBeat { return 1 }
+        return 0
+    }
+
+    /// A fun fact dropped the MLG shades on him.
+    ///
+    /// The pair falls OPAQUE from above — the fall is the whole gag, and a
+    /// dissolving fall is neither a drop nor a dissolve — and leaves through
+    /// the standard prop fade. Whatever the mood already had in the prop slot
+    /// (the working terminal, the reading glasses, the idle mug) steps into
+    /// the ghost channel and pixel-dissolves out for the fact's stay, then
+    /// back in as the shades leave: `applyPropDissolve`'s own contract,
+    /// borrowed whole. On a dinging showing, the four-point sparkle sits at
+    /// the temple for the beat after touchdown.
+    static func applyShadesDrop(elapsed: Double, endedElapsed: Double?,
+                                ding: Bool, to pose: inout CrabPose) {
+        guard elapsed >= 0 else { return }
+        let exit = endedElapsed.map { Ease.clamp01(1 - $0 / shadesFade) } ?? 1
+        guard exit > 0.001 else { return }
+        let landed = Ease.clamp01(elapsed / shadesDropDuration)
+        if pose.prop != .none, pose.prop != .shades {
+            pose.ghostProp = pose.prop
+            pose.ghostPropPhase = pose.propPhase
+            pose.ghostPropVisibility = max(pose.ghostPropVisibility,
+                                           min(pose.propVisibility,
+                                               1 - min(landed, exit)))
+        }
+        pose.prop = .shades
+        pose.propVisibility = exit
+        pose.shadesDrop = shadesDropRows(elapsed: elapsed)
+        if ding, endedElapsed == nil,
+           elapsed >= shadesDropDuration, elapsed < shadesDropDuration + 0.3 {
+            pose.shadesGlint = true
+        }
+    }
+
     /// The idle pose with `kind` overlaid, `t` seconds into the flourish.
     ///
     /// Past `kind.duration` the flourish is over and plain idle comes back, so a
@@ -1479,6 +1536,14 @@ public struct CrabView: View {
     /// rude-wake sequence plays over the still-sleeping pose (the stir is
     /// deferred), then everything eases out as the mood gets him up.
     public var rudeWakeSince: Double?
+    /// The deal-with-it latch: a flaired fact arrived / left. Two-ended like
+    /// hover, plus whether this showing's landing dings, plus the rate flag —
+    /// `shadesDropping` holds the 30fps reaction tier for the ~0.9s fall only
+    /// (a forty-second worn fact must not cost idle its frame rate).
+    public var shadesSince: Double?
+    public var shadesEndedAt: Double?
+    public var shadesDing: Bool = false
+    public var shadesDropping: Bool = false
     /// The quiet completion badge. `completedAt` is the identity (nudge
     /// windows + the five-minute clock); the shown/ended pair is the
     /// appearance latch, so every entrance and exit — first show, early
@@ -1536,6 +1601,10 @@ public struct CrabView: View {
                 pouncedAt: Double? = nil,
                 snackSince: Double? = nil,
                 rudeWakeSince: Double? = nil,
+                shadesSince: Double? = nil,
+                shadesEndedAt: Double? = nil,
+                shadesDing: Bool = false,
+                shadesDropping: Bool = false,
                 completedAt: Double? = nil,
                 badgeShownAt: Double? = nil,
                 badgeEndedAt: Double? = nil,
@@ -1564,6 +1633,10 @@ public struct CrabView: View {
         self.pouncedAt = pouncedAt
         self.snackSince = snackSince
         self.rudeWakeSince = rudeWakeSince
+        self.shadesSince = shadesSince
+        self.shadesEndedAt = shadesEndedAt
+        self.shadesDing = shadesDing
+        self.shadesDropping = shadesDropping
         self.completedAt = completedAt
         self.badgeShownAt = badgeShownAt
         self.badgeEndedAt = badgeEndedAt
@@ -1814,7 +1887,7 @@ public struct CrabView: View {
             // and a 0.5s arm rise at 6fps is three frames of teleporting claw.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
                 || petSince != nil || pouncedAt != nil || snackSince != nil
-                || helloSince != nil || rudeWakeSince != nil
+                || helloSince != nil || rudeWakeSince != nil || shadesDropping
             let interval = CrabView.tickInterval(unseen: unseen, reacting: reacting,
                                                  mood: frameInterval)
             TimelineView(.periodic(from: Date(), by: interval)) { timeline in
@@ -1967,6 +2040,11 @@ public struct CrabView: View {
         // arms compose through `max`.
         if let rudeWakeSince, frozenTime == nil {
             CrabAnimator.applyRudeWake(elapsed: time - rudeWakeSince, to: &pose)
+        }
+        if let shadesSince, frozenTime == nil {
+            CrabAnimator.applyShadesDrop(elapsed: time - shadesSince,
+                                         endedElapsed: shadesEndedAt.map { time - $0 },
+                                         ding: shadesDing, to: &pose)
         }
         if let completedAt, frozenTime == nil {
             // The foot badge: the appearance latch eased both ways, and

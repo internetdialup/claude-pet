@@ -132,6 +132,15 @@ public struct CrabPose: Sendable, Equatable {
     public var torsoShade: Int = 0
     public var torsoShadeAmount: Double = 0
 
+    /// The deal-with-it entrance: rows the shades still have to FALL
+    /// (negative mid-drop, +1 during the overshoot beat, 0 at rest), and the
+    /// four-point sparkle at the lens on a dinging landing. Envelope-owned
+    /// like `torsoShade`: the view's knowledge latch writes them fresh every
+    /// frame, no schedule in `pose()` ever sets them, and `blend`
+    /// deliberately does not lerp them — a blend could only see zeros.
+    public var shadesDrop: Int = 0
+    public var shadesGlint: Bool = false
+
     /// A pixel bug scuttling across the floor rows, or nil. The column is the
     /// bug's centre; the animator owns its schedule.
     public var bugX: Int?
@@ -358,6 +367,11 @@ public enum CrabRig {
         propPass(&buffer, pose: pose, prop: pose.prop,
                  phase: pose.propPhase, visibility: pose.propVisibility,
                  dx: dx, dy: dy)
+        // After the prop, so the sparkle sits on the landed shades rather
+        // than under them; before the service glyph, which wins its own cells.
+        if pose.shadesGlint {
+            drawShadesGlint(&buffer, dx: dx, dy: dy + pose.shadesDrop)
+        }
 
         // The service glyph, after the props so it wins its own cells where a
         // sparkle wanders in — its own channel, like the fire layer, so it
@@ -808,6 +822,19 @@ public enum CrabRig {
         }
     }
 
+    /// The landing ding: the wink glint's four-point sparkle, parked at the
+    /// shades' right temple for the beat after they touch down. Clear cells
+    /// only, like its sibling — light off the lens, never paint over it.
+    private static func drawShadesGlint(_ b: inout PixelBuffer, dx: Int, dy: Int) {
+        let x = 26 + dx                          // one cell out from the line's right end
+        let y = 11 + dy                          // one row above the lens line
+        if b[x, y] == .clear { b[x, y] = .flameCore }
+        for arm in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
+        where b[arm.0, arm.1] == .clear {
+            b[arm.0, arm.1] = .yellow
+        }
+    }
+
     private static func heatPass(_ b: inout PixelBuffer, pose: CrabPose, dy: Int, squash: Int) {
         let top = bodyY + dy + squash
         let height = bodyH - squash
@@ -1156,21 +1183,25 @@ public enum CrabRig {
             // (left 10-12, right 19-21) all three rows — the second cut
             // anchored its rake at the temples and his eye corners peeked
             // out underneath, reading as the shades sliding off.
-            b.rect(6 + dx, 12 + dy, 20, 1, .memeBlack)      // the line: arms + tops + bridge
-            b.rect(8 + dx, 13 + dy, 6, 1, .memeBlack)       // left lens
-            b.rect(9 + dx, 14 + dy, 5, 1, .memeBlack)
-            b.rect(10 + dx, 15 + dy, 4, 1, .memeBlack)
-            b.rect(18 + dx, 13 + dy, 6, 1, .memeBlack)      // right lens
-            b.rect(18 + dx, 14 + dy, 5, 1, .memeBlack)
-            b.rect(18 + dx, 15 + dy, 4, 1, .memeBlack)
-            b.pixel(9 + dx, 13 + dy, .paper)                // checker glint, left lens
-            b.pixel(11 + dx, 13 + dy, .paper)
-            b.pixel(10 + dx, 14 + dy, .paper)
-            b.pixel(12 + dx, 14 + dy, .paper)
-            b.pixel(19 + dx, 13 + dy, .paper)               // checker glint, right lens
-            b.pixel(21 + dx, 13 + dy, .paper)
-            b.pixel(20 + dx, 14 + dy, .paper)
-            b.pixel(22 + dx, 14 + dy, .paper)
+            // `sy` carries the MLG entrance: `shadesDrop` is rows still to
+            // fall, so mid-drop the whole pair rides above the face and
+            // `PixelBuffer`'s subscript clips the off-sprite rows for free.
+            let sy = dy + pose.shadesDrop
+            b.rect(6 + dx, 12 + sy, 20, 1, .memeBlack)      // the line: arms + tops + bridge
+            b.rect(8 + dx, 13 + sy, 6, 1, .memeBlack)       // left lens
+            b.rect(9 + dx, 14 + sy, 5, 1, .memeBlack)
+            b.rect(10 + dx, 15 + sy, 4, 1, .memeBlack)
+            b.rect(18 + dx, 13 + sy, 6, 1, .memeBlack)      // right lens
+            b.rect(18 + dx, 14 + sy, 5, 1, .memeBlack)
+            b.rect(18 + dx, 15 + sy, 4, 1, .memeBlack)
+            b.pixel(9 + dx, 13 + sy, .paper)                // checker glint, left lens
+            b.pixel(11 + dx, 13 + sy, .paper)
+            b.pixel(10 + dx, 14 + sy, .paper)
+            b.pixel(12 + dx, 14 + sy, .paper)
+            b.pixel(19 + dx, 13 + sy, .paper)               // checker glint, right lens
+            b.pixel(21 + dx, 13 + sy, .paper)
+            b.pixel(20 + dx, 14 + sy, .paper)
+            b.pixel(22 + dx, 14 + sy, .paper)
 
         case .skateboard:
             // A board doing a KICKFLIP, and the shape of it is the opposite of

@@ -481,7 +481,47 @@ final class PetInstance {
         model.state = state
         updateServiceGlyphLatches()
         updateBadgeLatches()
+        updateKnowledgeLatches()
         if state.mood == .idle, !wasIdle { armSkateLine() }
+    }
+
+    /// The deal-with-it latch: settled on the edges of "a flaired fact is on
+    /// his head", the glyph latch's exact shape. Rising edge starts the drop
+    /// (and holds the 30fps tier for the fall only); a text change while
+    /// still flaired keeps the pair worn without a re-drop — one gag per
+    /// stay, not per sentence; falling edge plays the standard prop fade.
+    private func updateKnowledgeLatches() {
+        let live = model.state.bubble != nil
+            && model.state.bubbleTone == .knowledge
+            && model.state.bubbleFlair != .none
+        if live, model.shadesStartedAt == nil || model.shadesEndedAt != nil {
+            let startedAt = Date()
+            model.shadesStartedAt = startedAt
+            model.shadesEndedAt = nil
+            model.shadesDing = model.state.bubbleFlair == .shadesDing
+            model.shadesDropping = true
+            if model.shadesDing {
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.shadesDropDuration) { [weak self] in
+                    guard let self, self.model.shadesStartedAt == startedAt,
+                          self.model.shadesEndedAt == nil else { return }
+                    SoundBank.play(.ding)
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.shadesDropDuration + 0.4) { [weak self] in
+                guard let self, self.model.shadesStartedAt == startedAt else { return }
+                self.model.shadesDropping = false
+            }
+        } else if !live, model.shadesStartedAt != nil, model.shadesEndedAt == nil {
+            let endedAt = Date()
+            model.shadesEndedAt = endedAt
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, self.model.shadesEndedAt == endedAt else { return }
+                self.model.shadesStartedAt = nil
+                self.model.shadesEndedAt = nil
+                self.model.shadesDing = false
+                self.model.shadesDropping = false
+            }
+        }
     }
 
     /// Meet the next skate beat at the moment it lands.

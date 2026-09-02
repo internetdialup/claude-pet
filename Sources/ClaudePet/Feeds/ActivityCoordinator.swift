@@ -286,6 +286,11 @@ public final class ActivityCoordinator {
     /// length guard reads it from a non-MainActor suite to compare a scroll
     /// duration against the slot that has to contain it.
     nonisolated static let chatterInterval: TimeInterval = 14
+    /// The live seed/cache clock. Defaults to `chatterInterval` — identical
+    /// behavior — and exists only so tests can shrink the 14s seed edge the
+    /// way the decay horizons are shrunk. `chatterInterval` itself must stay
+    /// a `nonisolated let`: the fun-fact length guard reads it off-actor.
+    static var chatterSeedInterval: TimeInterval = chatterInterval
     /// How far back the tool-rate window looks.
     nonisolated static let toolRateWindow: TimeInterval = 60
     /// Tool calls within that window before he catches fire.
@@ -297,12 +302,29 @@ public final class ActivityCoordinator {
     nonisolated static let cookingToolRate = 8
 
 
+    /// A held line, with the two clocks that govern its life.
+    ///
+    /// `until` is the full stay: two whole marquee cycles, the glance
+    /// guarantee. `readableUntil` is the SHIELD: shown-at plus one first-pass
+    /// read plus a beat of grace. Before `readableUntil`, news may not kill
+    /// the line — the operator's ruling is that a fact finishes one complete
+    /// read before anything replaces it, and after that news wins instantly.
+    /// `flair` is the showing's garnish (the shades), dealt once with the
+    /// fact so every recompute of the same showing agrees.
+    private struct HeldLine {
+        var text: String
+        var style: PetState.BubbleStyle
+        var until: Date
+        var readableUntil: Date
+        var flair: PetState.BubbleFlair
+    }
+
     /// The idle line currently on screen, and when it was chosen.
     /// Each pet keeps his own cached sentence — two idle pets sharing one
     /// cache would trade sentences out from under each other's readers.
     private struct SlotChatter {
         var line: (text: String, style: PetState.BubbleStyle,
-                   tone: PetState.BubbleTone)?
+                   tone: PetState.BubbleTone, flair: PetState.BubbleFlair)?
         var chosenAt: Date = .distantPast
         /// The last thing that counted as news: the mood, the session, and the
         /// words themselves. A recompute that reproduces the same sentence is
@@ -320,7 +342,7 @@ public final class ActivityCoordinator {
         /// Only scrolling lines take one. A plain line is legible the instant
         /// it appears; a marquee has to walk past, and the dwell it was given
         /// was shorter than that walk.
-        var heldLine: (text: String, style: PetState.BubbleStyle, until: Date)?
+        var heldLine: HeldLine?
         /// The seed of the last fact the 🐑 tally counted, so a fact is
         /// counted once however many recomputes show it.
         var sheepSeed: Int = .min
@@ -827,7 +849,15 @@ public final class ActivityCoordinator {
         // long he has been up: a crab poked awake gets the lively first
         // stretch of chatter, not an arrival mid-intermittence.
         let quietFor = now.timeIntervalSince(max(stirredAt[slot], rousedAt[slot]))
-        if Self.idleChatterShows(quietFor: quietFor, seed: seed) {
+        // A fact still owed its stay outranks the gate here too — same
+        // ordering as the focused idle path, same reason: the seed edge and
+        // the rolling quiet must not decapitate a line mid-read.
+        if let held = chatterCache[slot].heldLine, now < held.until {
+            up.bubble = held.text
+            up.bubbleStyle = held.style
+            up.bubbleTone = .knowledge
+            up.bubbleFlair = held.flair
+        } else if Self.idleChatterShows(quietFor: quietFor, seed: seed) {
             var snapshot = StatusTicker.Snapshot()
             snapshot.sessionCount = roster.count
             let line = idleChatter(slot: slot, seed: seed, snapshot: snapshot,
@@ -835,6 +865,7 @@ public final class ActivityCoordinator {
             up.bubble = line.text
             up.bubbleStyle = line.style
             up.bubbleTone = line.tone
+            up.bubbleFlair = line.flair
         }
         return up
     }
@@ -854,7 +885,7 @@ public final class ActivityCoordinator {
                         ordered: [ClaudeSession], now: Date) -> PetState {
         // Salted per slot so two idle pets never speak in lockstep; additive,
         // so the split-dice property of the chatter gate survives.
-        let seed = Int(now.timeIntervalSince1970 / Self.chatterInterval) &+ slot &* 7919
+        let seed = Int(now.timeIntervalSince1970 / Self.chatterSeedInterval) &+ slot &* 7919
 
         let focusOrNil: ClaudeSession?
         if ordered.isEmpty {
@@ -921,6 +952,7 @@ public final class ActivityCoordinator {
         var bubble = task.map { Self.condense($0) }
         var style = PetState.BubbleStyle.plain
         var tone = PetState.BubbleTone.mood
+        var flair = PetState.BubbleFlair.none
         // Whether this mood rides the burst schedule. Set by the `default:`
         // branch; the moods that run their own honest gate leave it false.
         var scheduled = false
@@ -995,8 +1027,14 @@ public final class ActivityCoordinator {
                     style = Self.bubbleStyle(for: line)
                     let hold = Self.lineHold(for: line)
                     if hold > 0 {
-                        chatterCache[slot].heldLine = (line, style,
-                                                       now.addingTimeInterval(hold))
+                        // `flair: .none` — a sleeping fact never wears the
+                        // shades; shades over shut eyes is a different joke.
+                        chatterCache[slot].heldLine = HeldLine(
+                            text: line, style: style,
+                            until: now.addingTimeInterval(hold),
+                            readableUntil: now.addingTimeInterval(
+                                Self.readableWindow(for: line) + Self.readableGrace),
+                            flair: .none)
                     }
                 }
             } else {
@@ -1009,13 +1047,23 @@ public final class ActivityCoordinator {
         // `task == nil` meant any titled session — which is most of them — kept
         // showing its title forever and never reached the ticker.
         case .idle where focus.activeTaskLabel == nil && focus.activity == nil:
-            // Nothing to report — encouragement, or a status ticker. The gate
-            // sits OUTSIDE `idleChatter` on purpose: its 14s cache would
-            // otherwise keep answering through cycles the gate meant to be
-            // quiet, and a nil cycle must leave the cache untouched so the
-            // rotation resumes where it left off.
-            if Self.idleChatterShows(quietFor: now.timeIntervalSince(focus.lastActivity),
-                                     seed: seed) {
+            // A fact still owed its stay comes FIRST: this path used to take
+            // no hold at all, so an idle fact lived at most fourteen seconds
+            // — one seed edge — against a longest read-through of 11.8s, and
+            // a glance four seconds in never got a second pass. Neither the
+            // seed edge, the cache turning over, nor the rolling quiet may
+            // blank a line mid-read now. The short-circuit sits OUTSIDE
+            // `idleChatter` for the same reason the quiet gate does: the 14s
+            // cache must not be consulted or refreshed mid-hold, and when the
+            // hold expires the cache is always stale (holds run ≥ ~19s), so
+            // a fresh deal follows and no resumed-scroll path exists.
+            if let held = chatterCache[slot].heldLine, now < held.until {
+                bubble = held.text
+                style = held.style
+                tone = .knowledge   // only facts take holds
+                flair = held.flair
+            } else if Self.idleChatterShows(quietFor: now.timeIntervalSince(focus.lastActivity),
+                                            seed: seed) {
                 var snapshot = StatusTicker.Snapshot()
                 snapshot.model = focus.model
                 snapshot.branch = focus.branch
@@ -1027,6 +1075,7 @@ public final class ActivityCoordinator {
                 bubble = line.text
                 style = line.style
                 tone = line.tone
+                flair = line.flair
             } else {
                 bubble = nil
             }
@@ -1072,23 +1121,45 @@ public final class ActivityCoordinator {
                 elapsed: now.timeIntervalSince(chatterCache[slot].newsAt),
                 cadence: cadence,
                 salt: slot &* 7919)
-            // Any burst — a vocab line or a real task label riding one — is
-            // news, and news kills whatever fact was mid-scroll NOW. Not
-            // paused, not resumed later: a resumed scroll re-creates the
-            // mid-start the hold exists to prevent. This clear is what
-            // replaced the old dies-with-its-cycle clamp, and it sits ABOVE
-            // the branch so the task!=nil case (which falls through both
-            // arms with the label already set) kills the hold too.
-            if burst != nil { chatterCache[slot].heldLine = nil }
+            // THE SHIELD. News may only kill a fact once it has been read
+            // ONCE — the operator's ruling. Until `readableUntil`, the fact
+            // keeps the face and the burst is not displayed; `newsAt` and
+            // `newsEpoch` advance exactly as before, so when the shield lifts
+            // `bubbleBurst` re-asks from the same epoch — still inside a live
+            // window and the news shows instantly (the other half of the
+            // ruling), past it and the quiet path resumes, letting the fact
+            // finish its two-cycle stay. Never paused-and-resumed: a resumed
+            // scroll re-creates the mid-start the hold exists to prevent.
+            // Urgency is exempt by construction — needsAttention and nudging
+            // are not in `factMoods`, so their bursts always clear on the
+            // spot, and the live task label rides `bubbleContent` (the
+            // tooltip) throughout regardless.
+            var shielded = false
+            if burst != nil {
+                if let held = chatterCache[slot].heldLine,
+                   Self.factMoods.contains(mood), now < held.readableUntil {
+                    bubble = held.text
+                    style = held.style
+                    tone = .knowledge
+                    flair = held.flair
+                    shielded = true
+                } else {
+                    chatterCache[slot].heldLine = nil
+                }
+            }
 
-            if burst == nil {
+            if shielded {
+                // Nothing more to decide: the fact owns the face until the
+                // first read completes.
+            } else if burst == nil {
                 // The cadence chose silence. That is the one place a fact can
                 // go without displacing anything, so ask — and fall back to the
                 // silence it would have been.
                 if let known = quietBeatFact(mood: mood, slot: slot, now: now) {
-                    bubble = known
-                    style = Self.bubbleStyle(for: known)
+                    bubble = known.text
+                    style = Self.bubbleStyle(for: known.text)
                     tone = .knowledge
+                    flair = known.flair
                 } else {
                     bubble = nil
                 }
@@ -1130,6 +1201,7 @@ public final class ActivityCoordinator {
             attentionCount: ordered.filter { $0.mood == .needsAttention && $0.id != focus.id }.count,
             bubbleStyle: style,
             bubbleTone: tone,
+            bubbleFlair: flair,
             sleepTalkCount: chatterCache[slot].sheep,
             taskFraction: taskFraction,
             celebrating: mood == .done && focus.celebrating,
@@ -1149,9 +1221,10 @@ public final class ActivityCoordinator {
     private func idleChatter(slot: Int, seed: Int,
                              snapshot: StatusTicker.Snapshot,
                              now: Date) -> (text: String, style: PetState.BubbleStyle,
-                                            tone: PetState.BubbleTone) {
+                                            tone: PetState.BubbleTone,
+                                            flair: PetState.BubbleFlair) {
         if let current = chatterCache[slot].line,
-           now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterInterval {
+           now.timeIntervalSince(chatterCache[slot].chosenAt) < Self.chatterSeedInterval {
             return current
         }
 
@@ -1167,13 +1240,26 @@ public final class ActivityCoordinator {
         // `idleChatterShows` explains that a second modular gate on this seed
         // starves whatever already modulos it, and that `(seed * k) % 3`
         // collapses straight back into `seed % 3`.
-        let next: (String, PetState.BubbleStyle, PetState.BubbleTone)
+        let next: (String, PetState.BubbleStyle, PetState.BubbleTone, PetState.BubbleFlair)
         if !status.isEmpty, seed % 3 == 2 {
-            next = (status[(seed / 3) % status.count], .marquee, .mood)
+            next = (status[(seed / 3) % status.count], .marquee, .mood, .none)
         } else if let known = factOrTip(slot: slot, seed: seed) {
             // The knowledge voice: facts and tips wear the appearance-matched
-            // card, not the mood palette.
-            next = (known, Self.bubbleStyle(for: known), .knowledge)
+            // card, not the mood palette — and a scrolling one takes the same
+            // hold the quiet-beat path takes, so the idle seed edge cannot
+            // decapitate it. Only facts take holds; the ticker and his own
+            // voice keep their fourteen-second life.
+            let flair = Self.factFlair(seed: seed, mood: .idle)
+            let hold = Self.lineHold(for: known)
+            if hold > 0 {
+                chatterCache[slot].heldLine = HeldLine(
+                    text: known, style: Self.bubbleStyle(for: known),
+                    until: now.addingTimeInterval(hold),
+                    readableUntil: now.addingTimeInterval(
+                        Self.readableWindow(for: known) + Self.readableGrace),
+                    flair: flair)
+            }
+            next = (known, Self.bubbleStyle(for: known), .knowledge, flair)
         } else {
             // The shuffled cycle guarantees no immediate repeat — but only
             // through a cursor. It is reached on a subset of ticks (this very
@@ -1183,7 +1269,7 @@ public final class ActivityCoordinator {
             // before the cursor; that is the "spicy idea" the operator kept
             // seeing.
             let line = chatterCache[slot].cursor.line(for: .idle, token: "\(seed)")
-            next = (line ?? "Ready when you are", .plain, .mood)
+            next = (line ?? "Ready when you are", .plain, .mood, .none)
         }
 
         chatterCache[slot].line = next
@@ -1239,13 +1325,47 @@ public final class ActivityCoordinator {
     /// on the first word. That guarantee costs 37.8s on the worst fact — which
     /// is longer than a working cadence period, so the old "a hold dies with
     /// its own cycle" invariant is replaced by a stronger one at the call
-    /// site: NEWS KILLS THE HOLD, always and immediately, and it never
-    /// resumes — a resumed scroll is the mid-start bug wearing a different
-    /// hat.
+    /// site: past the readable window, NEWS KILLS THE HOLD immediately, and it
+    /// never resumes — a resumed scroll is the mid-start bug wearing a
+    /// different hat.
     nonisolated static func lineHold(for line: String) -> TimeInterval {
         guard bubbleStyle(for: line) == .marquee else { return 0 }
         let cycle = Double(MarqueeText.cycle(for: line, loopSeconds: nil) / MarqueeText.speed)
         return min(cycle * 2, maxLineHold)
+    }
+
+    /// Grace on top of the first read-through, so "read once" survives the
+    /// eye finding the bubble. A `var` so tests can shrink it.
+    static var readableGrace: TimeInterval = 0.8
+
+    /// One full first-pass read of a scrolling line — the last character
+    /// reaching the viewport — and zero for plain lines, which are legible
+    /// the instant they appear. This is the SHIELD's clock: the operator's
+    /// ruling is that a fact finishes one complete read before news may
+    /// replace it, and after that news wins instantly. Worst case 11.8s plus
+    /// grace, always inside the line's own two-cycle stay.
+    nonisolated static func readableWindow(for line: String) -> TimeInterval {
+        guard bubbleStyle(for: line) == .marquee else { return 0 }
+        return MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+    }
+
+    /// The moods a fact may wear the deal-with-it shades in. `.cooking` is
+    /// out: the fire IS the cooking signal, and the prop swap would vanish
+    /// it. `.sleeping` is out: shades over shut eyes is a different, worse
+    /// joke. The urgent moods never carry facts at all.
+    nonisolated static let shadesMoods: Set<PetMood> = [.idle, .working]
+
+    /// Whether THIS showing of a fact drops the shades, and whether the
+    /// landing dings — dealt once on the same seed the fact was dealt on, so
+    /// one showing has one answer however many recomputes it survives.
+    /// About half wear the shades; about a third of those land with a ding —
+    /// the operator's "give it some randomness so it isn't so boring".
+    /// Salts 17 &+ 11 and 17 &+ 13: new addends on the fact family's
+    /// multiplier, same cycle domain as 17 &+ 7 (the registry has the rows).
+    nonisolated static func factFlair(seed: Int, mood: PetMood) -> PetState.BubbleFlair {
+        guard shadesMoods.contains(mood) else { return .none }
+        guard CrabAnimator.noise(seed &* 17 &+ 11) < 0.5 else { return .none }
+        return CrabAnimator.noise(seed &* 17 &+ 13) < 0.35 ? .shadesDing : .shades
     }
 
     /// A fun fact for this cycle, or nil when the coin says it is his turn to
@@ -1353,7 +1473,8 @@ public final class ActivityCoordinator {
     /// arithmetic above true instead of aspirational — and kills the chaining
     /// where an expiring hold rolled straight into a fresh line, because after
     /// a hold expires the cycle's dwell window has already passed.
-    private func quietBeatFact(mood: PetMood, slot: Int, now: Date) -> String? {
+    private func quietBeatFact(mood: PetMood, slot: Int,
+                               now: Date) -> (text: String, flair: PetState.BubbleFlair)? {
         guard Self.factMoods.contains(mood) else {
             // He has stopped being in a mood that says facts, so whatever was
             // scrolling is no longer his to finish.
@@ -1368,7 +1489,7 @@ public final class ActivityCoordinator {
         // which would have swapped the sentence out from under a reader even if
         // the dwell had allowed it.
         if let held = chatterCache[slot].heldLine {
-            if now < held.until { return held.text }
+            if now < held.until { return (held.text, held.flair) }
             chatterCache[slot].heldLine = nil
         }
 
@@ -1400,16 +1521,23 @@ public final class ActivityCoordinator {
         // The hold may now OUTLIVE its cadence cycle — two full passes of the
         // longest fact need 37.8s against a 30s working period, and the
         // operator chose the guarantee. What replaced the old cycle clamp is
-        // stronger: the burst path clears `heldLine` the moment the cadence
-        // has anything real to say, so news still wins instantly, and a
-        // cleared hold never resumes. Chaining stays dead because the die is
+        // stronger: past the readable window, the burst path clears
+        // `heldLine` the moment the cadence has anything real to say — but
+        // never before the first read completes (the shield), and a cleared
+        // hold never resumes. Chaining stays dead because the die is
         // per-cycle and the dwell-start gate keeps an expiry mid-cycle quiet.
+        let flair = Self.factFlair(seed: cycle, mood: mood)
         let hold = Self.lineHold(for: line)
         if hold > 0 {
-            chatterCache[slot].heldLine = (line, Self.bubbleStyle(for: line),
-                                           now.addingTimeInterval(hold))
+            chatterCache[slot].heldLine = HeldLine(
+                text: line,
+                style: Self.bubbleStyle(for: line),
+                until: now.addingTimeInterval(hold),
+                readableUntil: now.addingTimeInterval(
+                    Self.readableWindow(for: line) + Self.readableGrace),
+                flair: flair)
         }
-        return line
+        return (line, flair)
     }
 
     private func publish(_ new: PetState, slot: Int) {
