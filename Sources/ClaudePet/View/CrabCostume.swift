@@ -919,13 +919,23 @@ enum CrabCostume {
             let crown = bodyY + dy + squash
             if layer == .onBody {
                 // The tee: a charcoal band across the lower shell with a
-                // two-cell chest mark, and pads on all four legs riding the
-                // gait the way every shoe here does.
+                // two-cell chest mark. Below it, BAGGY BLACK PANTS — the
+                // operator's second fitting, in place of the knee pads: each
+                // leg wears a pant leg one cell wider than the leg on both
+                // sides, black, with a grey cuff on the foot row. The pants
+                // ride the gait the way every shoe here does — shortened
+                // from the foot up by the same swing the legs use — so a
+                // lifted foot takes its cuff with it. Wider than the leg is
+                // the whole read: a pant leg the leg's own width is a black
+                // leg, not baggy pants.
                 b.rect(bodyX + 1 + dx - squash, 18 + dy, bodyW - 2 + squash * 2, 3, .costumeA)
                 b.rect(10 + dx, 19 + dy, 2, 1, .paper)
                 for (index, leg) in CrabRig.legX.enumerated() {
                     let lift = max(0, CrabRig.legSwing(index, pose: pose))
-                    b.rect(leg + dx, 22 + dy - lift, 2, 1, .costumeC)
+                    let cuff = 24 + dy - lift
+                    let rows = cuff - (21 + dy)
+                    if rows > 0 { b.rect(leg - 1 + dx, 21 + dy, 3, rows, .slate) }
+                    b.rect(leg - 1 + dx, cuff, 3, 1, .steel)
                 }
                 break
             }
