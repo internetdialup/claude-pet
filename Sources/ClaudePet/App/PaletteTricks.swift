@@ -182,6 +182,124 @@ enum PaletteTricks {
         return true
     }
 
+    // MARK: - The triptych
+
+    /// 1080 square, because the ask is CAROUSELS and a carousel slide is
+    /// square. The shape is the one the operator's post landed in by
+    /// accident: a full-height hero at two thirds of the width, two
+    /// half-height sidekicks stacked beside it. Rendering it ourselves makes
+    /// it the same every time instead of whatever the platform's grid feels
+    /// like doing with three separate uploads.
+    static let triptychSide: CGFloat = 1080
+    static let triptychGutter: CGFloat = 6
+
+    /// Three grounds, three tricks, one block. Curated rather than
+    /// enumerated — a carousel is chosen, and every combination of eight
+    /// grounds and seven tricks is a spreadsheet, not a feed.
+    static let triptychSets: [[(ground: Int, trick: CrabAnimator.Flourish, costume: Costume)]] = [
+        [(6, .kickflip, .none), (2, .ollie, .none), (0, .cruise, .none)],
+        [(1, .ollie, .none), (4, .varialFlip, .none), (7, .manual, .none)],
+        [(2, .varialFlip, .none), (5, .nollie, .none), (3, .shoveIt, .none)],
+        [(7, .nollie, .none), (0, .kickflip, .none), (6, .ollie, .none)],
+        [(4, .manual, .none), (1, .cruise, .none), (2, .kickflip, .none)],
+        [(0, .shoveIt, .none), (6, .nollie, .none), (5, .varialFlip, .none)],
+        [(3, .cruise, .none), (7, .ollie, .none), (1, .nollie, .none)],
+        [(5, .kickflip, .skater), (3, .ollie, .sonic), (4, .varialFlip, .gundam)],
+        [(2, .nollie, .ninja), (0, .manual, .retroBlack), (7, .kickflip, .tiger)],
+        [(6, .varialFlip, .none), (4, .shoveIt, .none), (0, .ollie, .none)],
+    ]
+
+    static func renderTriptychs(to directory: String) -> Bool {
+        let root = URL(fileURLWithPath: directory).appendingPathComponent("triptych")
+        do { try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true) }
+        catch { return false }
+        for (index, set) in triptychSets.enumerated() {
+            let name = "clawd-triptych-\(String(format: "%02d", index + 1)).gif"
+            guard triptych(set, to: root.appendingPathComponent(name)) else { return false }
+        }
+        print("wrote \(triptychSets.count) triptychs to \(root.path)")
+        return true
+    }
+
+    /// Length-matched, not speed-matched: the block runs as long as its
+    /// longest trick, and the shorter panels hold their own board at the
+    /// head and tail. The bookends already ride, so the padding reads as two
+    /// skaters waiting their turn rather than as dead frames — and every
+    /// panel starts and ends on the same stance, so the loop closes.
+    private static func triptych(_ set: [(ground: Int, trick: CrabAnimator.Flourish, costume: Costume)],
+                                 to url: URL) -> Bool {
+        let lead = 0.6, settle = 0.9
+        let longest = set.map { $0.trick.duration }.max() ?? 0
+        let seconds = lead + longest + settle
+        let frames = Int((seconds / frameDelay).rounded())
+
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            let panels = set.map { panel -> (pose: CrabPose, ground: Color, costume: Costume) in
+                var stance = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+                stance.prop = restingBoard(for: panel.trick)
+                stance.propVisibility = 1
+                stance.propPhase = 0
+                // Centred in the window, so a short trick waits equally at
+                // both ends instead of finishing early and standing about.
+                let start = lead + (longest - panel.trick.duration) / 2
+                let pose = local < start || local >= start + panel.trick.duration
+                    ? stance
+                    : CrabAnimator.flourishPose(panel.trick, at: local - start, base: stance)
+                return (pose, grounds[panel.ground].color, panel.costume)
+            }
+            guard let image = SpriteImage.cgImage(of: triptychScene(panels),
+                                                  scale: 1, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    @ViewBuilder
+    private static func triptychScene(
+        _ panels: [(pose: CrabPose, ground: Color, costume: Costume)]
+    ) -> some View {
+        // hero = 2 × sidekick in width, so 3 sidekicks plus one gutter span
+        // the block; the sidekicks split the height the same way.
+        let side = (triptychSide - triptychGutter) / 3
+        let heroWidth = side * 2
+        let sideHeight = (triptychSide - triptychGutter) / 2
+        HStack(spacing: triptychGutter) {
+            panel(panels[0], width: heroWidth, height: triptychSide, sprite: 480)
+            VStack(spacing: triptychGutter) {
+                // Smaller than half the hero on purpose: in the operator's
+                // post the sidekicks read as sidekicks, not as the same crab
+                // twice. A flat half would have made three equal panes.
+                panel(panels[1], width: side, height: sideHeight, sprite: 200)
+                panel(panels[2], width: side, height: sideHeight, sprite: 200)
+            }
+        }
+        .frame(width: triptychSide, height: triptychSide)
+        .background(Palette.white)
+    }
+
+    @ViewBuilder
+    private static func panel(_ panel: (pose: CrabPose, ground: Color, costume: Costume),
+                              width: CGFloat, height: CGFloat, sprite: CGFloat) -> some View {
+        ZStack {
+            panel.ground
+            PixelCanvasView(buffer: CrabRig.render(panel.pose, costume: panel.costume),
+                            inkOverrides: CostumeStyle.blendedOverrides(
+                                from: panel.costume, to: panel.costume, u: 1),
+                            seamBleed: 0)
+                .frame(width: sprite, height: sprite)
+                // He occupies the middle rows of his own grid, so a sprite
+                // centred in the panel reads as sitting high. The same
+                // under-centre nudge the portrait set already makes, kept
+                // proportional so both panel sizes land the same.
+                .offset(y: sprite * 0.106)
+        }
+        .frame(width: width, height: height)
+        .clipped()
+    }
+
     private static func clip(trick: CrabAnimator.Flourish, ground: Color, costume: Costume,
                              line: String?, golden: Bool,
                              headwear: CrabPose.Headwear = .none, steeze: Bool = false,

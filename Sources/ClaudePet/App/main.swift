@@ -46,6 +46,13 @@ if let index = arguments.firstIndex(of: "--render-figma"), index + 1 < arguments
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-triptych"), index + 1 < arguments.count {
+    // Three Claw'ds in one block, for the operator's carousels. Review
+    // material, never committed.
+    let ok = MainActor.assumeIsolated { PaletteTricks.renderTriptychs(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-costume-sheet"), index + 1 < arguments.count {
     // Contact sheets for the costume-refinement rounds — operator review
     // material, never committed.
