@@ -197,15 +197,32 @@ public enum CrabAnimator {
     /// 72% of cycles fire, gaps go irregular (7s, 14s, 7s, 21s…, longest 35s
     /// over 600 cycles) and the quiet stretches rise from 80% to 86%.
     /// "He should move sometimes, and be still most of the time."
-    /// What the choice die deals from. The enum stays append-only; TASTE
-    /// lives here. Every trick appears twice and the cruise once — the
-    /// operator skates, and the shout deck lands harder on tricks than on a
-    /// roll-away. Nineteen entries (thirteen cases plus the six doubled
-    /// tricks) put skate beats at 13/19 of fired flourishes, each trick at
-    /// 2/19, cruise and every other flourish at 1/19. `theDeckLeansSkate`
-    /// pins the lean, not these fractions, so the deck can grow.
-    static let flourishDeck: [Flourish] = Flourish.allCases
-        + [.kickflip, .varialFlip, .ollie, .manual, .shoveIt, .nollie]
+    /// How often each flourish comes up, and the deck dealt from it.
+    ///
+    /// TASTE lives here. The deck used to be a hand-written array with the
+    /// tricks listed twice, which meant "favour the newer ones" had nowhere
+    /// to be said without counting repeats by eye. Weights say it directly.
+    ///
+    /// The shape: an ordinary flourish is 1, the cruise is 2 because a
+    /// roll-away is a skate beat and the operator skates, an established
+    /// trick is 3, and the newest tricks are 4 — the recent work should
+    /// lead. That puts skate beats at 22 of 28 entries, which is where the
+    /// operator asked for them. `theDeckLeansSkate` pins the lean rather
+    /// than these fractions, so the table can keep moving.
+    static let flourishWeights: [Flourish: Int] = [
+        .jump: 1, .wave: 1, .wiggle: 1, .stretch: 1, .lookAround: 1, .scuttle: 1,
+        .cruise: 2,
+        .kickflip: 3, .ollie: 3, .manual: 3, .shoveIt: 3,
+        .varialFlip: 4, .nollie: 4,
+    ]
+
+    /// Expanded from the weights, over `allCases` rather than over the
+    /// dictionary: a Dictionary's iteration order is not stable between
+    /// runs, and a deck that reshuffles itself per launch would make every
+    /// dice-derived pin in the suite a coin toss.
+    static let flourishDeck: [Flourish] = Flourish.allCases.flatMap { kind in
+        Array(repeating: kind, count: flourishWeights[kind] ?? 1)
+    }
 
     /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
     /// flourish family's multiplier, new addend, same cycle domain.

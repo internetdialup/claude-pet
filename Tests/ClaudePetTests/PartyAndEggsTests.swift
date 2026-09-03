@@ -130,13 +130,15 @@ struct SkyAndDeckTests {
 
     /// A dice at the stated odds, agreeing with itself between the deck that
     /// paints and the landing that shouts.
-    @Test("One skate beat in about fifty is golden, everywhere at once")
+    @Test("One skate beat in about twenty is golden, everywhere at once")
     func goldenRateAndAgreement() {
         var golden = 0
         let n = 20_000
         for cycle in 1...n where CrabAnimator.skateBeatIsGolden(cycle: cycle) { golden += 1 }
         let rate = Double(golden) / Double(n)
-        #expect(rate > 0.01 && rate < 0.03, "golden rate \(rate), wanted ~0.02")
+        let wanted = SpawnRates.goldenBoard
+        #expect(abs(rate - wanted) < wanted * 0.25,
+                "golden rate \(rate), table says \(wanted)")
 
         // Every landing the scheduler yields answers the same as its cycle.
         var t = 1.0
@@ -182,7 +184,7 @@ struct SkyAndDeckTests {
     /// The beanie: the golden board's contract on its own dice — the stated
     /// rate, the cycle-zero sentinel, no flourishPose leak, and a render that
     /// actually wears green on the crown while standing down under a costume.
-    @Test("About a skate beat in three wears the beanie, and it cannot leak")
+    @Test("Nearly a skate beat in two wears headwear, and it cannot leak")
     func beanieRateAndLeak() {
         var beanies = 0, caps = 0
         let n = 20_000
@@ -194,7 +196,9 @@ struct SkyAndDeckTests {
             }
         }
         let rate = Double(beanies + caps) / Double(n)
-        #expect(rate > 0.27 && rate < 0.33, "headwear rate \(rate), wanted ~0.3")
+        let wantedHeadwear = SpawnRates.headwear
+        #expect(abs(rate - wantedHeadwear) < wantedHeadwear * 0.1,
+                "headwear rate \(rate), table says \(wantedHeadwear)")
         #expect(beanies > 2_000 && caps > 2_000, "both cuts must actually occur")
         #expect(CrabAnimator.skateHeadwear(cycle: 0) == .none, "cycle zero must stay bare")
         for t in stride(from: 0.0, through: 3.2, by: 0.4) {

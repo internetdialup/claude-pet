@@ -79,13 +79,19 @@ enum SpawnRates {
     // fire in cycle zero — the frozen sentinel is the schedulers' job, not
     // this table's.
 
-    /// Whether an idle cycle plays a flourish at all. The 70% is a ruling,
-    /// not a default: an earlier version fired every cycle and read as a
-    /// metronome. "He should move sometimes, and be still most of the time."
-    static let flourish = Spawn(chance: 0.70, period: 7)             // 360/hr
+    /// Whether an idle cycle plays a flourish at all.
+    ///
+    /// Raised to 80% at the operator's call, and it is worth writing down
+    /// what that spends: the quiet stretches fall from 86% of the time to
+    /// about 80%, and the ruling this number carries — "he should move
+    /// sometimes, and be still most of the time" — was itself the fix for a
+    /// version that fired every cycle and read as a metronome. If he ever
+    /// starts feeling busy rather than alive, this is the number, and it is
+    /// a one-line revert.
+    static let flourish = Spawn(chance: 0.80, period: 7)             // 411/hr
     /// 🛹 The long ride — several tricks strung together. The rarest thing
     /// he does on a board, and the one most worth catching.
-    static let skateSession = Spawn(chance: 0.22, period: 180)       // 4.4/hr
+    static let skateSession = Spawn(chance: 0.35, period: 180)       // 7/hr
     /// 💗 The idle heart.
     static let idleHeart = Spawn(chance: 0.30, period: 45)           // 24/hr
     /// ✨ A second and a half of light across the shell.
@@ -112,13 +118,16 @@ enum SpawnRates {
     // gets its texture. Raising these is what "more skating" almost always
     // means, because the base rate is already saturated.
 
-    /// 🛹✨ One skate beat in fifty rides the golden board.
-    static let goldenBoard = 0.02
-    /// 🧢 About a beat in three comes out in headwear — the low half of the
+    /// 🛹✨ One skate beat in twenty rides the golden board. Raised from
+    /// one in fifty at the operator's call: the jackpot was so rare that
+    /// most people running him had never once seen it, which makes it a
+    /// feature nobody has.
+    static let goldenBoard = 0.05
+    /// 🧢 Nearly a beat in two comes out in headwear — the low half of the
     /// band is the beanie, the upper half the cap.
-    static let headwear = 0.3
-    /// 🦵 About an ollie in three is steezed, the back leg boned out.
-    static let steeze = 0.33
+    static let headwear = 0.45
+    /// 🦵 Half of his ollies are steezed, the back leg boned out.
+    static let steeze = 0.50
 
     // MARK: - Moods with weather of their own
 

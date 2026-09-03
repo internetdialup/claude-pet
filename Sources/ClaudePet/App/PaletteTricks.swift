@@ -191,7 +191,11 @@ enum PaletteTricks {
     /// it the same every time instead of whatever the platform's grid feels
     /// like doing with three separate uploads.
     static let triptychSide: CGFloat = 1080
-    static let triptychGutter: CGFloat = 6
+    /// No gutter: the operator's call, and the right one — a white
+    /// hairline is a divider the composition did not ask for, and it reads
+    /// as three uploads again rather than as one block. Flush panels let
+    /// the grounds do the separating, which is what the colour pal is for.
+    static let triptychGutter: CGFloat = 0
 
     /// Three grounds, three tricks, one block. Curated rather than
     /// enumerated — a carousel is chosen, and every combination of eight
@@ -277,7 +281,7 @@ enum PaletteTricks {
             }
         }
         .frame(width: triptychSide, height: triptychSide)
-        .background(Palette.white)
+
     }
 
     @ViewBuilder

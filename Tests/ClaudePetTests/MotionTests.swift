@@ -531,7 +531,8 @@ struct MotionContinuityTests {
         var fired = 0
         for cycle in 1...3000 where CrabAnimator.ollieIsSteezed(cycle: cycle) { fired += 1 }
         let rate = Double(fired) / 3000
-        #expect(rate > 0.29 && rate < 0.37, "steeze rate \(rate)")
+        #expect(abs(rate - SpawnRates.steeze) < SpawnRates.steeze * 0.15,
+                "steeze rate \(rate), table says \(SpawnRates.steeze)")
     }
 
     /// **The cruise is the one where HE does not move and the ground does.**
