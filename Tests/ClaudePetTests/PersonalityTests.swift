@@ -1087,7 +1087,12 @@ struct EditableCopyTests {
     func skateLinesFitTheirWindow() {
         // Both skate decks share the 3.4s live window — the golden lines are
         // reserved, not exempt.
-        for line in Vocab.lines(for: .kickflip) + Vocab.lines(for: .goldenSkate) {
+        // Every deck that can land in that window, including the
+        // in-character ones — a costume line is not exempt from the clock
+        // just because it has personality.
+        let characterLines = Costume.allCases.flatMap { Vocab.skateLines(for: $0) }
+        for line in Vocab.lines(for: .kickflip) + Vocab.lines(for: .goldenSkate)
+            + characterLines {
             switch ActivityCoordinator.bubbleStyle(for: line) {
             case .plain:
                 #expect(line.count <= ThoughtBubble.plainColumns,

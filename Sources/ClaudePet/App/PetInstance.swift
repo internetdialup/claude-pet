@@ -689,9 +689,20 @@ final class PetInstance {
             // is the SAME derivation the pose used to paint the board, asked
             // at the same landing instant — so the shout can never call an
             // ordinary trick golden, or stay quiet about the jackpot.
+            // 🎭 …and IN CHARACTER, when he is wearing one. A costume that
+            // only recolours him is a paint job; one that changes what he
+            // says is a character, which is what the operator asked for.
+            // The golden deck still outranks it: the jackpot is the rarer
+            // thing to have landed, and it should sound like it whatever he
+            // has on. A costume with no voice of its own falls back to his,
+            // rather than being handed a forced catchphrase.
+            let worn = self.model.costume
+            let inCharacter = Vocab.skateLines(for: worn)
             let line = CrabAnimator.skateLandingIsGolden(at: landing)
                 ? self.skateCursor.advance(Vocab.lines(for: .goldenSkate), id: "goldenSkate")
-                : self.skateCursor.advance(Vocab.lines(for: .kickflip), id: "kickflip")
+                : inCharacter.isEmpty
+                    ? self.skateCursor.advance(Vocab.lines(for: .kickflip), id: "kickflip")
+                    : self.skateCursor.advance(inCharacter, id: "skate-\(worn.rawValue)")
             // Long enough for the longest line to finish SCROLLING, not just to
             // appear: the Hall of Meat line is 31 columns, so it goes to the
             // marquee and needs about 2.1s to walk past.
