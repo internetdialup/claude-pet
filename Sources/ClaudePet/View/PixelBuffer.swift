@@ -312,6 +312,18 @@ public struct PixelCanvasView: View {
     }
 
     private func color(for ink: PixelBuffer.Ink) -> Color {
+        Self.color(for: ink, bodyTint: bodyTint, inkOverrides: inkOverrides)
+    }
+
+    /// The ink table itself, free of the view that usually asks for it.
+    ///
+    /// Static because the Figma export needs the same answer the canvas
+    /// gives and must not restate it: a second copy of this switch would
+    /// drift the moment a costume slot moved, and the drift would only show
+    /// up as a wrong colour in someone else's file.
+    static func color(for ink: PixelBuffer.Ink,
+                      bodyTint: Color?,
+                      inkOverrides: [PixelBuffer.Ink: Color]) -> Color {
         switch ink {
         case .clear: .clear
         case .body: bodyTint ?? inkOverrides[.body] ?? Palette.body

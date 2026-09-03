@@ -39,6 +39,13 @@ if let index = arguments.firstIndex(of: "--render-palette-tricks"), index + 1 < 
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-figma"), index + 1 < arguments.count {
+    // Claw'd's ink grid, for the operator's Figma file. Data, not a
+    // picture — the far side decides what to build out of it.
+    let ok = MainActor.assumeIsolated { FigmaExport.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-costume-sheet"), index + 1 < arguments.count {
     // Contact sheets for the costume-refinement rounds — operator review
     // material, never committed.
