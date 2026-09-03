@@ -2306,7 +2306,7 @@ public enum CrabRig {
     /// stretch, rolled on `47 &+ 11` (the 47 family over yet another domain);
     /// cycle zero keeps the classic, the frozen renders' sentinel.
     private static func fireBurnsLow(cycle: Int) -> Bool {
-        cycle > 0 && CrabAnimator.noise(cycle &* 47 &+ 11) < 0.35
+        cycle > 0 && CrabAnimator.noise(cycle &* 47 &+ 11) < SpawnRates.fireBurnsLow.chance
     }
 
     private static func drawFire(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {

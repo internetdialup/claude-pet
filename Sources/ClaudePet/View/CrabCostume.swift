@@ -282,6 +282,15 @@ enum CrabCostume {
     /// slot` already works for the bubble bursts. 97 was the last free
     /// multiplier, so this is the scheme that stops the eighth costume needing
     /// a tenth one.
+    /// The same window, read off the spawn matrix. Every costume effect
+    /// goes through this door now: the odds live in one table where they
+    /// can be compared, and a call site can no longer quietly invent a
+    /// cadence nobody else can find.
+    static func effectWindow(at t: Double, _ effect: SpawnRates.Effect) -> Double? {
+        effectWindow(at: t, salt: effect.salt, period: effect.period,
+                     duration: effect.duration, chance: effect.chance)
+    }
+
     static func effectWindow(at t: Double, salt: Int, period: Double,
                              duration: Double, chance: Double) -> Double? {
         let cycle = Int(floor(t / period))
@@ -304,7 +313,7 @@ enum CrabCostume {
     /// on the registry, and sharing it is what stops the next eight costumes
     /// each wanting one.
     static func shurikenFlight(at t: Double) -> Double? {
-        effectWindow(at: t, salt: 11, period: 9, duration: 2.2, chance: 0.55)
+        effectWindow(at: t, SpawnRates.shuriken)
     }
 
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
@@ -336,8 +345,7 @@ enum CrabCostume {
             b.rect(bodyX + bodyW + dx - 2, brow + 4, 2, 2, .costumeB)
             }
             guard layer == .front,
-                  let arc = Self.effectWindow(at: pose.propPhase, salt: 13,
-                                              period: 7, duration: 0.7, chance: 0.5)
+                  let arc = Self.effectWindow(at: pose.propPhase, SpawnRates.frankensteinSparks)
             else { break }
             // The bolts crackle — and NOT an arc between them. They sit at eye
             // height, so a bar joining them would be drawn straight across his
@@ -434,8 +442,7 @@ enum CrabCostume {
                 b.rect(bodyX + 2 + dx, 12 + dy, bodyW - 4, 5, .costumeB)
             }
             guard layer == .front,
-                  let sweep = Self.effectWindow(at: pose.propPhase, salt: 31,
-                                                period: 11, duration: 1.6, chance: 0.45)
+                  let sweep = Self.effectWindow(at: pose.propPhase, SpawnRates.retroSheen)
             else { break }
             // Clearcoat catching a light as you walk past it. Diagonal on
             // purpose: a vertical bar reads as a wipe and a horizontal one as a
@@ -677,8 +684,7 @@ enum CrabCostume {
                 // — the arcade marquee's class of scheduled swap, not an
                 // appearance — and it lives on the body pass, so a sideways
                 // gaze draws the eye OVER the bloom, never under it.
-                let flare = Self.effectWindow(at: pose.propPhase, salt: 41,
-                                              period: 7, duration: 0.6, chance: 0.5) != nil
+                let flare = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamEyeFlare) != nil
                 let bloom: PixelBuffer.Ink = flare ? .yellow : .ember
                 b.pixel(9 + dx, 14 + dy, bloom)
                 b.pixel(22 + dx, 14 + dy, bloom)
@@ -790,8 +796,7 @@ enum CrabCostume {
 
             // Already narrowed to the front pass by the guard above — the
             // sonic case's own note tells this exact story.
-            guard let scan = Self.effectWindow(at: pose.propPhase, salt: 19,
-                                               period: 12, duration: 1.8, chance: 0.35)
+            guard let scan = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamScan)
             else { break }
             // The camera sweeping: a two-column beam easing across his shell
             // — camera-gold leading, steel trailing — drawn only where the
@@ -845,8 +850,7 @@ enum CrabCostume {
             // the gundam flare's; this family shares by addend, and the
             // holiday round's reserved addends are 3/5/7/17/37 — the flicker
             // takes 5.
-            if Self.effectWindow(at: pose.propPhase, salt: 5,
-                                 period: 8, duration: 0.6, chance: 0.5) != nil {
+            if Self.effectWindow(at: pose.propPhase, SpawnRates.pumpkinFlicker) != nil {
                 for (i, x) in stride(from: 12, through: 20, by: 2).enumerated() {
                     b.pixel(x + dx, 19 + dy + (i % 2), .yellow)
                 }
@@ -869,8 +873,7 @@ enum CrabCostume {
                 // the wedge's contrast colour, the eyespot band real fans
                 // carry along their rim. No yellow anywhere. Drawn behind
                 // him, so the shell cuts through and the fan reads as HIS.
-                let strut = Self.effectWindow(at: pose.propPhase, salt: 7,
-                                              period: 9, duration: 0.9, chance: 0.5) != nil
+                let strut = Self.effectWindow(at: pose.propPhase, SpawnRates.turkeyStrut) != nil
                 // The strut spreads the fan a cell wider all round.
                 let radius = 9.0 + (strut ? 1.0 : 0.0)
                 let centreX = Double(bodyX) + Double(bodyW) / 2
@@ -917,8 +920,7 @@ enum CrabCostume {
             b.pixel(22 + dx, crown - 4, .costumeB)
             // ❄️ The breath: two paper puffs drifting off his face on cold
             // dice — clear cells only, never over him.
-            if let puff = Self.effectWindow(at: pose.propPhase, salt: 17,
-                                            period: 10, duration: 0.8, chance: 0.4) {
+            if let puff = Self.effectWindow(at: pose.propPhase, SpawnRates.santaBreath) {
                 let drift = Int((puff * 3).rounded())
                 for (i, cell) in [(27 + drift, 14), (28 + drift, 13)].enumerated() where i <= drift {
                     if b[cell.0 + dx, cell.1 + dy] == .clear {
@@ -965,8 +967,7 @@ enum CrabCostume {
             b.rect(8 + dx, crown - 1, 4, 1, .costumeB)
             // 💨 The kick-push: two short dashes behind his feet now and
             // then, like he just pushed off. Salt 43 on the 97 family.
-            if Self.effectWindow(at: pose.propPhase, salt: 43,
-                                 period: 9, duration: 0.8, chance: 0.45) != nil {
+            if Self.effectWindow(at: pose.propPhase, SpawnRates.kickPush) != nil {
                 b.rect(3 + dx, 22 + dy, 2, 1, .shadow)
                 b.rect(2 + dx, 24 + dy, 2, 1, .shadow)
             }
@@ -1065,8 +1066,7 @@ enum CrabCostume {
             // dash would be the unreachable-effect bug this case already
             // documents once.
             if let flight = pose.ringFlight
-                ?? Self.effectWindow(at: pose.propPhase, salt: 29,
-                                     period: 8, duration: 2.0, chance: 0.4) {
+                ?? Self.effectWindow(at: pose.propPhase, SpawnRates.sonicRings) {
                 drawRings(&b, flight: flight)
             }
 
@@ -1076,8 +1076,7 @@ enum CrabCostume {
             // version asked for `.behind` and was simply unreachable — the
             // render showed nothing at all and it took reading the case's
             // shape, not the effect's code, to see why.
-            guard let dash = Self.effectWindow(at: pose.propPhase, salt: 23,
-                                               period: 9, duration: 1.6, chance: 0.4)
+            guard let dash = Self.effectWindow(at: pose.propPhase, SpawnRates.sonicDash)
             else { break }
             // A real dash — the operator's pick: rarer (9s period, 0.4
             // chance), longer (1.6s), TWO lanes instead of three blinky ones,

@@ -136,7 +136,7 @@ public final class ActivityCoordinator {
     /// the status ticker forever — and `(seed * k) % 3` degenerates straight
     /// back to `seed % 3`. The splitmix dice decorrelate properly.
     static func idleChatterShows(quietFor quiet: TimeInterval, seed: Int) -> Bool {
-        quiet < chatterQuietAfter || CrabAnimator.noise(seed &* 43 &+ 13) < 1.0 / 3.0
+        quiet < chatterQuietAfter || CrabAnimator.noise(seed &* 43 &+ 13) < SpawnRates.idleChatter
     }
 
     /// When each mood is allowed to speak.
@@ -1364,8 +1364,8 @@ public final class ActivityCoordinator {
     /// multiplier, same cycle domain as 17 &+ 7 (the registry has the rows).
     nonisolated static func factFlair(seed: Int, mood: PetMood) -> PetState.BubbleFlair {
         guard shadesMoods.contains(mood) else { return .none }
-        guard CrabAnimator.noise(seed &* 17 &+ 11) < 0.5 else { return .none }
-        return CrabAnimator.noise(seed &* 17 &+ 13) < 0.35 ? .shadesDing : .shades
+        guard CrabAnimator.noise(seed &* 17 &+ 11) < SpawnRates.factShades else { return .none }
+        return CrabAnimator.noise(seed &* 17 &+ 13) < SpawnRates.shadesDing ? .shadesDing : .shades
     }
 
     /// A fun fact for this cycle, or nil when the coin says it is his turn to
@@ -1396,21 +1396,21 @@ public final class ActivityCoordinator {
     /// shipped — named here rather than inlined so the suite can measure the
     /// real rate instead of restating the arithmetic and drifting from it.
     nonisolated static func informationalBeat(seed: Int) -> Bool {
-        CrabAnimator.noise(seed &* 17 &+ 7) < 0.5
+        CrabAnimator.noise(seed &* 17 &+ 7) < SpawnRates.informationalBeat
     }
 
     /// Whether a beat the cadence SILENCED carries a fact anyway. Named for the
     /// same reason, and separate because the two gates compound: this one, then
     /// `informationalBeat` inside `factOrTip`.
     nonisolated static func quietBeatSpeaks(seed: Int) -> Bool {
-        CrabAnimator.noise(seed &* 79 &+ 23) < 0.6
+        CrabAnimator.noise(seed &* 79 &+ 23) < SpawnRates.quietBeatSpeaks
     }
 
     private func factOrTip(slot: Int, seed: Int) -> String? {
         // Unchanged, and deliberately so: this is the gate the fun facts have
         // always answered to, so the cycles they own stay theirs.
         guard Self.informationalBeat(seed: seed) else { return nil }
-        if CrabAnimator.noise(seed &* 23 &+ 19) < 0.34,
+        if CrabAnimator.noise(seed &* 23 &+ 19) < SpawnRates.tipOverFact,
            let tip = chatterCache[slot].cursor.next(ClaudeTips.all, id: "tip",
                                                     token: "\(seed)") {
             return tip

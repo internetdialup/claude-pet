@@ -69,6 +69,15 @@ public enum CrabAnimator {
     /// **Free:** none. 97 is the last multiplier and the costumes share it by
     /// addend, the way `71 &+ 29 &+ slot` shares one across the bubble bursts.
     /// A tenth costume effect takes the next addend, not a new multiplier.
+    ///
+    /// ## Where the ODDS live
+    ///
+    /// This registry answers "which die"; `SpawnRates` answers "how often".
+    /// They were the same question asked in twenty places until the table
+    /// existed, and the reason it exists is that nobody could see the rates
+    /// beside each other — so their relative frequency was emergent rather
+    /// than chosen. Every threshold below reads from that file now, and
+    /// `everyRateIsNamed` reads these sources back to keep it that way.
     static func noise(_ n: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
@@ -166,7 +175,7 @@ public enum CrabAnimator {
     static let ollieAirSpan = 0.76
 
     /// One flourish per window, on dice, with a quiet stretch after it.
-    private static let flourishPeriod = 7.0
+    private static let flourishPeriod = SpawnRates.flourish.period
 
     /// Which flourish is playing, and how far into it we are (0…1).
     ///
@@ -200,7 +209,7 @@ public enum CrabAnimator {
 
     /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
     /// flourish family's multiplier, new addend, same cycle domain.
-    nonisolated static let goldenSkateChance = 0.02
+    nonisolated static let goldenSkateChance = SpawnRates.goldenBoard
     static func skateBeatIsGolden(cycle: Int) -> Bool {
         cycle > 0 && noise(cycle &* 7 &+ 11) < goldenSkateChance
     }
@@ -210,7 +219,7 @@ public enum CrabAnimator {
     /// beanie, the upper the green cap. Salt 7 &+ 13: the flourish family's
     /// multiplier, another distinct addend, same cycle domain, same
     /// cycle-zero sentinel.
-    nonisolated static let headwearChance = 0.3
+    nonisolated static let headwearChance = SpawnRates.headwear
     /// The cap's colour deck — dealt per wearing on `7 &+ 19` (the flourish
     /// family's next addend; distinct mod 7 from 3/11/13).
     nonisolated static let capColours: [PixelBuffer.Ink] = [.green, .alert, .yellow, .pink]
@@ -246,9 +255,10 @@ public enum CrabAnimator {
     static let skateSessionLength = 18.1    // the beats plus a settling beat
 
     static func skateSession(idleT t: Double) -> Double? {
-        let cycle = Int(floor(t / 180))
-        guard cycle > 0, noise(cycle &* 89 &+ 17) < 0.22 else { return nil }
-        let since = t - Double(cycle) * 180
+        let spawn = SpawnRates.skateSession
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 89 &+ 17) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since >= 2, since < 2 + skateSessionLength else { return nil }
         return since - 2
     }
@@ -272,7 +282,7 @@ public enum CrabAnimator {
 
     static func flourish(at t: Double) -> (Flourish, Double)? {
         let cycle = Int(floor(t / flourishPeriod))
-        guard cycle > 0, noise(cycle &* 89 &+ 11) < 0.7 else { return nil }
+        guard cycle > 0, noise(cycle &* 89 &+ 11) < SpawnRates.flourish.chance else { return nil }
         let since = t - Double(cycle) * flourishPeriod
         let deck = flourishDeck
         let choice = deck[Int(noise(cycle &* 7 &+ 3) * Double(deck.count)) % deck.count]
@@ -305,7 +315,7 @@ public enum CrabAnimator {
     /// seven, so a clip anchored at zero would now contain nothing but
     /// breathing.
     static let firstFlourishAt: Double = {
-        for cycle in 1...64 where noise(cycle &* 89 &+ 11) < 0.7 {
+        for cycle in 1...64 where noise(cycle &* 89 &+ 11) < SpawnRates.flourish.chance {
             return Double(cycle) * flourishPeriod
         }
         return flourishPeriod
@@ -365,9 +375,10 @@ public enum CrabAnimator {
     /// alternating by cycle, entering and leaving off-grid so there is no
     /// pop at either edge. Never in the first cycle.
     static func bugPosition(idleT t: Double) -> Int? {
-        let cycle = Int(floor(t / 90))
-        guard cycle > 0, noise(cycle &* 53 &+ 7) < 0.3 else { return nil }
-        let since = t - Double(cycle) * 90
+        let spawn = SpawnRates.floorBug
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 53 &+ 7) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since < 6 else { return nil }
         let progress = since / 6
         let x = -3.0 + progress * 37.0
@@ -394,9 +405,10 @@ public enum CrabAnimator {
     /// a long idle, he holds a balloon for eight seconds. Never in the
     /// first cycle (frozen sentinel), eased both ways via the window.
     static func idleBalloon(idleT t: Double) -> Double? {
-        let cycle = Int(floor(t / 150))
-        guard cycle > 0, noise(cycle &* 43 &+ 11) < 0.25 else { return nil }
-        let since = t - Double(cycle) * 150
+        let spawn = SpawnRates.balloon
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 43 &+ 11) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since < 8 else { return nil }
         return Ease.window(since, duration: 8, edge: 0.9)
     }
@@ -405,9 +417,10 @@ public enum CrabAnimator {
     /// the small hours only. 12s of telescope, eased 0.8s at both ends.
     static func stargaze(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
         guard let hourOfDay, hourOfDay >= 23 || hourOfDay <= 4 else { return nil }
-        let cycle = Int(floor(t / 120))
-        guard cycle > 0, noise(cycle &* 61 &+ 3) < 0.35 else { return nil }
-        let since = t - Double(cycle) * 120
+        let spawn = SpawnRates.stargaze
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 61 &+ 3) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since < 12 else { return nil }
         return (Ease.window(since, duration: 12, edge: 0.8), since)
     }
@@ -429,7 +442,7 @@ public enum CrabAnimator {
                              hourOfDay: Int?) -> (x: Int, y: Int, dx: Int, flight: Double)? {
         guard stargaze(idleT: t, hourOfDay: hourOfDay) != nil else { return nil }
         let cycle = Int(floor(t / 120))
-        guard noise(cycle &* 61 &+ 7) < 0.4 else { return nil }
+        guard noise(cycle &* 61 &+ 7) < SpawnRates.shootingStarShare else { return nil }
         let since = t - Double(cycle) * 120
         guard since >= 4.0, since < 5.6 else { return nil }
         let progress = (since - 4.0) / 1.6
@@ -740,9 +753,10 @@ public enum CrabAnimator {
     /// 17`: 43 already carries the idle mug, and a shared multiplier takes a
     /// distinct addend.
     static func idleHeart(idleT t: Double) -> Double? {
-        let cycle = Int(floor(t / 45))
-        guard cycle > 0, noise(cycle &* 43 &+ 17) < 0.3 else { return nil }
-        let since = t - Double(cycle) * 45
+        let spawn = SpawnRates.idleHeart
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 43 &+ 17) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since >= 4, since < 7.5 else { return nil }
         return (since - 4) / 3.5
     }
@@ -754,9 +768,10 @@ public enum CrabAnimator {
     /// gives: `MoodClock` rebases `t` on entry, so a cycle-0 dice roll in a
     /// short-lived mood is a constant, not a dice. Duty cycle 1.1%.
     static func shellGlint(idleT t: Double) -> Double? {
-        let cycle = Int(floor(t / 60))
-        guard cycle > 0, noise(cycle &* 83 &+ 13) < 0.4 else { return nil }
-        let since = t - Double(cycle) * 60
+        let spawn = SpawnRates.shellGlint
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 83 &+ 13) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since < 1.6 else { return nil }
         return since / 1.6
     }
@@ -778,9 +793,10 @@ public enum CrabAnimator {
     /// per five idle minutes) because it is very much bigger on screen.
     static func sunPatch(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
         guard let hourOfDay, hourOfDay >= 8, hourOfDay <= 17 else { return nil }
-        let cycle = Int(floor(t / 420))
-        guard cycle > 0, noise(cycle &* 73 &+ 5) < 0.25 else { return nil }
-        let since = t - Double(cycle) * 420
+        let spawn = SpawnRates.sunPatch
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 73 &+ 5) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
         guard since < 14 else { return nil }
         return (Ease.window(since, duration: 14, edge: 2.0), since)
     }
@@ -906,9 +922,7 @@ public enum CrabAnimator {
             // `97 &+ 3` (the costume-effect family's shared cycle>0 sentinel
             // via `effectWindow`), colour and column on `97 &+ 37`.
             if holiday == .newYear,
-               let flight = CrabCostume.effectWindow(at: t, salt: 3,
-                                                     period: 13, duration: 1.9,
-                                                     chance: 0.45) {
+               let flight = CrabCostume.effectWindow(at: t, SpawnRates.fireworks) {
                 pose.fireworkProgress = flight
                 pose.fireworkCycle = Int(floor(t / 13))
             }
@@ -1018,7 +1032,7 @@ public enum CrabAnimator {
             // cycles than they hit. Never in the first cycle — a frozen render
             // at t=0 must show a cool crab.
             let heatCycle = Int(floor(t / 8))
-            if heatCycle > 0, noise(heatCycle &* 29 &+ 11) < 0.45 {
+            if heatCycle > 0, noise(heatCycle &* 29 &+ 11) < SpawnRates.heatCascade.chance {
                 let sinceCycle = t - Double(heatCycle) * 8
                 pose.heat = Ease.window(sinceCycle, duration: 2.4, edge: 0.4)
                 pose.heatPhase = sinceCycle / 1.2
@@ -1123,9 +1137,7 @@ public enum CrabAnimator {
             // through them, which is its own joke. Same dice as the idle
             // branch's.
             if holiday == .newYear,
-               let flight = CrabCostume.effectWindow(at: t, salt: 3,
-                                                     period: 13, duration: 1.9,
-                                                     chance: 0.45) {
+               let flight = CrabCostume.effectWindow(at: t, SpawnRates.fireworks) {
                 pose.fireworkProgress = flight
                 pose.fireworkCycle = Int(floor(t / 13))
             }
@@ -1685,7 +1697,7 @@ public enum CrabAnimator {
         return Ease.smoothstep((air - 0.2) / 0.2) * (1 - Ease.smoothstep((air - 0.7) / 0.2))
     }
 
-    nonisolated static let steezeChance = 0.33
+    nonisolated static let steezeChance = SpawnRates.steeze
     static func ollieIsSteezed(cycle: Int) -> Bool {
         noise(cycle &* 7 &+ 23) < steezeChance
     }
@@ -2211,7 +2223,9 @@ public struct CrabView: View {
     /// minutes of continuous cooking, never in the first cycle.
     nonisolated static func discoTint(cookingT t: Double) -> Color? {
         let cycle = Int(floor(t / 45))
-        guard cycle > 0, CrabAnimator.noise(cycle &* 41 &+ 17) < 0.22 else { return nil }
+        guard cycle > 0,
+              CrabAnimator.noise(cycle &* 41 &+ 17) < SpawnRates.discoTint.chance
+        else { return nil }
         let since = t - Double(cycle) * 45
         guard since < 5 else { return nil }
         let amount = Ease.window(since, duration: 5, edge: 0.7)
@@ -2241,7 +2255,9 @@ public struct CrabView: View {
     nonisolated static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
         guard let fraction, fraction >= 0.8 else { return nil }
         let cycle = Int(floor(t / 20))
-        guard cycle > 0, CrabAnimator.noise(cycle &* 67 &+ 5) < 0.5 else { return nil }
+        guard cycle > 0,
+              CrabAnimator.noise(cycle &* 67 &+ 5) < SpawnRates.nearDoneGlow.chance
+        else { return nil }
         let since = t - Double(cycle) * 20
         guard since < 2.2 else { return nil }
         let amount = 0.28 * Ease.window(since, duration: 2.2, edge: 0.8)
