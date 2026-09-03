@@ -196,13 +196,26 @@ struct CostumeStyle {
                 ],
                 yieldsCrownToProps: true, crownRows: 4)
         case .skater:
-            // 🛹 The skater fit: an OUTFIT on his own shell, like the santa —
-            // backwards cap, dark tee, pads. The board stays the prop system's.
+            // 🛹 Fourth pass, and a rethink rather than a retouch. The
+            // operator's read of the old one was exact — "like we put pants
+            // on a cat" — and the reason is anatomical: a crab has no waist
+            // and no legs to speak of, so a tee band across the middle and
+            // pant legs down the stumps land as garments stuck onto an
+            // animal rather than as an outfit. Their instinct was the fix:
+            // "his body needs to be one color."
+            //
+            // So the fit is now a COLOURWAY plus two accessories. The shell
+            // is grape all the way through — one colour, no band across it —
+            // and the only worn things left are the backwards cap and the
+            // shoes, which sit where a crab could plausibly wear them.
+            // Everything that read as trousers is gone.
             return CostumeStyle(
                 inks: [
-                    .costumeA: rgb(0x2A_2A30),  // the tee, worn charcoal
-                    .costumeB: rgb(0x24_304A),  // the cap, navy
-                    .costumeC: rgb(0xB8_B4A8),  // pads, scuffed off-white
+                    .body: rgb(0x7B_4BC4),      // grape — his own colour, not a shirt
+                    .bodyShade: rgb(0x5E_3A8C), // one step under; see frankenstein's note
+                    .costumeA: rgb(0x24_1B33),  // the shoes
+                    .costumeB: rgb(0x1B_1424),  // the cap, near-black against the grape
+                    .costumeC: rgb(0xE8_E4DA),  // and the sole stripe that says SHOE
                 ],
                 yieldsCrownToProps: true, crownRows: 2)
         case .sonic:
@@ -944,28 +957,18 @@ enum CrabCostume {
         case .skater:
             let crown = bodyY + dy + squash
             if layer == .onBody {
-                // The tee: a charcoal band across the lower shell with a
-                // two-cell chest mark. Below it, BAGGY BLACK PANTS — the
-                // operator's second fitting, in place of the knee pads: each
-                // leg wears a pant leg one cell wider than the leg on both
-                // sides, black, with a grey cuff on the foot row. The pants
-                // ride the gait the way every shoe here does — shortened
-                // from the foot up by the same swing the legs use — so a
-                // lifted foot takes its cuff with it. Wider than the leg is
-                // the whole read: a pant leg the leg's own width is a black
-                // leg, not baggy pants.
-                b.rect(bodyX + 1 + dx - squash, 18 + dy, bodyW - 2 + squash * 2, 3, .costumeA)
-                b.rect(10 + dx, 19 + dy, 2, 1, .paper)
+                // Shoes, and nothing else on the body. They ride the gait
+                // the way every shoe in this file does, and they carry a
+                // pale sole so a dark shoe on a dark leg still reads as
+                // footwear rather than as a shadow.
                 for (index, leg) in CrabRig.legX.enumerated() {
                     let lift = max(0, CrabRig.legSwing(index, pose: pose))
-                    let cuff = 24 + dy - lift
-                    // A steezed leg bends: the thigh's pant stays, the
-                    // bottom row and the cuff slide out with the foot.
-                    let shift = index == CrabRig.legX.count - 1 ? CrabRig.legKickShift(pose: pose) : 0
-                    let thigh = cuff - (21 + dy) - (shift > 0 ? 1 : 0)
-                    if thigh > 0 { b.rect(leg - 1 + dx, 21 + dy, 3, thigh, .slate) }
-                    if shift > 0 { b.rect(leg - 1 + shift + dx, cuff - 1, 3, 1, .slate) }
-                    b.rect(leg - 1 + shift + dx, cuff, 3, 1, .steel)
+                    let shift = index == CrabRig.legX.count - 1
+                        ? CrabRig.legKickShift(pose: pose) : 0
+                    let height = min(shift > 0 ? 2 : 3, 4 - lift)
+                    let top = 24 + dy - lift - height + 1
+                    b.rect(leg + shift + dx, top, 2, height, .costumeA)
+                    b.rect(leg + shift + dx, top + height - 1, 2, 1, .costumeC)
                 }
                 break
             }

@@ -57,10 +57,28 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - **🕹️ The arcade marquee is gone.** The chasing stripe across his belly
   read as a glitch band at desk size. Arcade is its cabinet-black shell and
   phosphor face, nothing animated.
-- **🛹 The Skater wears baggy black pants.** Wider than his legs, grey
-  cuffs, riding the gait; the knee pads are gone. The backwards cap was
-  always on — the random beanie-or-cap on bare Claw'd's tricks stays,
-  because a costume is a uniform and the dice are a surprise.
+- **🛹 The Skater is one colour now.** Grape shell, backwards cap, skate
+  shoes — and nothing else. The tee and the pants are gone: a band across
+  his middle and legs down his stumps read as clothes stuck on an animal
+  rather than as an outfit, which is a thing a crab's shape will not let you
+  do. The backwards cap was always on; the random beanie-or-cap on bare
+  Claw'd's tricks stays, because a costume is a uniform and the dice are a
+  surprise.
+- **🧢 The beanie stands up.** A folded cuff wider than his head and
+  near-vertical sides above it, instead of a smooth dome that read as a
+  skullcap however tall it got.
+- **💍 Sonic sheds rings when he pops.** Eight of them spraying off his
+  flanks and tumbling away, straight out of the game — on the ollie and the
+  nollie, every time, because the trick is the hit.
+- **🎭 Every character has its own thing to shout.** Land a trick in
+  costume and he says something in character — the Gundam reports systems
+  nominal, the Coder commits it, Frankenstein is alive. Looks that are a
+  palette rather than a personality keep his own voice.
+- **🛹 He stops jumping his hat off the grid.** The ollie lifted him ten
+  rows and there are only ten above his shell, so at the apex every
+  costume's crown — Sonic's quills, the Gundam's fin, the beanie, Santa's
+  hat — was drawn off-grid and lost. Each look now rises as far as its own
+  crown allows.
 - **🐯 The tiger got real stripes.** Diagonal slashes leaning off a centre
   spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
   with the forehead V. The five vertical bars read as a pattern on a box.
