@@ -1380,21 +1380,29 @@ public enum CrabRig {
         case .none:
             break
         case .blackBeanie:
-            // Third fitting, to the operator's spec: "like the santa cap
-            // but mirrored and black." So it is — the santa hat's exact
-            // geometry reflected about the sprite's centre (x → 31−x, the
-            // mirror that maps the shell onto itself), every row in black,
-            // and a white pom at the tip because a pom that isn't white
-            // isn't a pom. It sags LEFT where santa's sags right, which
-            // also keeps the two hats apart in December. Same crown−4
-            // ceiling as the fitting before, so the ollie-apex crop
-            // behaves identically.
-            b.rect(11 + dx, crown, 10, 1, .slate)
-            b.rect(9 + dx, crown - 1, 12, 1, .slate)
-            b.rect(10 + dx, crown - 2, 9, 1, .slate)
-            b.rect(10 + dx, crown - 3, 6, 1, .slate)
-            b.pixel(10 + dx, crown - 4, .slate)
-            b.pixel(9 + dx, crown - 4, .paper)
+            // Fourth fitting. The mirrored santa hat was too low and too
+            // smooth, and the operator's word for it was the right one: it
+            // read as a yarmulke — a cap sitting ON the dome rather than a
+            // knit hat pulled over it. Two things fix that, and neither is
+            // "make it bigger".
+            //
+            // First, a CUFF: two rows at the brow, wider than his head, so
+            // the hat overhangs instead of resting. A knit beanie is folded
+            // at the bottom and that fold is most of what says knit.
+            // Second, HEIGHT above the cuff — a dome that keeps going for
+            // three more rows and finishes in a pom, so the silhouette is
+            // taller than it is wide. A skullcap is wider than it is tall;
+            // that ratio was the whole problem.
+            // Straight-sided above the fold, not a smooth pyramid: a
+            // taper from twelve to two in five rows is a cone, and a cone
+            // on a head is the skullcap read again however tall it is. Knit
+            // sits like a tube and only rounds at the very top.
+            b.rect(10 + dx, crown, 12, 1, .slate)          // the fold, overhanging
+            b.rect(10 + dx, crown - 1, 12, 1, .slate)
+            b.rect(11 + dx, crown - 2, 10, 1, .slate)      // then near-vertical sides
+            b.rect(11 + dx, crown - 3, 10, 1, .slate)
+            b.rect(12 + dx, crown - 4, 8, 1, .slate)
+            b.rect(14 + dx, crown - 5, 4, 1, .paper)       // and the pom on top
         case .cap(let ink):
             // The cap, ANGLED — the operator's note: tipped back off the
             // brow, the dome climbing toward the front, and the brim
@@ -1475,7 +1483,7 @@ public enum CrabRig {
         if costume == .none, ghostCostume == .none {
             switch headwear {
             case .none: break
-            case .blackBeanie: rows = max(rows, 4)
+            case .blackBeanie: rows = max(rows, 5)
             case .cap: rows = max(rows, 2)
             }
         }

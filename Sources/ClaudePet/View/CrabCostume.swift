@@ -1082,6 +1082,18 @@ enum CrabCostume {
                 drawRings(&b, flight: flight)
             }
 
+            // 💍💥 …and when he POPS one, they scatter. Off the operator's
+            // note and straight out of the game: a hit sends Sonic's rings
+            // spraying outward and bouncing away from him. Here the trigger
+            // is the ollie's own board rather than a die — the trick IS the
+            // hit — so it fires every time he pops, on the airborne phase
+            // the board already carries. Nothing new rolls, nothing new
+            // schedules, and it cannot happen while he is standing still.
+            if pose.prop == .skateboardOllie || pose.prop == .skateboardNollie {
+                scatterRings(&b, air: pose.propPhase.truncatingRemainder(dividingBy: 1),
+                             dx: dx, dy: dy)
+            }
+
             // No layer check here, and that is not an omission: the quills'
             // `guard layer == .front` above already narrowed this case to the
             // front pass, so everything below it is front-only. The first
@@ -1148,6 +1160,74 @@ enum CrabCostume {
             // One whole-pixel crest over his head at mid-flight.
             let y = 2 + ((0.35...0.65).contains(p) ? -1 : 0)
             ringStamp(&b, x: x, y: y, frame: Int(p * 16))
+        }
+    }
+
+    /// The rings coming off a pop, thrown outward and falling.
+    ///
+    /// Six of them on a fixed fan of angles — no dice, because the burst is
+    /// the trick's own consequence and a scatter that sometimes did not
+    /// happen would read as a dropped frame. Each ring travels out at its
+    /// own speed and is pulled back down by an accelerating term, which is
+    /// what makes a spray read as thrown rather than as slid: the outer
+    /// ones are still climbing while the near ones are already falling.
+    /// They spin on the distance they have covered, so they tumble as they
+    /// go, and they only ever land on clear cells — he is not behind his
+    /// own rings.
+    private static func scatterRings(_ b: inout PixelBuffer, air: Double, dx: Int, dy: Int) {
+        guard air > 0.05, air < 1 else { return }
+        let burst = (air - 0.05) / 0.95
+        // Left and right in pairs, so the spray is balanced rather than
+        // drifting: a one-sided burst reads as him leaking rings.
+        let fan: [(reach: Double, lift: Double)] = [
+            (-1.3, 1.0), (1.3, 1.0), (-0.85, 1.35), (0.85, 1.35),
+            (-1.75, 0.6), (1.75, 0.6), (-0.4, 1.55), (0.4, 1.55),
+        ]
+        for (index, ring) in fan.enumerated() {
+            // Staggered launches: they leave him over the first third of
+            // the air rather than all at once.
+            let local = min(1, max(0, burst * 1.4 - Double(index) * 0.06))
+            guard local > 0 else { continue }
+            // They leave from his FLANKS and from board height, not from
+            // the middle of his face. Launched at his centre they spent
+            // their first third piled on his eye field, which is a costume
+            // covering a face by another route — and it looked like he had
+            // swallowed them rather than shed them.
+            let travel = local * 10
+            let rise = ring.lift * local * 7 - 11 * local * local
+            let edge = ring.reach < 0 ? 7 : 22
+            let x = edge + dx + Int((ring.reach * travel).rounded())
+            let y = 19 + dy - Int(rise.rounded())
+            coinStamp(&b, x: x, y: y, frame: Int(local * 17))
+        }
+    }
+
+    /// A scattered ring: three cells across rather than the cruising
+    /// ring's five. They are a SPRAY — eight of them at once, most of them
+    /// small in the frame — and the big stamp at that count reads as a wall
+    /// of gold rather than as coins coming off him.
+    private static func coinStamp(_ b: inout PixelBuffer, x: Int, y: Int, frame: Int) {
+        func put(_ px: Int, _ py: Int, _ ink: PixelBuffer.Ink) {
+            guard px >= 0, px < PixelBuffer.side, py >= 0, py < PixelBuffer.side else { return }
+            // These pass IN FRONT of him — they came off him, so they are
+            // nearer the camera than he is, and a clear-cells-only coin was
+            // invisible until it had already cleared his shell, which is
+            // most of the spray missing. His FACE is still untouchable:
+            // the wardrobe may never paint over an open eye, and a coin is
+            // wardrobe.
+            let under = b[px, py]
+            guard under != .eye, under != .mouth else { return }
+            b.pixel(px, py, ink)
+        }
+        switch frame % 4 {
+        case 0:                                   // face on
+            put(x + 1, y, .yellow); put(x + 1, y + 2, .yellow)
+            put(x, y + 1, .yellow); put(x + 2, y + 1, .flameCore)
+        case 2:                                   // edge on
+            for r in 0...2 { put(x + 1, y + r, .yellow) }
+        default:                                  // three-quarter
+            put(x + 1, y, .yellow); put(x + 1, y + 2, .yellow)
+            put(x + 2, y + 1, .flameCore)
         }
     }
 
