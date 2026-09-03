@@ -425,7 +425,23 @@ public enum CrabRig {
         var buffer = PixelBuffer()
 
         let dx = pose.lean
-        let dy = pose.bob
+        // 🛹 He may not jump his own hat off the top of the grid.
+        //
+        // There are ten rows above the shell at rest and the ollie's float
+        // asks for all ten, so a dressed crab lost his crown entirely at the
+        // apex — Sonic's quills, the Gundam's fin, the beanie, Santa's hat,
+        // all drawn at negative rows and discarded. The operator caught it
+        // on the two tallest and it was every one of them.
+        //
+        // The height gives, not the costume: each look rises as far as its
+        // own crown allows, so nothing is ever cropped and a bare crab keeps
+        // the full float he was authored with. The floor is the one piece of
+        // engineering judgement here — a nine-row turkey fan would otherwise
+        // clamp him to a one-row hop, which reads as broken rather than as
+        // heavy, so the tallest two crop their tips instead of losing the
+        // trick.
+        let dy = max(pose.bob, crownFloor(costume: costume, ghostCostume: ghostCostume,
+                                          headwear: pose.headwear))
         let squash = max(0, pose.squash)
 
         // A crown accessory steps aside while a crown prop is worn — the prop
@@ -1446,6 +1462,31 @@ public enum CrabRig {
     }
 
     // MARK: - Legs
+
+    /// The lowest `bob` a look can be lifted to before its crown leaves the
+    /// grid. Zero-crown looks return the old floor and render byte-identically.
+    static let crownFloorLimit = -4
+    static func crownFloor(costume: Costume, ghostCostume: Costume,
+                           headwear: CrabPose.Headwear) -> Int {
+        var rows = max(CostumeStyle.of(costume).crownRows,
+                       CostumeStyle.of(ghostCostume).crownRows)
+        // Headwear rides the bare crab only, so it never stacks with a
+        // costume's own crown — but it needs the same room.
+        if costume == .none, ghostCostume == .none {
+            switch headwear {
+            case .none: break
+            case .blackBeanie: rows = max(rows, 4)
+            case .cap: rows = max(rows, 2)
+            }
+        }
+        guard rows > 0 else { return -bodyY }
+        // `min`, not `max`: a lower number is MORE air. The exact fit is
+        // `rows - bodyY`; the limit lets the two tallest crowns overshoot it
+        // and crop their tips rather than clamp to a hop nobody would read
+        // as a jump — the turkey's nine-row fan would otherwise cap him at
+        // one row off the ground.
+        return min(rows - bodyY, crownFloorLimit)
+    }
 
     /// How far the steezed foot has slid out, in cells (0…3). Internal for
     /// the same reason `legSwing` is: a costume's shoe on that leg has to

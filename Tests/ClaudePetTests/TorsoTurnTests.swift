@@ -73,7 +73,7 @@ struct TorsoTurnTests {
             for eyes in [CrabPose.EyeStyle.round, .determined, .wide, .squint] {
                 for gazeY in [-1, 0, 1] {
                     for costume in Costume.allCases {
-                        var pose = airborne()
+                        var pose = airborne(costume)
                         pose.torsoTurn = turn; pose.eyes = eyes; pose.gazeY = gazeY
                         let b = CrabRig.render(pose, costume: costume)
                         var face = 0
@@ -174,7 +174,7 @@ struct TorsoTurnTests {
     func theFaceLeavesTogether() {
         for step in 0...20 {
             let turn = Double(step) / 40          // 0 … 180°
-            var pose = airborne()
+            var pose = airborne(.sonic)
             pose.torsoTurn = turn
             let b = CrabRig.render(pose, costume: .sonic)
             var eyes = 0, field = 0
@@ -194,7 +194,7 @@ struct TorsoTurnTests {
     /// length rather than a rectangle of coordinates.
     @Test("A band round him survives his back; face paint does not")
     func wrapRowsSurviveTheBack() {
-        var pose = airborne()
+        var pose = airborne(.ninja)
         pose.torsoTurn = 0.5
         let ninja = CrabRig.render(pose, costume: .ninja)
         var band = 0
@@ -203,9 +203,11 @@ struct TorsoTurnTests {
         }
         #expect(band >= 8, "the ninja's headband did not come round with him (\(band) cells)")
 
-        let sonic = CrabRig.render(pose, costume: .sonic)
+        var sonicPose = airborne(.sonic)
+        sonicPose.torsoTurn = 0.5
+        let sonic = CrabRig.render(sonicPose, costume: .sonic)
         var muzzle = 0
-        for y in (15 + pose.bob)...(19 + pose.bob) {
+        for y in (15 + sonicPose.bob)...(19 + sonicPose.bob) {
             for x in 0..<PixelBuffer.side where sonic[x, y] == .costumeC { muzzle += 1 }
         }
         #expect(muzzle == 0, "sonic's muzzle is painted on the back of his head")
@@ -220,7 +222,7 @@ struct TorsoTurnTests {
     func theFlankIsOneFlatStep() {
         for costume in Costume.allCases {
             for turn in [0.25, 0.75] {
-                var pose = airborne()
+                var pose = airborne(costume)
                 pose.torsoTurn = turn
                 let b = CrabRig.render(pose, costume: costume)
                 for y in (12 + pose.bob)...(19 + pose.bob) {
@@ -396,9 +398,15 @@ struct TorsoTurnTests {
     }
 
     /// The mid-air stance the turn actually happens in.
-    private func airborne() -> CrabPose {
+    ///
+    /// The height is asked for per costume: a tall-crowned look is lifted
+    /// less than a bare crab so its crest stays on the grid, and a test that
+    /// derives its scan rows from `pose.bob` has to be told the same number
+    /// the rig will use, or it reads the wrong rows and calls it a bug.
+    private func airborne(_ costume: Costume = .none) -> CrabPose {
         var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
-        pose.bob = -9
+        pose.bob = max(-9, CrabRig.crownFloor(costume: costume, ghostCostume: .none,
+                                              headwear: .none))
         pose.legAmplitude = 1.6
         pose.legPhase = .pi / 2
         return pose

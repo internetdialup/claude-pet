@@ -15,8 +15,15 @@ struct CostumeTests {
         for costume in Costume.allCases {
             for mood in PetMood.allCases where mood != .sleeping {
                 for step in 0..<12 {
-                    let pose = CrabAnimator.pose(mood: mood, t: Double(step) * 0.5)
+                    var pose = CrabAnimator.pose(mood: mood, t: Double(step) * 0.5)
                     guard pose.blink < 0.5 else { continue }
+                    // Both renders must sit at the same height for a
+                    // cell-by-cell comparison to mean anything, and a
+                    // tall-crowned costume is now lifted less than a bare
+                    // crab is — so ask for a height every look can reach.
+                    pose.bob = max(pose.bob, CrabRig.crownFloor(costume: costume,
+                                                                ghostCostume: .none,
+                                                                headwear: pose.headwear))
 
                     let bare = CrabRig.render(pose)
                     let dressed = CrabRig.render(pose, costume: costume)
@@ -28,6 +35,36 @@ struct CostumeTests {
                     }
                 }
             }
+        }
+    }
+
+    /// **A declared measurement nobody re-measures is a comment.**
+    ///
+    /// `crownRows` tells the rig how high a look reaches so it can stop him
+    /// jumping his hat off the grid. If a costume grows a taller crest and
+    /// this number stays put, the crest silently starts clipping again — the
+    /// exact bug it was added to fix. So it is checked against what the
+    /// costume actually draws, at a height where nothing can clip.
+    @Test("Every costume's declared crown room is the room it uses")
+    func crownRoomIsHonest() {
+        var pose = CrabAnimator.pose(mood: .idle, t: 0, flourishes: false)
+        pose.bob = 0
+        for costume in Costume.allCases {
+            // Arctic White's snow is the world's weather, not a hat: it
+            // falls above his crown without being attached to it, so it is
+            // measured out rather than counted as headroom.
+            guard costume != .white else { continue }
+            let buffer = CrabRig.render(pose, costume: costume)
+            var highest = CrabRig.bodyY
+            for y in 0..<CrabRig.bodyY {
+                for x in 0..<PixelBuffer.side where buffer[x, y] != .clear {
+                    highest = min(highest, y)
+                    break
+                }
+            }
+            let used = CrabRig.bodyY - highest
+            #expect(CostumeStyle.of(costume).crownRows == used,
+                    "\(costume) declares \(CostumeStyle.of(costume).crownRows) crown rows and draws \(used)")
         }
     }
 

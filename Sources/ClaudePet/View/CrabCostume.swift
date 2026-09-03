@@ -15,10 +15,22 @@ struct CostumeStyle {
     /// the prop is a status signal, so the costume yields.
     let yieldsCrownToProps: Bool
 
+    /// How many rows ABOVE his shell this look paints — quills, fins, hats,
+    /// fans.
+    ///
+    /// The rig needs this to stop him jumping his own hat off the grid.
+    /// There are exactly ten rows above the shell at rest and the ollie's
+    /// float uses all ten, so a costume with a seven-row crest had every
+    /// cell of it drawn at a negative row and silently discarded: Sonic
+    /// ollied as a bare crab. `crownRoomIsHonest` renders each look and
+    /// checks this number against what it actually draws, because a
+    /// declared measurement that nobody re-measures is a comment.
+    let crownRows: Int
+
     static func of(_ costume: Costume) -> CostumeStyle {
         switch costume {
         case .none:
-            return CostumeStyle(inks: [:], yieldsCrownToProps: false)
+            return CostumeStyle(inks: [:], yieldsCrownToProps: false, crownRows: 0)
         case .frankenstein:
             // Named for what it turned out to be. It was built as a handheld's
             // four-tone LCD ramp, and the operator took one look and said it
@@ -42,7 +54,7 @@ struct CostumeStyle {
                     .costumeA: rgb(0x30_6230),  // the seam
                     .costumeB: rgb(0x6E_6E78),  // the bolts, iron rather than magenta
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
 
         case .arcade:
             // THE CABINET, not the handheld. The first attempt at this was
@@ -64,7 +76,7 @@ struct CostumeStyle {
                     .costumeA: rgb(0xFF_2E88),  // the marquee
                     .costumeB: rgb(0xFF_C20E),  // and its second stripe
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
 
         case .ninja:
             return CostumeStyle(
@@ -85,7 +97,7 @@ struct CostumeStyle {
                     .costumeA: rgb(0xC2_4141),  // headband + tails
                     .costumeB: rgb(0xCE_7B5C),  // the mask's eye window — his own terracotta
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .retroBlack:
             return CostumeStyle(
                 inks: [
@@ -93,7 +105,7 @@ struct CostumeStyle {
                     .bodyShade: rgb(0x0E_0E10), // the turn shade's step — see ninja's note
                     .costumeB: rgb(0x3A_3A40),  // charcoal eye backing — black-on-black eyes vanish
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .matrix:
             return CostumeStyle(
                 inks: [
@@ -108,7 +120,7 @@ struct CostumeStyle {
                     .eye: rgb(0xD8_FFE2),
                     .mouth: rgb(0x2E_A845),
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .tiger:
             return CostumeStyle(
                 inks: [
@@ -121,7 +133,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xF2_EFE4),  // the white belly patch
                     .mouth: rgb(0x3D_3D3A),     // dark mouth on the white patch
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .white:
             return CostumeStyle(
                 inks: [
@@ -129,7 +141,7 @@ struct CostumeStyle {
                     .bodyShade: rgb(0xD6_D3CA), // one step under — see frankenstein's note
                     .mouth: rgb(0x3D_3D3A),     // a white mouth on a white shell is no mouth
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .gundam:
             return CostumeStyle(
                 inks: [
@@ -146,7 +158,7 @@ struct CostumeStyle {
                     // subtle mask seam instead of vanishing outright.
                     .mouth: rgb(0xC9_CDD8),
                 ],
-                yieldsCrownToProps: true)       // the V-fin yields the crown to the hard hat
+                yieldsCrownToProps: true, crownRows: 7)
         case .pumpkin:
             // 🎃 The jack-o'-lantern: his own eyes ARE the carving — the
             // eye-cover ban honored by concept, not just geometry.
@@ -159,7 +171,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xC0_5A10),  // rib shadow
                     .mouth: rgb(0x1A_0E06),     // dark, so his own mouth reads carved
                 ],
-                yieldsCrownToProps: true)       // the stem steps aside for the hard hat
+                yieldsCrownToProps: true, crownRows: 2)
         case .turkey:
             // 🦃 The turkey: the first big behind-layer costume — the tail
             // fan lives behind him, the ninja-ribbon precedent at scale.
@@ -172,7 +184,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xE0_A050),  // tail-fan gold
                     .mouth: rgb(0x3D_3D3A),
                 ],
-                yieldsCrownToProps: false)      // the fan is behind, not crown furniture
+                yieldsCrownToProps: false, crownRows: 9)
         case .santa:
             // 🎅 An OUTFIT, not a respray: his own terracotta stays — the
             // one seasonal look that keeps the shell, which also varies the
@@ -182,7 +194,7 @@ struct CostumeStyle {
                     .costumeA: rgb(0xC0_3030),  // hat + scarf red
                     .costumeB: rgb(0xF2_EFE4),  // trim, pom, fringe
                 ],
-                yieldsCrownToProps: true)       // a hat is crown furniture
+                yieldsCrownToProps: true, crownRows: 4)
         case .skater:
             // 🛹 The skater fit: an OUTFIT on his own shell, like the santa —
             // backwards cap, dark tee, pads. The board stays the prop system's.
@@ -192,7 +204,7 @@ struct CostumeStyle {
                     .costumeB: rgb(0x24_304A),  // the cap, navy
                     .costumeC: rgb(0xB8_B4A8),  // pads, scuffed off-white
                 ],
-                yieldsCrownToProps: true)       // the cap is crown furniture
+                yieldsCrownToProps: true, crownRows: 2)
         case .sonic:
             return CostumeStyle(
                 inks: [
@@ -203,7 +215,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xF2_CE9E),  // muzzle-and-belly tan
                     .mouth: rgb(0x2B_1B10),     // a dark mouth on the tan muzzle
                 ],
-                yieldsCrownToProps: true)       // the quills yield to the hard hat
+                yieldsCrownToProps: true, crownRows: 5)
         }
     }
 
