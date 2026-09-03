@@ -12,10 +12,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - **🛹 He's a skateboarder now.** Two new tricks — a held manual with the
   ground rushing under him, and a flat shove-it he watches spin beneath his
   own hop — plus, rarely, a whole session: several tricks and roll-aways
-  strung into one long ride. And a Skater fit in the costume menu:
-  backwards cap, charcoal tee, baggy black pants, with a kick-push of dust
-  when the mood takes him. Thirteen idle moves, twenty-one props, fourteen
-  looks.
+  strung into one long ride. And a Skater fit in the costume menu, with a
+  kick-push of dust when the mood takes him. Thirteen idle moves,
+  twenty-one props, fourteen looks.
 - **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
   out through the float — foot slid three cells wide, knee bent — and tucks
   back before the stomp. A die on the desk; the README's ollie stays clean
@@ -49,8 +48,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   radial wedges with a rim band, gold and dark alternating, in place of the
   seven spokes with yellow tips that read as candles. It still spreads on
   the strut.
-- **🧢 The black beanie is a mirrored santa hat.** Same silhouette
-  reflected, sagging left where santa's sags right, black with a white pom.
 - **🤓 Matrix is Coder now.** Same green rain, same stored preference —
   he just wears steel-rimmed glasses under it. The rain parts around the
   frames on its own.
@@ -65,8 +62,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   Claw'd's tricks stays, because a costume is a uniform and the dice are a
   surprise.
 - **🧢 The beanie stands up.** A folded cuff wider than his head and
-  near-vertical sides above it, instead of a smooth dome that read as a
-  skullcap however tall it got.
+  near-vertical sides above it, with a white pom on top — instead of the
+  smooth dome it shipped as, which read as a skullcap however tall it got.
 - **💍 Sonic sheds rings when he pops.** Eight of them spraying off his
   flanks and tumbling away, straight out of the game — on the ollie and the
   nollie, every time, because the trick is the hit.
