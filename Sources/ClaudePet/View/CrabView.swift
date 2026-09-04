@@ -118,14 +118,16 @@ public enum CrabAnimator {
              // The skateboarder round: the balance ride and the flat spin.
              manual, shoveIt,
              // The ollie off the nose.
-             nollie
+             nollie,
+             // The board comes round a whole turn and he comes round with it.
+             bigspin
 
         /// Everything he does on a board. Six are tricks and one is a cruise,
         /// which is why this is not called `skateTricks` — he shouts after all
         /// of them, and "Do a Kickflip!" lands funnier over a roll-away than it
         /// does over an actual kickflip.
         static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
-                                                .manual, .shoveIt, .nollie]
+                                                .manual, .shoveIt, .nollie, .bigspin]
 
         var duration: Double {
             switch self {
@@ -152,6 +154,9 @@ public enum CrabAnimator {
             // same way the ollie's hang does.
             case .manual: 2.6
             case .shoveIt: 2.2
+            // The same air as the flips: long enough for the board to come
+            // round twice and for him to finish his own turn on the way out.
+            case .bigspin: 2.8
             }
         }
     }
@@ -213,7 +218,7 @@ public enum CrabAnimator {
         .jump: 1, .wave: 1, .wiggle: 1, .stretch: 1, .lookAround: 1, .scuttle: 1,
         .cruise: 2,
         .kickflip: 3, .ollie: 3, .manual: 3, .shoveIt: 3,
-        .varialFlip: 4, .nollie: 4,
+        .varialFlip: 4, .nollie: 4, .bigspin: 4,
     ]
 
     /// Expanded from the weights, over `allCases` rather than over the
@@ -1714,26 +1719,26 @@ public enum CrabAnimator {
         return Ease.smoothstep((air - 0.2) / 0.2) * (1 - Ease.smoothstep((air - 0.7) / 0.2))
     }
 
+    /// The back half of the bigspin's turn, across the landing.
+    ///
+    /// Not a plain smoothstep, and the reason is geometric: smoothstep is
+    /// FASTEST in the middle, and the middle of this sweep is exactly
+    /// edge-on — the angle where a degree costs the most cells of
+    /// silhouette. Easing that way put a four-cell jump in the one frame
+    /// that could least afford it. The sine term inverts it, so he dwells
+    /// through the crossing and hurries through the two flat faces where
+    /// nothing much changes. Monotone by construction: the slope bottoms
+    /// out at 1 − dwell, and dwell is well under one.
+    nonisolated static let bigspinDwell = 0.6
+    static func bigspinOut(_ out: Double) -> Double {
+        out + sin(2 * .pi * out) / (2 * .pi) * bigspinDwell
+    }
+
     nonisolated static let steezeChance = SpawnRates.steeze
     static func ollieIsSteezed(cycle: Int) -> Bool {
         noise(cycle &* 7 &+ 23) < steezeChance
     }
 
-    /// 🌀 One revolution across the varial's air.
-    ///
-    /// Smoothstepped, so he leaves the pop and meets the stomp at zero
-    /// angular speed and neither seam can be the thing that snaps. The
-    /// `sin(4πp)/32` term is a DWELL at the two edge-on crossings, where a
-    /// degree costs the most cells — the width of a box is steepest square
-    /// to the camera, so he spends longer there and hurries through facing
-    /// front and back, and the silhouette moves at a more even rate than
-    /// the angle does. Monotone by construction: the term's slope never
-    /// falls below 1 − π/8.
-    nonisolated static let spinDwell = 1.0 / 32
-    static func varialSpin(air: Double) -> Double {
-        let p = Ease.smoothstep(air)
-        return p + sin(4 * .pi * p) * spinDwell
-    }
 
     /// The jump at a given point in its arc, for the contact sheet.
     static func jumpPose(progress: Double) -> CrabPose {
@@ -1806,13 +1811,14 @@ public enum CrabAnimator {
                 if air < 0.25 { pose.eyes = .squint }  // >_< , off the stickers
                 pose.mouth = .open
                 pose.propPhase = air
-                // 🌀 …and on the VARIAL, he turns with it. The board yaws
-                // half a turn and rolls a whole one; he does a full 360 of
-                // his own on a separate clock, so at his edge-on the deck
-                // is at forty-five degrees and nothing marches in step.
-                // The kickflip keeps its shoulders square — that is the
-                // difference between the two tricks now.
-                if kind == .varialFlip { pose.torsoTurn = Self.varialSpin(air: air) }
+                // The varial keeps its shoulders SQUARE, and that is not a
+                // simplification — it is what the trick is. The board does a
+                // half shove-it and a whole flip underneath a rider who does
+                // not turn. A body that spun while the board did something
+                // else on its own clock is a body varial, which skaters call
+                // a sex change and do not do on purpose; the operator named
+                // it on sight. The body turn moved to the bigspin, where the
+                // board turns WITH him.
             } else {
                 pose.squash = 1                       // stomp it
                 pose.bob = 1
@@ -1876,6 +1882,49 @@ public enum CrabAnimator {
                 pose.mouth = .open
                 pose.dustBurst = (progress - Self.ollieAirStart - Self.ollieAirSpan)
                     / (1 - Self.ollieAirStart - Self.ollieAirSpan)
+            }
+
+        case .bigspin:
+            // 🌀 THE BIGSPIN — and the trick that finally earns the body
+            // turn. The rule it exists to obey: he may only rotate if the
+            // board rotates WITH him, the same way, by at least as much.
+            // The board takes a whole flat turn while he takes half of it,
+            // both off the same `air`, which is the two-to-one the trick is
+            // named for.
+            //
+            // Then the landing finishes what the air started. Half a turn
+            // would leave him facing away, and the idle pose he returns to
+            // carries no turn at all — so he would snap a hundred and eighty
+            // degrees in one frame at the stomp. Carrying on round instead
+            // of unwinding is both the fix and the honest motion: he lands
+            // fakie and pivots the rest of the way to face you as he rolls
+            // out.
+            pose.prop = .skateboardBigspin
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            if progress < 0.15 {
+                pose.squash = 1
+                pose.bob = 1
+            } else if progress < 0.80 {
+                let air = (progress - 0.15) / 0.65
+                pose.bob = -Int((sin(air * .pi) * 9).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                if air < 0.25 { pose.eyes = .squint }
+                pose.mouth = .open
+                pose.propPhase = air
+                pose.torsoTurn = Ease.smoothstep(air) * 0.5
+            } else {
+                let out = (progress - 0.80) / 0.20
+                pose.squash = 1
+                pose.bob = 1
+                pose.mouth = .open
+                pose.dustBurst = out
+                // 0.5 → 1.0, which renders as facing front again: a whole
+                // turn is the identity, so he arrives square without ever
+                // having reversed.
+                pose.torsoTurn = 0.5 + Self.bigspinOut(out) * 0.5
             }
 
         case .nollie:

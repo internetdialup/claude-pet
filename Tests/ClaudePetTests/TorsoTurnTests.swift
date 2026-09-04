@@ -324,47 +324,82 @@ struct TorsoTurnTests {
         }
     }
 
-    /// The varial turns exactly once, inside its own air, and no other
-    /// trick turns at all. The seams are the point: the first and last air
-    /// frames render as they always did, so the pop and the stomp are
-    /// today's frames byte for byte.
-    @Test("The varial turns once, and only the varial turns")
-    func varialSpinsExactlyOnce() {
-        let duration = CrabAnimator.Flourish.varialFlip.duration
-        var previous = -1.0
-        for step in 0...600 {
-            let t = Double(step) * duration / 600
-            let pose = CrabAnimator.flourishPose(.varialFlip, at: t)
-            let progress = t / duration
-            if progress < 0.15 || progress >= 0.80 {
-                #expect(pose.torsoTurn == 0, "the turn leaked outside the air at t = \(t)")
+    /// **The body may not turn unless the board turns with it.**
+    ///
+    /// This is the rule the whole channel answers to, and it is here because
+    /// the first version broke it: the body spun a full turn while the board
+    /// yawed half of one on a separate clock. Skaters have a name for a body
+    /// that rotates without its board — a sex change — and the operator
+    /// recognised it on sight. So the pin is not "the varial turns" but
+    /// "nothing turns alone".
+    @Test("He never turns without the board turning with him")
+    func theBoardTurnsWithHim() {
+        for kind in CrabAnimator.Flourish.allCases {
+            var everTurned = false
+            for step in 0...120 {
+                let pose = CrabAnimator.flourishPose(kind, at: Double(step) * kind.duration / 120)
+                let turn = pose.torsoTurn - pose.torsoTurn.rounded(.down)
+                guard turn > 0.001, turn < 0.999 else { continue }
+                everTurned = true
+                // Whatever is under him while he is mid-turn must be a board
+                // that turns. A pitching or flipping board is not enough —
+                // it has to YAW.
+                #expect(pose.prop == .skateboardBigspin,
+                        "\(kind) turned his body over a \(pose.prop), which does not turn with him")
+            }
+            if kind == .bigspin {
+                #expect(everTurned, "the bigspin never turned him")
             } else {
-                #expect(pose.torsoTurn >= previous, "the turn ran backwards at t = \(t)")
-                previous = pose.torsoTurn
+                #expect(!everTurned, "\(kind) turns his body, and only the bigspin may")
             }
         }
-        #expect(abs(CrabAnimator.varialSpin(air: 0) - 0) < 1e-9)
-        #expect(abs(CrabAnimator.varialSpin(air: 1) - 1) < 1e-9)
-        #expect(abs(CrabAnimator.varialSpin(air: 0.5) - 0.5) < 1e-9,
-                "the dwell should be symmetric about the back")
+    }
 
-        for kind in CrabAnimator.Flourish.allCases where kind != .varialFlip {
-            for step in 0...60 {
-                let pose = CrabAnimator.flourishPose(kind, at: Double(step) * kind.duration / 60)
-                #expect(pose.torsoTurn == 0, "\(kind) turned, and only the varial may")
+    /// The bigspin's own contract: he takes half a turn in the air while the
+    /// board takes a whole one — the two-to-one the trick is named for — and
+    /// then finishes the rotation on the way out rather than unwinding it,
+    /// so he lands square without ever reversing.
+    @Test("The bigspin turns half in the air and finishes on the landing")
+    func theBigspinFinishesItsTurn() {
+        let duration = CrabAnimator.Flourish.bigspin.duration
+        var previous = 0.0
+        // Up to, not past: beyond its own duration the trick is over and
+        // the plain idle pose comes back with no turn at all.
+        for step in 0..<240 {
+            let progress = Double(step) / 240
+            let pose = CrabAnimator.flourishPose(.bigspin, at: progress * duration)
+            #expect(pose.torsoTurn >= previous - 1e-9,
+                    "he unwound at progress \(progress) — a bigspin does not reverse")
+            previous = pose.torsoTurn
+        }
+        // Square at both ends: a whole turn renders as no turn at all.
+        let landed = CrabAnimator.flourishPose(.bigspin, at: duration - 0.01)
+        #expect(abs(landed.torsoTurn - 1) < 0.02, "he landed mid-turn at \(landed.torsoTurn)")
+        // Not a byte-compare: a thousandth of a turn short of square is
+        // still a thousandth of a turn, and it moves a catchlight. What
+        // matters is that he ARRIVES square — the silhouette on his last
+        // airborne frame is the silhouette he lands with, to within a cell,
+        // so the stomp has nothing left to snap through.
+        var flat = landed
+        flat.torsoTurn = 0
+        let turned = CrabRig.render(landed), square = CrabRig.render(flat)
+        func span(_ b: PixelBuffer, _ y: Int) -> (Int, Int)? {
+            var left = 99, right = -1
+            for x in 0..<PixelBuffer.side where b[x, y] == .body || b[x, y] == .bodyShade {
+                left = min(left, x); right = max(right, x)
             }
+            return right < 0 ? nil : (left, right)
+        }
+        for y in (11 + landed.bob)...(19 + landed.bob) {
+            guard let a = span(turned, y), let c = span(square, y) else { continue }
+            #expect(abs(a.0 - c.0) <= 1 && abs(a.1 - c.1) <= 1,
+                    "row \(y) lands at \(a) but square is \(c) — he stomped mid-turn")
         }
 
-        // The seams: the frame the air opens on and the frame it closes on
-        // are the frames they were before he could turn.
-        for t in [0.15 * duration, 0.7999 * duration] {
-            var pose = CrabAnimator.flourishPose(.varialFlip, at: t)
-            var flat = pose
-            flat.torsoTurn = 0
-            pose.torsoTurn = pose.torsoTurn < 0.5 ? pose.torsoTurn : pose.torsoTurn
-            #expect(CrabRig.render(pose).cells == CrabRig.render(flat).cells,
-                    "the air's seam at t = \(t) is not the frame it used to be")
-        }
+        // Half in the air, where the board has come round once.
+        let apex = CrabAnimator.flourishPose(.bigspin, at: 0.795 * duration)
+        #expect(abs(apex.torsoTurn - 0.5) < 0.05,
+                "he should be halfway round as the air ends, not \(apex.torsoTurn)")
     }
 
     /// At every rate anything renders him at, the silhouette's edges walk
@@ -374,11 +409,11 @@ struct TorsoTurnTests {
     /// mean pinning a number nothing can meet.
     @Test("The turning silhouette never teleports")
     func theTurningSilhouetteNeverTeleports() {
-        let duration = CrabAnimator.Flourish.varialFlip.duration
+        let duration = CrabAnimator.Flourish.bigspin.duration
         for (rate, bound) in [(30.0, 2), (20.0, 3), (12.0, 5), (10.0, 6)] {
             var previous: (Int, Int)?
             for frame in 0...Int(duration * rate) {
-                let pose = CrabAnimator.flourishPose(.varialFlip, at: Double(frame) / rate)
+                let pose = CrabAnimator.flourishPose(.bigspin, at: Double(frame) / rate)
                 let b = CrabRig.render(pose)
                 var left = 99, right = -1
                 for y in (11 + pose.bob)...(19 + pose.bob) {

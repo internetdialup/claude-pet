@@ -105,12 +105,15 @@ public struct CrabPose: Sendable, Equatable {
         // Appended: the board mid-NOLLIE — the ollie's pitch mirrored, the
         // nose popping and the tail rising first.
         case skateboardNollie
+        // Appended: the BIGSPIN's board — a whole flat turn under a rider
+        // who is turning with it.
+        case skateboardBigspin
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
              .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt,
-             .skateboardNollie: true
+             .skateboardNollie, .skateboardBigspin: true
             default: false
             }
         }
@@ -1435,7 +1438,8 @@ public enum CrabRig {
         // boards were missed when they joined, and drew a ground shadow
         // under an airborne deck.
         case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
-             .skateboardManual, .skateboardShoveIt, .skateboardNollie: return
+             .skateboardManual, .skateboardShoveIt, .skateboardNollie,
+             .skateboardBigspin: return
         default: break
         }
         let rise = max(0, -dy)
@@ -2114,6 +2118,26 @@ public enum CrabRig {
             // the deck at the pass-through.
             let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
             let yaw = u * .pi
+            let cx = 16 + dx, deckY = 25 + dy
+            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
+            if half >= 5 {
+                for hub in [cx - half + 1, cx + half - 3] {
+                    b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                    b.pixel(hub + 1, deckY + 2, .screenDark)
+                }
+            }
+
+        case .skateboardBigspin:
+            // A BIGSPIN's board: a whole flat turn, no flip. Twice the
+            // shove-it's yaw over the same air, which is the ratio that
+            // makes the trick read — the deck comes round twice for every
+            // once he does, and it is the board leading the rider that says
+            // bigspin rather than the two of them merely both turning.
+            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let yaw = u * 2 * .pi
             let cx = 16 + dx, deckY = 25 + dy
             let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
             let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck

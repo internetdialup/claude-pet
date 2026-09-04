@@ -47,7 +47,7 @@ means an `ExitPlanMode` is sitting there waiting for your answer.
 **Thinking** just shows three dots. There's no honest label for that moment,
 so he doesn't pretend to have one.
 
-## ✨ Thirteen things he does when nobody asked
+## ✨ Fourteen things he does when nobody asked
 
 <table>
 <tr>
@@ -220,7 +220,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All twenty-one props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and seven skateboards">
+  <img src="docs/media/props.png" width="100%" alt="All twenty-two props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and eight skateboards">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

@@ -119,6 +119,7 @@ public enum Vocab {
             "Tony Clawd 900 🦅",
             "Sponsor me 🛹",
             "Nollie! Nose first 🛹",
+            "Bigspin, board first 🌀",
         ]
 
         // 🛹✨ The golden board — one skate beat in twenty. The lines are

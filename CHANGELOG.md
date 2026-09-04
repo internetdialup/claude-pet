@@ -26,13 +26,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
-- **🛹 The varial spins him too.** A full body 360 with the board — his
-  right shoulder swings toward you, the face slides and squeezes to a
-  sliver, a six-wide pillar edge-on, then his back (a step darker, one lit
-  groove, no face, the headband or tee or scarf wrapped round), the lit side
-  coming back, the face sliding home, and the stomp facing you as before.
-  Every costume performs it dressed. The varial got 0.4 s more air to spin
-  in; the kickflip keeps its shoulders square.
+- **🌀 The bigspin.** The board takes a whole flat turn while he takes half
+  of it — the two-to-one the trick is named for — and he finishes the
+  rotation on the roll-away, landing square without ever reversing.
+- **🛹 The varial keeps its shoulders square.** It briefly did not, and it
+  was wrong: a body that rotates while the board does something else on its
+  own clock is what skaters call a sex change, and nobody does one on
+  purpose. The body turn moved to the bigspin, where the board turns with
+  him. The rule now has a test: he never turns without the board turning
+  too.
+- **🌀 He can turn his whole body now.** The face slides and squeezes to a
+  sliver, a six-wide pillar edge-on, then his back — a step darker, one lit
+  groove, no face, the headband or tee or scarf wrapped round from behind —
+  then the lit side, and the face sliding home. Every costume performs it
+  dressed. It rides the bigspin.
 - **🛹 The manual lands like it should.** The rider used to let go of
   everything — arms, eyes, mouth, gaze, the lift — on one frame near the
   end while the board was still easing its nose down. Now each releases on

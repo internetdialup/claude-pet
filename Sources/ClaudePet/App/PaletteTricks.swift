@@ -50,7 +50,7 @@ enum PaletteTricks {
     ]
 
     static let tricks: [CrabAnimator.Flourish] =
-        [.ollie, .kickflip, .varialFlip, .manual, .shoveIt, .nollie, .cruise]
+        [.ollie, .kickflip, .varialFlip, .manual, .shoveIt, .nollie, .bigspin, .cruise]
 
     /// Trick → (line, golden). All real lines; the reserved gold line pays
     /// for itself with a genuinely golden deck.
@@ -61,6 +61,7 @@ enum PaletteTricks {
         (.manual, "Sponsor me 🛹", false),
         (.shoveIt, "Kowbunga 🤙!", false),
         (.nollie, "Nollie! Nose first 🛹", false),
+        (.bigspin, "Bigspin, board first 🌀", false),
         (.cruise, "GOLD BOARD. No notes 🏆", true),
     ]
 
@@ -346,6 +347,7 @@ enum PaletteTricks {
         case .manual: .skateboardManual
         case .shoveIt: .skateboardShoveIt
         case .nollie: .skateboardNollie
+        case .bigspin: .skateboardBigspin
         default: .skateboardRoll
         }
     }
