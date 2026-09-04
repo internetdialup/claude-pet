@@ -535,6 +535,82 @@ struct MotionContinuityTests {
                 "steeze rate \(rate), table says \(SpawnRates.steeze)")
     }
 
+    /// A 360 flip turns the board through a WHOLE shove-it, not a half.
+    ///
+    /// Measured on the rendered deck: across the air it must reach full
+    /// width twice and narrow to a sliver twice. A varial does each once,
+    /// so this is the assertion that separates the two tricks rather than
+    /// trusting the constant that was typed.
+    @Test("The tre and the laser turn the board a whole way round")
+    func the360FlipsSpinBothAxes() {
+        for kind in [CrabAnimator.Flourish.treFlip, .laserFlip] {
+            var widths: [Int] = []
+            let duration = kind.duration
+            for step in 0...160 {
+                let progress = 0.16 + Double(step) / 160 * 0.63
+                let b = CrabRig.render(CrabAnimator.flourishPose(kind, at: progress * duration))
+                var left = 99, right = -1
+                for y in 0..<PixelBuffer.side {
+                    for x in 0..<PixelBuffer.side where b[x, y] == .deck {
+                        left = min(left, x); right = max(right, x)
+                    }
+                }
+                if right >= 0 { widths.append(right - left + 1) }
+            }
+            // Count the times it comes back out to flat. A half turn gives
+            // one such run; a whole turn gives two.
+            var wideRuns = 0, inWide = false
+            for w in widths {
+                if w >= 15, !inWide { wideRuns += 1; inWide = true }
+                if w < 10 { inWide = false }
+            }
+            #expect(wideRuns >= 2,
+                    "\(kind) opened out flat \(wideRuns) time(s) — that is a 180, not a 360")
+            #expect(widths.min() ?? 99 <= 8, "\(kind) never turned down its own length")
+        }
+    }
+
+    /// **They are mirrors, and the render has to say so.**
+    ///
+    /// A tre and a laser are the same trick reflected in both axes, and the
+    /// deck's width and thickness both come through an absolute value — so
+    /// a laser built by copying the tre and flipping a sign nobody reads
+    /// would render as the SAME FRAMES and the difference would live only
+    /// in a comment. This fails on that copy-paste.
+    @Test("The laser is not the tre with a different name")
+    func theLaserMirrorsTheTre() {
+        var differing = 0
+        let duration = CrabAnimator.Flourish.treFlip.duration
+        for step in 0...80 {
+            let progress = 0.16 + Double(step) / 80 * 0.63
+            let tre = CrabRig.render(CrabAnimator.flourishPose(.treFlip, at: progress * duration))
+            let laser = CrabRig.render(CrabAnimator.flourishPose(.laserFlip, at: progress * duration))
+            if tre.cells != laser.cells { differing += 1 }
+        }
+        #expect(differing > 60,
+                "only \(differing) of 81 frames differ — the laser is a relabelled tre")
+    }
+
+    /// The laser's signature, and the operator asked for it by name: the
+    /// leg bones out through the float and is tucked back before the stomp.
+    /// The tre keeps its legs in — that is the other half of the contract.
+    @Test("The laser kicks its leg out and the tre does not")
+    func theLaserKicksItsLeg() {
+        let duration = CrabAnimator.Flourish.laserFlip.duration
+        var peak = 0.0
+        for step in 0...120 {
+            let progress = Double(step) / 120
+            let laser = CrabAnimator.flourishPose(.laserFlip, at: progress * duration)
+            let tre = CrabAnimator.flourishPose(.treFlip, at: progress * duration)
+            peak = max(peak, laser.legKick)
+            #expect(tre.legKick == 0, "the tre kicked at progress \(progress)")
+            if progress < 0.15 || progress >= 0.80 {
+                #expect(laser.legKick == 0, "the laser kicked outside its air")
+            }
+        }
+        #expect(peak > 0.9, "the laser never fully boned out (peak \(peak))")
+    }
+
     /// **The cruise is the one where HE does not move and the ground does.**
     ///
     /// Its whole identity is that nothing about the board changes: it does not

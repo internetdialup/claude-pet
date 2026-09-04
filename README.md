@@ -47,7 +47,7 @@ means an `ExitPlanMode` is sitting there waiting for your answer.
 **Thinking** just shows three dots. There's no honest label for that moment,
 so he doesn't pretend to have one.
 
-## ✨ Fourteen things he does when nobody asked
+## ✨ Sixteen things he does when nobody asked
 
 <table>
 <tr>
@@ -69,14 +69,22 @@ so he doesn't pretend to have one.
   <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
   <td align="center"><img src="docs/media/flourish-nollie.gif" width="110"><br><strong>Nollie</strong></td>
   <td align="center"><img src="docs/media/flourish-bigspin.gif" width="110"><br><strong>Bigspin</strong></td>
+  <td align="center"><img src="docs/media/flourish-treFlip.gif" width="110"><br><strong>Tre flip</strong></td>
+</tr>
+<tr>
+  <td align="center"><img src="docs/media/flourish-laserFlip.gif" width="110"><br><strong>Laser flip</strong></td>
+  <td align="center"></td>
+  <td align="center"></td>
+  <td align="center"></td>
   <td align="center"></td>
 </tr>
 </table>
 
-These run on a seven-second cycle, but only about seven cycles in ten fire, so
+These run on a seven-second cycle, but only about eight cycles in ten fire, so
 the gaps stay irregular and he is still most of the time. The rotation leans
-toward the skateboard. Land a trick and he says something about it, and about
-one trick in fifty rides a golden board.
+hard toward the skateboard. Land a trick and he says something about it — in
+character, if he is wearing one — and about one trick in twenty rides a golden
+board.
 
 While he waits he shares what he knows: **76 fun facts** across computer
 science, AI and Claude, plus **16 tips** about Claude Code itself, every one
@@ -220,7 +228,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All twenty-two props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and eight skateboards">
+  <img src="docs/media/props.png" width="100%" alt="All twenty-four props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and ten skateboards">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

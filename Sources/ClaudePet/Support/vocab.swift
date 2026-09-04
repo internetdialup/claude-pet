@@ -120,6 +120,8 @@ public enum Vocab {
             "Sponsor me 🛹",
             "Nollie! Nose first 🛹",
             "Bigspin, board first 🌀",
+            "Tre flip 🌀🛹",
+            "LASER FLIP ⚡🛹",
         ]
 
         // 🛹✨ The golden board — one skate beat in twenty. The lines are

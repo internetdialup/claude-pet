@@ -120,14 +120,17 @@ public enum CrabAnimator {
              // The ollie off the nose.
              nollie,
              // The board comes round a whole turn and he comes round with it.
-             bigspin
+             bigspin,
+             // The two 360 flips — mirrors of each other in both axes.
+             treFlip, laserFlip
 
         /// Everything he does on a board. Six are tricks and one is a cruise,
         /// which is why this is not called `skateTricks` — he shouts after all
         /// of them, and "Do a Kickflip!" lands funnier over a roll-away than it
         /// does over an actual kickflip.
         static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
-                                                .manual, .shoveIt, .nollie, .bigspin]
+                                                .manual, .shoveIt, .nollie, .bigspin,
+                                                .treFlip, .laserFlip]
 
         var duration: Double {
             switch self {
@@ -157,6 +160,10 @@ public enum CrabAnimator {
             // The same air as the flips: long enough for the board to come
             // round twice and for him to finish his own turn on the way out.
             case .bigspin: 2.8
+            // A whole shove-it AND a whole flip in one air. Longer than the
+            // varial's, because twice the rotation in the same time is a
+            // blur rather than a trick.
+            case .treFlip, .laserFlip: 3.2
             }
         }
     }
@@ -218,7 +225,7 @@ public enum CrabAnimator {
         .jump: 1, .wave: 1, .wiggle: 1, .stretch: 1, .lookAround: 1, .scuttle: 1,
         .cruise: 2,
         .kickflip: 3, .ollie: 3, .manual: 3, .shoveIt: 3,
-        .varialFlip: 4, .nollie: 4, .bigspin: 4,
+        .varialFlip: 4, .nollie: 4, .bigspin: 4, .treFlip: 4, .laserFlip: 4,
     ]
 
     /// Expanded from the weights, over `allCases` rather than over the
@@ -1882,6 +1889,49 @@ public enum CrabAnimator {
                 pose.mouth = .open
                 pose.dustBurst = (progress - Self.ollieAirStart - Self.ollieAirSpan)
                     / (1 - Self.ollieAirStart - Self.ollieAirSpan)
+            }
+
+        case .treFlip, .laserFlip:
+            // 🌀 THE 360 FLIPS. One air, one shape, two mirror-image boards
+            // — the prop does the mirroring, so the rider's timeline is
+            // shared and cannot drift between them.
+            //
+            // His shoulders stay SQUARE through both. A 360 flip is the
+            // board's trick, not the body's, and the rule this rig now
+            // keeps is that he only turns when the board turns with him.
+            //
+            // What separates them on HIM is the laser's legs. The operator
+            // asked for it by name — Neen Williams' laser flip, where the
+            // front leg boning out is the whole picture — and the channel
+            // for it already exists: the steezed ollie's kick, held through
+            // the float instead of flicked.
+            pose.prop = kind == .treFlip ? .skateboardTre : .skateboardLaser
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            if progress < 0.15 {
+                pose.squash = 1
+                pose.bob = 1
+            } else if progress < 0.80 {
+                let air = (progress - 0.15) / 0.65
+                pose.bob = -Int((sin(air * .pi) * 9).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                if air < 0.25 { pose.eyes = .squint }
+                pose.mouth = .open
+                pose.propPhase = air
+                if kind == .laserFlip {
+                    // Out through the first third, held across the float,
+                    // tucked back before the stomp — zero at both bounds, so
+                    // the kick can never be the thing that snaps.
+                    pose.legKick = Ease.smoothstep((air - 0.15) / 0.2)
+                        * (1 - Ease.smoothstep((air - 0.72) / 0.2))
+                }
+            } else {
+                pose.squash = 1
+                pose.bob = 1
+                pose.mouth = .open
+                pose.dustBurst = (progress - 0.80) / 0.20
             }
 
         case .bigspin:

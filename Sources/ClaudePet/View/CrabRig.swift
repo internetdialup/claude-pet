@@ -108,12 +108,17 @@ public struct CrabPose: Sendable, Equatable {
         // Appended: the BIGSPIN's board — a whole flat turn under a rider
         // who is turning with it.
         case skateboardBigspin
+        // Appended: the two 360 flips. A tre and a laser are mirror images
+        // of each other in BOTH axes, which is why they get a case each
+        // rather than a sign on one — see `drawFlip360`.
+        case skateboardTre, skateboardLaser
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
              .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt,
-             .skateboardNollie, .skateboardBigspin: true
+             .skateboardNollie, .skateboardBigspin,
+             .skateboardTre, .skateboardLaser: true
             default: false
             }
         }
@@ -1420,6 +1425,75 @@ public enum CrabRig {
 
     /// ✨ A one-cell flash on a wheel, riding the prop's own clock — weight,
     /// per the operator. ~7% of the phase, glint-class by size and nature.
+    /// A 360 FLIP, in either direction — the tre and the laser.
+    ///
+    /// Both are a whole shove-it and a whole flip at once, and they are
+    /// exact mirrors of each other: the tre turns backside and kickflips,
+    /// the laser turns frontside and heelflips. That symmetry is the whole
+    /// problem with drawing them. The deck's width comes from `|cos yaw|`
+    /// and its thickness from `|sin roll|`, and an absolute value cannot
+    /// tell a rotation from its mirror — signed alone, the two tricks
+    /// render as the same frames and the difference is a claim in a comment.
+    ///
+    /// So direction is made VISIBLE, three ways. The NOSE is tracked
+    /// signed, so it sweeps left-to-right on one and right-to-left on the
+    /// other and you can follow it round. The grip tape shows on whichever
+    /// half of the roll has the top face toward you, which is the opposite
+    /// half for each. And the wheels hang off the nose's own end rather
+    /// than symmetric hubs, so the board reads as having a front.
+    private static func drawFlip360(_ b: inout PixelBuffer, dx: Int, dy: Int,
+                                    pose: CrabPose, direction: Double) {
+        let spin = pose.propPhase.truncatingRemainder(dividingBy: 1)
+        let yaw = direction * spin * 2 * .pi
+        let roll = direction * spin * 2 * .pi
+        let cx = 16 + dx, deckY = 25 + dy
+        // The width has to know about the ROLL, which is the whole
+        // difference between this and the varial next door. There the yaw
+        // ran at half the roll's rate, so the deck was never narrow and
+        // thick at the same instant. Here they are locked together, and the
+        // varial's formula — which takes the deck's width as a flat 2.5
+        // however it is tipped — drew a seven-by-five solid rectangle at the
+        // quarter turn. A skateboard is not a brick.
+        //
+        // Pointing at you AND rolled onto its edge, what is left of a board
+        // is its end grain: almost nothing across, its own width tall. So
+        // the sideways contribution of the deck's width is scaled by
+        // `|cos roll|` — it vanishes exactly when the deck is edge-on — and
+        // the height keeps riding `|sin roll|`.
+        let half = max(1, Int((8 * abs(cos(yaw))
+                               + 2.5 * abs(cos(roll)) * abs(sin(yaw))).rounded()))
+        let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
+        let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+        let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+        b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
+
+        // Grip tape on the face that is toward you, which is the opposite
+        // half of the roll for each trick — the cheapest honest tell.
+        if sin(roll) < 0, thick >= 4 {
+            let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+            for gx in stride(from: cx - half + 1, through: cx + half - 2, by: 4) {
+                b.pixel(gx, deckY + 1, grit)
+                b.pixel(gx + 1, deckY, grit)
+            }
+        }
+
+        // The nose, tracked signed so it sweeps a whole turn and you can
+        // see WHICH WAY the board is going round.
+        let noseX = cx + Int((Double(half) * cos(yaw)).rounded())
+        let orbit = Int((3 * cos(roll)).rounded())
+        if sin(roll) >= 0 || abs(orbit) > thick / 2 {
+            for hub in [noseX - 1, cx - Int((Double(half) * cos(yaw)).rounded()) - 1] {
+                b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
+                b.pixel(hub, deckY + orbit, wheelInk)
+                b.pixel(hub + 1, deckY + orbit, .screenDark)
+                b.pixel(hub + 2, deckY + orbit, wheelInk)
+            }
+        }
+        // One bright cell on the nose itself, so the end you are following
+        // is never ambiguous even when the deck is a sliver.
+        if thick <= 3 { b.pixel(noseX, deckY - thick / 2, .flameCore) }
+    }
+
     private static func wheelShimmer(_ phase: Double) -> Bool {
         (phase * 2.6).truncatingRemainder(dividingBy: 1) < 0.11
     }
@@ -1439,7 +1513,7 @@ public enum CrabRig {
         // under an airborne deck.
         case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
              .skateboardManual, .skateboardShoveIt, .skateboardNollie,
-             .skateboardBigspin: return
+             .skateboardBigspin, .skateboardTre, .skateboardLaser: return
         default: break
         }
         let rise = max(0, -dy)
@@ -2129,6 +2203,12 @@ public enum CrabRig {
                     b.pixel(hub + 1, deckY + 2, .screenDark)
                 }
             }
+
+        case .skateboardTre:
+            drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: 1)
+
+        case .skateboardLaser:
+            drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: -1)
 
         case .skateboardBigspin:
             // A BIGSPIN's board: a whole flat turn, no flip. Twice the

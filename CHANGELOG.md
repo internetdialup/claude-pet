@@ -26,6 +26,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **🌀 The tre flip and the laser flip.** A whole shove-it and a whole flip
+  in one air, and they are exact mirrors of each other — the tre turns
+  backside and kickflips, the laser turns frontside and heelflips. That
+  symmetry is why the board tracks its nose signed and shows its grip on
+  opposite halves: an absolute value cannot tell a rotation from its mirror,
+  so without those the two would have rendered as the same frames. The
+  laser bones its front leg out through the float, which is the thing that
+  makes a laser flip a laser flip.
 - **🌀 The bigspin.** The board takes a whole flat turn while he takes half
   of it — the two-to-one the trick is named for — and he finishes the
   rotation on the roll-away, landing square without ever reversing.
