@@ -82,9 +82,11 @@ so he doesn't pretend to have one.
 
 These run on a seven-second cycle, but only about eight cycles in ten fire, so
 the gaps stay irregular and he is still most of the time. The rotation leans
-hard toward the skateboard. Land a trick and he says something about it — in
-character, if he is wearing one — and about one trick in twenty rides a golden
-board.
+hard toward the skateboard, and harder still when he is dressed for it: the
+Skater rides more sessions and finds more gold, Sonic leans toward the
+roll-away, and the Gundam would rather stand there. Land a trick and he says
+something about it — in character, if he is wearing one — and about one trick
+in twenty rides a golden board.
 
 While he waits he shares what he knows: **76 fun facts** across computer
 science, AI and Claude, plus **16 tips** about Claude Code itself, every one

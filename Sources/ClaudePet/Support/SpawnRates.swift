@@ -72,6 +72,58 @@ enum SpawnRates {
         let duration: Double
     }
 
+    // MARK: - What the wardrobe does to the odds
+
+    /// How a worn costume bends the matrix.
+    ///
+    /// A costume that only changes his colours is a paint job; one that
+    /// changes what he DOES is a character. The same argument that earned
+    /// the per-costume shout lines earns this — and it is a table rather
+    /// than a branch so the next look that wants a lean adds a row instead
+    /// of a special case.
+    ///
+    /// The weights are additive and the rates multiplicative, deliberately:
+    /// a deck entry is a count and a rate is a frequency, and mixing the two
+    /// kinds of knob is how a table stops being readable.
+    struct Lean: Sendable {
+        /// × the skate session's rate.
+        var session: Double = 1
+        /// × the rare skate specials — the golden board and the steeze.
+        var specials: Double = 1
+        /// + on every skate trick's weight in the flourish deck.
+        var trick: Int = 0
+        /// + on the roll-away's.
+        var cruise: Int = 0
+        /// + on the still, non-skate flourishes.
+        var still: Int = 0
+    }
+
+    /// **The deck is already 85% skate**, so the Skater's lean does most of
+    /// its work on the session and the specials, where there is headroom,
+    /// rather than on a share that cannot go much past ninety.
+    ///
+    /// Note what is NOT here: headwear. It draws on the bare crab only, so
+    /// a costume can never lean it — leaning it would have been a number
+    /// that changed nothing, which is worse than no number.
+    static func lean(for costume: Costume) -> Lean {
+        switch costume {
+        // 🛹 Dressed to skate: the long ride comes round twice as often,
+        // the jackpot and the steeze double, and the deck leans as far as a
+        // deck this skate-heavy can.
+        case .skater: Lean(session: 2.2, specials: 2, trick: 2, cruise: 1)
+        // 💨 Speed, which in this rig is the CRUISE — the beat where he
+        // holds still and the world streaks past him. Not the tricks: going
+        // fast is not the same as flipping the board.
+        case .sonic: Lean(session: 1.3, cruise: 4)
+        // 🤖 Deliberate. A mech does not fidget, so the still moves come up
+        // more and the sessions less — the one lean in the table that makes
+        // him skate LESS, and it should, because that is the character.
+        case .gundam: Lean(session: 0.6, still: 2)
+        // Every other look is a colourway. This is where its lean goes.
+        default: Lean()
+        }
+    }
+
     // MARK: - Idle spectacle
     //
     // The things he does unprompted, in descending order of how often you

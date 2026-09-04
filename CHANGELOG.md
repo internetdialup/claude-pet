@@ -13,8 +13,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   ground rushing under him, and a flat shove-it he watches spin beneath his
   own hop — plus, rarely, a whole session: several tricks and roll-aways
   strung into one long ride. And a Skater fit in the costume menu, with a
-  kick-push of dust when the mood takes him. Thirteen idle moves,
-  twenty-one props, fourteen looks.
+  kick-push of dust when the mood takes him. Sixteen idle moves,
+  twenty-four props, fourteen looks.
 - **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
   out through the float — foot slid three cells wide, knee bent — and tucks
   back before the stomp. A die on the desk; the README's ollie stays clean
@@ -26,6 +26,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **👕 The costume bends what he does, not just how he looks.** Wear the
+  Skater and the long skate session comes round twice as often (7/hr → 15),
+  the golden board and the steeze double, and the rotation leans as far
+  toward the board as a deck already 85% skate can go. Sonic leans toward
+  the cruise, because going fast is not the same as flipping the board. The
+  Gundam leans the other way — a mech does not fidget, so it skates less and
+  holds still more. Changing costume never re-deals the move he is already
+  halfway through.
 - **🌀 The tre flip and the laser flip.** A whole shove-it and a whole flip
   in one air, and they are exact mirrors of each other — the tre turns
   backside and kickflips, the laser turns frontside and heelflips. That

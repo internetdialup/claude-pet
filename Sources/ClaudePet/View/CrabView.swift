@@ -209,6 +209,38 @@ public enum CrabAnimator {
     /// 72% of cycles fire, gaps go irregular (7s, 14s, 7s, 21s…, longest 35s
     /// over 600 cycles) and the quiet stretches rise from 80% to 86%.
     /// "He should move sometimes, and be still most of the time."
+    /// The wardrobe as MOTION sees it: what he is wearing, what he was
+    /// wearing, and when it changed.
+    ///
+    /// The third field is the whole reason this is a struct rather than a
+    /// `Costume`. A costume that bends the dice makes every schedule
+    /// costume-dependent, and a schedule's dice are rolled per cycle — so
+    /// changing costume in the middle of a cycle would re-roll it and swap
+    /// the trick he is halfway through for a different one, in one frame.
+    /// Carrying the change instant lets each schedule ask what he was
+    /// wearing when ITS OWN cycle began and never change its mind mid-flight.
+    ///
+    /// The default is bare and unchanging, so every offline renderer and
+    /// every test that does not pass one is byte-identical to before.
+    struct MotionWardrobe: Sendable, Equatable {
+        var current: Costume = .none
+        var previous: Costume = .none
+        /// In the same clock `t` is measured in — idle-relative, live.
+        /// `-.infinity` means "has always been this".
+        var changedAt: Double = -.infinity
+
+        /// What he was wearing when the cycle containing `t` began.
+        func worn(at t: Double, period: Double) -> Costume {
+            let cycleStart = (t / period).rounded(.down) * period
+            return changedAt > cycleStart ? previous : current
+        }
+
+        /// …and its lean, which is the only thing the schedules want.
+        func lean(at t: Double, period: Double) -> SpawnRates.Lean {
+            SpawnRates.lean(for: worn(at: t, period: period))
+        }
+    }
+
     /// How often each flourish comes up, and the deck dealt from it.
     ///
     /// TASTE lives here. The deck used to be a hand-written array with the
@@ -232,15 +264,43 @@ public enum CrabAnimator {
     /// dictionary: a Dictionary's iteration order is not stable between
     /// runs, and a deck that reshuffles itself per launch would make every
     /// dice-derived pin in the suite a coin toss.
-    static let flourishDeck: [Flourish] = Flourish.allCases.flatMap { kind in
-        Array(repeating: kind, count: flourishWeights[kind] ?? 1)
+    static let flourishDeck: [Flourish] = deck(under: SpawnRates.Lean())
+
+    /// The deck a given lean deals from.
+    ///
+    /// Built over `allCases` rather than over the weight dictionary: a
+    /// Dictionary's iteration order is not stable between runs, and a deck
+    /// that reshuffled itself per launch would make every dice-derived pin
+    /// in the suite a coin toss. Weights floor at 1 so a lean can never
+    /// delete a move outright — `theDeckLeansSkate` requires every case to
+    /// still come up, and a vocabulary you can lose entirely is not a lean,
+    /// it is a deletion.
+    static func deck(under lean: SpawnRates.Lean) -> [Flourish] {
+        Flourish.allCases.flatMap { kind in
+            let base = flourishWeights[kind] ?? 1
+            let bend = kind == .cruise ? lean.cruise
+                : Flourish.skateBeats.contains(kind) ? lean.trick
+                : lean.still
+            return Array(repeating: kind, count: max(1, base + bend))
+        }
     }
+
+    /// One deck per costume, built once. Rebuilding a forty-entry array on
+    /// every frame would be silly, and the set of leans is fixed.
+    static let leanedDecks: [Costume: [Flourish]] = {
+        var decks: [Costume: [Flourish]] = [:]
+        for costume in Costume.allCases {
+            decks[costume] = deck(under: SpawnRates.lean(for: costume))
+        }
+        return decks
+    }()
 
     /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
     /// flourish family's multiplier, new addend, same cycle domain.
     nonisolated static let goldenSkateChance = SpawnRates.goldenBoard
-    static func skateBeatIsGolden(cycle: Int) -> Bool {
-        cycle > 0 && noise(cycle &* 7 &+ 11) < goldenSkateChance
+    static func skateBeatIsGolden(cycle: Int, costume: Costume = .none) -> Bool {
+        let chance = min(1, goldenSkateChance * SpawnRates.lean(for: costume).specials)
+        return cycle > 0 && noise(cycle &* 7 &+ 11) < chance
     }
 
     /// 🧢 About a skate beat in three comes out in headwear — the operator's
@@ -283,10 +343,15 @@ public enum CrabAnimator {
     ]
     static let skateSessionLength = 18.1    // the beats plus a settling beat
 
-    static func skateSession(idleT t: Double) -> Double? {
+    static func skateSession(idleT t: Double,
+                             wardrobe: MotionWardrobe = .init()) -> Double? {
         let spawn = SpawnRates.skateSession
         let cycle = Int(floor(t / spawn.period))
-        guard cycle > 0, noise(cycle &* 89 &+ 17) < spawn.chance else { return nil }
+        // Latched on the SESSION's own cycle, so changing costume in the
+        // middle of a ride cannot end it — the dice for a cycle already
+        // under way keep the answer they were given.
+        let chance = min(1, spawn.chance * wardrobe.lean(at: t, period: spawn.period).session)
+        guard cycle > 0, noise(cycle &* 89 &+ 17) < chance else { return nil }
         let since = t - Double(cycle) * spawn.period
         guard since >= 2, since < 2 + skateSessionLength else { return nil }
         return since - 2
@@ -309,11 +374,17 @@ public enum CrabAnimator {
         pose.mouth = .smile
     }
 
-    static func flourish(at t: Double) -> (Flourish, Double)? {
+    static func flourish(at t: Double,
+                         wardrobe: MotionWardrobe = .init()) -> (Flourish, Double)? {
         let cycle = Int(floor(t / flourishPeriod))
         guard cycle > 0, noise(cycle &* 89 &+ 11) < SpawnRates.flourish.chance else { return nil }
         let since = t - Double(cycle) * flourishPeriod
-        let deck = flourishDeck
+        // Latched on the FLOURISH's own cycle. Changing costume mid-trick
+        // would otherwise re-deal this pick and swap the move he is halfway
+        // through for a different one in a single frame — the loudest snap
+        // a costume could possibly cause.
+        let worn = wardrobe.worn(at: t, period: flourishPeriod)
+        let deck = leanedDecks[worn] ?? flourishDeck
         let choice = deck[Int(noise(cycle &* 7 &+ 3) * Double(deck.count)) % deck.count]
         guard since < choice.duration else { return nil }
         return (choice, since / choice.duration)
@@ -838,7 +909,8 @@ public enum CrabAnimator {
     ///     renderers pass nothing, so the telescope can never appear in a
     ///     committed asset by accident.
     static func pose(mood: PetMood, t: Double, flourishes: Bool,
-                     hourOfDay: Int? = nil, holiday: Holiday? = nil) -> CrabPose {
+                     hourOfDay: Int? = nil, holiday: Holiday? = nil,
+                     wardrobe: MotionWardrobe = .init()) -> CrabPose {
         var pose = CrabPose()
         pose.propPhase = t
         // 🗓 The RESOLVED season, or nil — the view passes `LocalDay`'s
@@ -864,20 +936,21 @@ public enum CrabAnimator {
             let sessionLocal = flourishes
                 && stargaze(idleT: t, hourOfDay: hourOfDay) == nil
                 && sunPatch(idleT: t, hourOfDay: hourOfDay) == nil
-                ? skateSession(idleT: t) : nil
+                ? skateSession(idleT: t, wardrobe: wardrobe) : nil
             if let sessionLocal {
                 applySkateSession(sessionLocal, t: t, to: &pose)
                 // The session rides the same headwear dice as any skate beat —
                 // a long ride deserves the cap.
                 pose.headwear = skateHeadwear(cycle: Int(floor(t / 180)))
-            } else if flourishes, let (kind, progress) = flourish(at: t) {
+            } else if flourishes, let (kind, progress) = flourish(at: t, wardrobe: wardrobe) {
                 apply(kind, progress: progress, t: t, to: &pose)
                 if Flourish.skateBeats.contains(kind) {
                     // 🛹✨ The jackpot ride. LIVE-only by placement: this
                     // branch is the schedule's, and `flourishPose` — every
                     // renderer's and the sampler's door — never runs it, so
                     // the golden deck cannot leak into a committed byte.
-                    if skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod))) {
+                    let worn = wardrobe.worn(at: t, period: flourishPeriod)
+                    if skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod)), costume: worn) {
                         pose.goldenBoard = true
                     }
                     // 🧢 …and sometimes the headwear comes out. Same
@@ -887,7 +960,8 @@ public enum CrabAnimator {
                     // back leg boned out through the float. Same contract
                     // again: live-only by placement, its own dice, and the
                     // README's ollie stays the clean one.
-                    if kind == .ollie, ollieIsSteezed(cycle: Int(floor(t / flourishPeriod))) {
+                    if kind == .ollie,
+                       ollieIsSteezed(cycle: Int(floor(t / flourishPeriod)), costume: worn) {
                         pose.legKick = steezeKick(progress: progress)
                     }
                 }
@@ -1742,8 +1816,8 @@ public enum CrabAnimator {
     }
 
     nonisolated static let steezeChance = SpawnRates.steeze
-    static func ollieIsSteezed(cycle: Int) -> Bool {
-        noise(cycle &* 7 &+ 23) < steezeChance
+    static func ollieIsSteezed(cycle: Int, costume: Costume = .none) -> Bool {
+        noise(cycle &* 7 &+ 23) < min(1, steezeChance * SpawnRates.lean(for: costume).specials)
     }
 
 
@@ -2660,8 +2734,22 @@ public struct CrabView: View {
             return pose
         }
 
+        // 👕 The wardrobe reaches motion only on the LIVE path, the same way
+        // the golden board and the headwear do — an offline renderer passes
+        // nothing and gets the bare crab's schedule, so every committed byte
+        // and every sampler frame is what it always was.
+        //
+        // `changedAt` is rebased onto the idle clock `t` is measured in;
+        // that is the whole point of carrying it, and a costume change
+        // timed in the wrong clock would latch against the wrong cycle.
+        let wardrobe = frozenTime == nil
+            ? CrabAnimator.MotionWardrobe(
+                current: costume, previous: costumeClock.previous,
+                changedAt: costumeClock.changedAt - (time - t))
+            : CrabAnimator.MotionWardrobe()
         var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
-                                     hourOfDay: hourOfDay, holiday: holiday)
+                                     hourOfDay: hourOfDay, holiday: holiday,
+                                     wardrobe: wardrobe)
         if mood == .done, celebrating, frozenTime == nil {
             CrabAnimator.applyCelebration(t: t, epic: epicCelebration, to: &pose)
         }
