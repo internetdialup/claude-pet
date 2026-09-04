@@ -151,6 +151,13 @@ final class PetInstance {
     /// counter rather than a `Timer` handle, matching `fadeSeq`: the timer
     /// still fires, it just finds itself stale and does nothing.
     private var skateSeq = 0
+    private var surfCursor = LineCursor()
+    private var surfSeq = 0
+    /// Longer than the skate window: three of the operator's surf lines are
+    /// wider than the plain bubble, so they route to the marquee and have to
+    /// finish SCROLLING, not merely appear. `surfLinesFitTheirWindow` pins
+    /// that this is long enough for the longest of them.
+    nonisolated static let surfLineSeconds: TimeInterval = 4.6
     /// The same generation trick for the hello, which schedules twice: once to
     /// begin after the window has settled, and once to clear itself afterwards.
     private var helloSeq = 0
@@ -594,7 +601,10 @@ final class PetInstance {
         updateServiceGlyphLatches()
         updateBadgeLatches()
         updateKnowledgeLatches()
-        if state.mood == .idle, !wasIdle { armSkateLine() }
+        if state.mood == .idle, !wasIdle {
+            armSkateLine()
+            armSurfLine()
+        }
     }
 
     /// The deal-with-it latch: settled on the edges of "a flaired fact is on
@@ -633,6 +643,38 @@ final class PetInstance {
                 self.model.shadesDing = false
                 self.model.shadesDropping = false
             }
+        }
+    }
+
+    /// 🌊 The same arrangement as the skate shout, for the swell: meet the
+    /// moment the wave carries him out, then say something about it.
+    ///
+    /// It asks the animator when that will be rather than timing it here,
+    /// which is the whole reason `nextSurfEnd` exists — a timer that
+    /// guessed could speak over a wave that never came.
+    private func armSurfLine() {
+        surfSeq &+= 1
+        let seq = surfSeq
+        guard model.state.mood == .idle,
+              let epoch = model.moodClock.currentEpoch(for: .idle),
+              let ends = CrabAnimator.nextSurfEnd(
+                after: Date.timeIntervalSinceReferenceDate - epoch)
+        else { return }
+
+        let wait = epoch + ends - Date.timeIntervalSinceReferenceDate
+        guard wait > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self, self.surfSeq == seq else { return }
+            // The clock is the authority on whether the ride happened, not
+            // the timer: he may have been given work, or idle may have left
+            // and come back on a new epoch.
+            guard self.model.state.mood == .idle,
+                  self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
+            let line = self.surfCursor.advance(Vocab.lines(for: .surf), id: "surf")
+            self.model.transientBubble = (line ?? "Aloha 🌴",
+                                          Date().addingTimeInterval(PetInstance.surfLineSeconds),
+                                          .done)
+            self.armSurfLine()        // and meet the next swell
         }
     }
 

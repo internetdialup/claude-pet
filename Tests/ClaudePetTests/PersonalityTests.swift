@@ -1064,7 +1064,11 @@ struct EditableCopyTests {
             // plain bubble, so the ceiling does not apply to them — what does
             // apply is that they finish scrolling inside the window they are
             // shown for, which `skateLinesFitTheirWindow` checks instead.
-            guard occasion != .kickflip else { continue }
+            // Both trick decks route by LENGTH rather than being trimmed:
+            // the long ones scroll. `skateLinesFitTheirWindow` and
+            // `surfLinesFitTheirWindow` pin that they finish scrolling
+            // inside the window they get.
+            guard occasion != .kickflip, occasion != .surf else { continue }
             for line in Vocab.lines(for: occasion) {
                 guard !Self.knownLong.contains(line) else { continue }
                 #expect(line.count <= ThoughtBubble.plainColumns, "\(occasion.rawValue) line too long: \(line)")
@@ -1103,6 +1107,27 @@ struct EditableCopyTests {
                         "\"\(line)\" needs \(String(format: "%.1f", read))s and the window is \(PetInstance.skateLineSeconds)s")
             case .dots:
                 Issue.record("a skate line should never be dots")
+            }
+        }
+    }
+
+    /// The operator's surf lines are his words, so three of them are wider
+    /// than the plain bubble and are NOT trimmed — they scroll instead. What
+    /// this pins is that each one finishes scrolling inside the window it
+    /// gets, because a line cut off mid-word is worse than a shorter line.
+    @Test("Every surf line finishes inside its window")
+    func surfLinesFitTheirWindow() {
+        for line in Vocab.lines(for: .surf) {
+            switch ActivityCoordinator.bubbleStyle(for: line) {
+            case .plain:
+                #expect(line.count <= ThoughtBubble.plainColumns,
+                        "\"\(line)\" was left in the plain bubble and does not fit it")
+            case .marquee:
+                let read = MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+                #expect(read <= PetInstance.surfLineSeconds - 0.8,
+                        "\"\(line)\" needs \(String(format: "%.1f", read))s and the window is \(PetInstance.surfLineSeconds)s")
+            case .dots:
+                Issue.record("a surf line should never be dots")
             }
         }
     }

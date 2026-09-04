@@ -63,6 +63,8 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     /// 🛹✨ The 1-in-20 golden board just landed. Reserved lines — these are
     /// the jackpot, and the jackpot must not sound like an ordinary Tuesday.
     case goldenSkate
+    /// 🌊 He rode a swell all the way through.
+    case surf
     /// 💛 Ten seconds of petting, held — the crescendo thank-you.
     case longPet
     /// 👋 The very first launch, ever. He introduces himself.
@@ -130,6 +132,22 @@ public enum Vocab {
             "GOLD BOARD. No notes 🏆",
             "The 1-in-20 ride ✨🛹",
             "Midas grip tape today",
+        ]
+
+        // 🌊 A swell rolled through and he rode it. The operator's words,
+        // and three of them are wider than the plain bubble — like the Hall
+        // of Meat line in the skate deck, they are NOT shortened. The
+        // transient bubble routes by length, so those scroll, and
+        // `surfLinesFitTheirWindow` pins that they finish scrolling inside
+        // the window they are shown for.
+        case .surf: [
+            "Go Big, or Go Home - Johnny Tsunami 🌊",
+            "Kowabunga 🤙",
+            "Totally getting barreled 🤘",
+            "Riding that sunset to paradise 🌈🌊",
+            "Way up high - Israel Kamakawiwoʻole",
+            "Ooh-ooh-ooh Over The 🌈",
+            "Aloha 🌴",
         ]
 
         // 💛 Ten unbroken seconds of petting. He noticed.

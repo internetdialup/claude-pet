@@ -478,6 +478,26 @@ public enum CrabAnimator {
         return nil
     }
 
+    /// When the next swell finishes carrying him, in mood-clock seconds.
+    ///
+    /// Asks `surfSet` rather than restating its dice, exactly as
+    /// `nextSkateTrickLanding` asks `flourish` — a predictor that recomputed
+    /// the schedule could disagree with the schedule, and then he would
+    /// shout about a wave he never rode.
+    static func nextSurfEnd(after t: Double, horizon: Double = 3600) -> Double? {
+        let period = SpawnRates.surfSet.period
+        let first = max(1, Int(floor(t / period)))
+        for cycle in first...(first + Int(horizon / period)) {
+            let start = Double(cycle) * period
+            guard surfSet(idleT: start + 2.01) != nil else { continue }
+            // The ride is over when the swell has passed him — he speaks as
+            // it goes, not while he is still in it.
+            let ended = start + 2 + surfLength
+            if ended > t { return ended }
+        }
+        return nil
+    }
+
     /// The first cycle that actually fires, as an instant. `idle`'s README
     /// clip starts here: the clip is six seconds and the flourish period is
     /// seven, so a clip anchored at zero would now contain nothing but
