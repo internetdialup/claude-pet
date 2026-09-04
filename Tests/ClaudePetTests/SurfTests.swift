@@ -90,7 +90,8 @@ struct SurfTests {
             CrabAnimator.applySurf(p, t: 3, to: &pose)
             #expect(pose.prop == .surfboard, "he lost the board at p=\(p)")
             let surface = SurfSet.surface(16, crest: SurfSet.crest(at: p),
-                                          lift: SurfSet.lift(at: p))
+                                          lift: SurfSet.lift(at: p),
+                                          sea: SurfSet.sea(at: p))
             // Never below his own standing height…
             #expect(pose.bob <= 0, "he sank below standing height at p=\(p)")
             // …and once a swell has actually lifted him, he is ON its face

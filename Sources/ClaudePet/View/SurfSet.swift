@@ -28,18 +28,29 @@ enum SurfSet {
     /// trough on both sides, and an ocean wave is a rise with flat water
     /// either side of it. The hump also decays to the flat line off-grid,
     /// which is why the entry and exit are invisible.
-    static func surface(_ x: Int, crest: Double, lift: Double) -> Int {
+    /// How far the FLAT sea has risen, 0…1 — a separate envelope from the
+    /// swell's.
+    ///
+    /// They were one number, and that was wrong twice over. A fixed sea
+    /// popped a hundred and sixty cells of ocean into frame the instant the
+    /// spell opened; tying the sea to the swell's slow envelope fixed the
+    /// pop but meant there was no water at all for the first second — so
+    /// the board appeared under a crab standing on nothing, and he looked,
+    /// in the operator's words, like he was ollieing into the sea.
+    ///
+    /// Two envelopes solves both: the water floods in over the first beat
+    /// and is already there when the board arrives, while the SWELL takes
+    /// its time standing up and settling.
+    static func sea(at progress: Double) -> Double {
+        Ease.window(progress, duration: 1, edge: 0.07)
+    }
+
+    static func surface(_ x: Int, crest: Double, lift: Double, sea: Double) -> Int {
         let d = (Double(x) - crest) / 7.5
         let hump = exp(-d * d)
-        // The FLAT sea rises with the swell too, from just off the bottom
-        // of the grid up to row 27. That is not decoration: with a fixed
-        // flat line, the instant the spell's guard opened, five rows across
-        // all thirty-two columns appeared at once — a hundred and sixty
-        // cells of ocean in one frame, which `theSwellNeverPopsIn` caught.
-        // Easing the sea itself in means the water arrives from below the
-        // frame the way the crest arrives from beside it.
-        let sea = 32 - lift * 5
-        return Int((sea - lift * 19 * hump).rounded())
+        // The flat line rides `sea` and only the hump rides `lift`.
+        let flat = 32 - sea * 5
+        return Int((flat - lift * 19 * hump).rounded())
     }
 
     /// How tall the swell stands, eased in and out across the spell so it
@@ -58,9 +69,10 @@ enum SurfSet {
     static func drawSwell(_ b: inout PixelBuffer, progress: Double) {
         let crest = crest(at: progress)
         let lift = lift(at: progress)
-        guard lift > 0.01 else { return }
+        let sea = sea(at: progress)
+        guard sea > 0.01 else { return }
         for x in 0..<PixelBuffer.side {
-            let top = surface(x, crest: crest, lift: lift)
+            let top = surface(x, crest: crest, lift: lift, sea: sea)
             guard top < PixelBuffer.side else { continue }
             for y in max(0, top)..<PixelBuffer.side {
                 // Two flat steps: a lit crown two rows deep and the body

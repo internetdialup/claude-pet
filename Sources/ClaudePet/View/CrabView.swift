@@ -356,7 +356,10 @@ public enum CrabAnimator {
     static func applySurf(_ progress: Double, t: Double, to pose: inout CrabPose) {
         pose.surf = progress
         pose.prop = .surfboard
-        pose.propVisibility = 1
+        // The board arrives WITH the water and leaves with it. He should
+        // never be seen holding a surfboard on dry land — that reads as a
+        // crab ollieing into the sea rather than as one already out there.
+        pose.propVisibility = SurfSet.sea(at: progress)
         pose.propPhase = progress
         // Riding up the face and back down it: the crest passes right to
         // left, so he rises as it reaches him and settles as it goes.
@@ -372,7 +375,8 @@ public enum CrabAnimator {
         // is the part that matters: a separate ride curve would drift out
         // of step with the wave and he would surf beside it.
         let surface = SurfSet.surface(16, crest: SurfSet.crest(at: progress),
-                                      lift: SurfSet.lift(at: progress))
+                                      lift: SurfSet.lift(at: progress),
+                                      sea: SurfSet.sea(at: progress))
         // Clamped at his own standing height on the low side: the sea rises
         // from below the grid, so an unclamped ride would have him SINK on
         // flat water before the swell ever arrived.
