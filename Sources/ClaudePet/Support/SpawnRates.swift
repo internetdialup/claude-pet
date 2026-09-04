@@ -156,6 +156,11 @@ enum SpawnRates {
     static let stargaze = Spawn(chance: 0.35, period: 120)           // 10.5/hr, nights
     /// 🎈 The rare float.
     static let balloon = Spawn(chance: 0.25, period: 150)            // 6/hr
+    /// 😎 The deal-with-it shades, UNPROMPTED. They have always needed a
+    /// fun fact to appear behind; this is the die that lets him put them on
+    /// because he feels like it. The bubble path is untouched and still has
+    /// its own odds — this is a second door, not a replacement.
+    static let idleShades = Spawn(chance: 0.15, period: 90)          // 6/hr
     /// 🌊 The surf set — a swell rolls through and he rides it. Rarer than
     /// the skate session on purpose: it is the only thing in the app that
     /// paints over him, and a spectacle you see often stops being one.

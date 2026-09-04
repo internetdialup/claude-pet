@@ -54,6 +54,7 @@ public enum CrabAnimator {
     /// | `73 &+ 5` | the patch of sun |
     /// | `79 &+ 23` | whether a silent working beat carries a fact |
     /// | `83 &+ 13` | the shell glint |
+    /// | `83 &+ 17` | whether he puts the shades on unprompted — same family |
     /// | `89 &+ 11` | whether an idle flourish plays at all |
     /// | `89 &+ 17` | the skate session — 89 shared by addend |
     /// | `89 &+ 19` | the surf set — same family, same question |
@@ -910,6 +911,28 @@ public enum CrabAnimator {
         }
     }
 
+    /// 😎 How far into an unprompted shades-wearing we are, or nil.
+    ///
+    /// Idle only, on dice, and NOT gated on a bubble: the pair has always
+    /// arrived behind a fun fact, which meant the best gag in the app could
+    /// only fire when he happened to be teaching you something. This is the
+    /// same drop on its own clock. The bubble path keeps its own odds and
+    /// its own latch; a wearing that starts here simply owns the prop for
+    /// its window.
+    ///
+    /// The window is the fall plus a beat of wearing them, which is the
+    /// whole joke — a pair of shades that arrived and left in half a second
+    /// would be a flicker rather than a deadpan.
+    static let idleShadesWindow = 4.5
+    static func idleShades(idleT t: Double) -> Double? {
+        let spawn = SpawnRates.idleShades
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 83 &+ 17) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
+        guard since >= 0, since < idleShadesWindow else { return nil }
+        return since
+    }
+
     /// 💗 The idle heart's flight, 0…1, or nil. Idle only, on dice — about
     /// one 45-second cycle in three-and-a-bit carries one — never in cycle
     /// zero, so a frozen render is heartless by construction. Salt `43 &+
@@ -1088,6 +1111,22 @@ public enum CrabAnimator {
                 // the balloon under the telescope and the sun for the same
                 // reason they are.
                 pose.idleHeart = idleHeart(idleT: t)
+
+                // 😎 …and sometimes he just puts the shades on. Last of the
+                // idle props on purpose: it only takes the slot when
+                // nothing else has claimed it, so a balloon or a board
+                // already in his hands always wins. He is deadpan, not
+                // greedy.
+                if pose.prop == .none, let worn = idleShades(idleT: t) {
+                    // Through the SAME door the fact-driven pair uses, with
+                    // an exit elapsed of its own so it leaves on the
+                    // standard prop fade rather than blinking out at the
+                    // end of the window. One drop, two triggers.
+                    let leaving = worn > idleShadesWindow - shadesFade
+                        ? worn - (idleShadesWindow - shadesFade) : nil
+                    applyShadesDrop(elapsed: worn, endedElapsed: leaving,
+                                    ding: false, to: &pose)
+                }
 
                 // 🎃 Halloween's floor pumpkins keep the same company —
                 // attention-owning ground furniture, so the telescope and
