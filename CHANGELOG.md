@@ -14,7 +14,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   own hop — plus, rarely, a whole session: several tricks and roll-aways
   strung into one long ride. And a Skater fit in the costume menu, with a
   kick-push of dust when the mood takes him. Sixteen idle moves,
-  twenty-four props, fourteen looks.
+  twenty-five props, fourteen looks.
 - **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
   out through the float — foot slid three cells wide, knee bent — and tucks
   back before the stomp. A die on the desk; the README's ollie stays clean
@@ -26,6 +26,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **🌊 The surf set.** Rarely — about twice an hour of unbroken idle — a
+  swell rolls through. The sea rises from below the frame, he paddles up the
+  face on a pink board, crests it with a determined look, and settles as the
+  wave passes on. It outranks the skate session while it runs: a kickflip
+  inside a wave would be two spectacles arguing.
 - **👕 The costume bends what he does, not just how he looks.** Wear the
   Skater and the long skate session comes round twice as often (7/hr → 15),
   the golden board and the steeze double, and the rotation leans as far

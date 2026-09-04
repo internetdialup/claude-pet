@@ -54,6 +54,12 @@ public struct CrabPose: Sendable, Equatable {
     /// Walk cycle phase, and how much the legs actually move.
     public var legPhase: Double = 0
     public var legAmplitude: Double = 0
+    /// 🌊 The surf set's progress, 0…1, or nil when no swell is running.
+    /// Envelope-owned like the rest of the spells: set only by the idle
+    /// schedule, nil in every frozen render, and not lerped by `blend` —
+    /// a wave averaged with no wave is a wave nobody rode.
+    public var surf: Double?
+
     /// 🦵 The steeze: his back-right leg kicks out sideways, 0 tucked under
     /// him, 1 the foot slid three cells out with the knee bent. An ollie
     /// with the leg boned out. Envelope-owned like `torsoShade` — set only
@@ -112,13 +118,15 @@ public struct CrabPose: Sendable, Equatable {
         // of each other in BOTH axes, which is why they get a case each
         // rather than a sign on one — see `drawFlip360`.
         case skateboardTre, skateboardLaser
+        // Appended: the surfboard. Worn, like every board he stands on.
+        case surfboard
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
              .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt,
              .skateboardNollie, .skateboardBigspin,
-             .skateboardTre, .skateboardLaser: true
+             .skateboardTre, .skateboardLaser, .surfboard: true
             default: false
             }
         }
@@ -469,6 +477,11 @@ public enum CrabRig {
 
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
+        // 🌊 The ocean goes down before anything stands on it, and before
+        // the yaw pass takes its world snapshot below — a wave that turned
+        // when the crab turned would be a very strange sea.
+        if let surf = pose.surf { SurfSet.drawSwell(&buffer, progress: surf) }
+
         firePass(&buffer, pose: pose, dx: dx, dy: dy)
         // Two plates for the yaw pass, and the gap between them is the whole
         // point: what the world painted (the flame) stays put while he
@@ -1520,7 +1533,8 @@ public enum CrabRig {
         // under an airborne deck.
         case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
              .skateboardManual, .skateboardShoveIt, .skateboardNollie,
-             .skateboardBigspin, .skateboardTre, .skateboardLaser: return
+             .skateboardBigspin, .skateboardTre, .skateboardLaser,
+             .surfboard: return
         default: break
         }
         let rise = max(0, -dy)
@@ -2216,6 +2230,24 @@ public enum CrabRig {
 
         case .skateboardLaser:
             drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: -1)
+
+        case .surfboard:
+            // Longer and rounder than a skateboard, and pointed at both
+            // ends — the silhouette is the whole difference at this size,
+            // so the deck tapers a row at each tip instead of ending
+            // square. Pink with a cream stringer down the middle, off the
+            // operator's reference.
+            // Three rows, not one: a single-row board read as a pink
+            // outline under him rather than as something he stands on. It
+            // tapers to a point at each end, which is the whole silhouette
+            // difference between a surfboard and a skate deck at this size.
+            let cx = 16 + dx, deckY = 25 + dy
+            b.rect(cx - 5, deckY - 1, 11, 1, .pink)
+            b.rect(cx - 7, deckY, 15, 1, .pink)
+            b.rect(cx - 5, deckY + 1, 11, 1, .pink)
+            b.rect(cx - 4, deckY, 9, 1, .paper)      // the stringer
+            b.pixel(cx - 8, deckY, .pink)            // and the two tips
+            b.pixel(cx + 8, deckY, .pink)
 
         case .skateboardBigspin:
             // A BIGSPIN's board: a whole flat turn, no flip. Twice the

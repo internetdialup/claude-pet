@@ -230,7 +230,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All twenty-four props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and ten skateboards">
+  <img src="docs/media/props.png" width="100%" alt="All twenty-five props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, ten skateboards and a surfboard">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

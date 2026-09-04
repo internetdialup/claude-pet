@@ -156,6 +156,10 @@ enum SpawnRates {
     static let stargaze = Spawn(chance: 0.35, period: 120)           // 10.5/hr, nights
     /// 🎈 The rare float.
     static let balloon = Spawn(chance: 0.25, period: 150)            // 6/hr
+    /// 🌊 The surf set — a swell rolls through and he rides it. Rarer than
+    /// the skate session on purpose: it is the only thing in the app that
+    /// paints over him, and a spectacle you see often stops being one.
+    static let surfSet = Spawn(chance: 0.16, period: 300)            // 1.9/hr
     /// ☀️ The patch of sun. Hour-gated to 08:00–17:00.
     static let sunPatch = Spawn(chance: 0.25, period: 420)           // 2.1/hr, daylight
 

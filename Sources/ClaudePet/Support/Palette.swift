@@ -50,6 +50,10 @@ public enum Palette {
     /// (red-adjacent): the key range needs to sit tight around this value.
     public static let keyField = Color(hex: 0x7A0E0E)
     public static let kraft = Color(hex: 0xF0EEE6)
+    /// 🌊 The surf, off the operator's reference: a lit sky blue for the
+    /// face of the wave and a deeper one for the body beneath it.
+    public static let water = Color(hex: 0x7FC6EC)
+    public static let waterDeep = Color(hex: 0x3F92C9)
     public static let alert = Color(hex: 0xE05252)
 
     /// Accent for a given mood. Defined once in `MoodStyle`.

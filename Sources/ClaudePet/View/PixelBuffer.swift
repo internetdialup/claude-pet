@@ -77,6 +77,13 @@ public struct PixelBuffer: Sendable {
         /// measuring the deck by its ink alone (the bearing comment's
         /// argument, now with a name instead of a loan).
         case deck
+        /// 🌊 The surf's two blues. Appended rather than borrowed: the
+        /// nearest existing pair is `.screenDark`/`.screenLight`, which are
+        /// a terminal's navy and indigo — against terracotta they read as
+        /// night, or as a dark hill, and the first cut of the wave proved it.
+        /// Water is bright. Two steps only, no ramp: a lit face and the
+        /// body under it, the same flat-step rule the shell keeps.
+        case water, waterDeep
     }
 
     private(set) var cells: [UInt8]
@@ -362,6 +369,8 @@ public struct PixelCanvasView: View {
         case .memeBlack: Palette.ink
         case .shadow: Palette.slate.opacity(0.45)
         case .deck: Color(red: 0.012, green: 0.012, blue: 0.016)
+        case .water: Palette.water
+        case .waterDeep: Palette.waterDeep
         }
     }
 }

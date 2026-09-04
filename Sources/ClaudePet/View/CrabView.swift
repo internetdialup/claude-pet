@@ -56,6 +56,7 @@ public enum CrabAnimator {
     /// | `83 &+ 13` | the shell glint |
     /// | `89 &+ 11` | whether an idle flourish plays at all |
     /// | `89 &+ 17` | the skate session — 89 shared by addend |
+    /// | `89 &+ 19` | the surf set — same family, same question |
     ///
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
@@ -328,6 +329,62 @@ public enum CrabAnimator {
     /// disagree with the deck it is shouting about.
     static func skateLandingIsGolden(at landing: Double) -> Bool {
         skateBeatIsGolden(cycle: Int(floor((landing - 0.01) / flourishPeriod)))
+    }
+
+    /// 🌊 THE SURF SET: a swell rolls through and he rides it out.
+    ///
+    /// Stargaze-class, like the skate session and for the same reason — the
+    /// seven-second flourish scheduler cannot hold a fourteen-second spell.
+    /// Dice `89 &+ 19`, the whether-a-spell-fires family, beside the
+    /// flourish's `&+ 11` and the session's `&+ 17`.
+    static let surfLength = 14.0
+
+    static func surfSet(idleT t: Double) -> Double? {
+        let spawn = SpawnRates.surfSet
+        let cycle = Int(floor(t / spawn.period))
+        guard cycle > 0, noise(cycle &* 89 &+ 19) < spawn.chance else { return nil }
+        let since = t - Double(cycle) * spawn.period
+        guard since >= 2, since < 2 + surfLength else { return nil }
+        return (since - 2) / surfLength
+    }
+
+    /// What riding one looks like. He is not doing tricks — he is standing
+    /// on a board holding a line, so the whole pose is balance: knees under
+    /// him, arms out and countering, and a lean that follows the face of the
+    /// wave as it passes rather than a lean he chose.
+    static func applySurf(_ progress: Double, t: Double, to pose: inout CrabPose) {
+        pose.surf = progress
+        pose.prop = .surfboard
+        pose.propVisibility = 1
+        pose.propPhase = progress
+        // Riding up the face and back down it: the crest passes right to
+        // left, so he rises as it reaches him and settles as it goes.
+        // He rides the SURFACE, not a curve of his own: his board sits on
+        // the water at his own column, so he rises as the swell reaches him
+        // and settles as it goes past. Deriving it from the same function
+        // that draws the wave is the point — a separate ride curve would
+        // drift out of step with the water and he would surf above it.
+        let surface = SurfSet.surface(16, crest: SurfSet.crest(at: progress),
+                                      lift: SurfSet.lift(at: progress))
+        // Clamped at his own standing height: the water rises from below
+        // the grid, so an unclamped ride would have him SINK on flat sea
+        // before the swell arrived.
+        pose.bob = max(-12, min(0, surface - 25))
+        // He leans INTO the wave on the way up and out of it on the way
+        // down — one whole-pixel step each way, off the crest's own
+        // position rather than a second clock that could disagree with it.
+        let crest = SurfSet.crest(at: progress)
+        pose.lean = crest > 20 ? 1 : (crest < 12 ? -1 : 0)
+        let saw = sin(t * 2.2)
+        pose.armLeft = 0.55 + 0.25 * saw
+        pose.armRight = 0.55 - 0.25 * saw
+        // How high the swell has him, 0 at flat water and 1 at the crest —
+        // the same number the drop is derived from, so his face and his
+        // height cannot disagree about how big the wave is.
+        let ride = Double(25 - surface) / 19
+        pose.eyes = ride > 0.55 ? .determined : .round
+        pose.mouth = ride > 0.3 ? .open : .smile
+        pose.gazeX = -1                       // down the line he is riding
     }
 
     /// 🛹 THE SKATE SESSION: a rare long spell where he really skates —
@@ -933,11 +990,22 @@ public enum CrabAnimator {
             // 🛹 The session outranks single flourishes when its rare window
             // opens (and it stands down for the telescope and the sun, whose
             // spells outrank everything — the composed-moment rule).
-            let sessionLocal = flourishes
+            // 🌊 The surf outranks the skate session and the flourishes both:
+            // it is the rarest spell and the only one that reshapes the
+            // whole frame, so a kickflip happening inside a barrel would be
+            // two spectacles arguing. Same telescope-and-sun standing-down
+            // rule the session already answers to.
+            let surfLocal = flourishes
+                && stargaze(idleT: t, hourOfDay: hourOfDay) == nil
+                && sunPatch(idleT: t, hourOfDay: hourOfDay) == nil
+                ? surfSet(idleT: t) : nil
+            let sessionLocal = flourishes && surfLocal == nil
                 && stargaze(idleT: t, hourOfDay: hourOfDay) == nil
                 && sunPatch(idleT: t, hourOfDay: hourOfDay) == nil
                 ? skateSession(idleT: t, wardrobe: wardrobe) : nil
-            if let sessionLocal {
+            if let surfLocal {
+                applySurf(surfLocal, t: t, to: &pose)
+            } else if let sessionLocal {
                 applySkateSession(sessionLocal, t: t, to: &pose)
                 // The session rides the same headwear dice as any skate beat —
                 // a long ride deserves the cap.
