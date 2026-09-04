@@ -359,17 +359,23 @@ public enum CrabAnimator {
         pose.propPhase = progress
         // Riding up the face and back down it: the crest passes right to
         // left, so he rises as it reaches him and settles as it goes.
-        // He rides the SURFACE, not a curve of his own: his board sits on
-        // the water at his own column, so he rises as the swell reaches him
-        // and settles as it goes past. Deriving it from the same function
-        // that draws the wave is the point — a separate ride curve would
-        // drift out of step with the water and he would surf above it.
+        // He rides the FACE of the swell, not its crest.
+        //
+        // Sitting exactly on the surface put him at the very top of the
+        // wave, perched — the operator's note, and the right one: a surfer
+        // is ON the face, part-way down it, not balanced on the summit. So
+        // the rise is scaled to about half the water's, which lands him
+        // six rows up at the crest instead of twelve.
+        //
+        // Still derived from the same function that DRAWS the water, which
+        // is the part that matters: a separate ride curve would drift out
+        // of step with the wave and he would surf beside it.
         let surface = SurfSet.surface(16, crest: SurfSet.crest(at: progress),
                                       lift: SurfSet.lift(at: progress))
-        // Clamped at his own standing height: the water rises from below
-        // the grid, so an unclamped ride would have him SINK on flat sea
-        // before the swell arrived.
-        pose.bob = max(-12, min(0, surface - 25))
+        // Clamped at his own standing height on the low side: the sea rises
+        // from below the grid, so an unclamped ride would have him SINK on
+        // flat water before the swell ever arrived.
+        pose.bob = max(-6, min(0, Int((Double(surface - 25) * 0.35).rounded())))
         // He leans INTO the wave on the way up and out of it on the way
         // down — one whole-pixel step each way, off the crest's own
         // position rather than a second clock that could disagree with it.

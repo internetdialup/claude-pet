@@ -78,9 +78,10 @@ struct SurfTests {
         }
     }
 
-    /// He rides the water rather than hovering over it: his board sits on
-    /// the surface at his own column, so he rises and falls WITH the swell.
-    @Test("He rides the surface, not a curve of his own")
+    /// He rides the FACE of the swell — part-way up it, not perched on the
+    /// crest — and his height is still derived from the water's own surface
+    /// so the two cannot drift apart.
+    @Test("He rides the face, and never above the wave")
     func heRidesTheWater() {
         var highest = 0, lowest = 0
         for step in 0...60 {
@@ -90,15 +91,20 @@ struct SurfTests {
             #expect(pose.prop == .surfboard, "he lost the board at p=\(p)")
             let surface = SurfSet.surface(16, crest: SurfSet.crest(at: p),
                                           lift: SurfSet.lift(at: p))
-            // On the swell he sits ON the surface; on flat water — where
-            // the sea is still easing up from below the grid — he stands at
-            // his own height rather than sinking to meet it.
-            #expect(25 + pose.bob == min(25, max(13, surface)),
-                    "the board is off the water at p=\(p)")
+            // Never below his own standing height…
+            #expect(pose.bob <= 0, "he sank below standing height at p=\(p)")
+            // …and once a swell has actually lifted him, he is ON its face
+            // rather than floating over the top of it. Before that the sea
+            // is still below the grid, so "above the water" is where he is
+            // supposed to be — it is flat water, not a wave.
+            if pose.bob < 0 {
+                #expect(25 + pose.bob >= surface,
+                        "he rode above the wave at p=\(p)")
+            }
             highest = min(highest, pose.bob)
             lowest = max(lowest, pose.bob)
         }
-        #expect(highest < -4, "the swell never lifted him (best \(highest))")
+        #expect(highest == -6, "the crest should lift him six rows, not \(-highest)")
         #expect(lowest == 0, "he never settled back to standing height")
     }
 }
