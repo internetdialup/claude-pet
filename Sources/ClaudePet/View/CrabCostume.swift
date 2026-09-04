@@ -1272,11 +1272,35 @@ public final class CostumeClock {
     /// so one wearing keeps one pair of eyes.
     private(set) var changedAt: Double = -.infinity
 
-    func note(_ costume: Costume) {
+    func note(_ costume: Costume,
+              at now: Double = Date.timeIntervalSinceReferenceDate) {
         guard costume != current else { return }
         previous = current
         current = costume
-        changedAt = Date.timeIntervalSinceReferenceDate
+        changedAt = now
+    }
+
+    /// The wardrobe motion should use — and the note that makes it true, in
+    /// the SAME CALL.
+    ///
+    /// Not a convenience. The first version had the view read `previous`
+    /// and `changedAt` to build this, and note the change afterwards, three
+    /// statements later. On the single frame a costume changed, the clock
+    /// therefore still held the PREVIOUS change's instant — older than the
+    /// current cycle — so the latch that exists to stop a costume re-dealing
+    /// a move in flight looked at a stale timestamp, decided nothing had
+    /// changed recently, and handed back the NEW costume for exactly one
+    /// frame before correcting itself. Old deck, one frame of new deck, old
+    /// deck again: the snap it was built to prevent, twice, with a flicker
+    /// in between, on about one costume change in ten.
+    ///
+    /// Reading and noting cannot be put in the wrong order if they are one
+    /// call. `theChangeFrameStaysLatched` pins it.
+    func motionWardrobe(for costume: Costume, at now: Double,
+                        idleT t: Double) -> CrabAnimator.MotionWardrobe {
+        note(costume, at: now)
+        return CrabAnimator.MotionWardrobe(current: current, previous: previous,
+                                           changedAt: changedAt - (now - t))
     }
 
     /// Eased progress of the swap at `time`: 1 means the incoming costume is

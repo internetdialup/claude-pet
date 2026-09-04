@@ -138,6 +138,43 @@ struct SpawnRateTests {
         }
     }
 
+    /// **The frame the costume changes is still the old costume's frame.**
+    ///
+    /// The bug this pins was real and shipped: the view read the clock to
+    /// build the wardrobe and noted the change three statements later, so
+    /// on the change frame `changedAt` still held the PREVIOUS change —
+    /// older than the running cycle — and the latch handed back the new
+    /// costume for one frame before correcting itself. Old deck, one frame
+    /// of new, old again.
+    ///
+    /// `aCostumeChangeCannotSnapATrick` could not see it: that test builds
+    /// the wardrobe by hand and so only ever exercised the state AFTER the
+    /// note. This one goes through the clock, which is where the ordering
+    /// lives.
+    @Test("The frame a costume changes still belongs to the cycle it began under")
+    func theChangeFrameStaysLatched() {
+        let period = CrabAnimator.Flourish.ollie.duration   // any cycle length
+        _ = period
+        let clock = CostumeClock()
+        clock.note(.none, at: 0)
+
+        // A flourish window running from t = 112; he changes at t = 112.5,
+        // half a second into it.
+        let onChange = clock.motionWardrobe(for: .skater, at: 112.5, idleT: 112.5)
+        #expect(onChange.worn(at: 112.5, period: 7) == Costume.none,
+                "the change frame re-dealt the cycle already in flight")
+        // Every later frame of that same window agrees with it…
+        for probe in stride(from: 112.5, to: 119.0, by: 0.25) {
+            let later = clock.motionWardrobe(for: .skater, at: probe, idleT: probe)
+            #expect(later.worn(at: probe, period: 7) == Costume.none,
+                    "the window changed its mind at t=\(probe)")
+        }
+        // …and the NEXT window is the new costume's.
+        let next = clock.motionWardrobe(for: .skater, at: 119.5, idleT: 119.5)
+        #expect(next.worn(at: 119.5, period: 7) == Costume.skater,
+                "the new costume never took effect")
+    }
+
     /// The Skater actually skates more, measured rather than asserted from
     /// the table — and the Gundam, whose lean runs the other way, actually
     /// skates less. A lean that moved nothing would pass every other test

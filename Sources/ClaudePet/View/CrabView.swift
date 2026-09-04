@@ -2677,7 +2677,9 @@ public struct CrabView: View {
             moodClock.note(displayed: pose)
             // Same contract for the wardrobe: live changes cross-dissolve,
             // frozen and offline renders wear the costume at full strength.
-            costumeClock.note(costume)
+            // The change is NOTED inside `motionWardrobe` above rather than
+            // here — see its doc for why the order of those two is not a
+            // matter of taste.
             costumeProgress = costumeClock.progress(at: time)
             if costumeProgress < 1 { ghostCostume = costumeClock.previous }
         }
@@ -2743,9 +2745,7 @@ public struct CrabView: View {
         // that is the whole point of carrying it, and a costume change
         // timed in the wrong clock would latch against the wrong cycle.
         let wardrobe = frozenTime == nil
-            ? CrabAnimator.MotionWardrobe(
-                current: costume, previous: costumeClock.previous,
-                changedAt: costumeClock.changedAt - (time - t))
+            ? costumeClock.motionWardrobe(for: costume, at: time, idleT: t)
             : CrabAnimator.MotionWardrobe()
         var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
                                      hourOfDay: hourOfDay, holiday: holiday,
