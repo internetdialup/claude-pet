@@ -276,7 +276,8 @@ private struct BubbleShimmer: View {
             GeometryReader { geo in
                 let cycle = Int(floor(t / Self.cycle))
                 let since = t - Double(cycle) * Self.cycle
-                let fires = cycle > 0 && CrabAnimator.noise(cycle &* 19 &+ 13) < 0.5
+                let fires = cycle > 0
+                    && CrabAnimator.noise(cycle &* 19 &+ 13) < SpawnRates.bubbleShimmer.chance
                 if fires, since < Self.traverse {
                     let u = since / Self.traverse
                     Rectangle()

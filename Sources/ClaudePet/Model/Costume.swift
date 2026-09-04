@@ -37,6 +37,8 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
     case pumpkin
     case turkey
     case santa
+    // Appended: the skater fit — evergreen, unlike the three above it.
+    case skater
 
     /// The menu label.
     public var title: String {
@@ -44,7 +46,9 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .none: "Classic Claw'd"
         case .ninja: "Ninja"
         case .retroBlack: "Retro Black"
-        case .matrix: "Matrix"
+        // Retitled from "Matrix" on the operator's call — same raw value,
+        // same stored prefs, the look just grew glasses and a day job.
+        case .matrix: "Coder"
         case .tiger: "Tiger"
         case .white: "Arctic White"
         case .gundam: "Gundam"
@@ -54,6 +58,7 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .pumpkin: "🎃 Jack-o'-Lantern"
         case .turkey: "🦃 Turkey"
         case .santa: "🎅 Santa"
+        case .skater: "🛹 Skater"
         }
     }
 }

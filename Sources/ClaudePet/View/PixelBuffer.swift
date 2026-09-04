@@ -50,14 +50,16 @@ public struct PixelBuffer: Sendable {
         /// wardrobe. The GitHub mark used to be drawn in `.eye` and turned
         /// pale green under the Matrix look and yellow under the Gundam.
         case slate
-        /// The torso-turn shade — the sampler's ollie variants selling a
-        /// slight body rotation. This is NOT the shading ramp the header
+        /// The torso-turn shade. This is NOT the shading ramp the header
         /// bans: it is one flat step below the shell, override-consulting so
-        /// every wardrobe supplies its own step, raised and lowered inside a
-        /// single trick's air by the drip-feed sampler, and never set by any
-        /// live pose. An EVENT, not a state — the glint's defence, borrowed
-        /// whole. If it ever reads as a ramp sneaking in, delete it; do not
-        /// soften it into one.
+        /// every wardrobe supplies its own step, and raised and lowered
+        /// inside a single trick's air — the ollie's edge band, live and in
+        /// the drip-feed sampler alike, and the yaw pass's flank slab and
+        /// back. Zero in every frozen render, and never a third value. An
+        /// EVENT, not a state — the glint's defence, borrowed whole. (The
+        /// hero look's belly row and right flank are the one standing use,
+        /// at the operator's explicit pick.) If it ever reads as a ramp
+        /// sneaking in, delete it; do not soften it into one.
         case bodyShade
         /// The deal-with-it black — the meme shades off the operator's desk
         /// sticker, which are PURE black on the print. `.slate` renders as
@@ -75,6 +77,13 @@ public struct PixelBuffer: Sendable {
         /// measuring the deck by its ink alone (the bearing comment's
         /// argument, now with a name instead of a loan).
         case deck
+        /// 🌊 The surf's two blues. Appended rather than borrowed: the
+        /// nearest existing pair is `.screenDark`/`.screenLight`, which are
+        /// a terminal's navy and indigo — against terracotta they read as
+        /// night, or as a dark hill, and the first cut of the wave proved it.
+        /// Water is bright. Two steps only, no ramp: a lit face and the
+        /// body under it, the same flat-step rule the shell keeps.
+        case water, waterDeep
     }
 
     private(set) var cells: [UInt8]
@@ -310,6 +319,18 @@ public struct PixelCanvasView: View {
     }
 
     private func color(for ink: PixelBuffer.Ink) -> Color {
+        Self.color(for: ink, bodyTint: bodyTint, inkOverrides: inkOverrides)
+    }
+
+    /// The ink table itself, free of the view that usually asks for it.
+    ///
+    /// Static because the Figma export needs the same answer the canvas
+    /// gives and must not restate it: a second copy of this switch would
+    /// drift the moment a costume slot moved, and the drift would only show
+    /// up as a wrong colour in someone else's file.
+    static func color(for ink: PixelBuffer.Ink,
+                      bodyTint: Color?,
+                      inkOverrides: [PixelBuffer.Ink: Color]) -> Color {
         switch ink {
         case .clear: .clear
         case .body: bodyTint ?? inkOverrides[.body] ?? Palette.body
@@ -348,6 +369,8 @@ public struct PixelCanvasView: View {
         case .memeBlack: Palette.ink
         case .shadow: Palette.slate.opacity(0.45)
         case .deck: Color(red: 0.012, green: 0.012, blue: 0.016)
+        case .water: Palette.water
+        case .waterDeep: Palette.waterDeep
         }
     }
 }

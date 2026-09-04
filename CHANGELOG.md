@@ -7,7 +7,106 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **🛹 He's a skateboarder now.** Two new tricks — a held manual with the
+  ground rushing under him, and a flat shove-it he watches spin beneath his
+  own hop — plus, rarely, a whole session: several tricks and roll-aways
+  strung into one long ride. And a Skater fit in the costume menu, with a
+  kick-push of dust when the mood takes him. Sixteen idle moves,
+  twenty-five props, fourteen looks.
+- **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
+  out through the float — foot slid three cells wide, knee bent — and tucks
+  back before the stomp. A die on the desk; the README's ollie stays clean
+  and the drip catalog renders both.
+- **🛹 The nollie.** The ollie popped off the nose — the tail rises first,
+  the board levels in the hang, and he lands it tail-first, watching the
+  nose the whole way. It joins the dice, the shout deck, and the session
+  (now cruise, ollie, cruise, kickflip, nollie, roll-away).
+
+### Changed
+
+- **🌊 The surf set.** Rarely — about twice an hour of unbroken idle — a
+  swell rolls through. The sea rises from below the frame, he paddles up the
+  face on a pink board, crests it with a determined look, and settles as the
+  wave passes on. It outranks the skate session while it runs: a kickflip
+  inside a wave would be two spectacles arguing.
+- **👕 The costume bends what he does, not just how he looks.** Wear the
+  Skater and the long skate session comes round twice as often (7/hr → 15),
+  the golden board and the steeze double, and the rotation leans as far
+  toward the board as a deck already 85% skate can go. Sonic leans toward
+  the cruise, because going fast is not the same as flipping the board. The
+  Gundam leans the other way — a mech does not fidget, so it skates less and
+  holds still more. Changing costume never re-deals the move he is already
+  halfway through.
+- **🌀 The tre flip and the laser flip.** A whole shove-it and a whole flip
+  in one air, and they are exact mirrors of each other — the tre turns
+  backside and kickflips, the laser turns frontside and heelflips. That
+  symmetry is why the board tracks its nose signed and shows its grip on
+  opposite halves: an absolute value cannot tell a rotation from its mirror,
+  so without those the two would have rendered as the same frames. The
+  laser bones its front leg out through the float, which is the thing that
+  makes a laser flip a laser flip.
+- **🌀 The bigspin.** The board takes a whole flat turn while he takes half
+  of it — the two-to-one the trick is named for — and he finishes the
+  rotation on the roll-away, landing square without ever reversing.
+- **🛹 The varial keeps its shoulders square.** It briefly did not, and it
+  was wrong: a body that rotates while the board does something else on its
+  own clock is what skaters call a sex change, and nobody does one on
+  purpose. The body turn moved to the bigspin, where the board turns with
+  him. The rule now has a test: he never turns without the board turning
+  too.
+- **🌀 He can turn his whole body now.** The face slides and squeezes to a
+  sliver, a six-wide pillar edge-on, then his back — a step darker, one lit
+  groove, no face, the headband or tee or scarf wrapped round from behind —
+  then the lit side, and the face sliding home. Every costume performs it
+  dressed. It rides the bigspin.
+- **🛹 The manual lands like it should.** The rider used to let go of
+  everything — arms, eyes, mouth, gaze, the lift — on one frame near the
+  end while the board was still easing its nose down. Now each releases on
+  its own beat and the ground rush fades with the wheelie.
+- **👀 Sonic got his eyes.** Tall ones, the way he's drawn — a row taller
+  than Claw'd's own, catchlight riding up with them. Blinks and winks stay
+  his: the extension only shows on an open eye.
+- **⚡ Frankenstein's bolts actually spark now.** Each bolt throws a real
+  four-point star that climbs up and away, flares open mid-flight, and dies
+  to a single cell — the right one a beat behind the left. The old version
+  was three pale pixels you'd only notice with your nose on the screen.
+- **🦃 The turkey's tail is a fan, not a candelabra.** One half-disc of
+  radial wedges with a rim band, gold and dark alternating, in place of the
+  seven spokes with yellow tips that read as candles. It still spreads on
+  the strut.
+- **🤓 Matrix is Coder now.** Same green rain, same stored preference —
+  he just wears steel-rimmed glasses under it. The rain parts around the
+  frames on its own.
+- **🕹️ The arcade marquee is gone.** The chasing stripe across his belly
+  read as a glitch band at desk size. Arcade is its cabinet-black shell and
+  phosphor face, nothing animated.
+- **🛹 The Skater is one colour now.** Grape shell, backwards cap, skate
+  shoes — and nothing else. The tee and the pants are gone: a band across
+  his middle and legs down his stumps read as clothes stuck on an animal
+  rather than as an outfit, which is a thing a crab's shape will not let you
+  do. The backwards cap was always on; the random beanie-or-cap on bare
+  Claw'd's tricks stays, because a costume is a uniform and the dice are a
+  surprise.
+- **🧢 The beanie stands up.** A folded cuff wider than his head and
+  near-vertical sides above it, with a white pom on top — instead of the
+  smooth dome it shipped as, which read as a skullcap however tall it got.
+- **💍 Sonic sheds rings when he pops.** Eight of them spraying off his
+  flanks and tumbling away, straight out of the game — on the ollie and the
+  nollie, every time, because the trick is the hit.
+- **🎭 Every character has its own thing to shout.** Land a trick in
+  costume and he says something in character — the Gundam reports systems
+  nominal, the Coder commits it, Frankenstein is alive. Looks that are a
+  palette rather than a personality keep his own voice.
+- **🛹 He stops jumping his hat off the grid.** The ollie lifted him ten
+  rows and there are only ten above his shell, so at the apex every
+  costume's crown — Sonic's quills, the Gundam's fin, the beanie, Santa's
+  hat — was drawn off-grid and lost. Each look now rises as far as its own
+  crown allows.
+- **🐯 The tiger got real stripes.** Diagonal slashes leaning off a centre
+  spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
+  with the forehead V. The five vertical bars read as a pattern on a box.
 
 ## [1.7.0] — 2026-09-02
 

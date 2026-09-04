@@ -123,9 +123,10 @@ struct PropInventoryTests {
     @Test("The prop strip publishes every prop")
     func propCountIsPinned() {
         // `.none` is a case but not a prop; the strip draws the rest.
-        // 18 since the ollie board joined (17 was pre-ollie).
+        // 25 since the surfboard joined (24 with the tre and laser, 22 with
+        // the bigspin, 21 with the nollie, 20 with the manual and shove-it).
         let drawn = CrabPose.Prop.allCases.filter { $0 != .none }
-        #expect(drawn.count == 18,
+        #expect(drawn.count == 25,
                 "the prop count moved — docs/media/props.png needs re-rendering")
         #expect(!CrabPose.Prop.allCases.contains { $0.rawValue == "zzz" },
                 "the sleeping z's were removed; the enum should not carry them")
@@ -1063,7 +1064,11 @@ struct EditableCopyTests {
             // plain bubble, so the ceiling does not apply to them — what does
             // apply is that they finish scrolling inside the window they are
             // shown for, which `skateLinesFitTheirWindow` checks instead.
-            guard occasion != .kickflip else { continue }
+            // Both trick decks route by LENGTH rather than being trimmed:
+            // the long ones scroll. `skateLinesFitTheirWindow` and
+            // `surfLinesFitTheirWindow` pin that they finish scrolling
+            // inside the window they get.
+            guard occasion != .kickflip, occasion != .surf else { continue }
             for line in Vocab.lines(for: occasion) {
                 guard !Self.knownLong.contains(line) else { continue }
                 #expect(line.count <= ThoughtBubble.plainColumns, "\(occasion.rawValue) line too long: \(line)")
@@ -1086,7 +1091,12 @@ struct EditableCopyTests {
     func skateLinesFitTheirWindow() {
         // Both skate decks share the 3.4s live window — the golden lines are
         // reserved, not exempt.
-        for line in Vocab.lines(for: .kickflip) + Vocab.lines(for: .goldenSkate) {
+        // Every deck that can land in that window, including the
+        // in-character ones — a costume line is not exempt from the clock
+        // just because it has personality.
+        let characterLines = Costume.allCases.flatMap { Vocab.skateLines(for: $0) }
+        for line in Vocab.lines(for: .kickflip) + Vocab.lines(for: .goldenSkate)
+            + characterLines {
             switch ActivityCoordinator.bubbleStyle(for: line) {
             case .plain:
                 #expect(line.count <= ThoughtBubble.plainColumns,
@@ -1097,6 +1107,27 @@ struct EditableCopyTests {
                         "\"\(line)\" needs \(String(format: "%.1f", read))s and the window is \(PetInstance.skateLineSeconds)s")
             case .dots:
                 Issue.record("a skate line should never be dots")
+            }
+        }
+    }
+
+    /// The operator's surf lines are his words, so three of them are wider
+    /// than the plain bubble and are NOT trimmed — they scroll instead. What
+    /// this pins is that each one finishes scrolling inside the window it
+    /// gets, because a line cut off mid-word is worse than a shorter line.
+    @Test("Every surf line finishes inside its window")
+    func surfLinesFitTheirWindow() {
+        for line in Vocab.lines(for: .surf) {
+            switch ActivityCoordinator.bubbleStyle(for: line) {
+            case .plain:
+                #expect(line.count <= ThoughtBubble.plainColumns,
+                        "\"\(line)\" was left in the plain bubble and does not fit it")
+            case .marquee:
+                let read = MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+                #expect(read <= PetInstance.surfLineSeconds - 0.8,
+                        "\"\(line)\" needs \(String(format: "%.1f", read))s and the window is \(PetInstance.surfLineSeconds)s")
+            case .dots:
+                Issue.record("a surf line should never be dots")
             }
         }
     }

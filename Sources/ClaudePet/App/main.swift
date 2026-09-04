@@ -32,6 +32,27 @@ if let index = arguments.firstIndex(of: "--render-comps"), index + 1 < arguments
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-palette-tricks"), index + 1 < arguments.count {
+    // Claw'd × trick × super-graphics ground, 4:5 portrait, no text — the
+    // operator's marketing feed set. Review material, never committed.
+    let ok = MainActor.assumeIsolated { PaletteTricks.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
+if let index = arguments.firstIndex(of: "--render-figma"), index + 1 < arguments.count {
+    // Claw'd's ink grid, for the operator's Figma file. Data, not a
+    // picture — the far side decides what to build out of it.
+    let ok = MainActor.assumeIsolated { FigmaExport.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
+if let index = arguments.firstIndex(of: "--render-triptych"), index + 1 < arguments.count {
+    // Three Claw'ds in one block, for the operator's carousels. Review
+    // material, never committed.
+    let ok = MainActor.assumeIsolated { PaletteTricks.renderTriptychs(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-costume-sheet"), index + 1 < arguments.count {
     // Contact sheets for the costume-refinement rounds — operator review
     // material, never committed.

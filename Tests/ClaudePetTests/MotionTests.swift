@@ -407,6 +407,210 @@ struct MotionContinuityTests {
                 "he landed on the underside — wheels at row \(landed.wheelRow), deck at \(landed.deckRow)")
     }
 
+    /// The nollie is front-foot-first: the nose PRESSES down while the tail
+    /// is still flat, THEN the tail pops high, and the deck still lands
+    /// level, wheels underneath. Measured on the rendered deck ink, end by
+    /// end, so a draw that quietly mirrored the ollie's simultaneous slap
+    /// and rise — the first cut — would fail the press here first.
+    @Test("The nollie presses the nose, then lifts the tail, and lands wheels-down")
+    func nolliePressesThenLiftsAndLandsWheelsDown() {
+        let duration = CrabAnimator.Flourish.nollie.duration
+        func deckTops(at t: Double) -> (tail: Int, nose: Int) {
+            let buffer = CrabRig.render(CrabAnimator.flourishPose(.nollie, at: t))
+            var tail = 99, nose = 99
+            for y in 0..<32 {
+                for x in 0..<32 where buffer[x, y] == .deck {
+                    if x <= 12 { tail = min(tail, y) }
+                    if x >= 20 { nose = min(nose, y) }
+                }
+            }
+            return (tail, nose)
+        }
+        func at(air: Double) -> Double {
+            (CrabAnimator.ollieAirStart + air * CrabAnimator.ollieAirSpan) * duration
+        }
+        // The press: nose two rows down, tail still flat on the deck line
+        // (which rides `bob`, so the two ends are compared to each other).
+        let pressed = deckTops(at: at(air: 0.14))
+        #expect(pressed.nose - pressed.tail == 2,
+                "the press should bend the nose down first — tail at row \(pressed.tail), nose at \(pressed.nose)")
+        // The pop: the tail rides high.
+        let popped = deckTops(at: at(air: 0.45))
+        #expect(popped.nose - popped.tail >= 3,
+                "the tail should ride high off the pop — tail at row \(popped.tail), nose at \(popped.nose)")
+
+        let landed = deckTops(at: duration - 0.05)
+        #expect(landed.tail == landed.nose, "the nollie landed on a tilt")
+        let buffer = CrabRig.render(CrabAnimator.flourishPose(.nollie, at: duration - 0.05))
+        var deckRow = 0, wheelRow = 0
+        for y in 0..<32 {
+            for x in 0..<32 {
+                if buffer[x, y] == .deck { deckRow = max(deckRow, y) }
+                if buffer[x, y] == .yellow { wheelRow = max(wheelRow, y) }
+            }
+        }
+        #expect(wheelRow > deckRow, "he landed primo — wheels at row \(wheelRow), deck at \(deckRow)")
+    }
+
+    /// The manual's rider lets go the way the board does: one thing at a
+    /// time. The first cut released the arms, eyes, mouth, gaze and rise on
+    /// a single frame at 90% of the ride — the operator's "ends abruptly".
+    /// Swept at the live 20 fps over the whole ride, so a future threshold
+    /// that lines two switches up again is caught on the frame it happens.
+    /// On a FROZEN base: the idle base under a live trick glances and
+    /// breathes on its own clock, and this pins the trick's own contract,
+    /// not a coincidence with the base.
+    @Test("The manual releases its channels on separate frames")
+    func manualReleasesAreStaggered() {
+        let duration = CrabAnimator.Flourish.manual.duration
+        let base = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+        var previous = CrabAnimator.flourishPose(.manual, at: 0, base: base)
+        for frame in 1...Int(duration * 20) {
+            let t = Double(frame) / 20
+            let pose = CrabAnimator.flourishPose(.manual, at: t, base: base)
+            var switches = 0
+            if pose.eyes != previous.eyes { switches += 1 }
+            if pose.mouth != previous.mouth { switches += 1 }
+            if pose.gazeX != previous.gazeX { switches += 1 }
+            if pose.bob != previous.bob { switches += 1 }
+            #expect(switches <= 1, "\(switches) channels switched together at t = \(t)")
+            #expect(abs(pose.armLeft - previous.armLeft) <= 0.12
+                    && abs(pose.armRight - previous.armRight) <= 0.12,
+                    "the arms jumped at t = \(t)")
+            previous = pose
+        }
+    }
+
+    /// The steezed ollie's kick lives inside the float and nowhere else:
+    /// zero at the pop and the stomp (so it can never be the thing that
+    /// snaps at either end), fully out mid-hang, and it moves the foot one
+    /// cell at a time at the live 20 fps. The rendered leg stays on the
+    /// grid and stays one leg — the same number of cells as the tucked leg
+    /// plus at most the knee.
+    @Test("The steeze kicks inside the float, a cell at a time, and stays on the grid")
+    func steezeKicksInsideTheFloat() {
+        let duration = CrabAnimator.Flourish.ollie.duration
+        let base = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+        var peak = 0.0, previousShift = 0
+        for frame in 0...Int(duration * 20) {
+            let t = Double(frame) / 20
+            let pose = CrabAnimator.flourishPose(.ollie, at: t, base: base, steeze: true)
+            let progress = t / duration
+            if progress < CrabAnimator.ollieAirStart
+                || progress >= CrabAnimator.ollieAirStart + CrabAnimator.ollieAirSpan {
+                #expect(pose.legKick == 0, "the kick leaked outside the air at t = \(t)")
+            }
+            peak = max(peak, pose.legKick)
+            let shift = CrabRig.legKickShift(pose: pose)
+            #expect(abs(shift - previousShift) <= 1, "the foot jumped \(abs(shift - previousShift)) cells at t = \(t)")
+            previousShift = shift
+
+            // On the grid, and one leg: count the body cells in the leg rows
+            // under the back-right leg's reach against the same pose tucked.
+            // Without the board: the ollie's nose slab covers a cell of the
+            // tucked foot, which made the kicked leg look a cell bigger than
+            // it is.
+            var bare = pose
+            bare.prop = .none
+            var tucked = bare
+            tucked.legKick = 0
+            let kicked = CrabRig.render(bare), still = CrabRig.render(tucked)
+            func legCells(_ b: PixelBuffer) -> Int {
+                var n = 0
+                for y in 21...24 { for x in 23..<32 where b[x, y + pose.bob] == .body { n += 1 } }
+                return n
+            }
+            let extra = legCells(kicked) - legCells(still)
+            #expect(extra >= 0 && extra <= 1,
+                    "the kicked leg has \(extra) cells more than the tucked one at t = \(t), shift \(shift)")
+        }
+        #expect(peak > 0.99, "the kick never reached full extension (peak \(peak))")
+        #expect(CrabAnimator.flourishPose(.ollie, at: 1.6).legKick == 0,
+                "the plain ollie kicked without the die")
+
+        var fired = 0
+        for cycle in 1...3000 where CrabAnimator.ollieIsSteezed(cycle: cycle) { fired += 1 }
+        let rate = Double(fired) / 3000
+        #expect(abs(rate - SpawnRates.steeze) < SpawnRates.steeze * 0.15,
+                "steeze rate \(rate), table says \(SpawnRates.steeze)")
+    }
+
+    /// A 360 flip turns the board through a WHOLE shove-it, not a half.
+    ///
+    /// Measured on the rendered deck: across the air it must reach full
+    /// width twice and narrow to a sliver twice. A varial does each once,
+    /// so this is the assertion that separates the two tricks rather than
+    /// trusting the constant that was typed.
+    @Test("The tre and the laser turn the board a whole way round")
+    func the360FlipsSpinBothAxes() {
+        for kind in [CrabAnimator.Flourish.treFlip, .laserFlip] {
+            var widths: [Int] = []
+            let duration = kind.duration
+            for step in 0...160 {
+                let progress = 0.16 + Double(step) / 160 * 0.63
+                let b = CrabRig.render(CrabAnimator.flourishPose(kind, at: progress * duration))
+                var left = 99, right = -1
+                for y in 0..<PixelBuffer.side {
+                    for x in 0..<PixelBuffer.side where b[x, y] == .deck {
+                        left = min(left, x); right = max(right, x)
+                    }
+                }
+                if right >= 0 { widths.append(right - left + 1) }
+            }
+            // Count the times it comes back out to flat. A half turn gives
+            // one such run; a whole turn gives two.
+            var wideRuns = 0, inWide = false
+            for w in widths {
+                if w >= 15, !inWide { wideRuns += 1; inWide = true }
+                if w < 10 { inWide = false }
+            }
+            #expect(wideRuns >= 2,
+                    "\(kind) opened out flat \(wideRuns) time(s) — that is a 180, not a 360")
+            #expect(widths.min() ?? 99 <= 8, "\(kind) never turned down its own length")
+        }
+    }
+
+    /// **They are mirrors, and the render has to say so.**
+    ///
+    /// A tre and a laser are the same trick reflected in both axes, and the
+    /// deck's width and thickness both come through an absolute value — so
+    /// a laser built by copying the tre and flipping a sign nobody reads
+    /// would render as the SAME FRAMES and the difference would live only
+    /// in a comment. This fails on that copy-paste.
+    @Test("The laser is not the tre with a different name")
+    func theLaserMirrorsTheTre() {
+        var differing = 0
+        let duration = CrabAnimator.Flourish.treFlip.duration
+        for step in 0...80 {
+            let progress = 0.16 + Double(step) / 80 * 0.63
+            let tre = CrabRig.render(CrabAnimator.flourishPose(.treFlip, at: progress * duration))
+            let laser = CrabRig.render(CrabAnimator.flourishPose(.laserFlip, at: progress * duration))
+            if tre.cells != laser.cells { differing += 1 }
+        }
+        #expect(differing > 60,
+                "only \(differing) of 81 frames differ — the laser is a relabelled tre")
+    }
+
+    /// The laser's signature, and the operator asked for it by name: the
+    /// leg bones out through the float and is tucked back before the stomp.
+    /// The tre keeps its legs in — that is the other half of the contract.
+    @Test("The laser kicks its leg out and the tre does not")
+    func theLaserKicksItsLeg() {
+        let duration = CrabAnimator.Flourish.laserFlip.duration
+        var peak = 0.0
+        for step in 0...120 {
+            let progress = Double(step) / 120
+            let laser = CrabAnimator.flourishPose(.laserFlip, at: progress * duration)
+            let tre = CrabAnimator.flourishPose(.treFlip, at: progress * duration)
+            peak = max(peak, laser.legKick)
+            #expect(tre.legKick == 0, "the tre kicked at progress \(progress)")
+            if progress < 0.15 || progress >= 0.80 {
+                #expect(laser.legKick == 0, "the laser kicked outside its air")
+            }
+        }
+        #expect(peak > 0.9, "the laser never fully boned out (peak \(peak))")
+    }
+
     /// **The cruise is the one where HE does not move and the ground does.**
     ///
     /// Its whole identity is that nothing about the board changes: it does not

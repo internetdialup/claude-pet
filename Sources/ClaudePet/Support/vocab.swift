@@ -60,9 +60,11 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case bugCaught
     /// 🛹 He just landed a kickflip.
     case kickflip
-    /// 🛹✨ The 1-in-50 golden board just landed. Reserved lines — these are
+    /// 🛹✨ The 1-in-20 golden board just landed. Reserved lines — these are
     /// the jackpot, and the jackpot must not sound like an ordinary Tuesday.
     case goldenSkate
+    /// 🌊 He rode a swell all the way through.
+    case surf
     /// 💛 Ten seconds of petting, held — the crescendo thank-you.
     case longPet
     /// 👋 The very first launch, ever. He introduces himself.
@@ -117,14 +119,35 @@ public enum Vocab {
             "Do a Kickflip 🛹!",
             "See you at the Hall of Meat 🍖!",
             "Tony Clawd 900 🦅",
+            "Sponsor me 🛹",
+            "Nollie! Nose first 🛹",
+            "Bigspin, board first 🌀",
+            "Tre flip 🌀🛹",
+            "LASER FLIP ⚡🛹",
         ]
 
-        // 🛹✨ The golden board — one skate beat in fifty. The lines are
+        // 🛹✨ The golden board — one skate beat in twenty. The lines are
         // reserved: dealing them on an ordinary trick would spend the jackpot.
         case .goldenSkate: [
             "GOLD BOARD. No notes 🏆",
-            "The 1-in-50 ride ✨🛹",
+            "The 1-in-20 ride ✨🛹",
             "Midas grip tape today",
+        ]
+
+        // 🌊 A swell rolled through and he rode it. The operator's words,
+        // and three of them are wider than the plain bubble — like the Hall
+        // of Meat line in the skate deck, they are NOT shortened. The
+        // transient bubble routes by length, so those scroll, and
+        // `surfLinesFitTheirWindow` pins that they finish scrolling inside
+        // the window they are shown for.
+        case .surf: [
+            "Go Big, or Go Home - Johnny Tsunami 🌊",
+            "Kowabunga 🤙",
+            "Totally getting barreled 🤘",
+            "Riding that sunset to paradise 🌈🌊",
+            "Way up high - Israel Kamakawiwoʻole",
+            "Ooh-ooh-ooh Over The 🌈",
+            "Aloha 🌴",
         ]
 
         // 💛 Ten unbroken seconds of petting. He noticed.
@@ -439,6 +462,38 @@ public enum Vocab {
         }
         return result
     }
+
+    /// 🎭 What he shouts IN CHARACTER after a trick.
+    ///
+    /// A costume that only changes his colours is a paint job; one that
+    /// changes what he says is a character. These are per-wardrobe skate
+    /// decks, dealt instead of the plain one whenever he lands a trick in
+    /// costume, and empty for the looks that are a palette rather than a
+    /// personality — those fall back to his own voice rather than being
+    /// given a forced catchphrase, because a weak line in character is
+    /// worse than a good line out of it.
+    ///
+    /// Kept inside the plain bubble's width on purpose: these arrive on the
+    /// same 3.4-second landing window the ordinary skate lines do, and
+    /// `skateLinesFitTheirWindow` measures them with the rest.
+    nonisolated static func skateLines(for costume: Costume) -> [String] {
+        switch costume {
+        case .sonic:        ["Gotta go fast 💨", "Rings everywhere 💍", "Too slow 😎"]
+        case .gundam:       ["Systems nominal 🤖", "Target locked 🎯", "Full burn 🚀"]
+        case .ninja:        ["You saw nothing 🥷", "Silent landing 🌑", "Smoke bomb next 💨"]
+        case .tiger:        ["Claws out 🐾", "Apex predator 🛹", "Nine lives, one board"]
+        case .frankenstein: ["IT'S ALIVE ⚡", "Bolts holding 🔩", "Reanimated that one"]
+        case .arcade:       ["HIGH SCORE 🕹", "Insert coin 🪙", "Player one landed"]
+        case .matrix:       ["There is no board 🕶", "git commit -m 'landed'", "Follow the rabbit 💻"]
+        case .retroBlack:   ["Matte finish 🖤", "All black everything", "Stealth mode 🛹"]
+        case .skater:       ["That's a make ✅", "Filmer got it 🎥", "Run it back 🛹"]
+        case .santa:        ["Ho ho holy 🎅", "Sleigh it 🛷", "On the nice list 🎁"]
+        case .pumpkin:      ["Spooky sponsored 🎃", "Gourd landing 🎃"]
+        case .turkey:       ["Gobble that ledge 🦃", "Fully basted 🦃"]
+        case .white:        ["Snowboard? Skateboard ❄️", "Cold landing ❄️"]
+        case .none:         []
+        }
+    }
 }
 
 
@@ -503,5 +558,6 @@ public struct LineCursor: Sendable {
                     id: rule.map { "rule:\($0.pattern)" } ?? "occasion:\(occasion.rawValue)",
                     token: token)
     }
+
 
 }

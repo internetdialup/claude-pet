@@ -7,6 +7,24 @@ import SwiftUI
 /// with the mascot (same cell language, so he dissolves into it); the winning
 /// ground is quiet and warm, with the character as the only saturated thing
 /// in frame.
+/// 🎨 THE SUPER-GRAPHICS PALETTE — the operator's own, locked in from their
+/// swatch sheet (2026-09-02): five flat grounds the marketing set composes
+/// on. Sampled by eye from the sheet; if the operator hands exact hexes
+/// from Figma, correct them HERE and re-render — this enum is the single
+/// source, nothing else may restate these values.
+enum MarketingPalette {
+    static let cream = Color(hex: 0xFCF4E0)
+    static let lemon = Color(hex: 0xFBF163)
+    static let coral = Color(hex: 0xF45050)
+    static let pink = Color(hex: 0xFA8FAB)
+    static let grape = Color(hex: 0x9A34F0)
+    static let gold = Color(hex: 0xFAD873)
+    static let cobalt = Color(hex: 0x2569F2)
+    static let sky = Color(hex: 0x2BB9FA)
+    /// In the sheet's own order, for anything that deals the set.
+    static let all: [Color] = [cream, lemon, coral, pink, grape, gold, cobalt, sky]
+}
+
 @MainActor
 enum MarketingBackdrop {
 

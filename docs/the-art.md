@@ -8,7 +8,7 @@ new pose is a few numbers instead of a new asset. The app icon renders from
 the same rig, so the two can never drift apart.
 
 <div align="center">
-  <img src="media/props.png" width="768" alt="All eighteen props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, and four skateboards">
+  <img src="media/props.png" width="768" alt="All twenty-five props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, ten skateboards and a surfboard">
 </div>
 
 <p align="center"><em>Every prop, from the same rig. No sprite sheet anywhere.</em></p>

@@ -54,6 +54,21 @@ public struct CrabPose: Sendable, Equatable {
     /// Walk cycle phase, and how much the legs actually move.
     public var legPhase: Double = 0
     public var legAmplitude: Double = 0
+    /// 🌊 The surf set's progress, 0…1, or nil when no swell is running.
+    /// Envelope-owned like the rest of the spells: set only by the idle
+    /// schedule, nil in every frozen render, and not lerped by `blend` —
+    /// a wave averaged with no wave is a wave nobody rode.
+    public var surf: Double?
+
+    /// 🦵 The steeze: his back-right leg kicks out sideways, 0 tucked under
+    /// him, 1 the foot slid three cells out with the knee bent. An ollie
+    /// with the leg boned out. Envelope-owned like `torsoShade` — set only
+    /// by the live ollie on its own dice and by the drip's explicit steeze
+    /// clips, zero in every frozen render, and NOT lerped by `blend`: the
+    /// foot moves in whole cells and a mood interrupt mid-kick loses a
+    /// two-cell slide, which the doctrine allows and a lerp could not make
+    /// smaller.
+    public var legKick: Double = 0
 
     public var mouth: Mouth = .smile
     public enum Mouth: Sendable { case smile, flat, open, none }
@@ -89,11 +104,29 @@ public struct CrabPose: Sendable, Equatable {
         // kickflip's comment calling tilt "an impossible". For an ollie the
         // tilt IS the trick.
         case skateboardOllie
+        // Appended, the skateboarder round: the manual's held wheelie and
+        // the shove-it's flat spin — each its own geometry, like every
+        // board before them.
+        case skateboardManual, skateboardShoveIt
+        // Appended: the board mid-NOLLIE — the ollie's pitch mirrored, the
+        // nose popping and the tail rising first.
+        case skateboardNollie
+        // Appended: the BIGSPIN's board — a whole flat turn under a rider
+        // who is turning with it.
+        case skateboardBigspin
+        // Appended: the two 360 flips. A tre and a laser are mirror images
+        // of each other in BOTH axes, which is why they get a case each
+        // rather than a sign on one — see `drawFlip360`.
+        case skateboardTre, skateboardLaser
+        // Appended: the surfboard. Worn, like every board he stands on.
+        case surfboard
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
-             .skateboardRoll, .skateboardOllie: true
+             .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt,
+             .skateboardNollie, .skateboardBigspin,
+             .skateboardTre, .skateboardLaser, .surfboard: true
             default: false
             }
         }
@@ -120,17 +153,32 @@ public struct CrabPose: Sendable, Equatable {
     public var heat: Double = 0
     public var heatPhase: Double = 0
 
-    /// Torso-turn shading, for the drip-feed sampler's ollie variants: which
-    /// body edge the torso rotates away from (-1 = the left columns darken,
-    /// +1 = the right, 0 = none), and how much of the turn is on him, 0…1.
+    /// Torso-turn shading, the ollie's edge band: which body edge the torso
+    /// rotates away from (-1 = the left columns darken, +1 = the right,
+    /// 0 = none), and how much of the turn is on him, 0…1.
     ///
-    /// Envelope-owned like `doneBadge`: the sampler's variant map writes both
-    /// fresh every frame from the trick's own air fraction, no live pose ever
-    /// sets them, and `CrabPose.blend` deliberately does not lerp them — a
-    /// blend could only ever see zeros, and averaging a shade that is pure in
+    /// Envelope-owned like `doneBadge`: the sampler's variant map and the
+    /// live ollie both write them fresh every frame from the trick's own air
+    /// fraction, so they are zero in every frozen render and outside every
+    /// air, and `CrabPose.blend` deliberately does not lerp them — a blend
+    /// can only see what a trick wrote, and averaging a shade that is pure in
     /// someone else's clock would invent a third turn nobody performed.
     public var torsoShade: Int = 0
     public var torsoShadeAmount: Double = 0
+
+    /// The body's yaw about his own vertical axis, in TURNS: 0 faces the
+    /// camera, 0.25 shows his right flank edge-on, 0.5 his back, 0.75 his
+    /// left flank, and 1 is a whole turn, which renders byte-identically to 0
+    /// (the rig takes turn − floor(turn)). Positive brings his right shoulder
+    /// toward the camera first. Set only by the varial's air inside
+    /// `flourishPose` — pure in the trick's clock and exactly 0 at both
+    /// bounds, so every ground frame, every other trick and every frozen
+    /// render is untouched by construction.
+    ///
+    /// Unlike `torsoShade`, this IS lerped by `blend`, the short way round:
+    /// the envelope that owns it dies the moment a mood changes, and only the
+    /// blend can finish the turn without a whole-pose pop.
+    public var torsoTurn: Double = 0
 
     /// The deal-with-it entrance: rows the shades still have to FALL
     /// (negative mid-drop, +1 during the overshoot beat, 0 at rest), and the
@@ -374,10 +422,12 @@ public enum CrabRig {
     private static let armH = 3
     private static let armY = 14
 
-    private static let eyeSize = 3
-    private static let eyeY = 13
-    private static let eyeLeftX = 10
-    private static let eyeRightX = 19
+    // Internal like `legSwing`, and for the same reason: a costume that
+    // restyles the eyes has to agree with the face about where they are.
+    static let eyeSize = 3
+    static let eyeY = 13
+    static let eyeLeftX = 10
+    static let eyeRightX = 19
 
     /// - Parameters:
     ///   - costume: the wardrobe drawn into the sprite. Defaults to `.none`, so
@@ -391,7 +441,23 @@ public enum CrabRig {
         var buffer = PixelBuffer()
 
         let dx = pose.lean
-        let dy = pose.bob
+        // 🛹 He may not jump his own hat off the top of the grid.
+        //
+        // There are ten rows above the shell at rest and the ollie's float
+        // asks for all ten, so a dressed crab lost his crown entirely at the
+        // apex — Sonic's quills, the Gundam's fin, the beanie, Santa's hat,
+        // all drawn at negative rows and discarded. The operator caught it
+        // on the two tallest and it was every one of them.
+        //
+        // The height gives, not the costume: each look rises as far as its
+        // own crown allows, so nothing is ever cropped and a bare crab keeps
+        // the full float he was authored with. The floor is the one piece of
+        // engineering judgement here — a nine-row turkey fan would otherwise
+        // clamp him to a one-row hop, which reads as broken rather than as
+        // heavy, so the tallest two crop their tips instead of losing the
+        // trick.
+        let dy = max(pose.bob, crownFloor(costume: costume, ghostCostume: ghostCostume,
+                                          headwear: pose.headwear))
         let squash = max(0, pose.squash)
 
         // A crown accessory steps aside while a crown prop is worn — the prop
@@ -411,8 +477,19 @@ public enum CrabRig {
 
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
+        // 🌊 The ocean goes down before anything stands on it, and before
+        // the yaw pass takes its world snapshot below — a wave that turned
+        // when the crab turned would be a very strange sea.
+        if let surf = pose.surf { SurfSet.drawSwell(&buffer, progress: surf) }
+
         firePass(&buffer, pose: pose, dx: dx, dy: dy)
+        // Two plates for the yaw pass, and the gap between them is the whole
+        // point: what the world painted (the flame) stays put while he
+        // turns, and what the wardrobe painted behind him turns with him but
+        // stays behind him.
+        let worldPlate = buffer
         costumeLayer(.behind)
+        let behindPlate = buffer
 
         drawLegs(&buffer, dx: dx, dy: dy, pose: pose)
         drawDust(&buffer, dx: dx, dy: dy, pose: pose)
@@ -462,6 +539,16 @@ public enum CrabRig {
             drawHeadwear(&buffer, kind: pose.headwear, dx: dx, dy: dy, squash: squash)
         }
         costumeLayer(.front)
+        // He is dressed; now he can turn. Nothing after this line knows the
+        // difference — the weather, the boards and the badges all land on
+        // the frame he leaves behind.
+        if pose.torsoTurn != 0 {
+            yawPass(&buffer, world: worldPlate, behind: behindPlate,
+                    pose: pose, dx: dx, dy: dy, squash: squash)
+        }
+        // The wardrobe's own weather goes on after the last worn layer, so
+        // the figure is finished before the sky is.
+        costumeLayer(.weather)
         // 🗓 The season's weather, for EVERYONE in the window — the white
         // costume's snow rule generalised: clear cells only, continuous, no
         // dice. Winter skips anyone already wearing Arctic White, or the
@@ -1031,6 +1118,260 @@ public enum CrabRig {
         }
     }
 
+    // MARK: - The turn
+
+    /// He is a BOX, not a card: twenty cells across the front and six through
+    /// the flank, so the silhouette is `20|cos θ| + 6|sin θ|` — twenty facing
+    /// you, six edge-on, and never a paper-thin nothing in between.
+    private static let turnHalfDepth = 3.0
+    /// Under a six-wide face the eyes, the mouth and every scrap of face
+    /// paint leave TOGETHER. Separately, sonic's white field outlives his
+    /// eyes by a frame and he spins wearing a blank patch.
+    private static let turnFaceFadeHalf = 3.0
+    /// A shell row a costume paints nearly all the way across is a BAND
+    /// round him — a headband, a tee, a scarf — so it shows from behind.
+    /// Anything narrower is face paint and does not.
+    private static let turnWrapRun = 18
+    /// …and so does whatever sits on the outermost columns: armour plates
+    /// and neck bolts are on his sides, and his sides are still there when
+    /// his face is not.
+    private static let turnEdgeFurniture = 2
+    /// A source cell has to cover this much of an output cell to be sampled.
+    private static let turnSampleOverlap = 0.3
+    /// One lit row across the carapace, so his back is not a flat slab.
+    private static let turnRidgeRow = 3
+
+    /// Yaw the finished figure about his own vertical axis.
+    ///
+    /// A POST-PASS, deliberately: the deformation belongs in the mapping, not
+    /// in the drawing — so every draw above runs exactly as it always has,
+    /// the wardrobe turns with him for free (a ninja spins in his headband
+    /// rather than out of it), and at `torsoTurn` 0 this function returns
+    /// before touching a cell, which is what keeps every committed byte and
+    /// every existing pin true by construction rather than by proof.
+    ///
+    /// Three planes, painted back to front: what was drawn behind him, the
+    /// flank slab that has come round, and the figure itself. Everything
+    /// below his feet — the board, the shadow, the ground rush — sits under
+    /// `legBottom` and is never touched, so a spinning crab still lands on
+    /// the same deck he took off from.
+    private static func yawPass(_ b: inout PixelBuffer, world: PixelBuffer, behind: PixelBuffer,
+                                pose: CrabPose, dx: Int, dy: Int, squash: Int) {
+        // `turn − floor(turn)`, never `truncatingRemainder`: that one goes
+        // negative for a negative turn and would silently skip the pass.
+        let turn = pose.torsoTurn - floor(pose.torsoTurn)
+        guard turn > 0.0005, turn < 0.9995 else { return }
+
+        let theta = 2 * Double.pi * turn
+        let c = cos(theta), s = sin(theta)
+        let halfW = Double(bodyW) / 2 + Double(squash)
+        let axis = Double(bodyX + dx) + halfW
+        let faceCentre = -turnHalfDepth * s * (c >= 0 ? 1 : -1)
+        let faceHalf = halfW * abs(c)
+        let sideCentre = halfW * c * (s >= 0 ? 1 : -1)
+        let sideHalf = turnHalfDepth * abs(s)
+        // The light does not move: his right flank is the dark one, the same
+        // upper-left key the hero shade and the catchlights already claim.
+        let flankInk: PixelBuffer.Ink = s > 0 ? .bodyShade : .body
+
+        let shellTop = bodyY + dy + squash
+        let shellLeft = bodyX + dx - squash
+        let shellRight = bodyX + bodyW - 1 + dx + squash
+        let fullWidth = bodyW + squash * 2
+        let shellBottom = 20 + dy
+        let legBottom = 24 + dy
+        guard legBottom >= 0, shellTop <= shellBottom else { return }
+
+        let silLeft = Int(floor(axis + min(faceCentre - faceHalf, sideCentre - sideHalf)))
+        let silRight = Int(ceil(axis + max(faceCentre + faceHalf, sideCentre + sideHalf))) - 1
+        let silWidth = max(1, silRight - silLeft + 1)
+
+        let source = b
+        // His own art, minus whatever was drawn behind him: ribbons, tails
+        // and fans map under the flank, never over it — art drawn behind a
+        // crab has no business appearing in front of his side.
+        var figure = source, behindArt = PixelBuffer()
+        for y in 0...min(legBottom, PixelBuffer.side - 1) {
+            for x in 0..<PixelBuffer.side
+            where behind[x, y] != world[x, y] && source[x, y] == behind[x, y] {
+                figure[x, y] = .clear
+                behindArt[x, y] = source[x, y]
+            }
+        }
+
+        // The rows face paint can occupy — anchored to the SOCKET, not to
+        // the gaze. A gaze down moves his eyes but not the white field
+        // framing them, and a band that followed the eyes down left the
+        // field's top row behind to spin on alone.
+        let faceRows = (eyeY + dy + min(pose.gazeY, 0) - 1)...(18 + dy)
+        let fading = faceHalf < turnFaceFadeHalf
+
+        for y in 0...min(legBottom, PixelBuffer.side - 1) where y >= 0 {
+            for x in 0..<PixelBuffer.side { b[x, y] = .clear }
+            // The world stays where it fell. A flame is not wearing him.
+            for x in 0..<PixelBuffer.side where world[x, y] != .clear {
+                b[x, y] = world[x, y]
+            }
+
+            let isShellRow = y >= shellTop && y <= shellBottom
+            let isLegRow = y > shellBottom
+
+            // A. Legs and feet ride a ground plane: they converge under the
+            // narrowing body instead of standing where they always stood.
+            // Four legs spread twenty cells wide under a six-wide pillar is
+            // the loudest possible way to say "a rectangle got thinner".
+            if isLegRow {
+                for x in max(0, shellLeft - 3)...min(PixelBuffer.side - 1, shellRight + 3) {
+                    let ink = source[x, y]
+                    guard ink != .clear, ink != world[x, y] else { continue }
+                    let tx = silLeft + Int((Double(x - shellLeft) * Double(silWidth)
+                                            / Double(fullWidth)).rounded(.down))
+                    b[tx, y] = ink
+                }
+                continue
+            }
+
+            let wrap = isShellRow && (shellLeft...shellRight).reduce(0) { run, x in
+                let ink = source[x, y]
+                return run + (ink != .clear && ink != .body && ink != .bodyShade ? 1 : 0)
+            } >= turnWrapRun
+            let ridge = isShellRow && y == shellTop + turnRidgeRow
+
+            for x in 0..<PixelBuffer.side {
+                let e = Double(x) + 0.5 - axis
+
+                // B. Behind him, first and lowest.
+                var ink = PixelBuffer.Ink.clear
+                if abs(c) > 0.001 {
+                    ink = turnSample(behindArt, row: y,
+                                     from: axis + min((e - 0.5 - faceCentre) / c,
+                                                      (e + 0.5 - faceCentre) / c),
+                                     to: axis + max((e - 0.5 - faceCentre) / c,
+                                                    (e + 0.5 - faceCentre) / c),
+                                     fading: false, faceRows: faceRows).ink
+                }
+
+                // C. The flank that has come round: one flat step, the whole
+                // height of the shell, carrying no detail at all. A flank is
+                // a side, and a side of a pixel crab is a colour.
+                if isShellRow, sideHalf > 0.001, abs(e - sideCentre) < sideHalf {
+                    ink = flankInk
+                }
+
+                // D. The figure, on top.
+                if abs(c) > 0.001 {
+                    let u = (e - faceCentre) / c
+                    let onShell = isShellRow && abs(u) <= halfW
+                    let sample = turnSample(figure, row: y,
+                                            from: axis + min((e - 0.5 - faceCentre) / c,
+                                                             (e + 0.5 - faceCentre) / c),
+                                            to: axis + max((e - 0.5 - faceCentre) / c,
+                                                           (e + 0.5 - faceCentre) / c),
+                                            fading: fading && onShell, faceRows: faceRows)
+                    var front = sample.ink
+                    if c < 0, onShell, front != .clear {
+                        // His BACK. No face — a crab seen from behind has
+                        // none — and one step darker everywhere but the
+                        // ridge, which is the single lit row that keeps the
+                        // carapace from reading as a hole. What survives is
+                        // what genuinely wraps: a headband, a tee, a scarf,
+                        // and whatever rides his outermost columns.
+                        let sx = sample.x
+                        let onEdge = sx - shellLeft < turnEdgeFurniture
+                            || shellRight - sx < turnEdgeFurniture
+                        let shaded: PixelBuffer.Ink = ridge ? .body : .bodyShade
+                        switch front {
+                        // His face goes, and the wrap rule does NOT get a
+                        // say in it: the ninja's headband, the gundam's
+                        // chest band and the skater's tee all cross a face
+                        // row, and each of them was carrying a pair of eyes
+                        // around to the back of his head.
+                        case .eye, .mouth: front = shaded
+                        // The catchlight goes with the eye it belongs to,
+                        // and so does any face paint under it — a white
+                        // field with no eyes in it is the wardrobe covering
+                        // a face, which is the one thing the wardrobe may
+                        // never do.
+                        case .paper where faceRows.contains(y): front = shaded
+                        case .body: front = shaded
+                        case .bodyShade: break
+                        default: if !wrap && !onEdge { front = shaded }
+                        }
+                    }
+                    if front != .clear { ink = front }
+                }
+
+                if ink != .clear { b[x, y] = ink }
+            }
+        }
+
+        // The turned silhouette gets the same carved corners the square one
+        // has, or he spins from a rounded crab into a rectangle and back.
+        guard silRight - silLeft + 1 >= 4 else { return }
+        for cell in [(silLeft, shellTop), (silRight, shellTop),
+                     (silLeft, shellBottom), (silRight, shellBottom)] {
+            b[cell.0, cell.1] = .clear
+        }
+        if silWidth >= 8 {
+            for cell in [(silLeft + 1, shellTop), (silRight - 1, shellTop),
+                         (silLeft, shellTop + 1), (silRight, shellTop + 1)] {
+                b[cell.0, cell.1] = .clear
+            }
+        }
+
+        // The catchlight is the life in a face, and priority sampling loses
+        // it first — the eye out-ranks it. Put it back wherever an eye still
+        // has two cells to hold one.
+        let lightRow = eyeY + dy + pose.gazeY
+        guard lightRow >= 0, lightRow < PixelBuffer.side, c > 0 else { return }
+        var x = 0
+        while x < PixelBuffer.side {
+            guard b[x, lightRow] == .eye else { x += 1; continue }
+            var end = x
+            while end + 1 < PixelBuffer.side && b[end + 1, lightRow] == .eye { end += 1 }
+            if end > x { b[x, lightRow] = .paper }
+            x = end + 1
+        }
+    }
+
+    /// What wins a cell when several source cells land on it: his face first,
+    /// then anything the wardrobe painted, then the shell itself. Ties go to
+    /// whichever sat nearest the middle of the span.
+    private static func turnPriority(_ ink: PixelBuffer.Ink) -> Int {
+        switch ink {
+        case .clear: -1
+        case .eye, .mouth: 3
+        case .body, .bodyShade: 0
+        default: 2
+        }
+    }
+
+    private static func turnSample(_ src: PixelBuffer, row y: Int,
+                                   from lo: Double, to hi: Double,
+                                   fading: Bool,
+                                   faceRows: ClosedRange<Int>) -> (ink: PixelBuffer.Ink, x: Int) {
+        let first = Int(lo.rounded(.down)), last = Int(hi.rounded(.up)) - 1
+        var best = PixelBuffer.Ink.clear, bestScore = -1
+        var bestX = first, bestDistance = Double.infinity
+        let centre = (lo + hi) / 2
+        guard first <= last else { return (.clear, first) }
+        // A span narrower than the threshold still has to sample something,
+        // or a face nearly square to the camera renders as nothing at all.
+        let needed = min(turnSampleOverlap, hi - lo)
+        for k in first...last {
+            guard min(hi, Double(k) + 1) - max(lo, Double(k)) >= needed else { continue }
+            let ink = src[k, y]
+            var score = turnPriority(ink)
+            if fading, score > 0, faceRows.contains(y) { score = -1 }
+            guard score >= 0 else { continue }
+            let distance = abs(Double(k) + 0.5 - centre)
+            if score > bestScore || (score == bestScore && distance < bestDistance) {
+                best = ink; bestScore = score; bestX = k; bestDistance = distance
+            }
+        }
+        return (best, bestX)
+    }
+
     /// One prop at a given visibility. Full visibility draws straight into the
     /// buffer — byte-identical to the pre-dissolve renderer; anything less
     /// renders to a scratch buffer and composites as a stable pixel dissolve.
@@ -1060,24 +1401,119 @@ public enum CrabRig {
         case .none:
             break
         case .blackBeanie:
-            // Charcoal, folded band over the brow, low dome.
-            b.rect(12 + dx, crown + 1, 8, 1, .slate)
-            b.rect(12 + dx, crown, 8, 1, .slate)
-            b.rect(13 + dx, crown - 1, 6, 1, .slate)
-            b.rect(14 + dx, crown - 2, 4, 1, .slate)
+            // Fourth fitting. The mirrored santa hat was too low and too
+            // smooth, and the operator's word for it was the right one: it
+            // read as a yarmulke — a cap sitting ON the dome rather than a
+            // knit hat pulled over it. Two things fix that, and neither is
+            // "make it bigger".
+            //
+            // First, a CUFF: two rows at the brow, wider than his head, so
+            // the hat overhangs instead of resting. A knit beanie is folded
+            // at the bottom and that fold is most of what says knit.
+            // Second, HEIGHT above the cuff — a dome that keeps going for
+            // three more rows and finishes in a pom, so the silhouette is
+            // taller than it is wide. A skullcap is wider than it is tall;
+            // that ratio was the whole problem.
+            // Straight-sided above the fold, not a smooth pyramid: a
+            // taper from twelve to two in five rows is a cone, and a cone
+            // on a head is the skullcap read again however tall it is. Knit
+            // sits like a tube and only rounds at the very top.
+            b.rect(10 + dx, crown, 12, 1, .slate)          // the fold, overhanging
+            b.rect(10 + dx, crown - 1, 12, 1, .slate)
+            b.rect(11 + dx, crown - 2, 10, 1, .slate)      // then near-vertical sides
+            b.rect(11 + dx, crown - 3, 10, 1, .slate)
+            b.rect(12 + dx, crown - 4, 8, 1, .slate)
+            b.rect(14 + dx, crown - 5, 4, 1, .paper)       // and the pom on top
         case .cap(let ink):
-            // The cap: low dome plus a brim off the right, the way he
-            // rides — a hat, not a stripe — in whatever colour the dice
-            // dealt this wearing.
-            b.rect(12 + dx, crown, 8, 1, ink)
-            b.rect(13 + dx, crown - 1, 6, 1, ink)
-            b.rect(14 + dx, crown - 2, 4, 1, ink)
-            b.rect(20 + dx, crown, 3, 1, ink)
+            // The cap, ANGLED — the operator's note: tipped back off the
+            // brow, the dome climbing toward the front, and the brim
+            // jutting out a row clear of the head so there is AIR under it.
+            // The empty cells at (19…22, crown−1) are the whole look.
+            b.rect(11 + dx, crown, 7, 1, ink)
+            b.rect(12 + dx, crown - 1, 8, 1, ink)
+            b.rect(13 + dx, crown - 2, 6, 1, ink)
+            b.rect(19 + dx, crown - 2, 4, 1, ink)
         }
     }
 
     /// ✨ A one-cell flash on a wheel, riding the prop's own clock — weight,
     /// per the operator. ~7% of the phase, glint-class by size and nature.
+    /// A 360 FLIP, in either direction — the tre and the laser.
+    ///
+    /// Both are a whole shove-it and a whole flip at once, and they are
+    /// exact mirrors of each other: the tre turns backside and kickflips,
+    /// the laser turns frontside and heelflips. That symmetry is the whole
+    /// problem with drawing them. The deck's width comes from `|cos yaw|`
+    /// and its thickness from `|sin roll|`, and an absolute value cannot
+    /// tell a rotation from its mirror — signed alone, the two tricks
+    /// render as the same frames and the difference is a claim in a comment.
+    ///
+    /// So direction is made VISIBLE, three ways. The NOSE is tracked
+    /// signed, so it sweeps left-to-right on one and right-to-left on the
+    /// other and you can follow it round. The grip tape shows on whichever
+    /// half of the roll has the top face toward you, which is the opposite
+    /// half for each. And the wheels hang off the nose's own end rather
+    /// than symmetric hubs, so the board reads as having a front.
+    private static func drawFlip360(_ b: inout PixelBuffer, dx: Int, dy: Int,
+                                    pose: CrabPose, direction: Double) {
+        let spin = pose.propPhase.truncatingRemainder(dividingBy: 1)
+        let yaw = direction * spin * 2 * .pi
+        let roll = direction * spin * 2 * .pi
+        let cx = 16 + dx, deckY = 25 + dy
+        // The width has to know about the ROLL, which is the whole
+        // difference between this and the varial next door. There the yaw
+        // ran at half the roll's rate, so the deck was never narrow and
+        // thick at the same instant. Here they are locked together, and the
+        // varial's formula — which takes the deck's width as a flat 2.5
+        // however it is tipped — drew a seven-by-five solid rectangle at the
+        // quarter turn. A skateboard is not a brick.
+        //
+        // Pointing at you AND rolled onto its edge, what is left of a board
+        // is its end grain: almost nothing across, its own width tall. So
+        // the sideways contribution of the deck's width is scaled by
+        // `|cos roll|` — it vanishes exactly when the deck is edge-on — and
+        // the height keeps riding `|sin roll|`.
+        // Spelled out in named steps rather than as one expression. It was
+        // one, and the type checker on an older toolchain than this Mac's
+        // gave up on it — a build that passes here and fails on CI. Literal
+        // arithmetic mixed three deep is where that happens.
+        let deckHalfLength = 8.0
+        let deckHalfWidth = 2.5
+        let alongView: Double = deckHalfLength * abs(cos(yaw))
+        let acrossView: Double = deckHalfWidth * abs(cos(roll)) * abs(sin(yaw))
+        let half = max(1, Int((alongView + acrossView).rounded()))
+        let thick = max(1, Int((5.0 * abs(sin(roll))).rounded()))
+        let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+        let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+        b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
+
+        // Grip tape on the face that is toward you, which is the opposite
+        // half of the roll for each trick — the cheapest honest tell.
+        if sin(roll) < 0, thick >= 4 {
+            let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+            for gx in stride(from: cx - half + 1, through: cx + half - 2, by: 4) {
+                b.pixel(gx, deckY + 1, grit)
+                b.pixel(gx + 1, deckY, grit)
+            }
+        }
+
+        // The nose, tracked signed so it sweeps a whole turn and you can
+        // see WHICH WAY the board is going round.
+        let noseX = cx + Int((Double(half) * cos(yaw)).rounded())
+        let orbit = Int((3 * cos(roll)).rounded())
+        if sin(roll) >= 0 || abs(orbit) > thick / 2 {
+            for hub in [noseX - 1, cx - Int((Double(half) * cos(yaw)).rounded()) - 1] {
+                b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
+                b.pixel(hub, deckY + orbit, wheelInk)
+                b.pixel(hub + 1, deckY + orbit, .screenDark)
+                b.pixel(hub + 2, deckY + orbit, wheelInk)
+            }
+        }
+        // One bright cell on the nose itself, so the end you are following
+        // is never ambiguous even when the deck is a sliver.
+        if thick <= 3 { b.pixel(noseX, deckY - thick / 2, .flameCore) }
+    }
+
     private static func wheelShimmer(_ phase: Double) -> Bool {
         (phase * 2.6).truncatingRemainder(dividingBy: 1) < 0.11
     }
@@ -1092,21 +1528,23 @@ public enum CrabRig {
     /// shadow inherits the jump's own easing.
     private static func drawShadow(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
         switch pose.prop {
-        case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie: return
+        // Every board, not just the first four: the manual and shove-it
+        // boards were missed when they joined, and drew a ground shadow
+        // under an airborne deck.
+        case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
+             .skateboardManual, .skateboardShoveIt, .skateboardNollie,
+             .skateboardBigspin, .skateboardTre, .skateboardLaser,
+             .surfboard: return
         default: break
         }
         let rise = max(0, -dy)
         let width = 20 - rise * 2
         guard width >= 8 else { return }
-        // DITHERED, not solid: a GIF's one-bit alpha collapses translucency
-        // to a solid bar, so the softness lives in the checkerboard — the
-        // pixel-art half-tone — and the ink's own translucency only sweetens
-        // it live. Anchored on even columns so the pattern holds still while
-        // the width breathes.
-        let left = 16 + dx - width / 2
-        for x in left..<(left + width) where x % 2 == 0 {
-            b.pixel(x, 25, .shadow)
-        }
+        // A SOLID line, at the operator's call: the checkerboard dots read
+        // as grit to a viewer, not softness. The ink's own translucency
+        // keeps it gentle live; in a GIF it collapses to a clean dark line,
+        // which is the look.
+        b.rect(16 + dx - width / 2, 25, width, 1, .shadow)
     }
 
     /// 💨 Landing dust: two puffs racing outward from the feet, chunky at
@@ -1132,11 +1570,58 @@ public enum CrabRig {
 
     // MARK: - Legs
 
+    /// The lowest `bob` a look can be lifted to before its crown leaves the
+    /// grid. Zero-crown looks return the old floor and render byte-identically.
+    static let crownFloorLimit = -4
+    static func crownFloor(costume: Costume, ghostCostume: Costume,
+                           headwear: CrabPose.Headwear) -> Int {
+        var rows = max(CostumeStyle.of(costume).crownRows,
+                       CostumeStyle.of(ghostCostume).crownRows)
+        // Headwear rides the bare crab only, so it never stacks with a
+        // costume's own crown — but it needs the same room.
+        if costume == .none, ghostCostume == .none {
+            switch headwear {
+            case .none: break
+            case .blackBeanie: rows = max(rows, 5)
+            case .cap: rows = max(rows, 2)
+            }
+        }
+        guard rows > 0 else { return -bodyY }
+        // `min`, not `max`: a lower number is MORE air. The exact fit is
+        // `rows - bodyY`; the limit lets the two tallest crowns overshoot it
+        // and crop their tips rather than clamp to a hop nobody would read
+        // as a jump — the turkey's nine-row fan would otherwise cap him at
+        // one row off the ground.
+        return min(rows - bodyY, crownFloorLimit)
+    }
+
+    /// How far the steezed foot has slid out, in cells (0…3). Internal for
+    /// the same reason `legSwing` is: a costume's shoe on that leg has to
+    /// slide with the foot.
+    static func legKickShift(pose: CrabPose) -> Int {
+        Int((3 * max(0, min(1, pose.legKick))).rounded())
+    }
+
     private static func drawLegs(_ b: inout PixelBuffer, dx: Int, dy: Int, pose: CrabPose) {
+        let kick = legKickShift(pose: pose)
         for (index, x) in legX.enumerated() {
             // Alternating pairs, so the scuttle reads as a gait rather than a jitter.
             let lift = legSwing(index, pose: pose)
-            b.rect(x + dx, legTop + dy - min(0, lift), legW, legH - abs(lift), .body)
+            let top = legTop + dy - min(0, lift)
+            let height = legH - abs(lift)
+            // 🦵 The steeze, on the back-right leg only: the thigh stays
+            // put, the foot slides out a cell at a time, and a knee pixel
+            // bridges them once the gap opens. Whole-pixel every step —
+            // the foot is a 2×2 block moving one cell per step, which is
+            // the doctrine's single-step exemption. A leg with fewer than
+            // three rows to give (a gait lift of two) does not kick.
+            guard index == legX.count - 1, kick > 0, height >= 3 else {
+                b.rect(x + dx, top, legW, height, .body)
+                continue
+            }
+            b.rect(x + dx, top, legW, height - 2, .body)
+            b.rect(x + kick + dx, top + height - 2, legW, 2, .body)
+            if kick >= 2 { b.pixel(x + kick - 1 + dx, top + height - 2, .body) }
         }
     }
 
@@ -1629,6 +2114,161 @@ public enum CrabRig {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
             }
 
+        case .skateboardNollie:
+            // The NOLLIE: the ollie popped off the nose, and NOT just the
+            // ollie mirrored — the operator's read of the real trick: "it
+            // goes from the front bend down, THEN up." So the story is
+            // sequenced, not simultaneous. First the PRESS: the nose bends
+            // down under the front foot while the tail stays flat. Then the
+            // POP: the tail rises as the nose tucks back. Then a float held
+            // higher and longer than the ollie's — a nollie's whole look is
+            // a floatier float, because the rider's weight is forward and
+            // the tail rides high. The deck levels for the wheels the same
+            // way as the ollie. The joining pixels sit on the HIGHER slab's
+            // inner end, because the steps climb toward the tail.
+            let air = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let press: Double =                       // the nose, signed
+                air < 0.15 ? 2 * Ease.smoothstep(air / 0.15)                   // press: 0 → +2
+                : air < 0.4 ? 2 - 3 * Ease.smoothstep((air - 0.15) / 0.25)     // pop: +2 → −1
+                : air < 0.75 ? -1                                              // tucked through the float
+                : -1 * (1 - Ease.smoothstep((air - 0.75) / 0.25))             // level out: → 0
+            let tilt: Double =                        // the tail's lift
+                air < 0.15 ? 0                                                 // flat under the press
+                : air < 0.4 ? Ease.smoothstep((air - 0.15) / 0.25)             // pop: 0 → 1
+                : air < 0.75 ? 1 - 0.45 * Ease.smoothstep((air - 0.4) / 0.35)  // float: 1 → 0.55, higher than the ollie holds
+                : 0.55 * (1 - Ease.smoothstep((air - 0.75) / 0.25))           // level out: → 0
+            let cx = 16 + dx, deckY = 25 + dy
+            let rise = Int((5 * tilt).rounded())          // tail lift, in cells
+            let dip = Int(press.rounded())                // nose offset, signed
+            let yTail = deckY - rise
+            let yMid = deckY + dip - (rise + dip) / 2
+            let yNose = deckY + dip
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - 8, yTail, 6, 1, deckInk)
+            b.rect(cx - 2, yMid, 6, 1, deckInk)
+            b.rect(cx + 4, yNose, 5, 1, deckInk)
+            if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
+            if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
+
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                b.rect(hub, y + 1, 3, 1, wheelInk)
+                b.pixel(hub, y + 2, wheelInk)
+                b.pixel(hub + 1, y + 2, .screenDark)
+                b.pixel(hub + 2, y + 2, wheelInk)
+                b.rect(hub, y + 3, 3, 1, wheelInk)
+            }
+            if wheelShimmer(pose.propPhase) {
+                b.pixel(cx + 4, yNose + 1, .flameCore)
+            }
+
+        case .skateboardManual:
+            // The wheelie, held: tail on the ground, nose stepping up through
+            // an eased pitch, the back wheel planted and the front one riding
+            // the nose. The ground streaks underneath — the cruise's trick,
+            // borrowed: on a fixed camera the world moves, not the rider.
+            let p = min(1, max(0, pose.propPhase))
+            let pitch = Ease.smoothstep(min(p, 1 - p) * 5)
+            let rise = Int((3 * pitch).rounded())
+            let cx = 16 + dx, deckY = 25 + dy
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let yTail = deckY
+            let yMid = deckY - rise / 2
+            let yNose = deckY - rise
+            b.rect(cx - 8, yTail, 6, 1, deckInk)
+            b.rect(cx - 2, yMid, 6, 1, deckInk)
+            b.rect(cx + 4, yNose, 5, 1, deckInk)
+            if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
+            if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                b.rect(hub, y + 1, 3, 1, wheelInk)
+                b.pixel(hub, y + 2, wheelInk)
+                b.pixel(hub + 1, y + 2, .screenDark)
+                b.pixel(hub + 2, y + 2, wheelInk)
+                b.rect(hub, y + 3, 3, 1, wheelInk)
+            }
+            if wheelShimmer(pose.propPhase * 2.6) {
+                b.pixel(cx - 5, yTail + 1, .flameCore)
+            }
+            // Ground rush: three dashes streaming left under the wheels,
+            // stepped whole-pixel off the ride's own clock. Their LENGTH
+            // rides the same pitch envelope as the nose, so the rush grows
+            // a cell at a time as the wheelie comes up and is gone before
+            // the board levels — it used to stream at full strength until
+            // the prop vanished, which is the other half of the abrupt end.
+            let rush = Int((p * 34).rounded())
+            let dash = Int((3 * pitch).rounded())
+            if dash > 0 {
+                for lane in 0..<3 {
+                    let x = ((28 - rush + lane * 11) % 32 + 32) % 32
+                    b.rect(x, 29, dash, 1, .shadow)
+                }
+            }
+
+        case .skateboardShoveIt:
+            // The flat spin: yaw only. The deck narrows toward edge-on and
+            // widens back out — the varial's width math with the roll struck
+            // out — while the wheels ride the shrinking ends and duck behind
+            // the deck at the pass-through.
+            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let yaw = u * .pi
+            let cx = 16 + dx, deckY = 25 + dy
+            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
+            if half >= 5 {
+                for hub in [cx - half + 1, cx + half - 3] {
+                    b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                    b.pixel(hub + 1, deckY + 2, .screenDark)
+                }
+            }
+
+        case .skateboardTre:
+            drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: 1)
+
+        case .skateboardLaser:
+            drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: -1)
+
+        case .surfboard:
+            // Longer and rounder than a skateboard, and pointed at both
+            // ends — the silhouette is the whole difference at this size,
+            // so the deck tapers a row at each tip instead of ending
+            // square. Pink with a cream stringer down the middle, off the
+            // operator's reference.
+            // Three rows, not one: a single-row board read as a pink
+            // outline under him rather than as something he stands on. It
+            // tapers to a point at each end, which is the whole silhouette
+            // difference between a surfboard and a skate deck at this size.
+            let cx = 16 + dx, deckY = 25 + dy
+            b.rect(cx - 5, deckY - 1, 11, 1, .pink)
+            b.rect(cx - 7, deckY, 15, 1, .pink)
+            b.rect(cx - 5, deckY + 1, 11, 1, .pink)
+            b.rect(cx - 4, deckY, 9, 1, .paper)      // the stringer
+            b.pixel(cx - 8, deckY, .pink)            // and the two tips
+            b.pixel(cx + 8, deckY, .pink)
+
+        case .skateboardBigspin:
+            // A BIGSPIN's board: a whole flat turn, no flip. Twice the
+            // shove-it's yaw over the same air, which is the ratio that
+            // makes the trick read — the deck comes round twice for every
+            // once he does, and it is the board leading the rider that says
+            // bigspin rather than the two of them merely both turning.
+            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
+            let yaw = u * 2 * .pi
+            let cx = 16 + dx, deckY = 25 + dy
+            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
+            if half >= 5 {
+                for hub in [cx - half + 1, cx + half - 3] {
+                    b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                    b.pixel(hub + 1, deckY + 2, .screenDark)
+                }
+            }
+
         case .skateboardRoll:
             // NO TRICK. He rides, fast, and stays exactly where he is while the
             // ground rushes past underneath him.
@@ -1858,7 +2498,7 @@ public enum CrabRig {
     /// stretch, rolled on `47 &+ 11` (the 47 family over yet another domain);
     /// cycle zero keeps the classic, the frozen renders' sentinel.
     private static func fireBurnsLow(cycle: Int) -> Bool {
-        cycle > 0 && CrabAnimator.noise(cycle &* 47 &+ 11) < 0.35
+        cycle > 0 && CrabAnimator.noise(cycle &* 47 &+ 11) < SpawnRates.fireBurnsLow.chance
     }
 
     private static func drawFire(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {

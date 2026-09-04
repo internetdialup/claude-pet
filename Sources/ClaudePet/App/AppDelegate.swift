@@ -376,6 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         .pumpkins: "🎃 Floor pumpkins",
         .snowfall: "❄️ Snowfall",
         .fireworks: "🎆 Fireworks",
+        .skateSession: "🛹 Skate session",
     ]
 
     /// Replays the first-run wave. `force` so it plays every time, and so it

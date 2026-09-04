@@ -86,7 +86,84 @@ enum CostumeSheet {
             && ollieSheet(to: root.appendingPathComponent("sheet-ollie.png"))
             && clawdSheet(to: root.appendingPathComponent("sheet-clawd.png"))
             && holidaySheet(to: root.appendingPathComponent("sheet-holiday.png"))
+            && skaterSheet(to: root.appendingPathComponent("sheet-skater.png"))
+            && headwearSheet(to: root.appendingPathComponent("sheet-headwear.png"))
+            && effectsSheet(to: root.appendingPathComponent("sheet-effects.png"))
             && clawdVariantSheet(to: root.appendingPathComponent("sheet-clawd-candidates.png"))
+            && tigerSheet(to: root.appendingPathComponent("sheet-tiger.png"))
+            && coderSheet(to: root.appendingPathComponent("sheet-coder.png"))
+            && turnSheet(to: root.appendingPathComponent("sheet-turn.png"))
+    }
+
+    // MARK: The body turn
+
+    /// One revolution, sampled — bare, and then dressed, since the whole
+    /// case for the mapping pass is that the wardrobe turns with him.
+    private static func turnSheet(to url: URL) -> Bool {
+        func turned(_ turn: Double, _ costume: Costume, _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+            pose.bob = -9
+            pose.legAmplitude = 1.6
+            pose.legPhase = .pi / 2
+            pose.torsoTurn = turn
+            return tile(CrabRig.render(pose, costume: costume), costume, label)
+        }
+        let steps = [0.0, 0.08, 0.17, 0.25, 0.33, 0.42, 0.5]
+        let bare = steps.map { turned($0, .none, "θ \(Int($0 * 360))°") }
+        let back = [0.58, 0.67, 0.75, 0.83, 0.92, 0.97, 1.0]
+            .map { turned($0, .none, "θ \(Int($0 * 360))°") }
+        let ninja = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .ninja, "ninja \(Int($0 * 360))°") }
+        let sonic = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .sonic, "sonic \(Int($0 * 360))°") }
+        return write("THE TURN — one revolution, bare and dressed",
+                     rows: [bare, back, ninja, sonic], to: url)
+    }
+
+    // MARK: The tiger, for pointing
+
+    /// The current tiger fitting across his moods — the pointing surface
+    /// for its refinement round, the way the gundam and sonic sheets were.
+    private static func tigerSheet(to url: URL) -> Bool {
+        func dressed(_ mood: PetMood, t: Double = 0.9, phase: Double = 0,
+                     _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+            pose.propPhase = phase
+            return tile(CrabRig.render(pose, costume: .tiger), .tiger, label)
+        }
+        let stills = [
+            dressed(.idle, "idle"),
+            dressed(.idle, phase: 0.9, "tail mid-swish"),
+            dressed(.idle, phase: 1.8, "tail far"),
+            dressed(.working, "working"),
+            dressed(.thinking, "thinking"),
+        ]
+        let moods = [
+            dressed(.done, "done"),
+            dressed(.nudging, "nudging"),
+            dressed(.cooking, "cooking"),
+            dressed(.needsAttention, "needs you"),
+            dressed(.sleeping, t: 2.0, "sleeping"),
+        ]
+        return write("TIGER — current fitting, for pointing", rows: [stills, moods], to: url)
+    }
+
+    // MARK: The coder
+
+    /// Matrix-turned-Coder: the glasses, with and without the rain.
+    private static func coderSheet(to url: URL) -> Bool {
+        func dressed(_ mood: PetMood, t: Double = 0.9, phase: Double,
+                     _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: false)
+            pose.propPhase = phase
+            return tile(CrabRig.render(pose, costume: .matrix), .matrix, label)
+        }
+        let row = [
+            dressed(.idle, phase: 0.0, "idle, rain t=0"),
+            dressed(.idle, phase: 2.0, "rain t=2"),
+            dressed(.idle, phase: 4.5, "rain t=4.5"),
+            dressed(.working, phase: 2.0, "working"),
+            dressed(.thinking, phase: 2.0, "thinking"),
+        ]
+        return write("CODER — glasses on, rain running", rows: [row], to: url)
     }
 
     // MARK: The seasons
@@ -122,6 +199,99 @@ enum CostumeSheet {
         ]
         return write("THE SEASONS — costumes · ambience",
                      rows: [costumes, ambience], to: url)
+    }
+
+    // MARK: Every effect
+
+    /// One tile per costume effect, each staged mid-window at its solved
+    /// dice instant — the whole wardrobe's motion on one page, for the
+    /// operator's per-costume VFX review.
+    private static func effectsSheet(to url: URL) -> Bool {
+        func staged(_ costume: Costume, _ phase: Double, _ label: String,
+                    mutate: (inout CrabPose) -> Void = { _ in }) -> Tile {
+            // t = 0.9: eyes open, no blink — a blinking tile reads as a
+            // broken face, which this sheet learned the hard way.
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+            pose.propPhase = phase
+            mutate(&pose)
+            return tile(CrabRig.render(pose, costume: costume), costume, label)
+        }
+        let rowOne = [
+            staged(.ninja, 90.9, "shuriken t=90.9"),
+            staged(.frankenstein, 35.3, "sparks t=35.3"),
+            staged(.retroBlack, 33.8, "sheen t=33.8"),
+            staged(.matrix, 2.0, "rain (continuous)"),
+            staged(.tiger, 2.0, "tail (continuous)"),
+        ]
+        let rowTwo = [
+            staged(.white, 2.0, "snow (continuous)"),
+            // The arcade marquee tile stood here until the operator killed
+            // the marquee; the second bolt's spark takes the slot.
+            staged(.frankenstein, 35.55, "sparks, right bolt t=35.55"),
+            staged(.gundam, 36.55, "scan t=36.55"),
+            staged(.gundam, 14.3, "eye flare t=14.3"),
+            staged(.sonic, 9.8, "dash t=9.8"),
+        ]
+        let rowThree = [
+            staged(.sonic, 1.0, "rings (staged)") { $0.ringFlight = 0.4 },
+            staged(.pumpkin, 8.2, "flicker t=8.2"),
+            staged(.turkey, 9.4, "strut t=9.4"),
+            staged(.santa, 30.3, "breath t=30.3"),
+            staged(.skater, 27.3, "kick-push t=27.3"),
+        ]
+        return write("EVERY EFFECT — one per costume, mid-window",
+                     rows: [rowOne, rowTwo, rowThree], to: url)
+    }
+
+    // MARK: Headwear
+
+    private static func headwearSheet(to url: URL) -> Bool {
+        func hatted(_ wear: CrabPose.Headwear, t: Double, flourish: CrabAnimator.Flourish?,
+                    _ label: String) -> Tile {
+            var pose = flourish.map { CrabAnimator.flourishPose($0, at: t) }
+                ?? CrabAnimator.pose(mood: .idle, t: t, flourishes: false)
+            pose.headwear = wear
+            return tile(CrabRig.render(pose), .none, label)
+        }
+        let beanie = [
+            hatted(.blackBeanie, t: 0.9, flourish: nil, "beanie, idle"),
+            hatted(.blackBeanie, t: 0.9, flourish: .ollie, "beanie, ollie rise"),
+            hatted(.blackBeanie, t: 1.6, flourish: .ollie, "beanie, apex (crops)"),
+            hatted(.blackBeanie, t: 1.3, flourish: .manual, "beanie, manual"),
+        ]
+        let caps = CrabAnimator.capColours.map { ink in
+            hatted(.cap(ink), t: 0.9, flourish: nil, "cap: \(ink)")
+        } + [hatted(.cap(.alert), t: 0.9, flourish: .ollie, "cap, ollie rise")]
+        return write("HEADWEAR — the taller beanie · the baseball hat",
+                     rows: [beanie, caps], to: url)
+    }
+
+    // MARK: The skater
+
+    private static func skaterSheet(to url: URL) -> Bool {
+        func dressed(_ pose: CrabPose, _ label: String) -> Tile {
+            tile(CrabRig.render(pose, costume: .skater), .skater, label)
+        }
+        let idle = [0.0, 0.9, 1.6].map {
+            dressed(CrabAnimator.pose(mood: .idle, t: $0, flourishes: false), "idle t=\($0)")
+        }
+        // Kick-push: salt 43 cycle 3 fires — 27.0…27.8.
+        var pushed = CrabAnimator.pose(mood: .idle, t: 1.0, flourishes: false)
+        pushed.propPhase = 27.3
+        let row = idle + [dressed(pushed, "kick-push")]
+        let tricks = [
+            dressed(CrabAnimator.flourishPose(.manual, at: 1.3), "manual"),
+            dressed(CrabAnimator.flourishPose(.ollie, at: 0.9), "ollie rise"),
+            dressed(CrabAnimator.flourishPose(.kickflip, at: 1.4), "kickflip air"),
+            dressed(CrabAnimator.flourishPose(.shoveIt, at: 1.0), "shove-it"),
+            dressed(CrabAnimator.flourishPose(.nollie, at: 0.9), "nollie rise"),
+            dressed(CrabAnimator.flourishPose(.bigspin, at: 1.3), "bigspin"),
+            dressed(CrabAnimator.flourishPose(.treFlip, at: 1.4), "tre flip"),
+            dressed(CrabAnimator.flourishPose(.laserFlip, at: 1.4), "laser flip"),
+            dressed(CrabAnimator.pose(mood: .sleeping, t: 2, flourishes: false), "asleep in it"),
+        ]
+        return write("THE SKATER — the fit · on the board",
+                     rows: [row, tricks], to: url)
     }
 
     // MARK: Normal Claw'd

@@ -12,7 +12,7 @@ import SwiftUI
 @MainActor
 struct SizzleScriptTests {
 
-    @Test("The master chapters sum to exactly forty-eight seconds")
+    @Test("The master chapters sum to exactly forty-nine seconds")
     func masterSums() {
         // 45 → 48 when the montage grew three seasonal looks — the montage
         // is `montageOrder.count` seconds by construction, and the holiday
@@ -20,7 +20,7 @@ struct SizzleScriptTests {
         // a 45 total is the operator's call, not this pin's.
         let total = SizzleScript.Chapter.allCases
             .reduce(0.0) { $0 + (SizzleScript.masterSeconds[$1] ?? 0) }
-        #expect(total == 48.0)
+        #expect(total == 49.0)
         #expect(SizzleScript.masterSeconds.count == SizzleScript.Chapter.allCases.count,
                 "every chapter must have a master duration")
     }

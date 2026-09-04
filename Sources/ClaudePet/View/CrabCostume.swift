@@ -15,10 +15,22 @@ struct CostumeStyle {
     /// the prop is a status signal, so the costume yields.
     let yieldsCrownToProps: Bool
 
+    /// How many rows ABOVE his shell this look paints — quills, fins, hats,
+    /// fans.
+    ///
+    /// The rig needs this to stop him jumping his own hat off the grid.
+    /// There are exactly ten rows above the shell at rest and the ollie's
+    /// float uses all ten, so a costume with a seven-row crest had every
+    /// cell of it drawn at a negative row and silently discarded: Sonic
+    /// ollied as a bare crab. `crownRoomIsHonest` renders each look and
+    /// checks this number against what it actually draws, because a
+    /// declared measurement that nobody re-measures is a comment.
+    let crownRows: Int
+
     static func of(_ costume: Costume) -> CostumeStyle {
         switch costume {
         case .none:
-            return CostumeStyle(inks: [:], yieldsCrownToProps: false)
+            return CostumeStyle(inks: [:], yieldsCrownToProps: false, crownRows: 0)
         case .frankenstein:
             // Named for what it turned out to be. It was built as a handheld's
             // four-tone LCD ramp, and the operator took one look and said it
@@ -30,12 +42,19 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x8B_AC0F),      // the same green, now a complexion
+                    // One step under the green. Every recoloured shell needs
+                    // its own step: without one the hero flank and the turn
+                    // shade fall through to the bare crab's terracotta, which
+                    // is a brown smear on a green monster. Five costumes
+                    // shipped that way for a while; `everyShellOverrideHasAStep`
+                    // stops the sixth.
+                    .bodyShade: rgb(0x76_930C),
                     .eye: rgb(0x0F_380F),
                     .mouth: rgb(0x0F_380F),     // dark, or his face vanishes into it
                     .costumeA: rgb(0x30_6230),  // the seam
                     .costumeB: rgb(0x6E_6E78),  // the bolts, iron rather than magenta
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
 
         case .arcade:
             // THE CABINET, not the handheld. The first attempt at this was
@@ -51,12 +70,13 @@ struct CostumeStyle {
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x1A_1A22),      // cabinet black
+                    .bodyShade: rgb(0x10_1016), // one step under — see frankenstein's note
                     .eye: rgb(0x4D_F2FF),       // phosphor, lit from within
                     .mouth: rgb(0x4D_F2FF),
                     .costumeA: rgb(0xFF_2E88),  // the marquee
                     .costumeB: rgb(0xFF_C20E),  // and its second stripe
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
 
         case .ninja:
             return CostumeStyle(
@@ -68,16 +88,16 @@ struct CostumeStyle {
                     // needs somewhere to put a headband. A cool near-black
                     // keeps the red legible on top of it.
                     .body: rgb(0x23_232B),      // near-black, cool
-                    // One step below the shell, for the sampler's torso-turn
-                    // shade — the ollie variants sell a slight body rotation
-                    // with an edge band, and "one step darker" is relative to
-                    // whichever shell is worn. Inert in every live buffer:
-                    // only the drip-feed sampler ever sets `torsoShade`.
+                    // One step below the shell, for the torso-turn shade —
+                    // the ollie's edge band and the yaw pass's flank and
+                    // back — because "one step darker" is relative to
+                    // whichever shell is worn. An event inside a trick's
+                    // air, live or sampled; zero in every frozen render.
                     .bodyShade: rgb(0x15_1519),
                     .costumeA: rgb(0xC2_4141),  // headband + tails
                     .costumeB: rgb(0xCE_7B5C),  // the mask's eye window — his own terracotta
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .retroBlack:
             return CostumeStyle(
                 inks: [
@@ -85,11 +105,12 @@ struct CostumeStyle {
                     .bodyShade: rgb(0x0E_0E10), // the turn shade's step — see ninja's note
                     .costumeB: rgb(0x3A_3A40),  // charcoal eye backing — black-on-black eyes vanish
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .matrix:
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the code carries
+                    .bodyShade: rgb(0x02_0602), // one step under — see frankenstein's note
                     .costumeA: rgb(0x7C_F08D),  // rain heads
                     .costumeB: rgb(0x2E_A845),  // the streak body
                     .costumeC: rgb(0x1D_7431),  // tails, and the code-lines under them
@@ -99,24 +120,28 @@ struct CostumeStyle {
                     .eye: rgb(0xD8_FFE2),
                     .mouth: rgb(0x2E_A845),
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .tiger:
             return CostumeStyle(
                 inks: [
                     .body: rgb(0xE0_8A2E),      // tiger orange — the operator's
                                                 // ruling: green never read cat
-                    .costumeA: rgb(0x26_1C10),  // warm near-black stripes
+                    .bodyShade: rgb(0xC4_7620), // one step under — see frankenstein's note
+                    .costumeA: rgb(0x8A_3A0A),  // the stripes: a "blacker orange",
+                                                // per the operator — burnt, not
+                                                // black; black read as holes
                     .costumeC: rgb(0xF2_EFE4),  // the white belly patch
                     .mouth: rgb(0x3D_3D3A),     // dark mouth on the white patch
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .white:
             return CostumeStyle(
                 inks: [
                     .body: rgb(0xEC_EAE2),      // warm arctic white
+                    .bodyShade: rgb(0xD6_D3CA), // one step under — see frankenstein's note
                     .mouth: rgb(0x3D_3D3A),     // a white mouth on a white shell is no mouth
                 ],
-                yieldsCrownToProps: false)
+                yieldsCrownToProps: false, crownRows: 0)
         case .gundam:
             return CostumeStyle(
                 inks: [
@@ -133,7 +158,7 @@ struct CostumeStyle {
                     // subtle mask seam instead of vanishing outright.
                     .mouth: rgb(0xC9_CDD8),
                 ],
-                yieldsCrownToProps: true)       // the V-fin yields the crown to the hard hat
+                yieldsCrownToProps: true, crownRows: 7)
         case .pumpkin:
             // 🎃 The jack-o'-lantern: his own eyes ARE the carving — the
             // eye-cover ban honored by concept, not just geometry.
@@ -146,7 +171,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xC0_5A10),  // rib shadow
                     .mouth: rgb(0x1A_0E06),     // dark, so his own mouth reads carved
                 ],
-                yieldsCrownToProps: true)       // the stem steps aside for the hard hat
+                yieldsCrownToProps: true, crownRows: 2)
         case .turkey:
             // 🦃 The turkey: the first big behind-layer costume — the tail
             // fan lives behind him, the ninja-ribbon precedent at scale.
@@ -159,7 +184,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xE0_A050),  // tail-fan gold
                     .mouth: rgb(0x3D_3D3A),
                 ],
-                yieldsCrownToProps: false)      // the fan is behind, not crown furniture
+                yieldsCrownToProps: false, crownRows: 9)
         case .santa:
             // 🎅 An OUTFIT, not a respray: his own terracotta stays — the
             // one seasonal look that keeps the shell, which also varies the
@@ -169,7 +194,30 @@ struct CostumeStyle {
                     .costumeA: rgb(0xC0_3030),  // hat + scarf red
                     .costumeB: rgb(0xF2_EFE4),  // trim, pom, fringe
                 ],
-                yieldsCrownToProps: true)       // a hat is crown furniture
+                yieldsCrownToProps: true, crownRows: 4)
+        case .skater:
+            // 🛹 Fourth pass, and a rethink rather than a retouch. The
+            // operator's read of the old one was exact — "like we put pants
+            // on a cat" — and the reason is anatomical: a crab has no waist
+            // and no legs to speak of, so a tee band across the middle and
+            // pant legs down the stumps land as garments stuck onto an
+            // animal rather than as an outfit. Their instinct was the fix:
+            // "his body needs to be one color."
+            //
+            // So the fit is now a COLOURWAY plus two accessories. The shell
+            // is grape all the way through — one colour, no band across it —
+            // and the only worn things left are the backwards cap and the
+            // shoes, which sit where a crab could plausibly wear them.
+            // Everything that read as trousers is gone.
+            return CostumeStyle(
+                inks: [
+                    .body: rgb(0x7B_4BC4),      // grape — his own colour, not a shirt
+                    .bodyShade: rgb(0x5E_3A8C), // one step under; see frankenstein's note
+                    .costumeA: rgb(0x24_1B33),  // the shoes
+                    .costumeB: rgb(0x1B_1424),  // the cap, near-black against the grape
+                    .costumeC: rgb(0xE8_E4DA),  // and the sole stripe that says SHOE
+                ],
+                yieldsCrownToProps: true, crownRows: 2)
         case .sonic:
             return CostumeStyle(
                 inks: [
@@ -180,7 +228,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xF2_CE9E),  // muzzle-and-belly tan
                     .mouth: rgb(0x2B_1B10),     // a dark mouth on the tan muzzle
                 ],
-                yieldsCrownToProps: true)       // the quills yield to the hard hat
+                yieldsCrownToProps: true, crownRows: 5)
         }
     }
 
@@ -231,11 +279,14 @@ struct CostumeStyle {
     }
 }
 
-/// Rasterises costume accessories onto the sprite grid, in three passes so the
+/// Rasterises costume accessories onto the sprite grid, in four passes so the
 /// rig can interleave them with its own: `behind` before the legs, `onBody`
-/// after the body rect but before the face, `front` after the face.
+/// after the body rect but before the face, `front` after the face, and
+/// `weather` after everything worn — world-anchored cells (the white
+/// costume's snow) that fall around him rather than ride on him, so a pass
+/// that reshapes the dressed figure never reshapes the sky.
 enum CrabCostume {
-    enum Layer { case behind, onBody, front }
+    enum Layer { case behind, onBody, front, weather }
 
     /// Body geometry from `CrabRig` — the accessories are tailored to the
     /// same measurements the shell is drawn with. Aliases, not copies, so the
@@ -256,6 +307,15 @@ enum CrabCostume {
     /// slot` already works for the bubble bursts. 97 was the last free
     /// multiplier, so this is the scheme that stops the eighth costume needing
     /// a tenth one.
+    /// The same window, read off the spawn matrix. Every costume effect
+    /// goes through this door now: the odds live in one table where they
+    /// can be compared, and a call site can no longer quietly invent a
+    /// cadence nobody else can find.
+    static func effectWindow(at t: Double, _ effect: SpawnRates.Effect) -> Double? {
+        effectWindow(at: t, salt: effect.salt, period: effect.period,
+                     duration: effect.duration, chance: effect.chance)
+    }
+
     static func effectWindow(at t: Double, salt: Int, period: Double,
                              duration: Double, chance: Double) -> Double? {
         let cycle = Int(floor(t / period))
@@ -278,7 +338,7 @@ enum CrabCostume {
     /// on the registry, and sharing it is what stops the next eight costumes
     /// each wanting one.
     static func shurikenFlight(at t: Double) -> Double? {
-        effectWindow(at: t, salt: 11, period: 9, duration: 2.2, chance: 0.55)
+        effectWindow(at: t, SpawnRates.shuriken)
     }
 
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
@@ -310,48 +370,48 @@ enum CrabCostume {
             b.rect(bodyX + bodyW + dx - 2, brow + 4, 2, 2, .costumeB)
             }
             guard layer == .front,
-                  let arc = Self.effectWindow(at: pose.propPhase, salt: 13,
-                                              period: 7, duration: 0.7, chance: 0.5)
+                  let arc = Self.effectWindow(at: pose.propPhase, SpawnRates.frankensteinSparks)
             else { break }
             // The bolts crackle — and NOT an arc between them. They sit at eye
             // height, so a bar joining them would be drawn straight across his
             // eyes, which is the one thing the wardrobe may never do. The
             // charge stays at each bolt and jitters, which is what a spark
             // looks like from a distance anyway.
+            // ⚡ Juiced, per the operator: the first cut jittered three
+            // pale pixels at each bolt and read as nothing at desk size. Now
+            // each bolt throws a real spark — a four-point star that climbs
+            // up and away from the bolt, flaring open mid-flight and closing
+            // back to a single cell before it dies (glint-class at both
+            // ends, so the no-snap rule holds by geometry). The right bolt
+            // fires a beat behind the left, which is what makes it read as
+            // arcing electricity rather than two synchronized lamps.
             let sparkBrow = bodyY + dy + squash
-            let frame = Int(arc * 9)
-            for (index, hub) in [bodyX + dx, bodyX + bodyW + dx - 2].enumerated() {
-                for spark in 0..<3 {
-                    let ox = Int(CrabAnimator.noise(frame &* 31 &+ spark &* 7 &+ index &* 3) * 4) - 1
-                    let oy = Int(CrabAnimator.noise(frame &* 17 &+ spark &+ index) * 4) - 1
-                    b.pixel(hub + ox, sparkBrow + 4 + oy, .paper)
+            for (index, hub) in [bodyX + dx, bodyX + bodyW + dx - 1].enumerated() {
+                let u = min(1, max(0, arc * 1.4 - Double(index) * 0.4))
+                guard u > 0, u < 1 else { continue }
+                let away = index == 0 ? -1 : 1
+                let cx = hub + away * (1 + Int(u * 2))
+                let cy = sparkBrow + 3 - Int(u * 4)
+                let flare = sin(u * .pi)
+                b.pixel(cx, cy, .paper)
+                if flare > 0.35 {
+                    b.pixel(cx - 1, cy, .yellow)
+                    b.pixel(cx + 1, cy, .yellow)
+                    b.pixel(cx, cy - 1, .yellow)
+                    b.pixel(cx, cy + 1, .yellow)
                 }
+                // A stub of charge left glowing on the bolt itself while
+                // the star is in flight — the source reads, not just the arc.
+                b.pixel(hub, sparkBrow + 4, .yellow)
             }
 
         case .arcade:
-            guard layer == .onBody else { break }
-            // A marquee across his lower body, and NOTHING on his face — which
-            // is the whole reason this costume exists separately. Every mark up
-            // there reads as a feature, and that is how the first attempt at
-            // this became Frankenstein.
-            //
-            // Rows 19 and 20 are the only clear band below his mouth: two rows,
-            // which is exactly a two-colour stripe and nothing more ambitious.
-            // A cabinet is a dark box with a lit band on it, and so is he.
-            //
-            // And it CHASES. Two solid bars are a paint job; bulbs running
-            // along a cabinet's crown are what a marquee actually is, and the
-            // travel is the entire difference between a lit sign and a stripe.
-            // Continuous, because a marquee that only ran on a dice would look
-            // broken rather than restrained.
-            let marquee = bodyY + dy + squash + 9
-            let chase = Int(pose.propPhase * 7)
-            for step in 0..<(bodyW - 4) {
-                let x = bodyX + 2 + dx + step
-                let lit = (step + chase) % 4 < 2
-                b.pixel(x, marquee, lit ? .costumeA : .costumeB)
-                b.pixel(x, marquee + 1, lit ? .costumeB : .costumeA)
-            }
+            // The chasing marquee stripe lived here and died on the
+            // operator's review — at desk size it read as a glitch band
+            // crossing his belly, not a cabinet's lit sign. The costume is
+            // its palette now: black cabinet shell, phosphor face, nothing
+            // animated. `break` on purpose, not an unfinished case.
+            break
 
         case .ninja:
             let crown = bodyY + dy + squash
@@ -392,6 +452,8 @@ enum CrabCostume {
                 // inks a costume cannot repaint, so it stays a blade whatever
                 // else the wardrobe does.
                 b.stamp(art, at: (x: x, y: 4), key: ["s": .steel])
+            case .weather:
+                break
             }
 
 
@@ -405,8 +467,7 @@ enum CrabCostume {
                 b.rect(bodyX + 2 + dx, 12 + dy, bodyW - 4, 5, .costumeB)
             }
             guard layer == .front,
-                  let sweep = Self.effectWindow(at: pose.propPhase, salt: 31,
-                                                period: 11, duration: 1.6, chance: 0.45)
+                  let sweep = Self.effectWindow(at: pose.propPhase, SpawnRates.retroSheen)
             else { break }
             // Clearcoat catching a light as you walk past it. Diagonal on
             // purpose: a vertical bar reads as a wipe and a horizontal one as a
@@ -439,6 +500,23 @@ enum CrabCostume {
             //
             // Heat outranks it: a cell mid-cascade is `.bodyHot`, not `.body`,
             // so the fire burns through the code.
+            if layer == .onBody {
+                // 🤓 The glasses — what turned "Matrix" into "Coder" on the
+                // operator's call. Steel rims framing each eye window, a
+                // bridge between them. Body pass, so the face paints the
+                // eyes over the rim interiors and the eye-cover ban holds
+                // by draw order; the rain and code-lines above only write
+                // `.body` cells, so they part around the frames on their
+                // own — which is exactly the way light behaves on glasses.
+                for rim in [9, 18] {
+                    b.rect(rim + dx, 12 + dy, 5, 1, .steel)
+                    b.rect(rim + dx, 16 + dy, 5, 1, .steel)
+                    b.rect(rim + dx, 13 + dy, 1, 3, .steel)
+                    b.rect(rim + 4 + dx, 13 + dy, 1, 3, .steel)
+                }
+                b.rect(14 + dx, 14 + dy, 4, 1, .steel)
+                break
+            }
             guard layer == .front else { break }
             let top = bodyY + dy + squash
             let height = bodyH - squash
@@ -496,22 +574,46 @@ enum CrabCostume {
 
         case .tiger:
             if layer == .onBody {
-            // Three bold 2-wide stripes per band, staggered — the first draft
-            // ran twelve thin dashes and read cactus, not cat. Columns chosen
-            // clear of the eye windows (10-12 and 19-21), where a stripe just
-            // vanishes behind the face.
+            // Third fitting, to the operator's note: "he doesn't have like
+            // stripes... more Tony the Tiger diagonal." The five vertical
+            // bars read as a pattern on a box; a tiger's stripes SLANT, and
+            // they come in numbers. So: diagonal slashes, two cells wide,
+            // three rows long, leaning outward from a centre spine — `/` on
+            // his left flank, `\` on his right, mirror-symmetric — hanging
+            // off the crown, crossing each flank at eye level, and rising
+            // off the belly, plus the forehead V that Tony actually wears.
+            // Every cell is clipped to the shell (`.body` only), so a slash
+            // running off his edge stops at the edge instead of floating in
+            // the air beside him. The face draws after this pass, so the eye
+            // windows and the mouth win their cells by order, not by
+            // geometry — the stripes may run right up to them.
             let base = bodyY + dy + squash
             // The white belly patch first, under the mouth — the stripes and
             // the face paint over it.
             b.rect(13 + dx, base + 8, 7, 2, .costumeC)
-            // Stripes hang from the back and rise from the belly — staggered
-            // bars, not spots; spots read leopard.
-            for column in [7, 14, 22] {
-                b.rect(column + dx, base, 2, 3, .costumeA)
+            @inline(__always) func slash(_ x: Int, _ y: Int) {
+                for cell in 0..<2 where b[x + cell + dx, y] == .body {
+                    b.pixel(x + cell + dx, y, .costumeA)
+                }
             }
-            for column in [10, 18] {
-                b.rect(column + dx, base + 7, 2, 3, .costumeA)
+            // (start column, start row, lean): lean −1 steps the slash left
+            // as it descends (`/`), +1 steps it right (`\`).
+            let slashes: [(x: Int, y: Int, lean: Int)] = [
+                (11, 0, -1), (7, 0, -1),      // crown, left
+                (19, 0, 1), (23, 0, 1),       // crown, right
+                (8, 4, -1), (22, 4, 1),       // flanks, eye level
+                (10, 11, 1), (20, 11, -1),    // belly, rising outward
+            ]
+            for stroke in slashes {
+                for step in 0..<3 {
+                    let y = stroke.y + (stroke.y >= 11 ? -step : step)
+                    slash(stroke.x + stroke.lean * step, base + y)
+                }
             }
+            // The forehead V, converging just above the bridge of the eyes.
+            slash(13, base); slash(17, base)
+            slash(14, base + 1); slash(16, base + 1)
+            slash(15, base + 2)
             }
 
             guard layer == .behind else { break }
@@ -536,11 +638,15 @@ enum CrabCostume {
 
         case .white:
             // The colourway is most of the costume; the weather is the rest.
-            guard layer == .front else { break }
+            guard layer == .weather else { break }
             // Snow, drawn ONLY where the cell is still clear. White flakes on
             // an arctic-white shell would simply disappear — the mask makes
             // that impossible rather than merely unlikely, and it puts the snow
             // behind him instead of over him, which is where snow goes.
+            //
+            // On the weather layer, not `.front`: the flakes are the world's,
+            // and a pass over the worn figure must find them already out of
+            // its reach.
             //
             // Continuous rather than scheduled: weather does not take turns.
             HolidayAmbience.drawSnow(&b, phase: pose.propPhase)
@@ -603,8 +709,7 @@ enum CrabCostume {
                 // — the arcade marquee's class of scheduled swap, not an
                 // appearance — and it lives on the body pass, so a sideways
                 // gaze draws the eye OVER the bloom, never under it.
-                let flare = Self.effectWindow(at: pose.propPhase, salt: 41,
-                                              period: 7, duration: 0.6, chance: 0.5) != nil
+                let flare = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamEyeFlare) != nil
                 let bloom: PixelBuffer.Ink = flare ? .yellow : .ember
                 b.pixel(9 + dx, 14 + dy, bloom)
                 b.pixel(22 + dx, 14 + dy, bloom)
@@ -707,14 +812,16 @@ enum CrabCostume {
                 // row up onto the shell for the whole of a kickflip's air —
                 // the audit's catch, invisible on the contact sheet because
                 // no staged frame was mid-air.
-                let height = min(3, 4 - lift)
-                b.rect(leg + dx, 24 + dy - lift - height + 1, 2, height, .costumeB)
+                // A steezed foot takes its boot with it — and only the
+                // foot: the boot's third row would float beside the thigh.
+                let shift = index == CrabRig.legX.count - 1 ? CrabRig.legKickShift(pose: pose) : 0
+                let height = min(shift > 0 ? 2 : 3, 4 - lift)
+                b.rect(leg + shift + dx, 24 + dy - lift - height + 1, 2, height, .costumeB)
             }
 
             // Already narrowed to the front pass by the guard above — the
             // sonic case's own note tells this exact story.
-            guard let scan = Self.effectWindow(at: pose.propPhase, salt: 19,
-                                               period: 12, duration: 1.8, chance: 0.35)
+            guard let scan = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamScan)
             else { break }
             // The camera sweeping: a two-column beam easing across his shell
             // — camera-gold leading, steel trailing — drawn only where the
@@ -768,8 +875,7 @@ enum CrabCostume {
             // the gundam flare's; this family shares by addend, and the
             // holiday round's reserved addends are 3/5/7/17/37 — the flicker
             // takes 5.
-            if Self.effectWindow(at: pose.propPhase, salt: 5,
-                                 period: 8, duration: 0.6, chance: 0.5) != nil {
+            if Self.effectWindow(at: pose.propPhase, SpawnRates.pumpkinFlicker) != nil {
                 for (i, x) in stride(from: 12, through: 20, by: 2).enumerated() {
                     b.pixel(x + dx, 19 + dy + (i % 2), .yellow)
                 }
@@ -778,20 +884,37 @@ enum CrabCostume {
         case .turkey:
             let crown = bodyY + dy + squash
             if layer == .behind {
-                // The tail fan: seven spokes arcing over the crown, gold and
-                // dark alternating, gold tips — drawn behind him, so the
-                // shell cuts through and the fan reads as HIS.
-                let strut = Self.effectWindow(at: pose.propPhase, salt: 7,
-                                              period: 9, duration: 0.9, chance: 0.5) != nil
-                let lift = strut ? 1 : 0
-                for (i, spokeX) in [7, 10, 13, 16, 19, 22, 25].enumerated() {
-                    let ink: PixelBuffer.Ink = i % 2 == 0 ? .costumeC : .costumeA
-                    let reach = (i == 0 || i == 6) ? 2 : (i == 3 ? 4 : 3)
-                    let baseY = crown - 1 - lift
-                    for step in 0..<reach {
-                        b.rect(spokeX + dx, baseY - step * 2, 2, 2, ink)
+                // The tail fan, third cut. The first was seven thin spokes
+                // with a yellow dot on each tip, and the operator's "a bit
+                // confusing" was right: it read as candles on a stand. The
+                // second was five wide paddles with banded tips, and those
+                // read as bottles. Both drew feathers as THINGS standing on
+                // his head, and that is the actual mistake — a tom's fan is
+                // not a row of objects, it is one SHAPE: a half-disc split
+                // into radial wedges. So this draws exactly that. Every cell
+                // inside a half-circle over the crown is painted by its
+                // angle from the centre — five wedges, gold and dark
+                // alternating — and the outer two cells of radius flip to
+                // the wedge's contrast colour, the eyespot band real fans
+                // carry along their rim. No yellow anywhere. Drawn behind
+                // him, so the shell cuts through and the fan reads as HIS.
+                let strut = Self.effectWindow(at: pose.propPhase, SpawnRates.turkeyStrut) != nil
+                // The strut spreads the fan a cell wider all round.
+                let radius = 9.0 + (strut ? 1.0 : 0.0)
+                let centreX = Double(bodyX) + Double(bodyW) / 2
+                let baseline = Double(crown)
+                let reach = Int(radius.rounded(.up))
+                for y in (crown - reach)...(crown - 1) {
+                    for x in (Int(centreX) - reach - 1)...(Int(centreX) + reach) {
+                        let ex = Double(x) + 0.5 - centreX
+                        let ey = baseline - Double(y) - 0.5
+                        let r = (ex * ex + ey * ey).squareRoot()
+                        guard r <= radius else { continue }
+                        let wedge = min(4, Int(atan2(ey, ex) / (.pi / 5)))
+                        let gold = wedge % 2 == 0
+                        let band = r > radius - 2
+                        b.pixel(x + dx, y, gold != band ? .costumeC : .costumeA)
                     }
-                    b.pixel(spokeX + dx, baseY - reach * 2, .yellow)
                 }
                 break
             }
@@ -822,14 +945,46 @@ enum CrabCostume {
             b.pixel(22 + dx, crown - 4, .costumeB)
             // ❄️ The breath: two paper puffs drifting off his face on cold
             // dice — clear cells only, never over him.
-            if let puff = Self.effectWindow(at: pose.propPhase, salt: 17,
-                                            period: 10, duration: 0.8, chance: 0.4) {
+            if let puff = Self.effectWindow(at: pose.propPhase, SpawnRates.santaBreath) {
                 let drift = Int((puff * 3).rounded())
                 for (i, cell) in [(27 + drift, 14), (28 + drift, 13)].enumerated() where i <= drift {
                     if b[cell.0 + dx, cell.1 + dy] == .clear {
                         b.pixel(cell.0 + dx, cell.1 + dy, .paper)
                     }
                 }
+            }
+
+        case .skater:
+            let crown = bodyY + dy + squash
+            if layer == .onBody {
+                // Shoes, and nothing else on the body. They ride the gait
+                // the way every shoe in this file does, and they carry a
+                // pale sole so a dark shoe on a dark leg still reads as
+                // footwear rather than as a shadow.
+                for (index, leg) in CrabRig.legX.enumerated() {
+                    let lift = max(0, CrabRig.legSwing(index, pose: pose))
+                    let shift = index == CrabRig.legX.count - 1
+                        ? CrabRig.legKickShift(pose: pose) : 0
+                    let height = min(shift > 0 ? 2 : 3, 4 - lift)
+                    let top = 24 + dy - lift - height + 1
+                    b.rect(leg + shift + dx, top, 2, height, .costumeA)
+                    b.rect(leg + shift + dx, top + height - 1, 2, 1, .costumeC)
+                }
+                break
+            }
+            guard layer == .front else { break }
+            // The backwards cap: dome over the crown, the bill sticking out
+            // BEHIND him (his gaze rides right down the line, so the bill
+            // points left), button on top.
+            b.rect(12 + dx, crown, 8, 1, .costumeB)
+            b.rect(13 + dx, crown - 1, 6, 1, .costumeB)
+            b.pixel(16 + dx, crown - 2, .costumeB)
+            b.rect(8 + dx, crown - 1, 4, 1, .costumeB)
+            // 💨 The kick-push: two short dashes behind his feet now and
+            // then, like he just pushed off. Salt 43 on the 97 family.
+            if Self.effectWindow(at: pose.propPhase, SpawnRates.kickPush) != nil {
+                b.rect(3 + dx, 22 + dy, 2, 1, .shadow)
+                b.rect(2 + dx, 24 + dy, 2, 1, .shadow)
             }
 
         case .sonic:
@@ -862,10 +1017,14 @@ enum CrabCostume {
                 // same breach the audit caught on the gundam boots).
                 for (index, leg) in CrabRig.legX.enumerated() {
                     let lift = max(0, CrabRig.legSwing(index, pose: pose))
-                    let height = min(3, 4 - lift)
+                    // A steezed foot takes its sneaker out with it; the sock
+                    // row sits that one out, since it would float beside
+                    // the thigh.
+                    let shift = index == CrabRig.legX.count - 1 ? CrabRig.legKickShift(pose: pose) : 0
+                    let height = min(shift > 0 ? 2 : 3, 4 - lift)
                     let top = 24 + dy - lift - height + 1
                     if height == 3 { b.rect(leg + dx, top, 2, 1, .paper) }
-                    b.rect(leg + dx, top + (height == 3 ? 1 : 0), 2, min(2, height), .costumeB)
+                    b.rect(leg + shift + dx, top + (height == 3 ? 1 : 0), 2, min(2, height), .costumeB)
                 }
                 break
             }
@@ -887,6 +1046,32 @@ enum CrabCostume {
             b.rect(26 + dx, 12 + dy, 3, 1, .costumeA)
             b.rect(27 + dx, 13 + dy, 2, 1, .costumeA)
 
+            // 👀 Bigger eyes — the operator's note, and the canonical Sonic
+            // read: TALL ovals, not wide ones. The costume adds one row above
+            // each open eye in the eye's own ink and walks the catchlight up
+            // with it (repainting the old catchlight cell, or the eye carries
+            // two lights). Drawn on the front pass, AFTER drawFace, so this
+            // extends what the face drew instead of racing it — the same
+            // draw-order trick the eye field uses underneath. Round eyes
+            // only: `.determined` carves its brow slant into the top row and
+            // growing it would flatten the focus back out, `.wide` is already
+            // a row taller, and a shut lid is one row by design — a bar
+            // floating above a blink reads as a second eyebrow.
+            if pose.eyes == .round {
+                for (side, baseX) in [(CrabPose.EyeSide.left, CrabRig.eyeLeftX),
+                                      (.right, CrabRig.eyeRightX)] {
+                    let shut = (pose.blink > 0.5 && !pose.asleepOverride)
+                        || pose.winkEye == side
+                    guard !shut else { continue }
+                    let x = baseX + dx + pose.gazeX
+                    let top = CrabRig.eyeY + dy + pose.gazeY - 1
+                        + (side == .left ? -pose.tilt : pose.tilt)
+                    b.rect(x, top, CrabRig.eyeSize, 1, .eye)
+                    b.pixel(x, top + 1, .eye)
+                    b.pixel(x, top, .paper)
+                }
+            }
+
             // 💍 The golden rings, arcing through his airspace right to left.
             // Scheduled on their own addend (salt 29), or handed a flight
             // directly by the secret-menu preview — one draw, two triggers,
@@ -896,9 +1081,20 @@ enum CrabCostume {
             // dash would be the unreachable-effect bug this case already
             // documents once.
             if let flight = pose.ringFlight
-                ?? Self.effectWindow(at: pose.propPhase, salt: 29,
-                                     period: 8, duration: 2.0, chance: 0.4) {
+                ?? Self.effectWindow(at: pose.propPhase, SpawnRates.sonicRings) {
                 drawRings(&b, flight: flight)
+            }
+
+            // 💍💥 …and when he POPS one, they scatter. Off the operator's
+            // note and straight out of the game: a hit sends Sonic's rings
+            // spraying outward and bouncing away from him. Here the trigger
+            // is the ollie's own board rather than a die — the trick IS the
+            // hit — so it fires every time he pops, on the airborne phase
+            // the board already carries. Nothing new rolls, nothing new
+            // schedules, and it cannot happen while he is standing still.
+            if pose.prop == .skateboardOllie || pose.prop == .skateboardNollie {
+                scatterRings(&b, air: pose.propPhase.truncatingRemainder(dividingBy: 1),
+                             dx: dx, dy: dy)
             }
 
             // No layer check here, and that is not an omission: the quills'
@@ -907,8 +1103,7 @@ enum CrabCostume {
             // version asked for `.behind` and was simply unreachable — the
             // render showed nothing at all and it took reading the case's
             // shape, not the effect's code, to see why.
-            guard let dash = Self.effectWindow(at: pose.propPhase, salt: 23,
-                                               period: 9, duration: 1.6, chance: 0.4)
+            guard let dash = Self.effectWindow(at: pose.propPhase, SpawnRates.sonicDash)
             else { break }
             // A real dash — the operator's pick: rarer (9s period, 0.4
             // chance), longer (1.6s), TWO lanes instead of three blinky ones,
@@ -971,6 +1166,74 @@ enum CrabCostume {
         }
     }
 
+    /// The rings coming off a pop, thrown outward and falling.
+    ///
+    /// Six of them on a fixed fan of angles — no dice, because the burst is
+    /// the trick's own consequence and a scatter that sometimes did not
+    /// happen would read as a dropped frame. Each ring travels out at its
+    /// own speed and is pulled back down by an accelerating term, which is
+    /// what makes a spray read as thrown rather than as slid: the outer
+    /// ones are still climbing while the near ones are already falling.
+    /// They spin on the distance they have covered, so they tumble as they
+    /// go, and they only ever land on clear cells — he is not behind his
+    /// own rings.
+    private static func scatterRings(_ b: inout PixelBuffer, air: Double, dx: Int, dy: Int) {
+        guard air > 0.05, air < 1 else { return }
+        let burst = (air - 0.05) / 0.95
+        // Left and right in pairs, so the spray is balanced rather than
+        // drifting: a one-sided burst reads as him leaking rings.
+        let fan: [(reach: Double, lift: Double)] = [
+            (-1.3, 1.0), (1.3, 1.0), (-0.85, 1.35), (0.85, 1.35),
+            (-1.75, 0.6), (1.75, 0.6), (-0.4, 1.55), (0.4, 1.55),
+        ]
+        for (index, ring) in fan.enumerated() {
+            // Staggered launches: they leave him over the first third of
+            // the air rather than all at once.
+            let local = min(1, max(0, burst * 1.4 - Double(index) * 0.06))
+            guard local > 0 else { continue }
+            // They leave from his FLANKS and from board height, not from
+            // the middle of his face. Launched at his centre they spent
+            // their first third piled on his eye field, which is a costume
+            // covering a face by another route — and it looked like he had
+            // swallowed them rather than shed them.
+            let travel = local * 10
+            let rise = ring.lift * local * 7 - 11 * local * local
+            let edge = ring.reach < 0 ? 7 : 22
+            let x = edge + dx + Int((ring.reach * travel).rounded())
+            let y = 19 + dy - Int(rise.rounded())
+            coinStamp(&b, x: x, y: y, frame: Int(local * 17))
+        }
+    }
+
+    /// A scattered ring: three cells across rather than the cruising
+    /// ring's five. They are a SPRAY — eight of them at once, most of them
+    /// small in the frame — and the big stamp at that count reads as a wall
+    /// of gold rather than as coins coming off him.
+    private static func coinStamp(_ b: inout PixelBuffer, x: Int, y: Int, frame: Int) {
+        func put(_ px: Int, _ py: Int, _ ink: PixelBuffer.Ink) {
+            guard px >= 0, px < PixelBuffer.side, py >= 0, py < PixelBuffer.side else { return }
+            // These pass IN FRONT of him — they came off him, so they are
+            // nearer the camera than he is, and a clear-cells-only coin was
+            // invisible until it had already cleared his shell, which is
+            // most of the spray missing. His FACE is still untouchable:
+            // the wardrobe may never paint over an open eye, and a coin is
+            // wardrobe.
+            let under = b[px, py]
+            guard under != .eye, under != .mouth else { return }
+            b.pixel(px, py, ink)
+        }
+        switch frame % 4 {
+        case 0:                                   // face on
+            put(x + 1, y, .yellow); put(x + 1, y + 2, .yellow)
+            put(x, y + 1, .yellow); put(x + 2, y + 1, .flameCore)
+        case 2:                                   // edge on
+            for r in 0...2 { put(x + 1, y + r, .yellow) }
+        default:                                  // three-quarter
+            put(x + 1, y, .yellow); put(x + 1, y + 2, .yellow)
+            put(x + 2, y + 1, .flameCore)
+        }
+    }
+
     private static func ringStamp(_ b: inout PixelBuffer, x: Int, y: Int, frame: Int) {
         func put(_ px: Int, _ py: Int, _ ink: PixelBuffer.Ink) {
             guard px >= 0, px < PixelBuffer.side, py >= 0, py < PixelBuffer.side,
@@ -1009,11 +1272,35 @@ public final class CostumeClock {
     /// so one wearing keeps one pair of eyes.
     private(set) var changedAt: Double = -.infinity
 
-    func note(_ costume: Costume) {
+    func note(_ costume: Costume,
+              at now: Double = Date.timeIntervalSinceReferenceDate) {
         guard costume != current else { return }
         previous = current
         current = costume
-        changedAt = Date.timeIntervalSinceReferenceDate
+        changedAt = now
+    }
+
+    /// The wardrobe motion should use — and the note that makes it true, in
+    /// the SAME CALL.
+    ///
+    /// Not a convenience. The first version had the view read `previous`
+    /// and `changedAt` to build this, and note the change afterwards, three
+    /// statements later. On the single frame a costume changed, the clock
+    /// therefore still held the PREVIOUS change's instant — older than the
+    /// current cycle — so the latch that exists to stop a costume re-dealing
+    /// a move in flight looked at a stale timestamp, decided nothing had
+    /// changed recently, and handed back the NEW costume for exactly one
+    /// frame before correcting itself. Old deck, one frame of new deck, old
+    /// deck again: the snap it was built to prevent, twice, with a flicker
+    /// in between, on about one costume change in ten.
+    ///
+    /// Reading and noting cannot be put in the wrong order if they are one
+    /// call. `theChangeFrameStaysLatched` pins it.
+    func motionWardrobe(for costume: Costume, at now: Double,
+                        idleT t: Double) -> CrabAnimator.MotionWardrobe {
+        note(costume, at: now)
+        return CrabAnimator.MotionWardrobe(current: current, previous: previous,
+                                           changedAt: changedAt - (now - t))
     }
 
     /// Eased progress of the swap at `time`: 1 means the incoming costume is
