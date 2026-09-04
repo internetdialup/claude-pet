@@ -15,6 +15,12 @@ import SwiftUI
 /// run-length encoded per row, so the far side can build whatever it wants
 /// out of it — one square per cell, merged rectangles, or a flattened
 /// outline — without this file having an opinion about which.
+/// `@MainActor` because it reads the canvas's own ink table, which is. The
+/// entry point already enters the actor via `MainActor.assumeIsolated`, so
+/// this costs nothing and says out loud what was previously true only by
+/// accident — a newer toolchain inferred the isolation and an older one
+/// refused to, which is a build that passes here and fails on CI.
+@MainActor
 enum FigmaExport {
 
     /// A board is one artboard's worth of crab: a name, the group it belongs
