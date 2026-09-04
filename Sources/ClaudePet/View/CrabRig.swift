@@ -1460,9 +1460,16 @@ public enum CrabRig {
         // the sideways contribution of the deck's width is scaled by
         // `|cos roll|` — it vanishes exactly when the deck is edge-on — and
         // the height keeps riding `|sin roll|`.
-        let half = max(1, Int((8 * abs(cos(yaw))
-                               + 2.5 * abs(cos(roll)) * abs(sin(yaw))).rounded()))
-        let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
+        // Spelled out in named steps rather than as one expression. It was
+        // one, and the type checker on an older toolchain than this Mac's
+        // gave up on it — a build that passes here and fails on CI. Literal
+        // arithmetic mixed three deep is where that happens.
+        let deckHalfLength = 8.0
+        let deckHalfWidth = 2.5
+        let alongView: Double = deckHalfLength * abs(cos(yaw))
+        let acrossView: Double = deckHalfWidth * abs(cos(roll)) * abs(sin(yaw))
+        let half = max(1, Int((alongView + acrossView).rounded()))
+        let thick = max(1, Int((5.0 * abs(sin(roll))).rounded()))
         let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
         let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
         b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
