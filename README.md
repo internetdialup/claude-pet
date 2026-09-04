@@ -68,7 +68,7 @@ so he doesn't pretend to have one.
   <td align="center"><img src="docs/media/flourish-manual.gif" width="110"><br><strong>Manual</strong></td>
   <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
   <td align="center"><img src="docs/media/flourish-nollie.gif" width="110"><br><strong>Nollie</strong></td>
-  <td align="center"></td>
+  <td align="center"><img src="docs/media/flourish-bigspin.gif" width="110"><br><strong>Bigspin</strong></td>
   <td align="center"></td>
 </tr>
 </table>
