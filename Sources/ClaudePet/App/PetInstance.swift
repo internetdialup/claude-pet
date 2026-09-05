@@ -385,9 +385,10 @@ final class PetInstance {
                 // A draw counter, not the wall clock: two pounces minutes
                 // apart jumped the seed by hundreds, which put the deck in an
                 // unrelated pass and repeated the line about one time in four.
-                let line = self.bugCursor.advance(Vocab.lines(for: .bugCaught),
-                                                  id: "bugCaught")
-                self.say(line ?? "Bug fixed", for: 2.4, mood: .done)
+                self.say(self.bugCursor.advance(Vocab.lines(for: .bugCaught),
+                                                id: "bugCaught"),
+                         or: "Bug fixed", for: 2.4, mood: .done,
+                         deliberate: true)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                     guard let self, self.model.pouncedAt == pouncedAt else { return }
                     self.model.pouncedAt = nil
@@ -477,8 +478,10 @@ final class PetInstance {
                 guard let self, self.model.pettingStartedAt == start,
                       self.model.pettingEndedAt == nil else { return }
                 SoundBank.play(.shimmer)
-                let line = self.petCursor.advance(Vocab.lines(for: .longPet), id: "longPet")
-                self.say(line ?? "Best. Human. Ever 💛", for: 2.4, mood: .done)
+                self.say(self.petCursor.advance(Vocab.lines(for: .longPet),
+                                                id: "longPet"),
+                         or: "Best. Human. Ever 💛", for: 2.4, mood: .done,
+                         deliberate: true)
             }
         }
         controller.onPetEnd = { [weak self] in
@@ -700,8 +703,8 @@ final class PetInstance {
             // and come back on a new epoch.
             guard self.model.state.mood == .idle,
                   self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
-            let line = self.surfCursor.advance(Vocab.lines(for: .surf), id: "surf")
-            self.say(line ?? "Aloha 🌴", for: PetInstance.surfLineSeconds, mood: .done)
+            self.say(self.surfCursor.advance(Vocab.lines(for: .surf), id: "surf"),
+                     or: "Aloha 🌴", for: PetInstance.surfLineSeconds, mood: .done)
             self.armSurfLine()        // and meet the next swell
         }
     }
@@ -721,16 +724,52 @@ final class PetInstance {
     ///
     /// Returns whether the line was actually said, for callers that care.
     @discardableResult
-    private func say(_ line: String, for seconds: TimeInterval,
-                     mood: PetMood) -> Bool {
-        // Something of his own still being read.
-        if let live = model.transientBubble, live.until > Date() { return false }
-        // …or a fact holding the face. Knowledge is the tone that takes a
-        // hold; his own chatter does not, and does not need protecting from
-        // itself the way a citation does.
-        if let showing = model.state.bubble, !showing.isEmpty,
-           model.state.bubbleTone == .knowledge { return false }
-        model.transientBubble = (line, Date().addingTimeInterval(seconds), mood)
+    private func say(_ line: @autoclosure () -> String?, or fallback: String,
+                     for seconds: TimeInterval, mood: PetMood,
+                     deliberate: Bool = false) -> Bool {
+        guard Self.shouldSpeak(transientUntil: model.transientBubble?.until,
+                               stateBubble: model.state.bubble,
+                               tone: model.state.bubbleTone,
+                               deliberate: deliberate,
+                               now: Date())
+        else { return false }
+        // The line is DRAWN here, not by the caller, and that is the whole
+        // reason for the autoclosure. `LineCursor.advance` is mutating: it
+        // steps the deck's seed and writes it back unconditionally. Drawing
+        // before asking meant a refused line still burned its place in the
+        // pool — the sentence was consumed, never shown, and never came round
+        // again. Now a refusal costs nothing.
+        model.transientBubble = (line() ?? fallback,
+                                 Date().addingTimeInterval(seconds), mood)
+        return true
+    }
+
+    /// **The rule, as a pure function.** Lifted out of `say` so it can be
+    /// tested without building a `PetInstance` — the same shape `pokeVerdict`
+    /// and `clickAction` already use, and the reason this one needed lifting
+    /// is that `say` is private and nothing in the suite could reach it.
+    ///
+    /// Two guards, and they are not the same guard:
+    ///
+    /// - A transient still being read always wins. Whatever is on screen
+    ///   finishes; that is the operator's rule and it has no exceptions,
+    ///   because two of his own lines fighting is the bug that started this.
+    /// - A fact holding the face wins over AMBIENT lines only. The skate and
+    ///   surf shouts arrive unbidden and can wait for the next trick. A poke
+    ///   or a long pet cannot: the person did something with their hands and
+    ///   is owed an answer, and the alternative is worse than an interrupted
+    ///   fact — the chirp plays, the pose lands, and no words come, which
+    ///   reads as the app being broken rather than as him being polite.
+    nonisolated static func shouldSpeak(transientUntil: Date?,
+                                        stateBubble: String?,
+                                        tone: PetState.BubbleTone,
+                                        deliberate: Bool,
+                                        now: Date) -> Bool {
+        if let until = transientUntil, until > now { return false }
+        if deliberate { return true }
+        if let showing = stateBubble, !showing.isEmpty, tone == .knowledge {
+            return false
+        }
         return true
     }
 
@@ -796,15 +835,18 @@ final class PetInstance {
             // rather than being handed a forced catchphrase.
             let worn = self.model.costume
             let inCharacter = Vocab.skateLines(for: worn)
-            let line = CrabAnimator.skateLandingIsGolden(at: landing)
-                ? self.skateCursor.advance(Vocab.lines(for: .goldenSkate), id: "goldenSkate")
-                : inCharacter.isEmpty
-                    ? self.skateCursor.advance(Vocab.lines(for: .kickflip), id: "kickflip")
-                    : self.skateCursor.advance(inCharacter, id: "skate-\(worn.rawValue)")
-            // Long enough for the longest line to finish SCROLLING, not just to
-            // appear: the Hall of Meat line is 31 columns, so it goes to the
-            // marquee and needs about 2.1s to walk past.
-            self.say(line ?? "Kowbunga 🤙!", for: PetInstance.skateLineSeconds, mood: .done)
+            // Drawn lazily, inside `say`, so a shout that arrives while a
+            // fact is being read costs the deck nothing.
+            self.say(CrabAnimator.skateLandingIsGolden(at: landing)
+                        ? self.skateCursor.advance(Vocab.lines(for: .goldenSkate),
+                                                   id: "goldenSkate")
+                        : inCharacter.isEmpty
+                            ? self.skateCursor.advance(Vocab.lines(for: .kickflip),
+                                                       id: "kickflip")
+                            : self.skateCursor.advance(inCharacter,
+                                                       id: "skate-\(worn.rawValue)"),
+                     or: "Kowbunga 🤙!", for: PetInstance.skateLineSeconds,
+                     mood: .done)
             self.armSkateLine()          // and meet the next one
         }
     }
@@ -845,12 +887,20 @@ final class PetInstance {
             let start = Date()
             self.model.helloStartedAt = start
             self.model.helloEndedAt = start.addingTimeInterval(PetInstance.helloWaveSeconds)
-            let line = self.helloCursor.advance(Vocab.lines(for: .hello), id: "hello")
             // `.idle` styling, not `.done`: the same green bubble without the
             // checkmark. A greeting that opens with a tick reads as a
             // notification about something finishing.
-            self.model.transientBubble = (line ?? "Hi, I'm Claw'd 🦀",
-                                          Date().addingTimeInterval(PetInstance.helloLineSeconds), .idle)
+            //
+            // Through `say` like everything else, and `deliberate` because a
+            // first-launch hello is not something to skip. This was the last
+            // direct write to `transientBubble` — safe on the first-run path,
+            // where nothing else has spoken yet, and not safe on the
+            // secret-menu force path, which can fire at any moment including
+            // over a fact mid-read. Saying "this one overrides" out loud is
+            // better than saying it by not calling the function.
+            self.say(self.helloCursor.advance(Vocab.lines(for: .hello), id: "hello"),
+                     or: "Hi, I'm Claw'd 🦀", for: PetInstance.helloLineSeconds,
+                     mood: .idle, deliberate: true)
 
             // Clear the pair once it has finished easing out. Not housekeeping:
             // `helloSince` is one of the flags that puts CrabView on the smooth
