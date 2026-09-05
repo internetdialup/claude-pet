@@ -302,20 +302,32 @@ public final class ActivityCoordinator {
     nonisolated static let cookingToolRate = 8
 
 
-    /// A held line, with the two clocks that govern its life.
+    /// A held line and the ONE clock that governs it.
     ///
-    /// `until` is the full stay: two whole marquee cycles, the glance
-    /// guarantee. `readableUntil` is the SHIELD: shown-at plus one first-pass
-    /// read plus a beat of grace. Before `readableUntil`, news may not kill
-    /// the line — the operator's ruling is that a fact finishes one complete
-    /// read before anything replaces it, and after that news wins instantly.
-    /// `flair` is the showing's garnish (the shades), dealt once with the
-    /// fact so every recompute of the same showing agrees.
+    /// `until` is the whole stay, and it is now the only thing anything asks
+    /// about. There used to be a second clock, `readableUntil` — shown-at plus
+    /// one first-pass read plus grace — because the ruling was that a fact
+    /// finished one read and then news won instantly. That ruling is gone:
+    /// whatever is on screen finishes. The shield moved to `until` and left
+    /// `readableUntil` written at three sites and read at none, with a doc
+    /// still calling it THE SHIELD. Dead state that describes itself as
+    /// load-bearing is worse than no state, so it is removed rather than kept
+    /// warm for a rule that no longer exists.
+    ///
+    /// `tone` is the showing's own tone, carried rather than assumed. Every
+    /// replay site used to hardcode `.knowledge` under a comment reading
+    /// "only facts take holds" — true while `lineHold` returned zero for
+    /// anything that fit the plain bubble, and false the moment it started
+    /// returning a real stay for every line. Without this, a sleep-talk line
+    /// in his own voice took a hold and came back wearing the knowledge card.
+    ///
+    /// `flair` is the garnish (the shades), dealt once with the fact so every
+    /// recompute of the same showing agrees.
     private struct HeldLine {
         var text: String
         var style: PetState.BubbleStyle
         var until: Date
-        var readableUntil: Date
+        var tone: PetState.BubbleTone
         var flair: PetState.BubbleFlair
     }
 
@@ -855,7 +867,7 @@ public final class ActivityCoordinator {
         if let held = chatterCache[slot].heldLine, now < held.until {
             up.bubble = held.text
             up.bubbleStyle = held.style
-            up.bubbleTone = .knowledge
+            up.bubbleTone = held.tone
             up.bubbleFlair = held.flair
         } else if Self.idleChatterShows(quietFor: quietFor, seed: seed) {
             var snapshot = StatusTicker.Snapshot()
@@ -874,6 +886,11 @@ public final class ActivityCoordinator {
     private func napping(slot: Int, seed: Int, roster: [ClaudeSession]) -> PetState {
         var down = PetState.sleeping
         down.sessions = roster
+        // The nap does not replay holds — it deals its own sleep line or
+        // nothing — so a hold left standing here would sit through the whole
+        // nap and resurrect on the far side of it. Same reasoning as the
+        // dots: he stopped saying it, so there is nothing to finish.
+        chatterCache[slot].heldLine = nil
         if seed % 4 == 0 {
             down.bubble = chatterCache[slot].cursor
                 .line(for: .sleeping, token: "nap|\(seed)")
@@ -977,6 +994,15 @@ public final class ActivityCoordinator {
             bubble = fresh ? "…" : nil
             style = fresh ? .dots : .plain
             chatterCache[slot].line = nil
+            // …and the HOLD goes with it. This cleared the line cache and
+            // left `heldLine` standing, and `.thinking` never reaches the
+            // burst path — the only other place a live hold is cleared — so
+            // a fact interrupted by the dots survived behind them and came
+            // back afterwards, re-typed from character zero against a clock
+            // that had kept running. A held line is a promise to finish a
+            // sentence, and he stopped saying it the moment he started
+            // thinking; there is nothing left to finish.
+            chatterCache[slot].heldLine = nil
 
         case .sleeping:
             // Occasionally talks in his sleep. A sleeping pet that comments on
@@ -998,7 +1024,10 @@ public final class ActivityCoordinator {
             if let held = chatterCache[slot].heldLine, now < held.until {
                 bubble = held.text
                 style = held.style
-                tone = .knowledge   // only facts take holds
+                // The showing's OWN tone. "Only facts take holds" stopped
+                // being true when every plain line started taking one, and
+                // his own sleep-talk came back wearing the knowledge card.
+                tone = held.tone
             } else if seed % 4 == 0 {
                 chatterCache[slot].heldLine = nil
                 if Self.informationalBeat(seed: seed), let fact = funFact(slot: slot, seed: seed) {
@@ -1032,9 +1061,7 @@ public final class ActivityCoordinator {
                         chatterCache[slot].heldLine = HeldLine(
                             text: line, style: style,
                             until: now.addingTimeInterval(hold),
-                            readableUntil: now.addingTimeInterval(
-                                Self.readableWindow(for: line) + Self.readableGrace),
-                            flair: .none)
+                            tone: tone, flair: .none)
                     }
                 }
             } else {
@@ -1060,7 +1087,7 @@ public final class ActivityCoordinator {
             if let held = chatterCache[slot].heldLine, now < held.until {
                 bubble = held.text
                 style = held.style
-                tone = .knowledge   // only facts take holds
+                tone = held.tone
                 flair = held.flair
             } else if Self.idleChatterShows(quietFor: now.timeIntervalSince(focus.lastActivity),
                                             seed: seed) {
@@ -1121,19 +1148,27 @@ public final class ActivityCoordinator {
                 elapsed: now.timeIntervalSince(chatterCache[slot].newsAt),
                 cadence: cadence,
                 salt: slot &* 7919)
-            // THE SHIELD. News may only kill a fact once it has been read
-            // ONCE — the operator's ruling. Until `readableUntil`, the fact
-            // keeps the face and the burst is not displayed; `newsAt` and
-            // `newsEpoch` advance exactly as before, so when the shield lifts
-            // `bubbleBurst` re-asks from the same epoch — still inside a live
-            // window and the news shows instantly (the other half of the
-            // ruling), past it and the quiet path resumes, letting the fact
-            // finish its two-cycle stay. Never paused-and-resumed: a resumed
-            // scroll re-creates the mid-start the hold exists to prevent.
+            // THE SHIELD. News may not take the face from a line that is
+            // still being held — the operator's ruling, in his words:
+            // whatever is on screen finishes.
+            //
+            // **And that ruling has a price, stated here rather than left to
+            // be discovered.** `bubbleBurst` hands back its dice-free slot
+            // only while `elapsed < cadence.newsDwell` — eight seconds. Holds
+            // are longer than that for most of what he knows, so a task label
+            // arriving inside a hold does not merely wait: its window closes
+            // while the fact is up and it is CONSUMED. The label is never
+            // lost — it rides `bubbleContent`, the tooltip, throughout — but
+            // it will not get its own bubble. That is the trade the ruling
+            // buys, and it was chosen over the alternative, which is a fact
+            // taken off the screen mid-sentence by a filename.
+            //
+            // `newsAt` and `newsEpoch` advance exactly as before, so nothing
+            // accumulates behind the shield. Never paused-and-resumed: a
+            // resumed scroll re-creates the mid-start the hold prevents.
             // Urgency is exempt by construction — needsAttention and nudging
             // are not in `factMoods`, so their bursts always clear on the
-            // spot, and the live task label rides `bubbleContent` (the
-            // tooltip) throughout regardless.
+            // spot.
             var shielded = false
             if burst != nil {
                 // `until`, NOT `readableUntil` — the operator's ruling,
@@ -1263,9 +1298,7 @@ public final class ActivityCoordinator {
                 chatterCache[slot].heldLine = HeldLine(
                     text: known, style: Self.bubbleStyle(for: known),
                     until: now.addingTimeInterval(hold),
-                    readableUntil: now.addingTimeInterval(
-                        Self.readableWindow(for: known) + Self.readableGrace),
-                    flair: flair)
+                    tone: .knowledge, flair: flair)
             }
             next = (known, Self.bubbleStyle(for: known), .knowledge, flair)
         } else {
@@ -1362,10 +1395,29 @@ public final class ActivityCoordinator {
             return min(cycle * 2, maxLineHold)
         }
         // Long enough to read at leisure and then sit for a beat, so the
-        // bubble is not snatched away on the last word. Floored so a
-        // three-word line still registers as something he said.
-        return min(max(5, readableWindow(for: line) * 1.6), maxLineHold)
+        // bubble is not snatched away on the last word.
+        //
+        // The floor is the longest cadence DWELL, not a round number. Five
+        // was a round number, and it was under the six-second dwell that
+        // `quietBeatFact` deals inside — so a short line's hold could expire
+        // while its own cycle was still dealing, and the same sentence was
+        // dealt straight back on top of itself for a doubled stay. Flooring
+        // at the dwell means a hold always outlives the window that made it.
+        return min(max(dwellFloor, readableWindow(for: line) * 1.6), maxLineHold)
     }
+
+    /// The longest `dwell` any cadence uses, plus a beat — the window inside
+    /// which a fact can be dealt. A hold shorter than this can expire inside
+    /// the very cycle that dealt it, and the same sentence is dealt again on
+    /// top of itself.
+    ///
+    /// A CONSTANT rather than a fold over `bubbleCadences`, because
+    /// `lineHold` is `nonisolated` — tests and the shout schedulers call it
+    /// off the main actor — and the cadence table is main-actor state. The
+    /// coupling is enforced by `theDwellFloorTracksTheCadences` instead, so a
+    /// cadence edited to a longer dwell fails the suite rather than quietly
+    /// reopening the double-deal.
+    nonisolated static let dwellFloor: TimeInterval = 6.5
 
     /// Grace on top of the first read-through, so "read once" survives the
     /// eye finding the bubble. A `var` so tests can shrink it.
@@ -1577,9 +1629,7 @@ public final class ActivityCoordinator {
                 text: line,
                 style: Self.bubbleStyle(for: line),
                 until: now.addingTimeInterval(hold),
-                readableUntil: now.addingTimeInterval(
-                    Self.readableWindow(for: line) + Self.readableGrace),
-                flair: flair)
+                tone: .knowledge, flair: flair)
         }
         return (line, flair)
     }

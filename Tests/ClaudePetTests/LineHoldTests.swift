@@ -169,4 +169,32 @@ struct LineHoldTests {
         #expect(longest <= ThoughtBubble.plainCapacity,
                 "the longest fact is \(longest) characters, past the \(ThoughtBubble.plainCapacity) the bubble holds")
     }
+
+    /// `lineHold` is `nonisolated`, so it cannot read the main-actor cadence
+    /// table and its floor is a hand-written constant. This is the coupling
+    /// that constant depends on: a hold shorter than the longest dwell can
+    /// expire inside the very cycle that dealt it, and `quietBeatFact` deals
+    /// the same sentence straight back on top of itself.
+    @MainActor
+    @Test("The hold floor stays above every cadence's dwell")
+    func theDwellFloorTracksTheCadences() {
+        // Against the FACT moods only. `quietBeatFact` is the thing that can
+        // double-deal, and it deals only in `factMoods` — a longer dwell on a
+        // mood that never deals a fact (needsAttention pulses at 10) cannot
+        // reopen the bug, and flooring every hold at its length would keep
+        // "zzz…" on screen for eleven seconds for no reason at all.
+        let longest = ActivityCoordinator.factMoods
+            .compactMap { ActivityCoordinator.bubbleCadences[$0]?.dwell }
+            .max() ?? 0
+        #expect(longest > 0, "no fact mood has a cadence — the premise moved")
+        #expect(ActivityCoordinator.dwellFloor > longest,
+                "the floor is \(ActivityCoordinator.dwellFloor) against a \(longest)s dwell")
+        // …and no line can be held for less than it.
+        for columns in [1, 5, 12, 28, 76] {
+            let line = String(repeating: "x", count: columns)
+            #expect(ActivityCoordinator.lineHold(for: line) >= ActivityCoordinator.dwellFloor,
+                    "\(columns) columns held \(ActivityCoordinator.lineHold(for: line))s")
+        }
+    }
+
 }
