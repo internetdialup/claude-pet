@@ -434,7 +434,12 @@ enum PaletteTricks {
         var images: [CGImage] = []
         for frame in 0..<frames {
             let local = Double(frame) * frameDelay
-            var pose = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+            // The base pose rides `local`, not a frozen 0.4. `applySurf`
+            // overwrites everything it owns — the board, the ride, the arms,
+            // the eyes, the mouth — but NOT blink, so a constant base held
+            // one blink value for the whole clip and he stared through the
+            // entire wave without once shutting his eyes.
+            var pose = CrabAnimator.pose(mood: .idle, t: local, flourishes: false)
             CrabAnimator.applySurf(local / CrabAnimator.surfLength, t: local, to: &pose)
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: .none, line: nil, at: local),
@@ -451,12 +456,27 @@ enum PaletteTricks {
     /// Six seconds because that is `idle`'s own clip length, so the loop
     /// closes on the breath rather than mid-rise.
     private static func plainIdleClip(ground: Color, opaque: Bool = true, to url: URL) -> Bool {
-        let seconds = 6.0
+        // TWO WHOLE BREATHS, derived from the oscillator rather than restated.
+        //
+        // It was 6.0, borrowed from `idle`'s own clip length, with a comment
+        // claiming "the loop closes on the breath". It does not: the breath is
+        // `sin(t * 1.6)`, period 2π/1.6 = 3.927s, and 6.0 is 1.53 of them — so
+        // the clip wrapped mid-rise and he twitched once a loop. Six works for
+        // `idle.gif` because that clip runs flourishes over the top and the
+        // eye is elsewhere; this plate is nothing BUT the breath, so the seam
+        // is the only thing in it.
+        let breath = 2 * Double.pi / 1.6
+        let seconds = breath * 2
         let frames = Int((seconds / frameDelay).rounded())
         var images: [CGImage] = []
         for frame in 0..<frames {
             let local = Double(frame) * frameDelay
-            let pose = CrabAnimator.pose(mood: .idle, t: local, flourishes: false)
+            var pose = CrabAnimator.pose(mood: .idle, t: local, flourishes: false)
+            // The mouth runs on a period that divides no sane clip length, so
+            // it is pinned to the instant the loop opens on. A breath that
+            // closes cleanly under a mouth that flips at the wrap is still a
+            // twitch — just a smaller one.
+            pose.mouth = CrabAnimator.pose(mood: .idle, t: 0, flourishes: false).mouth
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: .none, line: nil, at: local),
                 scale: 1, isOpaque: opaque)

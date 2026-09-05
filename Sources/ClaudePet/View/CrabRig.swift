@@ -1567,7 +1567,15 @@ public enum CrabRig {
         // and the laser were the two standing wider than the rest. 0.62 of
         // the half-length lands them on `[cx - 5, cx + 4]` at rest, which
         // is the ollie's pair to the cell.
-        let truckReach = Int((Double(half) * cos(yaw) * 0.62).rounded())
+        // Clamped away from zero, keeping the sign. At `truckReach` 0 the two
+        // hubs are `[cx-1, cx]` and at 1 they are `[cx, cx-1]` — the same
+        // adjacent pair either way — and since each hub paints a three-cell
+        // wheel, the pair fuses into one four-cell lump. That is about an
+        // eighth of the tre and the laser, right where the deck is edge-on
+        // and the wheels are the only thing left to read. Two is the smallest
+        // reach that keeps them separate.
+        let reach = Int((Double(half) * cos(yaw) * 0.62).rounded())
+        let truckReach = reach < 0 ? min(reach, -2) : max(reach, 2)
         if sin(roll) >= 0 || abs(orbit) > thick / 2 {
             for hub in [cx + truckReach - 1, cx - truckReach] {
                 // `orbit - 2`, not `orbit - 1`: the orbit's radius is 3, so

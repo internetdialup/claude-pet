@@ -617,12 +617,15 @@ enum ReelRenderer {
     ///
     /// **Ten seconds because attention is the constraint**, not because ten is
     /// a round number. The same reasoning trimmed the hero to fifteen.
-    /// Thirteen, and not a round number by accident: gundam's fact needs
-    /// 11.97s for one full scroll, and the seam rule says the clip must
-    /// contain a WHOLE cycle — the marquee's `loopSeconds` stretches its gap
-    /// to make the cycle exactly this. Ten seconds decapitated the sentence at
-    /// every wrap, which was the operator's "jarring cut". Still under the
-    /// 25-second attention ceiling.
+    /// Thirteen, re-justified now that nothing in the strip scrolls.
+    ///
+    /// The old reason was the gundam fact's 11.97s scroll and the seam rule
+    /// about containing a whole marquee cycle. The two-line bubble retired
+    /// that: every line in the cast sits still. What thirteen has to hold
+    /// instead is the ANIMATION — the last onset is the ninja's wave at 10.4,
+    /// and a wave runs 1.8s, so the strip needs 12.2 before anything is cut
+    /// mid-gesture. Thirteen clears it, is a whole number of frames, and is
+    /// still under the 25-second attention ceiling.
     static let costumeSeconds = 13.0
 
     /// Who stands where, and what they do.
@@ -659,7 +662,7 @@ enum ReelRenderer {
         // edge of a 560pt strip, and its bubble is centred over it. While
         // facts scrolled, length cost nothing — the marquee was a fixed 150pt
         // viewport whatever the sentence. The two-line bubble sizes to its
-        // content instead, so the 46-character constitution line grew a card
+        // content instead, so the 47-character constitution line grew a card
         // wide enough to hang off the canvas and lose its first few letters.
         (.gundam, .wiggle,   [1.4, 9.6],
          "Binary is base two", 0.0, 96),
@@ -713,13 +716,17 @@ enum ReelRenderer {
                         // one riding up by a bubble's height.
                         Group {
                             if let line = member.line, member.lineFrom == 0 {
-                                // A marquee that runs from the clip's own zero
-                                // closes its loop at `costumeSeconds` exactly —
-                                // that is the whole point of `loopSeconds`.
+                                // No `loopSeconds`. It stretched a marquee's
+                                // gap so one cycle closed on the clip, and
+                                // there is no marquee here any more — every
+                                // line in the cast fits the two-line bubble
+                                // and stands still. Passing it now would be
+                                // worse than useless: a frozen render holds a
+                                // ticker at phase zero only when no loop is
+                                // asked for.
                                 ThoughtBubble(text: line, tool: nil, mood: .idle,
                                               style: ActivityCoordinator.bubbleStyle(for: line),
-                                              frozenTime: elapsed,
-                                              loopSeconds: costumeSeconds)
+                                              frozenTime: elapsed)
                             } else if let line = member.line {
                                 // The shout: eased in at the landing, eased
                                 // out before the wrap, exactly as the solos do

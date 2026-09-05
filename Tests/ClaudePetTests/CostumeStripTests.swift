@@ -23,16 +23,28 @@ struct CostumeStripTests {
         #expect(frames == frames.rounded(), "\(seconds)s is not a whole number of frames")
         #expect(seconds <= 25, "past the point anyone keeps watching")
 
-        // Every scrolling line in the cast must complete its travel inside
-        // the clip, so `loopSeconds` has slack to absorb rather than a
-        // collision to hide.
+        // This loop used to check that every SCROLLING line finished its
+        // travel inside the clip. Nothing in the cast scrolls any more, so it
+        // was iterating over an empty set and asserting nothing — a green
+        // test that had stopped testing. What matters now is the pair of
+        // facts the strip actually depends on.
         for member in ReelRenderer.costumeCast {
-            guard let line = member.line,
-                  ActivityCoordinator.bubbleStyle(for: line) == .marquee else { continue }
-            let natural = Double(MarqueeText.measure(line) / MarqueeText.speed)
-            #expect(natural < seconds - member.lineFrom,
-                    "\"\(line)\" travels \(natural)s inside \(seconds - member.lineFrom)s")
+            guard let line = member.line else { continue }
+            #expect(ActivityCoordinator.bubbleStyle(for: line) == .plain,
+                    "\"\(line)\" scrolls, and the strip no longer renders a ticker")
+            // A cast line has to fit the bubble it is drawn in, and the strip
+            // is narrower than the desktop: the leftmost crab's card is
+            // centred over him and runs off the canvas if it goes full width.
+            #expect(MarqueeText.measure(line) <= ThoughtBubble.textWidth,
+                    "\"\(line)\" is \(MarqueeText.measure(line))pt and wraps, which the strip has no room for")
         }
+        // …and the clip has to outlast the last gesture in it, or the strip
+        // cuts someone off mid-wave.
+        let lastBeat = ReelRenderer.costumeCast
+            .flatMap { member in (member.onsets).map { $0 + member.flourish.duration } }
+            .max() ?? 0
+        #expect(lastBeat < seconds,
+                "the last flourish ends at \(lastBeat)s in a \(seconds)s strip")
     }
 
     /// The seam itself, in points: a marquee given the clip as its loop puts

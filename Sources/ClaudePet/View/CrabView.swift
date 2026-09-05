@@ -2218,7 +2218,18 @@ public enum CrabAnimator {
                 // `1 +` is bookkeeping, not offset: the prop takes its yaw
                 // mod 1, so this reads as the half-turn that follows the
                 // whole one the air already spent.
-                pose.propPhase = 1 + Self.bigspinOut(out) * 0.5
+                // …to a WHOLE turn, not half of one. `bigspinOut(1)` is
+                // exactly 1, so a half-turn target left the board at phase
+                // 1.5 — yaw π, nose on the left — while the trick had opened
+                // at yaw 0 with the nose on the right. Live that is hidden,
+                // because the flourish hands straight back to an idle pose
+                // carrying a different prop; but any consumer that bookends
+                // the trick with its own resting board at phase 0, which is
+                // exactly what the marketing renderer does, cuts on a
+                // sixteen-cell jump. Ending square costs nothing: the body
+                // still turns 180 over the roll-out, and the board still
+                // leads it, now at two-to-one the whole way through.
+                pose.propPhase = 1 + Self.bigspinOut(out)
             }
 
         case .nollie:
