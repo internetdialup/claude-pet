@@ -101,6 +101,48 @@ enum PaletteTricks {
             else { return false }
         }
 
+        // 🌊 The surf set and the plain plate, on every ground.
+        let surfDir = root.appendingPathComponent("surf")
+        let normalDir = root.appendingPathComponent("normal")
+        // 🫥 …and the whole lot again on nothing at all. A marketing asset
+        // that has to sit on someone else's slide needs an alpha hole, not
+        // our ground — so every subject ships twice, once dressed in a
+        // colour and once in none.
+        let alphaDir = root.appendingPathComponent("alpha")
+        do {
+            try FileManager.default.createDirectory(at: surfDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: normalDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: alphaDir, withIntermediateDirectories: true)
+        } catch { return false }
+
+        for ground in grounds {
+            guard surfClip(ground: ground.color,
+                           to: surfDir.appendingPathComponent("clawd-surf-\(ground.name).gif")),
+                  plainIdleClip(ground: ground.color,
+                                to: normalDir.appendingPathComponent("clawd-idle-\(ground.name).gif"))
+            else { return false }
+        }
+
+        // The alpha set: the operator's three subjects on a transparent
+        // ground. `Color.clear` behind an `isOpaque: false` raster is the
+        // whole mechanism — the scene composition is otherwise identical, so
+        // an alpha clip and its coloured twin are the same animation.
+        guard surfClip(ground: .clear, opaque: false,
+                       to: alphaDir.appendingPathComponent("clawd-surf-alpha.gif")),
+              plainIdleClip(ground: .clear, opaque: false,
+                            to: alphaDir.appendingPathComponent("clawd-idle-alpha.gif"))
+        else { return false }
+        for trick in tricks {
+            guard clip(trick: trick, ground: .clear, costume: .none,
+                       line: nil, golden: false, opaque: false,
+                       to: alphaDir.appendingPathComponent("clawd-\(trick.rawValue)-alpha.gif"))
+            else { return false }
+        }
+        guard clip(trick: .ollie, ground: .clear, costume: .none,
+                   line: nil, golden: false, steeze: true, opaque: false,
+                   to: alphaDir.appendingPathComponent("clawd-ollie-steeze-alpha.gif"))
+        else { return false }
+
         // The VFX set: no board — his own effects on the preview loops.
         let effects: [(CrabAnimator.PreviewEffect, Double, String)] = [
             (.glint, 8.0, "glint"),          // two 4s passes
@@ -311,6 +353,7 @@ enum PaletteTricks {
     private static func clip(trick: CrabAnimator.Flourish, ground: Color, costume: Costume,
                              line: String?, golden: Bool,
                              headwear: CrabPose.Headwear = .none, steeze: Bool = false,
+                             opaque: Bool = true,
                              to url: URL) -> Bool {
         let lead = 0.6, settle = 0.9
         let seconds = lead + trick.duration + settle
@@ -334,7 +377,7 @@ enum PaletteTricks {
             pose.headwear = headwear
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: costume, line: line, at: local),
-                scale: 1, isOpaque: true)
+                scale: 1, isOpaque: opaque)
             else { return false }
             images.append(image)
         }
@@ -371,6 +414,52 @@ enum PaletteTricks {
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: .none, line: nil, at: local),
                 scale: 1, isOpaque: true)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    /// 🌊 THE SURF SET — the one spectacle no flag could reach.
+    ///
+    /// Surf is not a `Flourish`; it is a rare idle spell the live timeline
+    /// applies from inside `CrabAnimator`, gated on a 300-second die that no
+    /// offline renderer's clip is long enough to roll. So rather than wait
+    /// for the dice, this drives `applySurf` over its own progress directly —
+    /// the same pure function the live path calls, given the same 0…1 it
+    /// would have been given. The water, the board and the ride all come from
+    /// the animator, not from anything restated here.
+    private static func surfClip(ground: Color, opaque: Bool = true, to url: URL) -> Bool {
+        let frames = Int((CrabAnimator.surfLength / frameDelay).rounded())
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.4, flourishes: false)
+            CrabAnimator.applySurf(local / CrabAnimator.surfLength, t: local, to: &pose)
+            guard let image = SpriteImage.cgImage(
+                of: scene(pose, on: ground, costume: .none, line: nil, at: local),
+                scale: 1, isOpaque: opaque)
+            else { return false }
+            images.append(image)
+        }
+        return GifRenderer.encode(images, to: url, frameDelay: frameDelay)
+    }
+
+    /// Just him, breathing. The "normal outfit" plate — no board, no costume,
+    /// no effect: the thing every other clip is a variation on.
+    ///
+    /// Six seconds because that is `idle`'s own clip length, so the loop
+    /// closes on the breath rather than mid-rise.
+    private static func plainIdleClip(ground: Color, opaque: Bool = true, to url: URL) -> Bool {
+        let seconds = 6.0
+        let frames = Int((seconds / frameDelay).rounded())
+        var images: [CGImage] = []
+        for frame in 0..<frames {
+            let local = Double(frame) * frameDelay
+            let pose = CrabAnimator.pose(mood: .idle, t: local, flourishes: false)
+            guard let image = SpriteImage.cgImage(
+                of: scene(pose, on: ground, costume: .none, line: nil, at: local),
+                scale: 1, isOpaque: opaque)
             else { return false }
             images.append(image)
         }
