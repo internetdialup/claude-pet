@@ -196,10 +196,14 @@ public enum FunFacts {
             "Claude can call tools by asking for them in a structured way",
             // General AI-safety usage of the term.
             "Red-teaming a model means trying hard to make it misbehave 😈",
-            // This repo's README and LICENSE. It says only what those say —
-            // an earlier draft asserted the crab was Anthropic's intellectual
-            // property, which is not something this project can vouch for.
-            "Claw'd is unofficial fan art, not affiliated with Anthropic 🦀",
+            // Anthropic's prompt-caching API. Says what the feature does and
+            // nothing about what it costs or how long a cache lives, both of
+            // which are the sort of thing that dates a fact within a year.
+            // This slot was the fan-art disclaimer, which moved to the README
+            // where a disclaimer belongs — the pool owes `.claude` thirty
+            // facts to keep it from coming round sooner than every fifty
+            // draws, so the slot had to be refilled rather than left empty.
+            "Prompt caching lets a model reuse a prefix it has already read",
             // The Constitutional AI paper, 2022 — subtitled "Harmlessness from
             // AI Feedback". "as well as", because human preference data still
             // supplies helpfulness.

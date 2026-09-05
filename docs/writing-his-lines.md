@@ -90,7 +90,7 @@ nothing at runtime.
 
 | | |
 | :--- | :--- |
-| **Keep it short** | The bubble cuts off at **28 characters**. It caps at 210pt, and 28 is what fits, measured by rendering a ruler through the real bubble. A test enforces it, with a short allowlist of existing lines that run one or two over: a renderer deciding a sentence is a character too wide is not a reason to rewrite someone's voice. |
+| **Keep it short** | The bubble holds **76 characters** — 38 columns across two wrapped lines. It caps at 276pt, and 38 is what fits at the face's real 6.7998pt advance (for years the code assumed 6.62, which is a different font's). Anything inside 76 sits still and is read whole; only a status prompt scrolls. A test enforces it. |
 | **Emoji are welcome** | They render fine, but count each as **two** characters, since they draw about twice as wide. 🍳 🌶️ 🎬 all ship by default. |
 | **He deals a deck** | Lines are dealt like a shuffled deck: every line is used once before any repeats, and the shuffle is reseeded each pass. A plain random pick would show one line four times and another never. |
 

@@ -93,10 +93,10 @@ science, AI and Claude, plus **16 tips** about Claude Code itself, every one
 checked against the installed build rather than the documentation.
 
 <div align="center">
-  <img src="docs/media/facts.png" width="100%" alt="Five fun facts in speech bubbles — one short enough to sit still, the rest scrolling past as tickers">
+  <img src="docs/media/facts.png" width="100%" alt="Five fun facts in speech bubbles, each sitting still and wrapping to two lines">
 </div>
 
-<p align="center"><em>Short lines sit still. Long ones scroll past, and stay up
+<p align="center"><em>Every line sits still, wraps to two lines, and stays up
 long enough to read.</em></p>
 
 ## 👋 He notices you
@@ -158,8 +158,9 @@ case .idle: [
 ```
 
 Rules let him say something specific when a task matches a pattern — a commit
-joke for `git commit`, your own line for `deploy`. Keep lines under **28
-characters** and they sit still; longer ones scroll past as a ticker.
+joke for `git commit`, your own line for `deploy`. The bubble holds **76
+characters** across two lines, so anything shorter than that sits still and is
+read whole. Only a status prompt scrolls.
 
 **→ [The full guide to writing his lines](docs/writing-his-lines.md)**
 
