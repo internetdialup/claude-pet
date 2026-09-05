@@ -57,8 +57,23 @@ public struct PetRootView: View {
     /// head rather than floating a sprite-height above it.
     public nonisolated static let crownCells = 6
 
-    /// Room for one line of bubble plus its tail.
-    public nonisolated static let bubbleBand: CGFloat = 44
+    /// Room for the tallest bubble plus its tail — DERIVED, not guessed.
+    ///
+    /// It was a flat 44 for "one line of bubble plus its tail", and the
+    /// two-line card outgrew it without anything noticing: a wrapped card is
+    /// two 14pt lines plus 6pt of padding top and bottom, which is 40, and
+    /// the stepped tail adds 8 more. Forty-eight against a reserved
+    /// forty-four is a bubble hanging four points out of the band that
+    /// `PetArrangement` solves every window slot against.
+    ///
+    /// Written as the arithmetic so the next change to `plainLines` or the
+    /// padding moves the band with it instead of silently overflowing.
+    public nonisolated static let bubbleLineHeight: CGFloat = 14
+    public nonisolated static let bubbleTailHeight: CGFloat = 8
+    public nonisolated static var bubbleBand: CGFloat {
+        CGFloat(ThoughtBubble.plainLines) * bubbleLineHeight
+            + ThoughtBubble.insetY * 2 + bubbleTailHeight
+    }
 
     public var spriteSize: CGFloat { CGFloat(Double(PixelBuffer.side) * pixelSize) }
     private var overlap: CGFloat { CGFloat(Double(Self.crownCells) * pixelSize) }

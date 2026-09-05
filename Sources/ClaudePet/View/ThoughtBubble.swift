@@ -91,6 +91,9 @@ public struct ThoughtBubble: View {
     /// numbers the layout actually uses rather than from a comment about them.
     nonisolated static let maxWidth: CGFloat = 276
     nonisolated static let insetX: CGFloat = 8
+    /// The vertical padding inside the card. Named because `PetRootView`
+    /// derives the reserved band from it rather than restating a total.
+    nonisolated static let insetY: CGFloat = 6
 
     /// How many lines the plain bubble wraps to. **Two.**
     ///
@@ -101,7 +104,13 @@ public struct ThoughtBubble: View {
     /// whole. Nothing he knows has to scroll any more.
     ///
     /// Two rather than three: three would swallow a hypothetical 84, but the
-    /// reserved band is 44pt (`PetRootView.bubbleBand`) and two lines of 11pt
+    /// band grows with this number — `PetRootView.bubbleBand` is derived from
+    /// it — and the band is reserved ground that every window slot is solved
+    /// against, so a third line moves furniture across the whole desktop.
+    /// (The superseded note here said two lines "come to about 38" against a
+    /// 44pt band. The line height is 14, not 11, so the body is 40 and the
+    /// tail takes it to 48 — the band was already too small, which is why it
+    /// is now computed rather than asserted.) Two lines of 11pt
     /// with the vertical padding come to about 38. Three would not fit the
     /// band, and widening the band moves every window slot.
     nonisolated static let plainLines = 2
@@ -123,6 +132,23 @@ public struct ThoughtBubble: View {
     /// of the two-line bubble did: wider card, same one line, same ellipsis.
     /// Constraining the text is what actually makes it wrap.
     nonisolated static let textWidth: CGFloat = maxWidth - insetX * 2
+
+    /// What the glyph or service badge takes out of the text's row.
+    ///
+    /// `textWidth` subtracts the padding and nothing else, but the badge and
+    /// the mood glyph sit in the SAME `HStack` as the text and take real
+    /// room — so a full-width two-line line beside a badge proposed more than
+    /// `maxWidth` and the last thing on the row lost the argument.
+    ///
+    /// Charged per instance rather than reserved always: the facts he holds
+    /// longest arrive in moods with an empty glyph and no service, and
+    /// reserving the badge unconditionally would cut the bubble below the
+    /// 69-character fact it exists to hold whole.
+    var slotReserve: CGFloat {
+        if service != nil, style != .dots { return 25 }   // badge + spacing
+        if !glyph.isEmpty, !isStatusTicker { return 12 }  // one 10pt cell + spacing
+        return 0
+    }
 
     /// 🚨 **The status ticker** — all the marquee is kept for.
     ///
@@ -248,7 +274,8 @@ public struct ThoughtBubble: View {
                     // a one-word change back if he misses the instant voice.
                     TypewriterText(text: text, font: font,
                                    frozenTime: frozenTime,
-                                   expiresAt: expiresAt, ink: foreground)
+                                   expiresAt: expiresAt, ink: foreground,
+                                   room: Self.textWidth - slotReserve)
                 }
                 if mood == .nudging, style == .plain {
                     // The plan is ready and he wants a verdict: a slow, eased
@@ -264,7 +291,7 @@ public struct ThoughtBubble: View {
             }
             .foregroundStyle(foreground)
             .padding(.horizontal, Self.insetX)
-            .padding(.vertical, 6)
+            .padding(.vertical, Self.insetY)
             .frame(maxWidth: Self.maxWidth, alignment: .leading)
             .background(Rectangle().fill(fill))
             .overlay {
@@ -403,6 +430,9 @@ struct TypewriterText: View {
     /// the ramp needs a real `Color` to take an opacity from — `.primary`
     /// would quietly discard the mood's foreground and paint system ink.
     let ink: Color
+    /// How much width the text actually gets, once whatever shares its row
+    /// has been paid for.
+    var room: CGFloat = ThoughtBubble.textWidth
     @State private var startedAt: Double?
 
     /// Brisk enough that the longest plain line (28 columns) lands in under
@@ -460,11 +490,16 @@ struct TypewriterText: View {
             // Offline there is no "when the line appeared" — the whole line is
             // the picture. Live, the first tick anchors the clock.
             let elapsed = t - (startedAt ?? t)
+            // The cursor's position keeps advancing PAST the last character,
+            // by `rampChars`, so the tail of the line finishes fading up
+            // instead of arriving. Without that the ramp's own early return
+            // was the only thing that ever put a glyph at full ink — the last
+            // character went from two-thirds to solid in one frame, which is
+            // exactly the arrival the ramp exists to prevent, committed on
+            // every line he says.
             let exact = frozenTime != nil
-                ? Double(text.count)
+                ? Double(text.count + Self.rampChars)
                 : max(0, elapsed) * Self.charsPerSecond
-            let shown = frozenTime != nil ? text.count
-                : Self.typedCount(elapsed: elapsed, of: text.count)
             // …and the whole line eases off at the end of its hold, with both
             // sides on the SAME clock: `t` is the display link's instant and
             // `expiry` is an instant, so what is left is a real measurement
@@ -486,8 +521,8 @@ struct TypewriterText: View {
             // Handing it a definite width when it wraps makes the measurement
             // happen at the width it will actually be drawn at, so the ideal
             // height is two lines and the card grows to hold them.
-            let wraps = MarqueeText.measure(text) > ThoughtBubble.textWidth
-            let box: CGFloat? = wraps ? ThoughtBubble.textWidth : nil
+            let wraps = MarqueeText.measure(text) > room
+            let box: CGFloat? = wraps ? room : nil
             ZStack(alignment: .leading) {
                 // Reserves the FINAL block, so the card arrives at its full
                 // size and the text types into it — a bubble that grew line
@@ -497,8 +532,7 @@ struct TypewriterText: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: box, alignment: .leading)
                     .opacity(0)
-                Self.typed(text, shown: shown, ink: ink,
-                           progress: exact - exact.rounded(.down))
+                Self.typed(text, at: exact, ink: ink)
                     .font(font)
                     .lineLimit(ThoughtBubble.plainLines)
                     .fixedSize(horizontal: false, vertical: true)
@@ -516,19 +550,25 @@ struct TypewriterText: View {
     /// `Text + Text` rather than an `HStack`, because concatenation is the
     /// only composition SwiftUI will WRAP across the two lines; an HStack of
     /// per-character views would lay out in one row and run off the card.
-    nonisolated static func typed(_ text: String, shown: Int, ink: Color,
-                                  progress: Double) -> Text {
+    /// The line as it stands with the cursor at `at` — a fractional position
+    /// that runs from 0 to `count + rampChars`.
+    ///
+    /// Past `count` the cursor is off the end of the text and only the ramp
+    /// is still resolving, so the last characters finish fading up rather
+    /// than snapping solid. Once it clears `count + rampChars` every index is
+    /// more than `rampChars` behind it, `inkLevel` returns 1 for all of them,
+    /// and this degenerates to a single plain `Text` — which is what a
+    /// finished line, and every frozen render, must be.
+    nonisolated static func typed(_ text: String, at cursor: Double,
+                                  ink: Color) -> Text {
         let chars = Array(text)
-        // FINISHED LINES CARRY NO RAMP. The ramp exists to keep a character
-        // from arriving in one frame; once the whole line is there, there is
-        // nothing arriving. Without this the tail of every completed line sat
-        // permanently at a third and two thirds ink — which a frozen render
-        // showed plainly, and `bubbles.png` shipped as "ready to bu ld".
-        guard shown < chars.count else { return Text(text) }
-        let solid = max(0, shown - rampChars)
-        var out = Text(String(chars[0..<min(solid, chars.count)]))
-        for index in solid..<min(shown, chars.count) {
-            let level = inkLevel(shown - 1 - index, progress: progress)
+        let position = Int(cursor)
+        let shown = max(0, min(chars.count, position))
+        let solid = max(0, min(shown, position - rampChars))
+        var out = Text(String(chars[0..<solid]))
+        for index in solid..<shown {
+            let level = inkLevel(position - 1 - index,
+                                 progress: cursor - cursor.rounded(.down))
             out = out + Text(String(chars[index])).foregroundColor(ink.opacity(level))
         }
         return shown < chars.count ? out + Text("▮") : out
