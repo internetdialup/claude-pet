@@ -338,7 +338,11 @@ public enum CrabAnimator {
     /// seven-second flourish scheduler cannot hold a fourteen-second spell.
     /// Dice `89 &+ 19`, the whether-a-spell-fires family, beside the
     /// flourish's `&+ 11` and the session's `&+ 17`.
-    static let surfLength = 14.0
+    /// Ten, down from fourteen. One swell across the grid is one gesture,
+    /// and fourteen seconds of it had long flat shoulders at both ends where
+    /// nothing was happening — the ride is the middle, so the middle is what
+    /// the clip should mostly be.
+    static let surfLength = 10.0
 
     static func surfSet(idleT t: Double) -> Double? {
         let spawn = SpawnRates.surfSet
@@ -381,14 +385,28 @@ public enum CrabAnimator {
         // from below the grid, so an unclamped ride would have him SINK on
         // flat water before the swell ever arrived.
         pose.bob = max(-6, min(0, Int((Double(surface - 25) * 0.35).rounded())))
-        // He leans INTO the wave on the way up and out of it on the way
-        // down — one whole-pixel step each way, off the crest's own
-        // position rather than a second clock that could disagree with it.
+        // He leans with the FACE HE IS ON, not with a threshold on where the
+        // crest happens to be. The old rule was three attitudes — tipped one
+        // way past x=20, the other way under x=12, upright between — which
+        // meant two visible snaps per ride and a long dead stretch in the
+        // middle doing nothing. The water's own gradient is already a
+        // continuous number, so use it.
         let crest = SurfSet.crest(at: progress)
-        pose.lean = crest > 20 ? 1 : (crest < 12 ? -1 : 0)
+        let steep = SurfSet.slope(at: 16, crest: crest,
+                                  lift: SurfSet.lift(at: progress),
+                                  sea: SurfSet.sea(at: progress))
+        pose.lean = max(-1, min(1, Int(steep.rounded())))
+        // …and he CROUCHES into the steep part. A surfer's knees are the
+        // first thing that moves; standing at full height through a wave is
+        // the thing that read as a crab on a hill.
+        pose.squash = abs(steep) > 0.75 ? 1 : 0
+        // Arms answer the ride rather than free-running: they widen for
+        // balance as the face steepens, and the wobble on top keeps them
+        // from looking pinned.
+        let brace = min(0.35, abs(steep) * 0.3)
         let saw = sin(t * 2.2)
-        pose.armLeft = 0.55 + 0.25 * saw
-        pose.armRight = 0.55 - 0.25 * saw
+        pose.armLeft = 0.55 + brace + 0.18 * saw
+        pose.armRight = 0.55 + brace - 0.18 * saw
         // How high the swell has him, 0 at flat water and 1 at the crest —
         // the same number the drop is derived from, so his face and his
         // height cannot disagree about how big the wave is.
