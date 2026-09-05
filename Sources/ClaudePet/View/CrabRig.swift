@@ -1485,8 +1485,19 @@ public enum CrabRig {
         b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
         if half >= 5 {
             for hub in [cx - half + 1, cx + half - 3] {
+                // The SAME wheel the ollie, the nollie, the manual and the
+                // cruise all draw: three rows, with the bearing sitting in
+                // the middle of it. This case had only the top row and the
+                // bearing — a dark dot under a bar, with no wheel around it
+                // — which the operator picked out of a line-up of ten
+                // resting boards. The trucks still ride the shrinking deck,
+                // because on a flat spin they have to foreshorten with it;
+                // it is the wheel's SHAPE that had no business differing.
                 b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                b.pixel(hub, deckY + 2, wheelInk)
                 b.pixel(hub + 1, deckY + 2, .screenDark)
+                b.pixel(hub + 2, deckY + 2, wheelInk)
+                b.rect(hub, deckY + 3, 3, 1, wheelInk)
             }
         }
         // Two cells while there is deck enough to spare them, one when the
@@ -1549,12 +1560,25 @@ public enum CrabRig {
         // see WHICH WAY the board is going round.
         let noseX = cx + Int((Double(half) * cos(yaw)).rounded())
         let orbit = Int((3 * cos(roll)).rounded())
+        // Trucks are INSET from the tips, on a real board and now on this
+        // one. These rode the projected nose and tail exactly, which put
+        // them a good three cells further out each side than every
+        // fixed-hub board draws them — ten boards side by side and the tre
+        // and the laser were the two standing wider than the rest. 0.62 of
+        // the half-length lands them on `[cx - 5, cx + 4]` at rest, which
+        // is the ollie's pair to the cell.
+        let truckReach = Int((Double(half) * cos(yaw) * 0.62).rounded())
         if sin(roll) >= 0 || abs(orbit) > thick / 2 {
-            for hub in [noseX - 1, cx - Int((Double(half) * cos(yaw)).rounded()) - 1] {
-                b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
-                b.pixel(hub, deckY + orbit, wheelInk)
-                b.pixel(hub + 1, deckY + orbit, .screenDark)
-                b.pixel(hub + 2, deckY + orbit, wheelInk)
+            for hub in [cx + truckReach - 1, cx - truckReach] {
+                // `orbit - 2`, not `orbit - 1`: the orbit's radius is 3, so
+                // at rest these sat a whole row lower than every fixed-hub
+                // board's wheel and read as hanging off the deck rather
+                // than bolted under it. The swing is unchanged; only where
+                // it starts moves.
+                b.rect(hub, deckY + orbit - 2, 3, 1, wheelInk)
+                b.pixel(hub, deckY + orbit - 1, wheelInk)
+                b.pixel(hub + 1, deckY + orbit - 1, .screenDark)
+                b.pixel(hub + 2, deckY + orbit - 1, wheelInk)
             }
         }
         // One bright cell on the nose itself, so the end you are following
