@@ -37,11 +37,20 @@ struct TypewriterTests {
     /// of its dwell left for reading — typing that ate the dwell would be the
     /// truncation bug with a fancier costume.
     @MainActor
-    @Test("The widest plain line types out in under a fifth of its dwell")
+    /// Against the line's OWN hold rather than a hardcoded dwell: the hold is
+    /// now derived from the line's length, so a fixed ceiling would either
+    /// bind on nothing or fail on the longest line for no reason. A third is
+    /// the rule — typing that ate more than that would be the truncation bug
+    /// in a fancier costume.
+    @Test("Typing never eats more than a third of the line's own hold")
     func typingLeavesTimeToRead() {
-        let widest = ThoughtBubble.plainColumns
-        let seconds = Double(widest) / TypewriterText.charsPerSecond
-        #expect(seconds < 1.25, "\(widest) columns take \(seconds)s to type")
+        for columns in [1, 12, 28, 38, 55, 69, ThoughtBubble.plainCapacity] {
+            let line = String(repeating: "x", count: columns)
+            let typing = Double(columns) / TypewriterText.charsPerSecond
+            let hold = ActivityCoordinator.lineHold(for: line)
+            #expect(typing < hold / 3,
+                    "\(columns) columns take \(typing)s to type inside a \(hold)s hold")
+        }
     }
 
     /// Every fact and tip that routes to the plain bubble is short enough for
@@ -53,8 +62,14 @@ struct TypewriterTests {
         let everything = FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
             + ClaudeTips.all
         for line in everything where ActivityCoordinator.bubbleStyle(for: line) == .plain {
-            #expect(line.count <= ThoughtBubble.plainColumns,
+            #expect(line.count <= ThoughtBubble.plainCapacity,
                     "\"\(line)\" routes plain but overflows the plain bubble")
+        }
+        // And the point of the whole round: after widening to 38 columns over
+        // two lines, NOTHING he knows scrolls any more.
+        for line in everything {
+            #expect(ActivityCoordinator.bubbleStyle(for: line) == .plain,
+                    "\"\(line)\" still scrolls — the ticker was supposed to be retired")
         }
     }
 }

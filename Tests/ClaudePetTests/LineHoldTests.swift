@@ -21,21 +21,41 @@ struct LineHoldTests {
 
     // MARK: - The rule
 
-    /// A line you can see whole the instant it appears needs no extra time, and
-    /// giving it some would only slow him down. The hold is for scrolling lines
-    /// and nothing else.
-    @Test("A line that fits the plain bubble takes no hold at all")
-    func plainLinesAreNotHeld() {
-        for line in ["zzz…", "Off the clock", String(repeating: "x", count: ThoughtBubble.plainColumns)] {
-            #expect(ActivityCoordinator.bubbleStyle(for: line) == .plain, "\"\(line)\" should be plain")
-            #expect(ActivityCoordinator.lineHold(for: line) == 0, "\"\(line)\" was held")
+    /// **Reversed by the two-line bubble.** This used to assert the opposite:
+    /// a plain line was legible the instant it appeared, so it took no hold.
+    /// Both halves of that stopped being true at once — the plain bubble now
+    /// holds every line in the app, and a plain line is no longer instant
+    /// because it types itself in. A hold of zero would have left the entire
+    /// fact pool unshielded, which is the bug this round exists to fix.
+    @Test("Every line takes a hold, because none of them arrive whole")
+    func everyLineIsHeld() {
+        for line in ["zzz…", "Off the clock",
+                     String(repeating: "x", count: ThoughtBubble.plainColumns)] {
+            #expect(ActivityCoordinator.bubbleStyle(for: line) == .plain,
+                    "\"\(line)\" should be plain")
+            #expect(ActivityCoordinator.lineHold(for: line) > 0, "\"\(line)\" was not held")
+        }
+    }
+
+    /// The hold must always outlast the read it is protecting, for EVERY
+    /// line — the invariant the two clocks used to break.
+    @Test("The hold always outlasts the read, at every length")
+    func theHoldCoversTheRead() {
+        for columns in [1, 5, 12, 28, 38, 55, 69, 76] {
+            let line = String(repeating: "x", count: columns)
+            let read = ActivityCoordinator.readableWindow(for: line)
+            let hold = ActivityCoordinator.lineHold(for: line)
+            #expect(hold > read,
+                    "\(columns) columns read in \(read)s but are held only \(hold)s")
+            #expect(hold <= ActivityCoordinator.maxLineHold,
+                    "\(columns) columns held \(hold)s, past the cap")
         }
     }
 
     /// One character over the ceiling is a ticker, and a ticker gets time.
     @Test("A line one column too wide starts scrolling, and starts being held")
     func theCeilingIsTheSwitch() {
-        let over = String(repeating: "x", count: ThoughtBubble.plainColumns + 1)
+        let over = String(repeating: "x", count: ThoughtBubble.plainCapacity + 1)
         #expect(ActivityCoordinator.bubbleStyle(for: over) == .marquee)
         #expect(ActivityCoordinator.lineHold(for: over) > 0)
     }
@@ -45,20 +65,25 @@ struct LineHoldTests {
     /// pass that opens on the first word. This replaced three read-throughs —
     /// the operator's complaint was precisely that a glance landed
     /// mid-sentence and no clean pass followed.
-    @Test("A held line gets two whole cycles, and a glance always gets a full pass")
-    func twoCyclesAndTheGlance() {
-        for columns in [30, 34, 44, 55, 69] {
+    /// **The glance guarantee, restated for a bubble that stands still.**
+    ///
+    /// Two whole marquee cycles used to be the promise, because a glance could
+    /// land mid-sentence and the reader needed a following pass that opened on
+    /// the first word. A static two-line bubble opens on the first word at
+    /// every instant, so the promise becomes the simpler thing it was always
+    /// standing in for: whenever you look up, there is still time to read what
+    /// is there. Pinned as arithmetic — a glance at any point up to the end of
+    /// the typing leaves a full read behind it.
+    @Test("A glance at any point still leaves time to read the line")
+    func theGlanceStillGetsARead() {
+        for columns in [30, 38, 44, 55, 69, 76] {
             let line = String(repeating: "x", count: columns)
-            let cycle = Double(MarqueeText.cycle(for: line, loopSeconds: nil)
-                               / MarqueeText.speed)
             let hold = ActivityCoordinator.lineHold(for: line)
-            #expect(abs(hold - min(cycle * 2, ActivityCoordinator.maxLineHold)) < 0.001,
-                    "\(columns) columns held \(hold)s against a \(cycle)s cycle")
-            // The guarantee, stated as arithmetic: any glance inside the
-            // first cycle leaves at least one whole cycle of hold behind it.
-            for glance in stride(from: 0.0, through: cycle, by: cycle / 7) {
-                #expect(hold - glance >= cycle - 0.001,
-                        "a glance at \(glance)s leaves only \(hold - glance)s")
+            let typing = Double(columns) / TypewriterText.charsPerSecond
+            let read = Double(columns) / ActivityCoordinator.plainReadRate
+            for glance in stride(from: 0.0, through: typing, by: max(0.05, typing / 7)) {
+                #expect(hold - glance >= read,
+                        "a glance at \(glance)s into \(columns) columns leaves \(hold - glance)s for a \(read)s read")
             }
         }
     }
@@ -121,18 +146,27 @@ struct LineHoldTests {
 
     // MARK: - The regression
 
-    /// **The bug the operator actually saw.** Sixty-six of the seventy-six
-    /// facts are longer than the plain bubble, so a path that forgets to route
-    /// by length truncates almost every fact it shows rather than occasionally
-    /// clipping a long one.
-    @Test("Most facts are written to scroll, so length routing is not optional")
-    func mostFactsNeedTheTicker() {
+    /// **The premise moved, so the test did.**
+    ///
+    /// This used to assert that most facts scroll — sixty-six of seventy-six
+    /// were longer than a 28-column bubble, which made length routing
+    /// load-bearing. The two-line bubble ended that: at 38 columns over two
+    /// lines the capacity is 76 characters and the longest fact is 69, so the
+    /// honest assertion is now the opposite one, and it is worth pinning
+    /// because it is the operator's actual requirement — he could not read a
+    /// scrolling headline, so nothing he knows scrolls.
+    ///
+    /// The margin is stated as a number rather than left implicit: a future
+    /// fact written past 76 characters fails here rather than silently
+    /// becoming the only scrolling line in the app.
+    @Test("No fact scrolls any more, and none is close to the ceiling")
+    func noFactNeedsTheTicker() {
         let all = FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
         let scrolling = all.filter { ActivityCoordinator.bubbleStyle(for: $0) == .marquee }
-        #expect(scrolling.count > all.count / 2,
-                "only \(scrolling.count) of \(all.count) facts scroll — this test's premise moved")
-        for fact in scrolling {
-            #expect(fact.count > ThoughtBubble.plainColumns)
-        }
+        #expect(scrolling.isEmpty,
+                "\(scrolling.count) of \(all.count) facts still scroll: \(scrolling.first ?? "")")
+        let longest = all.map(\.count).max() ?? 0
+        #expect(longest <= ThoughtBubble.plainCapacity,
+                "the longest fact is \(longest) characters, past the \(ThoughtBubble.plainCapacity) the bubble holds")
     }
 }

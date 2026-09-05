@@ -687,7 +687,9 @@ struct MoodDecayTests {
             tick(coordinator)
             if let bubble = coordinator.state.bubble,
                coordinator.state.bubbleTone == .knowledge,
-               coordinator.state.bubbleStyle == .marquee,
+               // No longer `&& style == .marquee`: at 38 columns over two
+               // lines nothing scrolls, so demanding a ticker here would
+               // wait out the deadline forever.
                knowable.contains(bubble) {
                 return bubble
             }
@@ -714,7 +716,7 @@ struct MoodDecayTests {
         let id = "s-shield"
         let coordinator = try quietCoordinator([id])
         guard let fact = try await surfaceMarqueeFact(coordinator, id: id) else {
-            Issue.record("no scrolling fact surfaced inside the deadline — dice, not defect")
+            Issue.record("no held fact surfaced inside the deadline — dice, not defect")
             return
         }
 
@@ -730,10 +732,21 @@ struct MoodDecayTests {
         #expect(coordinator.state.bubbleContent != nil)
     }
 
-    /// The ruling's other half: once the read completes, the very next piece
-    /// of news takes the face immediately.
-    @Test("After the read, news wins instantly")
-    func newsWinsAfterTheRead() async throws {
+    /// **The ruling's other half, REVERSED — the murder, pinned.**
+    ///
+    /// It used to say: once the first read completes, the very next piece of
+    /// news takes the face immediately. Defensible while a fact scrolled for
+    /// thirty-eight seconds and "one read" was a real fraction of its stay.
+    /// It stopped being defensible when the operator watched a fun fact taken
+    /// off the screen mid-thought by his own small talk — and it was worse
+    /// than it looked: the shield ran on `readableUntil` and, on failing it,
+    /// DESTROYED the hold `until` depended on, so the fact could not return.
+    ///
+    /// The rule now is the operator's: whatever is on screen finishes. This
+    /// waits past the OLD boundary — the exact instant news used to win — and
+    /// asserts the fact is still there.
+    @Test("News may not take the face from a fact that is still held")
+    func newsWaitsForTheHold() async throws {
         let fast = BubbleCadence(period: 0.4, dwell: 0.3, chance: 0.4,
                                  newsDwell: 0.05, newsRefractory: 0.05)
         let storedCadence = ActivityCoordinator.bubbleCadences[.working]
@@ -748,7 +761,7 @@ struct MoodDecayTests {
         let id = "s-afterread"
         let coordinator = try quietCoordinator([id])
         guard let fact = try await surfaceMarqueeFact(coordinator, id: id) else {
-            Issue.record("no scrolling fact surfaced inside the deadline — dice, not defect")
+            Issue.record("no held fact surfaced inside the deadline — dice, not defect")
             return
         }
 
@@ -757,8 +770,8 @@ struct MoodDecayTests {
         coordinator.ingest([ActivityEvent(sessionID: id,
                                           kind: .toolStarted(name: "Bash",
                                                              detail: "the news after the read"))])
-        #expect(coordinator.state.bubble != fact,
-                "the shield outlived the read — news must win the instant it lifts")
+        #expect(coordinator.state.bubble == fact,
+                "news took the face at the old readableUntil boundary — the murder is back")
     }
 
     /// The idle path used to take no hold at all: a fact died at the 14s
@@ -791,7 +804,9 @@ struct MoodDecayTests {
             tick(coordinator)
             if let bubble = coordinator.state.bubble,
                coordinator.state.bubbleTone == .knowledge,
-               coordinator.state.bubbleStyle == .marquee,
+               // No longer `&& style == .marquee`: at 38 columns over two
+               // lines nothing scrolls, so demanding a ticker here would
+               // wait out the deadline forever.
                knowable.contains(bubble) {
                 fact = bubble
             }

@@ -20,14 +20,16 @@ struct ReadableShieldTests {
     func theShieldNeverOutlivesTheStay() {
         let knowable = FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) }
             + ClaudeTips.all
-        for line in knowable
-        where ActivityCoordinator.bubbleStyle(for: line) == .marquee {
+        for line in knowable {
             let shield = ActivityCoordinator.readableWindow(for: line)
                 + ActivityCoordinator.readableGrace
             #expect(shield < ActivityCoordinator.lineHold(for: line),
                     "\"\(line)\" shields \(shield)s against a \(ActivityCoordinator.lineHold(for: line))s stay")
         }
-        #expect(ActivityCoordinator.readableWindow(for: "zzz…") == 0,
-                "a plain line needs no shield — it is legible on arrival")
+        // Reversed with the two-line bubble: a plain line is no longer
+        // legible on arrival, because it types itself in. It gets a real
+        // window like everything else.
+        #expect(ActivityCoordinator.readableWindow(for: "zzz…") > 0,
+                "a plain line types in, so it needs a window like any other")
     }
 }

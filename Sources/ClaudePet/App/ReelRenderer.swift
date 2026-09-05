@@ -655,8 +655,14 @@ enum ReelRenderer {
     static let costumeCast: [(costume: Costume, flourish: CrabAnimator.Flourish,
                               onsets: [Double], line: String?, lineFrom: Double,
                               side: CGFloat)] = [
+        // A SHORT fact, and it has to be short: this crab stands at the left
+        // edge of a 560pt strip, and its bubble is centred over it. While
+        // facts scrolled, length cost nothing — the marquee was a fixed 150pt
+        // viewport whatever the sentence. The two-line bubble sizes to its
+        // content instead, so the 46-character constitution line grew a card
+        // wide enough to hang off the canvas and lose its first few letters.
         (.gundam, .wiggle,   [1.4, 9.6],
-         "Anthropic has published Claude's constitution 📜", 0.0, 96),
+         "Binary is base two", 0.0, 96),
         (.none,   .kickflip, [4.4], "Tony Clawd 900 🦅", 7.2, 128),
         // A wave, not a second wiggle: two crabs doing the same idle reads as
         // one animation stamped twice, which is the opposite of a wardrobe.

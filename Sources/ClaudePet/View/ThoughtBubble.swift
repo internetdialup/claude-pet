@@ -43,6 +43,15 @@ public struct ThoughtBubble: View {
     /// nothing and renders byte-identically.
     public var loopSeconds: Double? = nil
 
+    /// How long this line is being held on screen, when the caller knows it.
+    ///
+    /// Only the fade-down uses it: the text eases off over its last
+    /// `TypewriterText.fadeOut` seconds so a line leaves the way it arrived
+    /// rather than being cut mid-word. Nil — every offline renderer, and any
+    /// caller that does not track an expiry — keeps the line solid, which is
+    /// also what keeps committed media byte-identical.
+    public var holdSeconds: Double? = nil
+
     /// The knowledge card: facts and tips leave the mood palette entirely and
     /// wear a card that follows the SYSTEM appearance — white with near-black
     /// text in light mode, near-black with white text in dark. The operator's
@@ -69,8 +78,40 @@ public struct ThoughtBubble: View {
     /// The widest the bubble is allowed to get, and the padding inside it.
     /// Hoisted out of `body` so the column count below is derived from the same
     /// numbers the layout actually uses rather than from a comment about them.
-    nonisolated static let maxWidth: CGFloat = 210
+    nonisolated static let maxWidth: CGFloat = 276
     nonisolated static let insetX: CGFloat = 8
+
+    /// How many lines the plain bubble wraps to. **Two.**
+    ///
+    /// Everything below about columns is a width; this is the other axis, and
+    /// together they are the reason the ticker stopped being load-bearing. At
+    /// 38 columns over two lines the bubble holds 76 characters, and the
+    /// longest thing he can say — a 69-character fun fact — fits inside it
+    /// whole. Nothing he knows has to scroll any more.
+    ///
+    /// Two rather than three: three would swallow a hypothetical 84, but the
+    /// reserved band is 44pt (`PetRootView.bubbleBand`) and two lines of 11pt
+    /// with the vertical padding come to about 38. Three would not fit the
+    /// band, and widening the band moves every window slot.
+    nonisolated static let plainLines = 2
+
+    /// The whole plain bubble, in characters: columns × lines.
+    ///
+    /// This — not `plainColumns` — is what decides whether a line can be shown
+    /// standing still, because a line now wraps rather than running off the
+    /// end. `plainColumns` remains the honest width for anything measuring a
+    /// single row.
+    nonisolated static let plainCapacity = plainColumns * plainLines
+
+    /// The width the TEXT itself is given, inside the padding.
+    ///
+    /// It has to be applied to the `Text`, not to the bubble around it. A
+    /// `Text` claims its ideal single-line width first and only then meets an
+    /// outer `maxWidth` frame, at which point SwiftUI truncates it rather
+    /// than going back and re-wrapping — which is exactly what the first cut
+    /// of the two-line bubble did: wider card, same one line, same ellipsis.
+    /// Constraining the text is what actually makes it wrap.
+    nonisolated static let textWidth: CGFloat = maxWidth - insetX * 2
 
     /// How many monospaced columns the PLAIN bubble can show: **28**, READ off a
     /// render rather than computed.
@@ -96,7 +137,14 @@ public struct ThoughtBubble: View {
     /// is not the facts' alone — a fact pool holding itself to a stricter rule
     /// than his own voice keeps in the same bubble would be an inconsistency
     /// rather than a safeguard.
-    nonisolated static let plainColumns = 28
+    ///
+    /// **38 as of the two-line bubble**, and now derivable rather than read: at
+    /// the real advance below (6.7998, not the 6.62 the marquee assumed for
+    /// years) 38 columns are 258.4pt, which with 8pt of padding on each side
+    /// is 274.4 — inside `maxWidth` 276, and inside the 300pt floor
+    /// `PetRootView.windowSize` puts under every window. Thirty-nine would be
+    /// 281.2 and would not fit.
+    nonisolated static let plainColumns = 38
 
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.
@@ -159,12 +207,16 @@ public struct ThoughtBubble: View {
                         // tips type themselves onto the card. Mood lines stay
                         // instant — they are his voice, and a voice does not
                         // arrive letter by letter.
-                        TypewriterText(text: text, font: font, frozenTime: frozenTime)
+                        TypewriterText(text: text, font: font,
+                                       frozenTime: frozenTime,
+                                       holdSeconds: holdSeconds, ink: foreground)
                     } else {
                         Text(text)
                             .font(font)
-                            .lineLimit(1)
+                            .lineLimit(Self.plainLines)
                             .truncationMode(.tail)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: Self.textWidth, alignment: .leading)
                     }
                 }
                 if mood == .nudging, style == .plain {
@@ -312,6 +364,13 @@ struct TypewriterText: View {
     let text: String
     let font: Font
     let frozenTime: Double?
+    /// How long this line is being held, when the caller knows. Drives the
+    /// fade-down only; nil keeps the line solid for its whole life.
+    var holdSeconds: Double? = nil
+    /// The bubble's own text colour. Passed in rather than inherited because
+    /// the ramp needs a real `Color` to take an opacity from — `.primary`
+    /// would quietly discard the mood's foreground and paint system ink.
+    let ink: Color
     @State private var startedAt: Double?
 
     /// Brisk enough that the longest plain line (28 columns) lands in under
@@ -324,22 +383,81 @@ struct TypewriterText: View {
         max(0, min(total, Int(elapsed * charsPerSecond)))
     }
 
+    /// How many characters behind the cursor are still fading up, and how
+    /// long one takes to reach full ink.
+    ///
+    /// A character that arrives at full opacity is a one-frame change, which
+    /// is the thing the no-snap doctrine bans everywhere else in this app —
+    /// it applies to glyphs as much as to limbs. Three is enough to read as a
+    /// soft type-in and few enough that the line is four `Text` runs rather
+    /// than seventy-six.
+    nonisolated static let rampChars = 3
+
+    /// The line fades DOWN over its last stretch, so it leaves the way it
+    /// arrived instead of being cut. Only when the caller says how long the
+    /// line is being held — offline and in the renderers it stays solid.
+    nonisolated static let fadeOut: Double = 0.45
+
+    /// The ink on the character `back` places behind the cursor, 0…1.
+    nonisolated static func inkLevel(_ back: Int, progress: Double) -> Double {
+        guard back < rampChars else { return 1 }
+        // The newest character carries `progress` of one step; each older one
+        // is a whole step further up.
+        return min(1, (progress + Double(rampChars - 1 - back)) / Double(rampChars))
+    }
+
     var body: some View {
         Clocked(frozenTime: frozenTime) { t in
             // Offline there is no "when the line appeared" — the whole line is
             // the picture. Live, the first tick anchors the clock.
-            let shown = frozenTime != nil
-                ? text.count
-                : Self.typedCount(elapsed: t - (startedAt ?? t), of: text.count)
+            let elapsed = t - (startedAt ?? t)
+            let exact = frozenTime != nil
+                ? Double(text.count)
+                : max(0, elapsed) * Self.charsPerSecond
+            let shown = frozenTime != nil ? text.count
+                : Self.typedCount(elapsed: elapsed, of: text.count)
+            // …and the whole line eases off at the end of its hold.
+            let leaving = frozenTime == nil ? (holdSeconds.map { hold in
+                Ease.smoothstep(min(1, max(0, (elapsed - (hold - Self.fadeOut)) / Self.fadeOut)))
+            } ?? 0) : 0
             ZStack(alignment: .leading) {
-                Text(text).font(font).lineLimit(1).opacity(0)  // reserves the width
-                Text(String(text.prefix(shown)) + (shown < text.count ? "▮" : ""))
+                // Reserves the FINAL block, so the card arrives at its full
+                // size and the text types into it — a bubble that grew line
+                // by line would be layout jiggling.
+                Text(text).font(font)
+                    .lineLimit(ThoughtBubble.plainLines)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: ThoughtBubble.textWidth, alignment: .leading)
+                    .opacity(0)
+                Self.typed(text, shown: shown, ink: ink,
+                           progress: exact - exact.rounded(.down))
                     .font(font)
-                    .lineLimit(1)
+                    .lineLimit(ThoughtBubble.plainLines)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: ThoughtBubble.textWidth, alignment: .leading)
+                    .opacity(1 - leaving)
             }
         }
         .onAppear { startedAt = Date.timeIntervalSinceReferenceDate }
         .onChange(of: text) { startedAt = Date.timeIntervalSinceReferenceDate }
+    }
+
+    /// The typed prefix as concatenated `Text` runs — solid body, then the
+    /// last few characters at rising ink, then the cursor.
+    ///
+    /// `Text + Text` rather than an `HStack`, because concatenation is the
+    /// only composition SwiftUI will WRAP across the two lines; an HStack of
+    /// per-character views would lay out in one row and run off the card.
+    nonisolated static func typed(_ text: String, shown: Int, ink: Color,
+                                  progress: Double) -> Text {
+        let chars = Array(text)
+        let solid = max(0, shown - rampChars)
+        var out = Text(String(chars[0..<min(solid, chars.count)]))
+        for index in solid..<min(shown, chars.count) {
+            let level = inkLevel(shown - 1 - index, progress: progress)
+            out = out + Text(String(chars[index])).foregroundColor(ink.opacity(level))
+        }
+        return shown < chars.count ? out + Text("▮") : out
     }
 }
 

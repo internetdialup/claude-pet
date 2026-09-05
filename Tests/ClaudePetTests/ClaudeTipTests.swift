@@ -151,7 +151,7 @@ struct ClaudeTipTests {
     func tipsAreRoutedByLength() {
         for tip in ClaudeTips.all {
             let expected: PetState.BubbleStyle =
-                columns(tip) <= ThoughtBubble.plainColumns ? .plain : .marquee
+                columns(tip) <= ThoughtBubble.plainCapacity ? .plain : .marquee
             #expect(ActivityCoordinator.bubbleStyle(for: tip) == expected)
         }
     }

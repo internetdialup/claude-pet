@@ -159,7 +159,9 @@ struct FunFactTests {
                 "if a short line did not loop inside its slot there would be nothing to fix")
         #expect(ActivityCoordinator.bubbleStyle(for: short) == .plain)
 
-        let long = String(repeating: "x", count: ThoughtBubble.plainColumns + 1)
+        // Past the whole bubble's CAPACITY, not one row's width — a line
+        // longer than 38 now wraps to the second line instead of scrolling.
+        let long = String(repeating: "x", count: ThoughtBubble.plainCapacity + 1)
         #expect(ActivityCoordinator.bubbleStyle(for: long) == .marquee)
     }
 

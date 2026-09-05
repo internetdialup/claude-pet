@@ -1136,8 +1136,16 @@ public final class ActivityCoordinator {
             // tooltip) throughout regardless.
             var shielded = false
             if burst != nil {
+                // `until`, NOT `readableUntil` — the operator's ruling,
+                // revised. The two clocks were the murder: the shield ran on
+                // the short one and, on failing it, destroyed the hold the
+                // long one depended on, so a fact with a 28-second stay could
+                // be shot at eight and never come back. With a static bubble
+                // the hold is already sized to one comfortable read, so there
+                // is nothing left for a second, shorter clock to mean.
+                // Whatever is on screen finishes.
                 if let held = chatterCache[slot].heldLine,
-                   Self.factMoods.contains(mood), now < held.readableUntil {
+                   Self.factMoods.contains(mood), now < held.until {
                     bubble = held.text
                     style = held.style
                     tone = .knowledge
@@ -1294,8 +1302,16 @@ public final class ActivityCoordinator {
     /// keyword and watching the TEST target fail — the app target compiles
     /// either way, which is precisely how the last round's check proved
     /// nothing.
+    /// Against the bubble's whole CAPACITY — 38 columns over two lines, 76
+    /// characters — rather than a single row's width.
+    ///
+    /// This is the switch that retires the ticker from ordinary speech. The
+    /// longest thing he knows is a 69-character fun fact, so at 76 every line
+    /// in the app comes back `.plain` and the marquee is left to what the
+    /// operator kept it for: status, which asks for it by name rather than by
+    /// being too long.
     nonisolated static func bubbleStyle(for line: String) -> PetState.BubbleStyle {
-        line.count <= ThoughtBubble.plainColumns ? .plain : .marquee
+        line.count <= ThoughtBubble.plainCapacity ? .plain : .marquee
     }
 
     /// The longest a single scrolling line may hold the bubble.
@@ -1328,10 +1344,27 @@ public final class ActivityCoordinator {
     /// site: past the readable window, NEWS KILLS THE HOLD immediately, and it
     /// never resumes — a resumed scroll is the mid-start bug wearing a
     /// different hat.
+    /// **Rewritten for the two-line bubble.** This used to return zero for
+    /// anything that fit the plain bubble, on the reasoning that a line you
+    /// can see whole needs no protection — only scrolling facts took holds.
+    /// That reasoning was sound while the plain bubble was 28 columns and
+    /// every fact scrolled. At 38 columns over two lines NOTHING scrolls, so
+    /// the old rule would have handed every fact a hold of zero and left the
+    /// whole pool unshielded — the operator's complaint, made worse by the
+    /// change meant to fix it.
+    ///
+    /// So the clock moves from the marquee's cycle to the eye's: how long the
+    /// line takes to arrive and be read. A static line still needs time; it
+    /// just needs a knowable amount rather than two laps of a ticker.
     nonisolated static func lineHold(for line: String) -> TimeInterval {
-        guard bubbleStyle(for: line) == .marquee else { return 0 }
-        let cycle = Double(MarqueeText.cycle(for: line, loopSeconds: nil) / MarqueeText.speed)
-        return min(cycle * 2, maxLineHold)
+        if bubbleStyle(for: line) == .marquee {
+            let cycle = Double(MarqueeText.cycle(for: line, loopSeconds: nil) / MarqueeText.speed)
+            return min(cycle * 2, maxLineHold)
+        }
+        // Long enough to read at leisure and then sit for a beat, so the
+        // bubble is not snatched away on the last word. Floored so a
+        // three-word line still registers as something he said.
+        return min(max(5, readableWindow(for: line) * 1.6), maxLineHold)
     }
 
     /// Grace on top of the first read-through, so "read once" survives the
@@ -1345,9 +1378,20 @@ public final class ActivityCoordinator {
     /// replace it, and after that news wins instantly. Worst case 11.8s plus
     /// grace, always inside the line's own two-cycle stay.
     nonisolated static func readableWindow(for line: String) -> TimeInterval {
-        guard bubbleStyle(for: line) == .marquee else { return 0 }
-        return MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+        if bubbleStyle(for: line) == .marquee {
+            return MarqueeText.readSeconds(for: line, width: MarqueeText.viewport)
+        }
+        // A plain line is no longer legible "the instant it appears": it types
+        // itself in. So the window is the typing plus an unhurried read of
+        // what was typed. Twelve characters a second is well under a fluent
+        // reading rate — this is a pet on a desk being glanced at, not a page
+        // being studied, and the cost of being generous is a few seconds.
+        let count = Double(line.count)
+        return count / TypewriterText.charsPerSecond + count / plainReadRate
     }
+
+    /// Characters a second the reader is assumed to manage on a glance.
+    nonisolated static let plainReadRate: Double = 12
 
     /// The moods a fact may wear the deal-with-it shades in. `.cooking` is
     /// out: the fire IS the cooking signal, and the prop swap would vanish
