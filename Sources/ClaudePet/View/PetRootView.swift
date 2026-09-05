@@ -154,6 +154,11 @@ public struct PetRootView: View {
                         style: transient.map { ActivityCoordinator.bubbleStyle(for: $0) }
                             ?? model.state.bubbleStyle,
                         service: transient == nil ? model.state.serviceGlyph : nil,
+                        // How long it has, so the text can ease off at the
+                        // end instead of being cut. Only the transient
+                        // carries a real expiry; a state bubble lives until
+                        // the coordinator replaces it, so it stays solid.
+                        holdSeconds: live.map { $0.until.timeIntervalSinceNow },
                         knowledge: transient == nil
                             && model.state.bubbleTone == .knowledge
                     )

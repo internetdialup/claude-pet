@@ -235,22 +235,17 @@ public struct ThoughtBubble: View {
                     MarqueeText(text: text, font: font, width: Self.marqueeWidth,
                                 frozenTime: frozenTime, loopSeconds: loopSeconds)
                 case .plain:
-                    if knowledge {
-                        // A note gets WRITTEN, not stamped: short facts and
-                        // tips type themselves onto the card. Mood lines stay
-                        // instant — they are his voice, and a voice does not
-                        // arrive letter by letter.
-                        TypewriterText(text: text, font: font,
-                                       frozenTime: frozenTime,
-                                       holdSeconds: holdSeconds, ink: foreground)
-                    } else {
-                        Text(text)
-                            .font(font)
-                            .lineLimit(Self.plainLines)
-                            .truncationMode(.tail)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: Self.textWidth, alignment: .leading)
-                    }
+                    // EVERYTHING gets written now, not just the cards.
+                    //
+                    // The old split was deliberate — a note is typed, but a
+                    // mood line "is his voice, and a voice does not arrive
+                    // letter by letter". The operator has asked for the
+                    // typing as the bubble's effect, so the ruling is
+                    // reversed here rather than quietly worked around; it is
+                    // a one-word change back if he misses the instant voice.
+                    TypewriterText(text: text, font: font,
+                                   frozenTime: frozenTime,
+                                   holdSeconds: holdSeconds, ink: foreground)
                 }
                 if mood == .nudging, style == .plain {
                     // The plan is ready and he wants a verdict: a slow, eased
@@ -484,6 +479,12 @@ struct TypewriterText: View {
     nonisolated static func typed(_ text: String, shown: Int, ink: Color,
                                   progress: Double) -> Text {
         let chars = Array(text)
+        // FINISHED LINES CARRY NO RAMP. The ramp exists to keep a character
+        // from arriving in one frame; once the whole line is there, there is
+        // nothing arriving. Without this the tail of every completed line sat
+        // permanently at a third and two thirds ink — which a frozen render
+        // showed plainly, and `bubbles.png` shipped as "ready to bu ld".
+        guard shown < chars.count else { return Text(text) }
         let solid = max(0, shown - rampChars)
         var out = Text(String(chars[0..<min(solid, chars.count)]))
         for index in solid..<min(shown, chars.count) {
