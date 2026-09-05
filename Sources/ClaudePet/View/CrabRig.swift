@@ -1454,6 +1454,54 @@ public enum CrabRig {
     /// half of the roll has the top face toward you, which is the opposite
     /// half for each. And the wheels hang off the nose's own end rather
     /// than symmetric hubs, so the board reads as having a front.
+    /// A board spinning FLAT — yaw only, no flip. Shared by the shove-it
+    /// (half a turn) and the bigspin (a whole one).
+    ///
+    /// **The nose is the whole point.** The silhouette is built from
+    /// `abs(cos)` and `abs(sin)`, which have period π and are blind to sign,
+    /// so without a mark on one end a board spinning one way draws exactly
+    /// the same pixels as a board spinning the other — and the same as one
+    /// merely rocking back and forth. You could see that it turned; you could
+    /// not see which way. The operator asked for the difference.
+    ///
+    /// So the nose is drawn where the nose actually projects: `cos(yaw)`,
+    /// SIGNED and unrounded until the last moment, which sweeps the mark
+    /// smoothly out to one end, back through the middle as the deck goes
+    /// end-on, and out to the other. Sign is what carries the direction, and
+    /// passing through the centre rather than jumping between the ends is
+    /// what keeps it inside the no-snap rule — at the fastest point of the
+    /// spin the mark moves about 1.4 cells a frame.
+    private static func drawFlatSpin(_ b: inout PixelBuffer, dx: Int, dy: Int,
+                                     pose: CrabPose, yaw: Double) {
+        let deckHalfLength = 8.0
+        let deckHalfWidth = 2.5
+        let cx = 16 + dx, deckY = 25 + dy
+        let half = max(2, Int((deckHalfLength * abs(cos(yaw))
+                               + deckHalfWidth * abs(sin(yaw))).rounded()))
+        let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+        let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+        // The nose reads against whichever deck it is riding on.
+        let noseInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .paper
+        b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
+        if half >= 5 {
+            for hub in [cx - half + 1, cx + half - 3] {
+                b.rect(hub, deckY + 1, 3, 1, wheelInk)
+                b.pixel(hub + 1, deckY + 2, .screenDark)
+            }
+        }
+        // Two cells while there is deck enough to spare them, one when the
+        // board is nearly end-on — a two-cell mark on a five-cell board would
+        // be a board with a stripe, not a board with a nose.
+        let noseX = cx + Int((deckHalfLength * cos(yaw)).rounded())
+        let tip = half >= 5 ? 2 : 1
+        for step in 0..<tip {
+            // Inward from the tip, toward the middle, so the mark never
+            // hangs off the end of the deck it belongs to.
+            let x = noseX - (cos(yaw) >= 0 ? step : -step)
+            if x >= cx - half && x <= cx + half { b.pixel(x, deckY, noseInk) }
+        }
+    }
+
     private static func drawFlip360(_ b: inout PixelBuffer, dx: Int, dy: Int,
                                     pose: CrabPose, direction: Double) {
         let spin = pose.propPhase.truncatingRemainder(dividingBy: 1)
@@ -2210,20 +2258,9 @@ public enum CrabRig {
             // The flat spin: yaw only. The deck narrows toward edge-on and
             // widens back out — the varial's width math with the roll struck
             // out — while the wheels ride the shrinking ends and duck behind
-            // the deck at the pass-through.
-            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
-            let yaw = u * .pi
-            let cx = 16 + dx, deckY = 25 + dy
-            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
-            b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
-            if half >= 5 {
-                for hub in [cx - half + 1, cx + half - 3] {
-                    b.rect(hub, deckY + 1, 3, 1, wheelInk)
-                    b.pixel(hub + 1, deckY + 2, .screenDark)
-                }
-            }
+            // the deck at the pass-through. Half a turn.
+            drawFlatSpin(&b, dx: dx, dy: dy, pose: pose,
+                         yaw: pose.propPhase.truncatingRemainder(dividingBy: 1) * .pi)
 
         case .skateboardTre:
             drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: 1)
@@ -2255,19 +2292,8 @@ public enum CrabRig {
             // makes the trick read — the deck comes round twice for every
             // once he does, and it is the board leading the rider that says
             // bigspin rather than the two of them merely both turning.
-            let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
-            let yaw = u * 2 * .pi
-            let cx = 16 + dx, deckY = 25 + dy
-            let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
-            b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
-            if half >= 5 {
-                for hub in [cx - half + 1, cx + half - 3] {
-                    b.rect(hub, deckY + 1, 3, 1, wheelInk)
-                    b.pixel(hub + 1, deckY + 2, .screenDark)
-                }
-            }
+            drawFlatSpin(&b, dx: dx, dy: dy, pose: pose,
+                         yaw: pose.propPhase.truncatingRemainder(dividingBy: 1) * 2 * .pi)
 
         case .skateboardRoll:
             // NO TRICK. He rides, fast, and stays exactly where he is while the

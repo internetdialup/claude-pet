@@ -465,6 +465,51 @@ struct TorsoTurnTests {
                 "the deck held \(widths.count) distinct width(s) across the roll-out — a static board")
     }
 
+    /// **You can tell which way the board is going.**
+    ///
+    /// The flat-spin deck is built from `abs(cos)` and `abs(sin)`, which have
+    /// period π and no sign, so the silhouette alone is identical for a spin
+    /// and its mirror — and identical for a board spinning and a board merely
+    /// rocking. A reviewer caught that the fixed bigspin proved the deck
+    /// MOVED without ever showing which way. The nose mark is the answer, and
+    /// this is what makes it real rather than decorative.
+    @Test("The nose sweeps across the deck, and never jumps")
+    func theNoseShowsTheDirection() {
+        let duration = CrabAnimator.Flourish.bigspin.duration
+        func nose(_ progress: Double) -> Int? {
+            let pose = CrabAnimator.flourishPose(.bigspin, at: progress * duration)
+            let buffer = CrabRig.render(pose)
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .paper {
+                    // The mark rides the deck row, which is the only place
+                    // `.paper` appears anywhere near the board.
+                    if (0..<PixelBuffer.side).contains(where: { buffer[$0, y] == .deck }) {
+                        return x
+                    }
+                }
+            }
+            return nil
+        }
+        // Across the air, where the board actually spins.
+        var seen: [Int] = []
+        for step in 0...80 {
+            let progress = 0.15 + 0.65 * Double(step) / 80
+            if let x = nose(progress) { seen.append(x) }
+        }
+        #expect(seen.count > 60, "the nose was missing for most of the air (\(seen.count) frames)")
+        // It must reach BOTH ends — a mark that only ever sat on one side
+        // would say nothing about direction.
+        let low = seen.min() ?? 0, high = seen.max() ?? 0
+        #expect(high - low >= 10,
+                "the nose only travelled \(high - low) cells — it is not reading as a nose")
+        // …and it must get there by sweeping, not teleporting. This is the
+        // no-snap rule applied to the cue itself: the mark passes through the
+        // middle as the deck goes end-on rather than jumping between tips.
+        for (a, b) in zip(seen, seen.dropFirst()) {
+            #expect(abs(a - b) <= 2, "the nose jumped \(abs(a - b)) cells, from \(a) to \(b)")
+        }
+    }
+
     /// At every rate anything renders him at, the silhouette's edges walk
     /// rather than jump. The bounds are recorded per rate rather than
     /// tightened to one: a 360 in two seconds simply moves more cells per
