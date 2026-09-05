@@ -22,13 +22,37 @@ struct FunFactTests {
     ///
     /// Two seconds of the slot are left as margin for the bubble's 0.28s
     /// fade-in and the reducer's 2s tick landing after the seed boundary.
-    @Test("Every fact finishes scrolling before its slot is up")
+    ///
+    /// **Rescoped twice over.** It used to run over every fact, because every
+    /// fact scrolled. Two things changed together: the bubble grew a second
+    /// line, so no fact scrolls at all, and `MarqueeText.measure` stopped
+    /// under-measuring by 0.18pt a character (and by 9.4pt an emoji), which
+    /// made two facts nominally exceed a budget they are no longer subject
+    /// to. Asserting a scrolling deadline against lines that never scroll
+    /// would be a gate on nothing.
+    ///
+    /// So the guard now covers the case that would actually break: a fact
+    /// written past the bubble's 76-character capacity would start scrolling,
+    /// and if it did it would still have to finish inside its slot. Today
+    /// that loop body runs zero times — which the assertion below states
+    /// outright, so this cannot quietly become a no-op gate.
+    @Test("Anything long enough to scroll still finishes inside its slot")
     func factsFinishInsideTheirSlot() {
         let budget = ActivityCoordinator.chatterInterval - 2
-        for fact in FunFacts.all {
+        let scrolling = FunFacts.all.filter {
+            ActivityCoordinator.bubbleStyle(for: $0) == .marquee
+        }
+        for fact in scrolling {
             let read = MarqueeText.readSeconds(for: fact, width: MarqueeText.viewport)
             #expect(read <= budget,
                     "\"\(fact)\" needs \(String(format: "%.1f", read))s of a \(budget)s slot")
+        }
+        // The premise, stated: nothing scrolls today, and every fact is
+        // inside the bubble it is shown in.
+        #expect(scrolling.isEmpty, "\(scrolling.count) facts still scroll")
+        for fact in FunFacts.all {
+            #expect(fact.count <= ThoughtBubble.plainCapacity,
+                    "\"\(fact)\" is \(fact.count) characters, past the bubble's \(ThoughtBubble.plainCapacity)")
         }
     }
 

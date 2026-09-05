@@ -73,7 +73,15 @@ public struct ThoughtBubble: View {
 
     /// Width of the scrolling viewport. Fixed so the bubble does not resize as
     /// the ticker's content changes.
-    nonisolated static let marqueeWidth: CGFloat = 150
+    /// Widened from 150 with the status ticker.
+    ///
+    /// The ticker is now the only marquee in the app, and its lines are short
+    /// — a framed prompt like "⚠️ Psst — I need you ⚠️" is about 161pt. At
+    /// 150 the frame was sliced at whichever end the phase happened to be
+    /// under, which reads as motion in the app and as a rendering bug in a
+    /// committed still. At 192 the warning sits whole at both ends and a
+    /// longer prompt still scrolls.
+    nonisolated static let marqueeWidth: CGFloat = 192
 
     /// The widest the bubble is allowed to get, and the padding inside it.
     /// Hoisted out of `body` so the column count below is derived from the same
@@ -112,6 +120,22 @@ public struct ThoughtBubble: View {
     /// of the two-line bubble did: wider card, same one line, same ellipsis.
     /// Constraining the text is what actually makes it wrap.
     nonisolated static let textWidth: CGFloat = maxWidth - insetX * 2
+
+    /// 🚨 **The status ticker** — all the marquee is kept for.
+    ///
+    /// Nothing he KNOWS scrolls any more: at 38 columns over two lines every
+    /// fact and every line of his own sits still and is read whole. What is
+    /// left for a ticker is the thing a ticker is actually good at, which is
+    /// not fitting long text into a small space but saying *this is live and
+    /// it wants you*. So `needsAttention` — and only `needsAttention` — keeps
+    /// the scroll, framed on both sides so the warning is on screen at every
+    /// moment of the loop rather than only when the middle happens to pass.
+    nonisolated static func statusTicker(_ line: String) -> String {
+        "⚠️ \(line) ⚠️"
+    }
+
+    /// Whether this bubble is the status ticker rather than a spoken line.
+    var isStatusTicker: Bool { mood == .needsAttention && style != .dots }
 
     /// How many monospaced columns the PLAIN bubble can show: **28**, READ off a
     /// render rather than computed.
@@ -191,13 +215,22 @@ public struct ThoughtBubble: View {
                     // The dots stay wordless AND badgeless — reasoning is
                     // reasoning, whoever it is about.
                     ServiceBadge(kind: service)
-                } else if !glyph.isEmpty {
+                } else if !glyph.isEmpty, !isStatusTicker {
+                    // The ticker carries its own warning on both sides, so the
+                    // mood's badge would be a third one in the same bubble.
                     Text(glyph)
                         .font(.system(size: 10, weight: .black, design: .monospaced))
                 }
                 switch style {
                 case .dots:
                     PulsingDots(color: foreground, frozenTime: frozenTime)
+                case _ where isStatusTicker:
+                    // Ahead of both real styles: the mood decides this one,
+                    // not the length. A four-word prompt still scrolls,
+                    // because the scrolling IS the signal.
+                    MarqueeText(text: Self.statusTicker(text), font: font,
+                                width: Self.marqueeWidth,
+                                frozenTime: frozenTime, loopSeconds: loopSeconds)
                 case .marquee:
                     MarqueeText(text: text, font: font, width: Self.marqueeWidth,
                                 frozenTime: frozenTime, loopSeconds: loopSeconds)
@@ -543,7 +576,18 @@ struct MarqueeText: View {
         Clocked(frozenTime: frozenTime) { now in
             // Frozen renders keep taking the caller's instant verbatim, so
             // offline output stays byte-deterministic.
-            let elapsed = frozenTime == nil ? max(0, now - began) : now
+            // A STILL shows the ticker from its first word.
+            //
+            // `TypewriterText` already carries this rule and states the
+            // reason: a marketing asset caught mid-word is the operator's
+            // mid-sentence complaint reincarnated in a PNG. The same applies
+            // to a frame of a scrolling line — `bubbles.png` was shipping a
+            // warning sign sliced in half at both ends. A renderer that wants
+            // the ticker MOVING says so by supplying `loopSeconds`, which is
+            // what that parameter has always been for; everything else gets
+            // phase zero.
+            let elapsed = frozenTime == nil ? max(0, now - began)
+                : (loopSeconds == nil ? 0 : now)
             let measured = Self.cycle(for: text, loopSeconds: loopSeconds)
             let offset = measured > 0
                 ? -CGFloat(elapsed * Double(Self.speed)).truncatingRemainder(dividingBy: measured)
@@ -562,8 +606,36 @@ struct MarqueeText: View {
 
     /// Monospaced 11pt: every glyph is the same advance, so the width is
     /// countable rather than needing a layout pass.
+    /// The advance of one character in the bubble's face, MEASURED.
+    ///
+    /// This was 6.62 for the life of the ticker, and 6.62 is **Menlo-Bold's**
+    /// advance at 11pt — a font this app has never drawn with. The face is
+    /// `.AppleSystemUIFontMonospaced-Bold`, whose advance is 6.7998046875,
+    /// confirmed through CoreText and confirmed again by the bubble's own
+    /// ruler (28 columns fit the 194pt text area at 6.7998; at 6.62 the
+    /// arithmetic predicts 29, and the render says 29 clips).
+    ///
+    /// The error was small and it was not harmless: the scroll wrapped at a
+    /// modulus narrower than the drawn text, so the line teleported forward
+    /// by the difference once a cycle — worse the longer the sentence, which
+    /// is exactly the condition the operator reported it under.
+    nonisolated static let advance: CGFloat = 6.7998046875
+
+    /// …and an emoji is not monospaced with it. CoreText substitutes Apple
+    /// Color Emoji, measured at exactly 16.0pt — two and a third ordinary
+    /// cells. Billing one at `advance` under-measured a line like
+    /// "Riding that sunset to paradise 🌈🌊" by 24pt.
+    nonisolated static let emojiAdvance: CGFloat = 16.0
+
+    /// A per-character sum rather than a multiplication, because the two
+    /// faces have different advances and `count` cannot tell them apart.
     nonisolated static func measure(_ text: String) -> CGFloat {
-        CGFloat(text.count) * 6.62
+        text.reduce(0) { total, character in
+            let isEmoji = character.unicodeScalars.contains {
+                $0.properties.isEmojiPresentation
+            }
+            return total + (isEmoji ? emojiAdvance : advance)
+        }
     }
 
     /// One full scroll cycle in POINTS: the text plus its trailing gap, or —

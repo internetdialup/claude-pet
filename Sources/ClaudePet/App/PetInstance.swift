@@ -387,8 +387,7 @@ final class PetInstance {
                 // unrelated pass and repeated the line about one time in four.
                 let line = self.bugCursor.advance(Vocab.lines(for: .bugCaught),
                                                   id: "bugCaught")
-                self.model.transientBubble = (line ?? "Bug fixed",
-                                              Date().addingTimeInterval(2.4), .done)
+                self.say(line ?? "Bug fixed", for: 2.4, mood: .done)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                     guard let self, self.model.pouncedAt == pouncedAt else { return }
                     self.model.pouncedAt = nil
@@ -479,8 +478,7 @@ final class PetInstance {
                       self.model.pettingEndedAt == nil else { return }
                 SoundBank.play(.shimmer)
                 let line = self.petCursor.advance(Vocab.lines(for: .longPet), id: "longPet")
-                self.model.transientBubble = (line ?? "Best. Human. Ever 💛",
-                                              Date().addingTimeInterval(2.4), .done)
+                self.say(line ?? "Best. Human. Ever 💛", for: 2.4, mood: .done)
             }
         }
         controller.onPetEnd = { [weak self] in
@@ -671,11 +669,37 @@ final class PetInstance {
             guard self.model.state.mood == .idle,
                   self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
             let line = self.surfCursor.advance(Vocab.lines(for: .surf), id: "surf")
-            self.model.transientBubble = (line ?? "Aloha 🌴",
-                                          Date().addingTimeInterval(PetInstance.surfLineSeconds),
-                                          .done)
+            self.say(line ?? "Aloha 🌴", for: PetInstance.surfLineSeconds, mood: .done)
             self.armSurfLine()        // and meet the next swell
         }
+    }
+
+    /// **One door for every spoken line, and it can say no.**
+    ///
+    /// Five places used to assign `model.transientBubble` directly, and none
+    /// of them looked first. The bubble is a single slot with a queue of
+    /// writers and no lock, so whatever spoke last won — which is how the
+    /// operator came to watch a fun fact taken off the screen mid-thought.
+    ///
+    /// The rule is his: whatever is on screen finishes. A line that arrives
+    /// into an occupied bubble is DROPPED, not queued — the skate and surf
+    /// shouts are tied to a moment (a landing, a wave) and a shout that
+    /// arrives late is worse than one that never comes. Both re-arm
+    /// themselves for the next one regardless, so nothing gets stuck.
+    ///
+    /// Returns whether the line was actually said, for callers that care.
+    @discardableResult
+    private func say(_ line: String, for seconds: TimeInterval,
+                     mood: PetMood) -> Bool {
+        // Something of his own still being read.
+        if let live = model.transientBubble, live.until > Date() { return false }
+        // …or a fact holding the face. Knowledge is the tone that takes a
+        // hold; his own chatter does not, and does not need protecting from
+        // itself the way a citation does.
+        if let showing = model.state.bubble, !showing.isEmpty,
+           model.state.bubbleTone == .knowledge { return false }
+        model.transientBubble = (line, Date().addingTimeInterval(seconds), mood)
+        return true
     }
 
     /// 🎉🪄 The triple-poke party, latched with the guarded clear every latch
@@ -748,8 +772,7 @@ final class PetInstance {
             // Long enough for the longest line to finish SCROLLING, not just to
             // appear: the Hall of Meat line is 31 columns, so it goes to the
             // marquee and needs about 2.1s to walk past.
-            self.model.transientBubble = (line ?? "Kowbunga 🤙!",
-                                          Date().addingTimeInterval(PetInstance.skateLineSeconds), .done)
+            self.say(line ?? "Kowbunga 🤙!", for: PetInstance.skateLineSeconds, mood: .done)
             self.armSkateLine()          // and meet the next one
         }
     }
