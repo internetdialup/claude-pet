@@ -402,6 +402,69 @@ struct TorsoTurnTests {
                 "he should be halfway round as the air ends, not \(apex.torsoTurn)")
     }
 
+    /// NO SEX CHANGES — the MOTION half of the rule.
+    ///
+    /// `theBoardTurnsWithHim` above pins that whatever is under him while he
+    /// turns is a board of a turning KIND. That is necessary and it is not
+    /// sufficient, and the gap is exactly where the bug lived: the prop was
+    /// `.skateboardBigspin` for the whole trick, so that test stayed green
+    /// while the deck sat frozen at `propPhase = 0` through the entire
+    /// landing. The right kind of board, not turning, is still a sex change.
+    ///
+    /// The rule the bigspin is built on is that he may only rotate if the
+    /// board rotates WITH him, the same way, by at least as much. The air
+    /// honoured it at two-to-one and the LANDING did not: `propPhase` was
+    /// assigned once at the top of the case and never again, so for the
+    /// final 20% the deck sat frozen broadside while he pivoted a hundred
+    /// and eighty degrees on top of it.
+    ///
+    /// This pins the rule over the whole trick rather than at the seam that
+    /// happened to break, so the next branch added to this case cannot
+    /// quietly reintroduce it.
+    @Test("The board never lets him out-turn it")
+    func theBoardActuallyTurns() {
+        let duration = CrabAnimator.Flourish.bigspin.duration
+        var lastBody = 0.0, lastBoard = 0.0
+        var rollOutBoardTravel = 0.0
+        for step in 0...600 {
+            let progress = Double(step) / 600
+            let pose = CrabAnimator.flourishPose(.bigspin, at: progress * duration)
+            let body = pose.torsoTurn, board = pose.propPhase
+            let bodyStep = body - lastBody, boardStep = board - lastBoard
+            // Same way (never opposite), by at least as much.
+            #expect(boardStep >= bodyStep - 1e-9,
+                    "at \(progress) he turned \(bodyStep) while the board turned \(boardStep) — a sex change")
+            if progress >= 0.80 { rollOutBoardTravel += boardStep }
+            lastBody = body; lastBoard = board
+        }
+        // And the landing specifically: the branch that used to freeze it.
+        #expect(rollOutBoardTravel > 0.4,
+                "the board only moved \(rollOutBoardTravel) turns across the roll-out — it is frozen again")
+    }
+
+    /// The same rule, read off the PIXELS rather than the channel — so a
+    /// mapping that stopped consulting `propPhase` would still be caught.
+    /// A turning deck changes width; a frozen one does not.
+    @Test("The deck's width really moves across the landing")
+    func theDeckWidthMovesOnTheLanding() {
+        let duration = CrabAnimator.Flourish.bigspin.duration
+        var widths: Set<Int> = []
+        for step in 0...40 {
+            let progress = 0.80 + 0.20 * Double(step) / 40
+            let pose = CrabAnimator.flourishPose(.bigspin, at: progress * duration)
+            let buffer = CrabRig.render(pose)
+            var widest = 0
+            for y in 0..<PixelBuffer.side {
+                var count = 0
+                for x in 0..<PixelBuffer.side where buffer[x, y] == .deck { count += 1 }
+                widest = max(widest, count)
+            }
+            if widest > 0 { widths.insert(widest) }
+        }
+        #expect(widths.count >= 3,
+                "the deck held \(widths.count) distinct width(s) across the roll-out — a static board")
+    }
+
     /// At every rate anything renders him at, the silhouette's edges walk
     /// rather than jump. The bounds are recorded per rate rather than
     /// tightened to one: a 360 in two seconds simply moves more cells per

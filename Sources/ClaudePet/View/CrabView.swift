@@ -2186,6 +2186,21 @@ public enum CrabAnimator {
                 // turn is the identity, so he arrives square without ever
                 // having reversed.
                 pose.torsoTurn = 0.5 + Self.bigspinOut(out) * 0.5
+                // …and THE BOARD COMES WITH HIM. Without this line the deck
+                // sat at the `propPhase = 0` set at the top of the case
+                // while he pivoted a hundred and eighty degrees on top of
+                // it — a body varial, which skateboarding calls a sex
+                // change and nobody does on purpose. The rule the trick is
+                // built on says he may only rotate if the board rotates
+                // with him, the same way, by at least as much; the air
+                // honours it at two-to-one and the landing has to honour it
+                // too. Same `out`, same easing, same sign, so the two are
+                // one motion in two channels.
+                //
+                // `1 +` is bookkeeping, not offset: the prop takes its yaw
+                // mod 1, so this reads as the half-turn that follows the
+                // whole one the air already spent.
+                pose.propPhase = 1 + Self.bigspinOut(out) * 0.5
             }
 
         case .nollie:
