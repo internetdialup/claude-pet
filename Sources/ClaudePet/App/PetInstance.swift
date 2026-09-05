@@ -600,9 +600,41 @@ final class PetInstance {
         updateBadgeLatches()
         updateKnowledgeLatches()
         if state.mood == .idle, !wasIdle {
-            armSkateLine()
-            armSurfLine()
+            armIdleShouts()
         }
+    }
+
+    /// Arm the skate and surf shouts once the mood clock actually knows he is
+    /// idle — which is NOT yet, at the moment the mood changes.
+    ///
+    /// **This raced, and the shouts lost every time.** Both arms guard on
+    /// `moodClock.currentEpoch(for: .idle)`, which is deliberately
+    /// non-mutating: it answers `mood == current ? startedAt : nil`. The
+    /// clock's `current` is advanced only by the mutating `epoch(for:)`, and
+    /// the only production caller of that is `age(of:at:)` from CrabView's
+    /// render. The render is a SwiftUI body evaluation driven by the very
+    /// `@Published` write two lines above, so it necessarily runs AFTER this
+    /// returns. On the idle rising edge — the only edge that arms — the clock
+    /// therefore still holds the previous mood, `currentEpoch` is nil, the
+    /// guard fails, and both functions return having bumped a sequence number
+    /// and scheduled nothing. Nothing re-armed either, because the only other
+    /// arm site is inside the closure that never ran.
+    ///
+    /// So he has never once shouted about a trick he landed or a wave he
+    /// rode, in any build. Retrying on the next runloop turn lets the render
+    /// rebase the clock first; the attempt cap keeps a mood that never
+    /// renders (a hidden window) from retrying forever.
+    private func armIdleShouts(attempt: Int = 0) {
+        guard model.state.mood == .idle else { return }
+        guard model.moodClock.currentEpoch(for: .idle) != nil else {
+            guard attempt < 4 else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.armIdleShouts(attempt: attempt + 1)
+            }
+            return
+        }
+        armSkateLine()
+        armSurfLine()
     }
 
     /// The deal-with-it latch: settled on the edges of "a flaired fact is on

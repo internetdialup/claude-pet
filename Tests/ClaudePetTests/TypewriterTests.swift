@@ -72,4 +72,41 @@ struct TypewriterTests {
                     "\"\(line)\" still scrolls — the ticker was supposed to be retired")
         }
     }
+
+    /// **One clock, not two.** The fade took a remaining DURATION computed in
+    /// `PetRootView.body` — which re-runs on any published write — while the
+    /// typewriter measured elapsed time from its own mount. Two origins:
+    /// substituting them, the fade's argument is `(2x - D + 0.45)/0.45`, which
+    /// reaches 1 the moment `x` passes half the line's life and never comes
+    /// back. The line blanked halfway through and stayed blank.
+    ///
+    /// Taking an INSTANT fixes it by construction, and this pins the shape:
+    /// solid for the whole life, easing only over the last `fadeOut`, and
+    /// never fading in a frozen render.
+    @MainActor
+    @Test("The fade only happens at the end, and only when live")
+    func theFadeIsOnOneClock() {
+        let expiry = 1000.0
+        // Solid right up to the fade window.
+        for now in [900.0, 980.0, 999.0, expiry - TypewriterText.fadeOut - 0.01] {
+            #expect(TypewriterText.fadeLevel(now: now, expiresAt: expiry, frozen: false) == 0,
+                    "faded early at \(expiry - now)s remaining")
+        }
+        // Monotonic through the window, and fully gone at the end.
+        var previous = 0.0
+        for step in 0...20 {
+            let now = expiry - TypewriterText.fadeOut
+                + TypewriterText.fadeOut * Double(step) / 20
+            let level = TypewriterText.fadeLevel(now: now, expiresAt: expiry, frozen: false)
+            #expect(level >= previous - 1e-9, "the fade reversed at \(now)")
+            previous = level
+        }
+        #expect(TypewriterText.fadeLevel(now: expiry, expiresAt: expiry, frozen: false) == 1)
+        // Frozen renders never fade — a still of a half-faded line is the
+        // same defect as a still of a half-typed one.
+        #expect(TypewriterText.fadeLevel(now: expiry, expiresAt: expiry, frozen: true) == 0)
+        // …and no expiry means solid forever.
+        #expect(TypewriterText.fadeLevel(now: expiry, expiresAt: nil, frozen: false) == 0)
+    }
+
 }

@@ -473,11 +473,16 @@ struct TorsoTurnTests {
     /// rocking. A reviewer caught that the fixed bigspin proved the deck
     /// MOVED without ever showing which way. The nose mark is the answer, and
     /// this is what makes it real rather than decorative.
-    @Test("The nose sweeps across the deck, and never jumps")
-    func theNoseShowsTheDirection() {
-        let duration = CrabAnimator.Flourish.bigspin.duration
+    @Test("The nose sweeps across the deck, and never jumps",
+          arguments: [CrabAnimator.Flourish.bigspin, .shoveIt])
+    func theNoseShowsTheDirection(_ trick: CrabAnimator.Flourish) {
+        // BOTH flat spins, not just the bigspin. Covering one of the two was
+        // how the shove-it shipped with its nose teleporting sixteen cells on
+        // the landing frame: the trick that got the attention got the fix,
+        // and its twin — same helper, same nose, same reset — did not.
+        let duration = trick.duration
         func nose(_ progress: Double) -> Int? {
-            let pose = CrabAnimator.flourishPose(.bigspin, at: progress * duration)
+            let pose = CrabAnimator.flourishPose(trick, at: progress * duration)
             let buffer = CrabRig.render(pose)
             for y in 0..<PixelBuffer.side {
                 for x in 0..<PixelBuffer.side where buffer[x, y] == .paper {
@@ -491,9 +496,11 @@ struct TorsoTurnTests {
             return nil
         }
         // Across the air, where the board actually spins.
+        // The whole trick, not just the air: the landing frame is exactly
+        // where the shove-it's reset fired.
         var seen: [Int] = []
-        for step in 0...80 {
-            let progress = 0.15 + 0.65 * Double(step) / 80
+        for step in 0...120 {
+            let progress = 0.15 + 0.84 * Double(step) / 120
             if let x = nose(progress) { seen.append(x) }
         }
         #expect(seen.count > 60, "the nose was missing for most of the air (\(seen.count) frames)")

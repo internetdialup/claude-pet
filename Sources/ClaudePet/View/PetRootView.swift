@@ -154,11 +154,21 @@ public struct PetRootView: View {
                         style: transient.map { ActivityCoordinator.bubbleStyle(for: $0) }
                             ?? model.state.bubbleStyle,
                         service: transient == nil ? model.state.serviceGlyph : nil,
-                        // How long it has, so the text can ease off at the
-                        // end instead of being cut. Only the transient
-                        // carries a real expiry; a state bubble lives until
-                        // the coordinator replaces it, so it stays solid.
-                        holdSeconds: live.map { $0.until.timeIntervalSinceNow },
+                        // WHEN it expires, not how long it has left.
+                        //
+                        // This passed `timeIntervalSinceNow`, which is
+                        // measured from whenever `body` last ran — and body
+                        // re-runs on every `@Published` write, several of
+                        // which land inside a transient's own life. The
+                        // typewriter measures its elapsed time from a fixed
+                        // mount instant instead, so the two were counting
+                        // from different origins: substitute them and the
+                        // fade's argument is `(2x - D + 0.45)/0.45`, which
+                        // hits 1 — fully faded — the moment `x` passes half
+                        // the line's life, and never comes back. An absolute
+                        // instant shares the display link's clock and cannot
+                        // drift no matter when the parent last evaluated.
+                        expiresAt: live.map { $0.until.timeIntervalSinceReferenceDate },
                         knowledge: transient == nil
                             && model.state.bubbleTone == .knowledge
                     )

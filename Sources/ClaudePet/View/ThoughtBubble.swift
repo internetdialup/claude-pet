@@ -43,14 +43,17 @@ public struct ThoughtBubble: View {
     /// nothing and renders byte-identically.
     public var loopSeconds: Double? = nil
 
-    /// How long this line is being held on screen, when the caller knows it.
+    /// WHEN this line expires, as an absolute reference-time instant.
     ///
     /// Only the fade-down uses it: the text eases off over its last
     /// `TypewriterText.fadeOut` seconds so a line leaves the way it arrived
-    /// rather than being cut mid-word. Nil — every offline renderer, and any
-    /// caller that does not track an expiry — keeps the line solid, which is
-    /// also what keeps committed media byte-identical.
-    public var holdSeconds: Double? = nil
+    /// rather than being cut mid-word. An INSTANT rather than a remaining
+    /// duration, because a duration is measured from whenever the caller
+    /// computed it while the typewriter counts from its own mount — two
+    /// origins, and the fade blanked the line at half its life. Nil — every
+    /// offline renderer, and any caller with no expiry to give — keeps the
+    /// line solid, which is also what keeps committed media byte-identical.
+    public var expiresAt: Double? = nil
 
     /// The knowledge card: facts and tips leave the mood palette entirely and
     /// wear a card that follows the SYSTEM appearance — white with near-black
@@ -245,7 +248,7 @@ public struct ThoughtBubble: View {
                     // a one-word change back if he misses the instant voice.
                     TypewriterText(text: text, font: font,
                                    frozenTime: frozenTime,
-                                   holdSeconds: holdSeconds, ink: foreground)
+                                   expiresAt: expiresAt, ink: foreground)
                 }
                 if mood == .nudging, style == .plain {
                     // The plan is ready and he wants a verdict: a slow, eased
@@ -392,9 +395,10 @@ struct TypewriterText: View {
     let text: String
     let font: Font
     let frozenTime: Double?
-    /// How long this line is being held, when the caller knows. Drives the
-    /// fade-down only; nil keeps the line solid for its whole life.
-    var holdSeconds: Double? = nil
+    /// When this line expires, as an absolute instant on the same clock the
+    /// view is drawn against. Drives the fade-down only; nil keeps the line
+    /// solid for its whole life.
+    var expiresAt: Double? = nil
     /// The bubble's own text colour. Passed in rather than inherited because
     /// the ramp needs a real `Color` to take an opacity from — `.primary`
     /// would quietly discard the mood's foreground and paint system ink.
@@ -426,6 +430,23 @@ struct TypewriterText: View {
     /// line is being held — offline and in the renderers it stays solid.
     nonisolated static let fadeOut: Double = 0.45
 
+    /// How far the line has faded out, 0…1.
+    ///
+    /// Takes the expiry as an INSTANT and compares it against the frame's own
+    /// instant, so both sides share the display link's clock. The first cut
+    /// took a remaining DURATION computed in the parent's body, which re-runs
+    /// on any published write — a moving origin against the typewriter's
+    /// fixed one, which faded the line out at half its life and never
+    /// recovered. Frozen renders never fade: a still of a half-faded sentence
+    /// is the same defect as a still of a half-typed one.
+    nonisolated static func fadeLevel(now: Double, expiresAt: Double?,
+                                      frozen: Bool) -> Double {
+        guard !frozen, let expiry = expiresAt else { return 0 }
+        let remaining = expiry - now
+        let through = (fadeOut - remaining) / fadeOut
+        return Ease.smoothstep(min(1, max(0, through)))
+    }
+
     /// The ink on the character `back` places behind the cursor, 0…1.
     nonisolated static func inkLevel(_ back: Int, progress: Double) -> Double {
         guard back < rampChars else { return 1 }
@@ -444,10 +465,12 @@ struct TypewriterText: View {
                 : max(0, elapsed) * Self.charsPerSecond
             let shown = frozenTime != nil ? text.count
                 : Self.typedCount(elapsed: elapsed, of: text.count)
-            // …and the whole line eases off at the end of its hold.
-            let leaving = frozenTime == nil ? (holdSeconds.map { hold in
-                Ease.smoothstep(min(1, max(0, (elapsed - (hold - Self.fadeOut)) / Self.fadeOut)))
-            } ?? 0) : 0
+            // …and the whole line eases off at the end of its hold, with both
+            // sides on the SAME clock: `t` is the display link's instant and
+            // `expiry` is an instant, so what is left is a real measurement
+            // rather than the difference of two origins.
+            let leaving = Self.fadeLevel(now: t, expiresAt: expiresAt,
+                                         frozen: frozenTime != nil)
             // A DEFINITE width once the line has to wrap, not a maximum.
             //
             // The card sizes itself with `.fixedSize(horizontal: true)`, which

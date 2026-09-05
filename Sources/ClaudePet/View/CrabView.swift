@@ -2359,6 +2359,16 @@ public enum CrabAnimator {
                 pose.bob = 1
                 pose.mouth = .open
                 pose.dustBurst = (progress - 0.75) / 0.25
+                // The board HOLDS the half turn it just finished. Without
+                // this the phase falls back to the 0 set at the top of the
+                // case, and that reset used to be invisible: the deck was
+                // built from `abs(cos)` and `abs(sin)`, which have period π,
+                // so yaw π and yaw 0 drew the same pixels. Giving the deck a
+                // signed nose turned the harmless reset into a sixteen-cell
+                // teleport of a pale mark across a near-black board, on the
+                // landing frame. The bigspin got this fix when it got its
+                // body turn; the shove-it needed it the moment it got a nose.
+                pose.propPhase = 1
             }
 
         case .scuttle:

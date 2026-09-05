@@ -2283,8 +2283,14 @@ public enum CrabRig {
             // widens back out — the varial's width math with the roll struck
             // out — while the wheels ride the shrinking ends and duck behind
             // the deck at the pass-through. Half a turn.
-            drawFlatSpin(&b, dx: dx, dy: dy, pose: pose,
-                         yaw: pose.propPhase.truncatingRemainder(dividingBy: 1) * .pi)
+            // No `truncatingRemainder` on the way in. It was redundant —
+            // `cos` and `sin` are already periodic, so the silhouette never
+            // needed the phase folded — and it was actively wrong once the
+            // deck had a nose: for a HALF-turn trick, phase 1 folds to 0,
+            // which is yaw 0 rather than yaw π. The landing holds phase 1 to
+            // keep the turn it finished, and the fold sent the nose sixteen
+            // cells back across the board in a single frame.
+            drawFlatSpin(&b, dx: dx, dy: dy, pose: pose, yaw: pose.propPhase * .pi)
 
         case .skateboardTre:
             drawFlip360(&b, dx: dx, dy: dy, pose: pose, direction: 1)
@@ -2316,8 +2322,7 @@ public enum CrabRig {
             // makes the trick read — the deck comes round twice for every
             // once he does, and it is the board leading the rider that says
             // bigspin rather than the two of them merely both turning.
-            drawFlatSpin(&b, dx: dx, dy: dy, pose: pose,
-                         yaw: pose.propPhase.truncatingRemainder(dividingBy: 1) * 2 * .pi)
+            drawFlatSpin(&b, dx: dx, dy: dy, pose: pose, yaw: pose.propPhase * 2 * .pi)
 
         case .skateboardRoll:
             // NO TRICK. He rides, fast, and stays exactly where he is while the
