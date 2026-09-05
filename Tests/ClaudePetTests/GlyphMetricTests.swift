@@ -46,9 +46,15 @@ struct GlyphMetricTests {
                 "60 glyphs measure \(width(sixty)), not \(MarqueeText.advance * 60)")
     }
 
+    /// **Including the text-default ones.** The first cut of this test
+    /// sampled only emoji whose Unicode `Emoji_Presentation` is true, which
+    /// is exactly the set the implementation already got right — so it
+    /// passed while ⚠️ was being priced as a 6.8pt letter and the status
+    /// ticker, the one string the marquee still renders, was measured 18.4pt
+    /// short. A gate that only covers the easy half is not a gate.
     @Test("An emoji is priced as the different face it actually is")
     func emojiAreNotMonospaced() {
-        for emoji in ["🌊", "🌴", "🤙", "🦀", "🌈"] {
+        for emoji in ["🌊", "🌴", "🤙", "🦀", "🌈", "⚠️", "❄️", "🌶️", "🐛"] {
             #expect(abs(width(emoji) - MarqueeText.emojiAdvance) < 0.001,
                     "\(emoji) advances \(width(emoji)), not \(MarqueeText.emojiAdvance)")
         }
@@ -58,9 +64,14 @@ struct GlyphMetricTests {
     /// out, for mixed text — which is what makes the wrap seamless.
     @Test("measure agrees with the real layout, emoji and all")
     func measureMatchesTheLayout() {
+        // Every pool, not a prefix — a sample cannot see the one line with
+        // the awkward glyph in it — plus the ticker's own framed string,
+        // which is not in any pool and is the only thing that still scrolls.
         let lines = Vocab.lines(for: .surf)
-            + FunFacts.all.prefix(20)
-            + ["Sharks existed before trees did.", "Aloha 🌴", "plain ascii only"]
+            + FunFacts.all
+            + ClaudeTips.all
+            + [ThoughtBubble.statusTicker("Psst — I need you"),
+               "Sharks existed before trees did.", "Aloha 🌴", "plain ascii only"]
         for line in lines {
             #expect(abs(MarqueeText.measure(line) - width(line)) < 0.5,
                     "\"\(line)\" measures \(MarqueeText.measure(line)) but lays out at \(width(line))")
@@ -79,4 +90,25 @@ struct GlyphMetricTests {
         #expect(MarqueeText.advance * CGFloat(ThoughtBubble.plainColumns + 1) > area,
                 "\(ThoughtBubble.plainColumns + 1) columns would also fit — the bubble is wider than it says")
     }
+
+    /// **Capacity in POINTS, not characters.**
+    ///
+    /// `bubbleStyle` routes on `line.count <= plainCapacity`, i.e. 76
+    /// characters — and a character is not a width. An emoji is 16pt against
+    /// a letter's 6.8, so a 70-character line carrying four of them is wider
+    /// than seventy-six letters and could need a third line the bubble does
+    /// not have. Nothing in the pools does that today; this is the gate that
+    /// keeps it that way, because the failure mode is a silently clipped
+    /// sentence rather than anything that looks like a bug.
+    @Test("No line he can say needs a third line")
+    func everyLineFitsTwoRows() {
+        let everything = FunFacts.all + ClaudeTips.all
+            + ShoutoutOccasion.allCases.flatMap { Vocab.lines(for: $0) }
+        let ceiling = ThoughtBubble.textWidth * CGFloat(ThoughtBubble.plainLines)
+        for line in everything where ActivityCoordinator.bubbleStyle(for: line) == .plain {
+            #expect(MarqueeText.measure(line) <= ceiling,
+                    "\"\(line)\" is \(MarqueeText.measure(line))pt of a \(ceiling)pt bubble")
+        }
+    }
+
 }

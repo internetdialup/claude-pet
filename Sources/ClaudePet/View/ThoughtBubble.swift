@@ -448,6 +448,23 @@ struct TypewriterText: View {
             let leaving = frozenTime == nil ? (holdSeconds.map { hold in
                 Ease.smoothstep(min(1, max(0, (elapsed - (hold - Self.fadeOut)) / Self.fadeOut)))
             } ?? 0) : 0
+            // A DEFINITE width once the line has to wrap, not a maximum.
+            //
+            // The card sizes itself with `.fixedSize(horizontal: true)`, which
+            // proposes a nil width to everything inside it — and a `Text`
+            // measured against a nil proposal reports its SINGLE-LINE ideal.
+            // The height that came back up was therefore one line's worth, and
+            // only afterwards did the width get clamped and the text wrap into
+            // a box never allocated for it. Committed proof: in facts.png the
+            // one-line card and both two-line cards were all exactly 52px
+            // tall, and the wrapped ones had two pixels of padding at the top
+            // and none at all at the bottom.
+            //
+            // Handing it a definite width when it wraps makes the measurement
+            // happen at the width it will actually be drawn at, so the ideal
+            // height is two lines and the card grows to hold them.
+            let wraps = MarqueeText.measure(text) > ThoughtBubble.textWidth
+            let box: CGFloat? = wraps ? ThoughtBubble.textWidth : nil
             ZStack(alignment: .leading) {
                 // Reserves the FINAL block, so the card arrives at its full
                 // size and the text types into it — a bubble that grew line
@@ -455,14 +472,14 @@ struct TypewriterText: View {
                 Text(text).font(font)
                     .lineLimit(ThoughtBubble.plainLines)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: ThoughtBubble.textWidth, alignment: .leading)
+                    .frame(width: box, alignment: .leading)
                     .opacity(0)
                 Self.typed(text, shown: shown, ink: ink,
                            progress: exact - exact.rounded(.down))
                     .font(font)
                     .lineLimit(ThoughtBubble.plainLines)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: ThoughtBubble.textWidth, alignment: .leading)
+                    .frame(width: box, alignment: .leading)
                     .opacity(1 - leaving)
             }
         }
@@ -632,10 +649,27 @@ struct MarqueeText: View {
     /// faces have different advances and `count` cannot tell them apart.
     nonisolated static func measure(_ text: String) -> CGFloat {
         text.reduce(0) { total, character in
-            let isEmoji = character.unicodeScalars.contains {
-                $0.properties.isEmojiPresentation
-            }
-            return total + (isEmoji ? emojiAdvance : advance)
+            total + (drawsAsEmoji(character) ? emojiAdvance : advance)
+        }
+    }
+
+    /// Whether this grapheme is drawn out of the colour-emoji face.
+    ///
+    /// **`isEmojiPresentation` alone is not the question**, and getting that
+    /// wrong put the wrap-jump straight back on the only string the marquee
+    /// still renders. That property is Unicode's `Emoji_Presentation`, which
+    /// is FALSE for text-default emoji — ⚠︎, ❄︎, 🌶︎ — precisely because they
+    /// need a U+FE0F to request the colour form. The status ticker frames
+    /// every warning with a VS16-qualified ⚠️ on both sides, so each ticker
+    /// line measured 18.4pt short: 6.8 assumed against 16.0 drawn, twice.
+    ///
+    /// So ask what CoreText will actually draw: an explicit VS16, or a
+    /// keycap's U+20E3, or a base scalar that is emoji-by-default.
+    nonisolated static func drawsAsEmoji(_ character: Character) -> Bool {
+        character.unicodeScalars.contains {
+            $0.properties.isEmojiPresentation
+                || $0.value == 0xFE0F      // VS16 — "draw the colour form"
+                || $0.value == 0x20E3      // combining keycap
         }
     }
 

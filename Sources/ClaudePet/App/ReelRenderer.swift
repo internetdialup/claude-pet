@@ -440,24 +440,24 @@ enum ReelRenderer {
     /// up. The long ones are captured mid-travel, because a ticker caught at
     /// its start looks identical to a plain bubble and would prove nothing.
     static func renderFacts(to url: URL) -> Bool {
-        // Word-aligned freezes. A marquee frozen at an arbitrary instant cuts a
-        // word at the left edge ("pic is a public benefi"), which reads as a
-        // glitch in a product still. Each offset below is the instant the
-        // viewport's left edge lands exactly on a word start:
-        // seconds = (characters before the word) x 6.62pt / 26pt-per-second.
-        // The right edge still cuts — that is what says "this scrolls".
+        // The offsets are all ZERO now, and the word-alignment arithmetic that
+        // used to sit here is gone with the ticker it served.
+        //
+        // It read: seconds = (characters before the word) x 6.62pt / 26. Two
+        // things retired it. Facts no longer scroll at all — at 38 columns
+        // over two lines every one of them sits still — so there is no
+        // viewport edge to align a word to. And 6.62 was the wrong number
+        // anyway: it is Menlo-Bold's advance, not the face this app draws in,
+        // which is the same mistake that had the live ticker jumping.
         //
         // Lines are drawn from the pools by TEXT, not by index, so a reordered
         // pool fails the render loudly instead of silently swapping the shot.
         let picked: [(text: String, at: Double)] = [
-            ("A byte is usually eight bits", 0),                                  // plain — sits still
-            ("Anthropic has published Claude's constitution 📜", 0),              // opens on word one
-            ("Claw'd is unofficial fan art, not affiliated with Anthropic 🦀",
-             10 * 6.62 / 26),                                                     // opens on "unofficial"
-            ("Deep Blue beat a reigning world chess champion in 1997 🏆",
-             17 * 6.62 / 26),                                                     // opens on "reigning"
-            ("Andrej Karpathy coined 'vibe coding' in February 2025 ⚡",
-             16 * 6.62 / 26),                                                     // opens on "coined"
+            ("A byte is usually eight bits", 0),                     // one line
+            ("Anthropic has published Claude's constitution 📜", 0),  // wraps to two
+            ("Prompt caching lets a model reuse a prefix it has already read", 0),
+            ("Deep Blue beat a reigning world chess champion in 1997 🏆", 0),
+            ("Andrej Karpathy coined 'vibe coding' in February 2025 ⚡", 0),
         ]
         // Every line must really be in the pools — the sheet shows what he
         // says, not marketing copy that resembles it.
