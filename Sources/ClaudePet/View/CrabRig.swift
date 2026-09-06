@@ -1574,8 +1574,14 @@ public enum CrabRig {
         // eighth of the tre and the laser, right where the deck is edge-on
         // and the wheels are the only thing left to read. Two is the smallest
         // reach that keeps them separate.
+        // THREE, and the arithmetic rather than a guess. The hubs are at
+        // `cx + r - 1` and `cx - r`, so their three-cell wheels span
+        // `cx+r-1 … cx+r+1` and `cx-r … cx-r+2`; they stay apart only while
+        // `(r-1) - (-r+2) >= 2`, i.e. `r >= 2.5`. A clamp of 2 left them
+        // exactly touching, which draws as one six-cell slab — twice every
+        // other board's wheel, and the thing that caught the operator's eye.
         let reach = Int((Double(half) * cos(yaw) * 0.62).rounded())
-        let truckReach = reach < 0 ? min(reach, -2) : max(reach, 2)
+        let truckReach = reach < 0 ? min(reach, -3) : max(reach, 3)
         if sin(roll) >= 0 || abs(orbit) > thick / 2 {
             for hub in [cx + truckReach - 1, cx - truckReach] {
                 // `orbit - 2`, not `orbit - 1`: the orbit's radius is 3, so
@@ -1583,10 +1589,14 @@ public enum CrabRig {
                 // board's wheel and read as hanging off the deck rather
                 // than bolted under it. The swing is unchanged; only where
                 // it starts moves.
+                // Three rows, the same wheel every other board draws. These
+                // were two, which read as a shorter wheel beside the rest of
+                // the set once the widths were finally equal.
                 b.rect(hub, deckY + orbit - 2, 3, 1, wheelInk)
                 b.pixel(hub, deckY + orbit - 1, wheelInk)
                 b.pixel(hub + 1, deckY + orbit - 1, .screenDark)
                 b.pixel(hub + 2, deckY + orbit - 1, wheelInk)
+                b.rect(hub, deckY + orbit, 3, 1, wheelInk)
             }
         }
         // One bright cell on the nose itself, so the end you are following
@@ -2121,7 +2131,12 @@ public enum CrabRig {
 
             let orbit = Int((3 * cos(roll)).rounded())
             if sin(roll) >= 0 || abs(orbit) > thick / 2 {
-                let reach = max(1, half - 3)
+                // TWO, not one. Each hub paints a three-cell wheel: at reach 1
+                // they sit at cx-2 and cx+0, whose spans overlap outright and
+                // draw as a single five-cell slab — the "really fat wheels"
+                // the operator caught. Two is the smallest reach that leaves a
+                // cell of daylight between them.
+                let reach = max(2, half - 3)
                 for hub in [cx - reach - 1, cx + reach - 1] {
                     b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
                     b.pixel(hub, deckY + orbit, wheelInk)

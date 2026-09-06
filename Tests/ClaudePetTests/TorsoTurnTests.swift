@@ -561,4 +561,36 @@ struct TorsoTurnTests {
         pose.legPhase = .pi / 2
         return pose
     }
+
+    /// **One wheel is three cells. Two wheels are never one.**
+    ///
+    /// The operator caught this by eye — "one of the skateboard tricks he has
+    /// really fat wheels compared to everything else" — and measuring the
+    /// GIFs found three: the tre and the laser drew a six-cell run and the
+    /// varial a five, against everything else's three. Each hub paints a
+    /// three-cell wheel, so the fault is always the same one: the two hubs
+    /// drifting close enough that their spans touch or overlap and render as
+    /// a single slab.
+    ///
+    /// Both cases had a clamp meant to prevent exactly this and both clamps
+    /// were a cell too small, which is why this is pinned as the RUN rather
+    /// than as the clamp: the arithmetic is easy to get wrong twice, and the
+    /// pixels are not.
+    @Test("No board ever draws a wheel wider than one wheel",
+          arguments: CrabAnimator.Flourish.allCases)
+    func wheelsNeverFuse(_ trick: CrabAnimator.Flourish) {
+        for step in 0...90 {
+            let pose = CrabAnimator.flourishPose(trick, at: Double(step) / 90 * trick.duration)
+            let buffer = CrabRig.render(pose)
+            for y in 0..<PixelBuffer.side {
+                var run = 0
+                for x in 0..<PixelBuffer.side {
+                    run = buffer[x, y] == .yellow ? run + 1 : 0
+                    #expect(run <= 3,
+                            "\(trick) drew a \(run)-cell wheel run on row \(y) at \(Double(step) / 90)")
+                }
+            }
+        }
+    }
+
 }
