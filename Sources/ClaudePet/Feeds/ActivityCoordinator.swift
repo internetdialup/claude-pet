@@ -1054,7 +1054,10 @@ public final class ActivityCoordinator {
                 // them the moment he started sleep-talking.
                 if let line = bubble {
                     style = Self.bubbleStyle(for: line)
-                    let hold = Self.lineHold(for: line)
+                    // Only a sleeping FACT lingers. This branch holds
+                    // whatever landed in the bubble, and most of what lands
+                    // here is him muttering.
+                    let hold = Self.lineHold(for: line, knowledge: tone == .knowledge)
                     if hold > 0 {
                         // `flair: .none` — a sleeping fact never wears the
                         // shades; shades over shut eyes is a different joke.
@@ -1293,7 +1296,7 @@ public final class ActivityCoordinator {
             // decapitate it. Only facts take holds; the ticker and his own
             // voice keep their fourteen-second life.
             let flair = Self.factFlair(seed: seed, mood: .idle)
-            let hold = Self.lineHold(for: known)
+            let hold = Self.lineHold(for: known, knowledge: true)
             if hold > 0 {
                 chatterCache[slot].heldLine = HeldLine(
                     text: known, style: Self.bubbleStyle(for: known),
@@ -1389,7 +1392,8 @@ public final class ActivityCoordinator {
     /// So the clock moves from the marquee's cycle to the eye's: how long the
     /// line takes to arrive and be read. A static line still needs time; it
     /// just needs a knowable amount rather than two laps of a ticker.
-    nonisolated static func lineHold(for line: String) -> TimeInterval {
+    nonisolated static func lineHold(for line: String,
+                                     knowledge: Bool = false) -> TimeInterval {
         if bubbleStyle(for: line) == .marquee {
             let cycle = Double(MarqueeText.cycle(for: line, loopSeconds: nil) / MarqueeText.speed)
             return min(cycle * 2, maxLineHold)
@@ -1403,8 +1407,29 @@ public final class ActivityCoordinator {
         // while its own cycle was still dealing, and the same sentence was
         // dealt straight back on top of itself for a doubled stay. Flooring
         // at the dwell means a hold always outlives the window that made it.
-        return min(max(dwellFloor, readableWindow(for: line) * 1.6), maxLineHold)
+        let settle = knowledge ? factSettle : 0
+        return min(max(dwellFloor, readableWindow(for: line) * 1.6 + settle),
+                   maxLineHold)
     }
+
+    /// 📜 The extra beat a FACT gets once it has been read — the difference
+    /// between a line that leaves and one that lingers.
+    ///
+    /// The operator's note, from watching him rather than the code: the fact
+    /// should sit long enough that he can read it, notice he has read it, and
+    /// then watch it go. Measured before this, the median fact was on screen
+    /// 11.0s of which 6.9s was typing and reading, so it left about four
+    /// seconds after the last word — enough to finish the sentence, not
+    /// enough to sit with it.
+    ///
+    /// FLAT, not a bigger multiplier. The wait after finishing a sentence is
+    /// the same wait whether the sentence was short or long; scaling it
+    /// instead (1.6 → 2.2) gave the same median but pushed the longest fact
+    /// to nineteen seconds, which is a long time to look at one line.
+    ///
+    /// Facts and tips only. His own chatter and the sleep-talk keep their
+    /// timing — they are things he says, not things you are meant to read.
+    nonisolated static let factSettle: TimeInterval = 3
 
     /// The longest `dwell` any cadence uses, plus a beat — the window inside
     /// which a fact can be dealt. A hold shorter than this can expire inside
@@ -1623,7 +1648,7 @@ public final class ActivityCoordinator {
         // hold never resumes. Chaining stays dead because the die is
         // per-cycle and the dwell-start gate keeps an expiry mid-cycle quiet.
         let flair = Self.factFlair(seed: cycle, mood: mood)
-        let hold = Self.lineHold(for: line)
+        let hold = Self.lineHold(for: line, knowledge: true)
         if hold > 0 {
             chatterCache[slot].heldLine = HeldLine(
                 text: line,

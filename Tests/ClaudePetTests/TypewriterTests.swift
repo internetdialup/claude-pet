@@ -109,4 +109,53 @@ struct TypewriterTests {
         #expect(TypewriterText.fadeLevel(now: expiry, expiresAt: nil, frozen: false) == 0)
     }
 
+
+    /// **Nothing moves but the ink.**
+    ///
+    /// Centring the bubble made the reveal's geometry load-bearing: a `Text`
+    /// built from a growing PREFIX reports a growing width, and a centred
+    /// thing that grows re-centres, so the sentence crept leftwards about
+    /// 3.4pt per character for the whole reveal. The line is laid out in full
+    /// from the first frame now and only the alpha changes.
+    ///
+    /// Pinned on `inkLevel` because that is where the reveal actually lives:
+    /// blank ahead of the cursor, ramping across it, solid behind it.
+    @MainActor
+    @Test("The reveal is ink only — blank ahead, solid behind")
+    func theRevealIsAlphaOnly() {
+        // Ahead of the cursor: not written yet. A negative `back` used to
+        // fall through to the ramp arithmetic and come back at FULL strength,
+        // which showed the whole sentence at once.
+        for ahead in 1...6 {
+            #expect(TypewriterText.inkLevel(-ahead, progress: 0.5) == 0,
+                    "a character \(ahead) ahead of the cursor had ink")
+        }
+        // Behind the ramp: finished.
+        for behind in TypewriterText.rampChars...(TypewriterText.rampChars + 5) {
+            #expect(TypewriterText.inkLevel(behind, progress: 0.5) == 1,
+                    "a character \(behind) behind the cursor was not solid")
+        }
+        // Across the ramp: the NEWEST character is faintest and ink rises
+        // with age. The ramp shipped upside down once — brightest at the
+        // cursor, zero three characters back — which put a travelling hole in
+        // the sentence, so the direction is worth stating as an assertion
+        // rather than trusting the arithmetic to read correctly.
+        var previous = -1.0
+        for back in 0..<TypewriterText.rampChars {
+            let level = TypewriterText.inkLevel(back, progress: 0)
+            #expect(level >= 0 && level <= 1, "ink \(level) at \(back) is out of range")
+            #expect(level > previous, "ink did not rise with age at \(back)")
+            previous = level
+        }
+        #expect(TypewriterText.inkLevel(0, progress: 0) < 0.5,
+                "the character at the cursor should be arriving, not arrived")
+        // And a finished line is solid everywhere, which is what every frozen
+        // render must be.
+        let done = "Binary is base two".count + TypewriterText.rampChars
+        for index in 0..<"Binary is base two".count {
+            #expect(TypewriterText.inkLevel(done - 1 - index, progress: 0) == 1,
+                    "character \(index) of a finished line was not solid")
+        }
+    }
+
 }

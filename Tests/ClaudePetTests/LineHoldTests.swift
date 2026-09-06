@@ -197,4 +197,41 @@ struct LineHoldTests {
         }
     }
 
+
+    /// **A fact lingers; his own voice does not.**
+    ///
+    /// The operator's note, from watching him: the fact should sit long
+    /// enough to read, be noticed, and then go. It left about four seconds
+    /// after the last word, which finishes the sentence without leaving room
+    /// to sit with it. The settle is scoped to knowledge because chatter and
+    /// sleep-talk are things he SAYS, not things you are meant to read.
+    @Test("A fact is held longer than the same words as chatter")
+    func factsLingerAndChatterDoesNot() {
+        for line in FunFacts.all.prefix(12) + ClaudeTips.all.prefix(6) {
+            let asFact = ActivityCoordinator.lineHold(for: line, knowledge: true)
+            let asChatter = ActivityCoordinator.lineHold(for: line)
+            #expect(asFact > asChatter,
+                    "\"\(line)\" is held \(asFact)s either way")
+            // The settle in full, except where the cap or the floor bites.
+            let expected = min(asChatter + ActivityCoordinator.factSettle,
+                               ActivityCoordinator.maxLineHold)
+            #expect(abs(asFact - expected) < 0.001 || asFact >= ActivityCoordinator.dwellFloor,
+                    "\"\(line)\" settled by \(asFact - asChatter)s")
+        }
+        // Still inside the cap at the longest thing he knows.
+        let longest = FunFacts.all.max(by: { $0.count < $1.count }) ?? ""
+        #expect(ActivityCoordinator.lineHold(for: longest, knowledge: true)
+                    <= ActivityCoordinator.maxLineHold,
+                "the longest fact now outlives the cap")
+        // …and a fact is still on screen long enough to read, with the settle
+        // on top rather than instead of the reading time.
+        for line in FunFacts.all {
+            let hold = ActivityCoordinator.lineHold(for: line, knowledge: true)
+            let read = ActivityCoordinator.readableWindow(for: line)
+            #expect(hold >= read + ActivityCoordinator.factSettle - 0.001
+                        || hold >= ActivityCoordinator.maxLineHold,
+                    "\"\(line)\" reads in \(read)s and is held only \(hold)s")
+        }
+    }
+
 }

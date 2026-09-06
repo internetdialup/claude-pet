@@ -479,10 +479,20 @@ struct TypewriterText: View {
 
     /// The ink on the character `back` places behind the cursor, 0…1.
     nonisolated static func inkLevel(_ back: Int, progress: Double) -> Double {
+        // AHEAD of the cursor: not written yet, so no ink at all. A negative
+        // `back` used to fall through to the ramp arithmetic, which read it
+        // as "far behind" and returned full strength — so the moment the line
+        // started being laid out in full, the whole sentence appeared at once
+        // and the typing was only a faint ripple crossing finished text.
+        guard back >= 0 else { return 0 }
         guard back < rampChars else { return 1 }
-        // The newest character carries `progress` of one step; each older one
-        // is a whole step further up.
-        return min(1, (progress + Double(rampChars - 1 - back)) / Double(rampChars))
+        // The NEWEST character is the faintest and each older one is a whole
+        // step further up. This read `rampChars - 1 - back`, which is the same
+        // ramp upside down: the character just written came out at two thirds
+        // ink while the one three back was at zero, so the reveal left a hole
+        // travelling through the sentence a few letters behind the cursor —
+        // "Ant ro" with nothing where the h should be.
+        return min(1, (progress + Double(back)) / Double(rampChars))
     }
 
     var body: some View {
@@ -521,22 +531,56 @@ struct TypewriterText: View {
             // Handing it a definite width when it wraps makes the measurement
             // happen at the width it will actually be drawn at, so the ideal
             // height is two lines and the card grows to hold them.
-            let wraps = MarqueeText.measure(text) > room
-            let box: CGFloat? = wraps ? room : nil
-            ZStack(alignment: .leading) {
+            //
+            // **And now the width is definite ALWAYS, not only when it wraps
+            // — which is what centring requires.** A nil width let the
+            // visible text size to what had been typed SO FAR. Left-aligned
+            // that was invisible: the first character sat at the left edge
+            // and stayed there while the line grew rightwards. Centred, a box
+            // that grows re-centres its contents on every new character, and
+            // the whole sentence slides sideways as it types — the layout
+            // jiggling this file bans a few lines below in its own words.
+            //
+            // Measuring the FINISHED line instead pins the box on the first
+            // frame, so the text types into a space that never moves. It is
+            // also what the invisible reservation underneath has always been
+            // doing; this just makes the visible copy agree with it.
+            let box = min(MarqueeText.measure(text), room)
+            ZStack {
                 // Reserves the FINAL block, so the card arrives at its full
                 // size and the text types into it — a bubble that grew line
                 // by line would be layout jiggling.
                 Text(text).font(font)
                     .lineLimit(ThoughtBubble.plainLines)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: box, alignment: .leading)
+                    .frame(width: box)
                     .opacity(0)
                 Self.typed(text, at: exact, ink: ink)
                     .font(font)
                     .lineLimit(ThoughtBubble.plainLines)
+                    // Frame alignment centres the text BLOCK; this centres the
+                    // rows within it. Without it a wrapped fact still hangs a
+                    // ragged second line off the left, which is most of what
+                    // the operator was looking at.
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: box, alignment: .leading)
+                    // FILL the box, do not sit centred inside it.
+                    //
+                    // A pinned box is necessary and not sufficient. Centred in
+                    // a fixed box, a `Text` still reports the width of what
+                    // has been typed SO FAR — prefix plus cursor — and the
+                    // frame centres that narrower block, so the leading edge
+                    // walks left by half an advance per character: about 3.4pt
+                    // a letter, 82pt a second at 24 characters per second. The
+                    // whole sentence would slide leftwards as it wrote itself.
+                    //
+                    // Expanding to the full width first means the text lays
+                    // out inside a box the size of the FINISHED line at every
+                    // stage, and `multilineTextAlignment` centres the rows
+                    // within that. Nothing moves but the ink.
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(width: box)
                     .opacity(1 - leaving)
             }
         }
@@ -553,25 +597,44 @@ struct TypewriterText: View {
     /// The line as it stands with the cursor at `at` — a fractional position
     /// that runs from 0 to `count + rampChars`.
     ///
-    /// Past `count` the cursor is off the end of the text and only the ramp
-    /// is still resolving, so the last characters finish fading up rather
-    /// than snapping solid. Once it clears `count + rampChars` every index is
-    /// more than `rampChars` behind it, `inkLevel` returns 1 for all of them,
-    /// and this degenerates to a single plain `Text` — which is what a
-    /// finished line, and every frozen render, must be.
+    /// **Every character is always emitted; the cursor only decides their
+    /// INK.** Characters ahead of it come back at zero opacity rather than
+    /// being left out of the string.
+    ///
+    /// That is what makes centring possible. Emitting a growing prefix meant
+    /// the `Text` reported a growing width, and a centred thing that grows
+    /// re-centres — so the sentence crept leftwards about 3.4pt per
+    /// character, roughly 82pt a second, for the whole reveal. Rendered at
+    /// six typed positions side by side it was unmistakable: the same word
+    /// sat in a different place in every frame. Pinning the frame did not fix
+    /// it, because the frame was centring a narrower block. Laying out the
+    /// whole line from the first frame does fix it, by construction: the
+    /// geometry is settled before a single letter is visible and only the
+    /// alpha moves.
+    ///
+    /// The block cursor went with it. A trailing "▮" is one more glyph of
+    /// width that appears and disappears, which is the same problem in
+    /// miniature — and it cannot be swapped for the character underneath,
+    /// because an emoji is 16pt against a letter's 6.8. The ramp already says
+    /// "this is being written"; it says it without moving anything.
+    ///
+    /// Past `count` only the ramp is still resolving, so the last characters
+    /// finish fading up rather than snapping solid. Once the cursor clears
+    /// `count + rampChars` every index is more than `rampChars` behind it,
+    /// `inkLevel` returns 1 throughout, and this is a plain full-strength
+    /// line — which is what a finished line, and every frozen render, must be.
     nonisolated static func typed(_ text: String, at cursor: Double,
                                   ink: Color) -> Text {
         let chars = Array(text)
         let position = Int(cursor)
-        let shown = max(0, min(chars.count, position))
-        let solid = max(0, min(shown, position - rampChars))
+        let solid = max(0, min(chars.count, position - rampChars))
         var out = Text(String(chars[0..<solid]))
-        for index in solid..<shown {
+        for index in solid..<chars.count {
             let level = inkLevel(position - 1 - index,
                                  progress: cursor - cursor.rounded(.down))
             out = out + Text(String(chars[index])).foregroundColor(ink.opacity(level))
         }
-        return shown < chars.count ? out + Text("▮") : out
+        return out
     }
 }
 
