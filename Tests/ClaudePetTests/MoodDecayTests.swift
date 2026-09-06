@@ -527,11 +527,56 @@ struct MoodDecayTests {
         }
     }
 
+    /// **A fact finishes before the dots take the face.**
+    ///
+    /// The operator, watching him: a fun fact spawns, he starts typing to
+    /// Claude, and the thinking dots take it off the screen before he can
+    /// read it. `case .thinking:` was the only bubble-writing branch in
+    /// `derive` with no replay — it wrote the dots unconditionally, and it
+    /// never reaches the shield that protects a held line from news, because
+    /// it deliberately sits off the burst path.
+    ///
+    /// The delay costs less than it looks: the POSE carries the thinking
+    /// state on the mood alone, and the app already accepts a thinking
+    /// session with no bubble at all once `dotsQuietAfter` lapses.
+    @Test("The dots wait for a fact that is still being read")
+    func theDotsWaitForAFact() async throws {
+        let fast = BubbleCadence(period: 0.4, dwell: 0.3, chance: 0.4,
+                                 newsDwell: 0.05, newsRefractory: 0.05)
+        let storedCadence = ActivityCoordinator.bubbleCadences[.working]
+        ActivityCoordinator.bubbleCadences[.working] = fast
+        defer { ActivityCoordinator.bubbleCadences[.working] = storedCadence }
+
+        let id = "s-thinks-over-fact"
+        let coordinator = try quietCoordinator([id])
+        guard let fact = try await surfaceMarqueeFact(coordinator, id: id) else {
+            Issue.record("no held fact surfaced inside the deadline — dice, not defect")
+            return
+        }
+        // He starts typing. The mood turns over immediately; the bubble waits.
+        coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
+        #expect(coordinator.state.mood == .thinking,
+                "the mood must still turn — only the bubble waits")
+        #expect(coordinator.state.bubble == fact,
+                "the dots took the face from a fact that was still being read")
+        #expect(coordinator.state.bubbleTone == .knowledge,
+                "the fact came back wearing the wrong card")
+    }
+
     @Test("Stale thinking dots retire long before the mood does")
     func staleDotsRetire() async throws {
         let stored = ActivityCoordinator.dotsQuietAfter
         ActivityCoordinator.dotsQuietAfter = 0.15
-        defer { ActivityCoordinator.dotsQuietAfter = stored }
+        // …and no fact holding the face, which is a separate rule with its
+        // own test (`theDotsWaitForAFact`). A held fact now outranks the
+        // dots, so without this the coordinator's own opening deal decides
+        // whether this test is about dots at all.
+        let storedCap = ActivityCoordinator.maxLineHold
+        ActivityCoordinator.maxLineHold = 0.001
+        defer {
+            ActivityCoordinator.dotsQuietAfter = stored
+            ActivityCoordinator.maxLineHold = storedCap
+        }
 
         let id = "s-dots"
         let coordinator = try quietCoordinator([id])

@@ -990,19 +990,46 @@ public final class ActivityCoordinator {
             // after 30 unrenewed seconds the bubble retires and the pose
             // (sparkles, scanning eyes) carries the state; the next
             // transcript write brings the dots straight back.
-            let fresh = now.timeIntervalSince(focus.lastActivity) < Self.dotsQuietAfter
-            bubble = fresh ? "…" : nil
-            style = fresh ? .dots : .plain
+            // 📜 **A FACT FINISHES FIRST.** The operator, watching him: a fun
+            // fact spawns, he starts typing, and the dots take it off the
+            // screen before he can read it.
+            //
+            // This branch wrote the dots unconditionally — it was the only
+            // bubble-writing branch in `derive` with no replay, while the
+            // waking, sleeping and alone paths all have one. And it never
+            // reaches the shield that protects a held line from news,
+            // because `scheduled` stays false here on purpose (a second gate
+            // on the dots would make "still thinking" flicker). So the one
+            // rule the operator has stated twice — whatever is on screen
+            // finishes — had a hole in it exactly where he was looking.
+            //
+            // Deferring costs less than it appears. The dots are not what
+            // says he is thinking: the POSE does that, sparkles and scanning
+            // eyes, on the mood alone. And the app already accepts a thinking
+            // session with no bubble at all — that is what `dotsQuietAfter`
+            // does after thirty seconds. A fact holds for at most 16.8s.
+            //
+            // Tone-gated, so only a FACT earns the delay. His own chatter and
+            // sleep-talk take holds too and have no claim on the dots.
+            if let held = chatterCache[slot].heldLine, held.tone == .knowledge,
+               now < held.until {
+                bubble = held.text
+                style = held.style
+                tone = held.tone
+                flair = held.flair
+            } else {
+                let fresh = now.timeIntervalSince(focus.lastActivity) < Self.dotsQuietAfter
+                bubble = fresh ? "…" : nil
+                style = fresh ? .dots : .plain
+                // The hold goes with the dots, and only with them. Left
+                // standing it would survive behind the dots and come back
+                // afterwards, re-typed from character zero against a clock
+                // that had kept running.
+                chatterCache[slot].heldLine = nil
+            }
+            // The fourteen-second chatter cache goes either way: whatever
+            // follows the dots is a fresh deal, never a resumed one.
             chatterCache[slot].line = nil
-            // …and the HOLD goes with it. This cleared the line cache and
-            // left `heldLine` standing, and `.thinking` never reaches the
-            // burst path — the only other place a live hold is cleared — so
-            // a fact interrupted by the dots survived behind them and came
-            // back afterwards, re-typed from character zero against a clock
-            // that had kept running. A held line is a promise to finish a
-            // sentence, and he stopped saying it the moment he started
-            // thinking; there is nothing left to finish.
-            chatterCache[slot].heldLine = nil
 
         case .sleeping:
             // Occasionally talks in his sleep. A sleeping pet that comments on
@@ -1363,7 +1390,12 @@ public final class ActivityCoordinator {
     /// pool needs 37.8s for that. Forty exists to catch a future 90-character
     /// fact before it can own his face for a minute, and binds on nothing
     /// that ships today.
-    nonisolated static let maxLineHold: TimeInterval = 40
+    /// A `var` for the reason `readableGrace` is one: a test that needs to
+    /// exercise what happens with NO line held has no other way to say so —
+    /// `heldLine` is private and every hold is floored at `dwellFloor`.
+    /// Shrinking the cap to a millisecond is the honest way to ask for
+    /// "nothing is holding the face right now".
+    nonisolated(unsafe) static var maxLineHold: TimeInterval = 40
 
     /// How long a scrolling line stays up: **two whole cycles**.
     ///
