@@ -104,7 +104,7 @@ struct LineHoldTests {
                 // never scrolls.
                 guard ActivityCoordinator.bubbleStyle(for: fact) == .marquee else { continue }
                 let read = MarqueeText.readSeconds(for: fact, width: viewport)
-                let hold = ActivityCoordinator.lineHold(for: fact)
+                let hold = ActivityCoordinator.lineHold(for: fact, knowledge: true)
                 let ratio = hold / read
                 if ratio < worst.ratio { worst = (fact, ratio) }
                 #expect(hold >= read,
@@ -114,16 +114,30 @@ struct LineHoldTests {
         for tip in ClaudeTips.all {
             guard ActivityCoordinator.bubbleStyle(for: tip) == .marquee else { continue }
             let read = MarqueeText.readSeconds(for: tip, width: viewport)
-            #expect(ActivityCoordinator.lineHold(for: tip) >= read,
+            #expect(ActivityCoordinator.lineHold(for: tip, knowledge: true) >= read,
                     "\"\(tip)\" is not held long enough to read")
         }
+        // BOTH loops above are gated on `.marquee` and nothing scrolls any
+        // more, so both are empty today — the same dead-loop shape already
+        // found in `CostumeStripTests`. They are kept because they are the
+        // right guard if a line ever grows past the bubble again, and the
+        // assertion below is what actually covers the pools now.
+        #expect(FunFacts.all.allSatisfy {
+            ActivityCoordinator.lineHold(for: $0, knowledge: true)
+                >= ActivityCoordinator.readableWindow(for: $0)
+        }, "a fact is held for less time than it takes to read")
         #expect(worst.ratio >= 1, "tightest margin was \(worst.ratio) on \"\(worst.line)\"")
     }
 
-    /// The cap is a BACKSTOP now, not a budget: news kills any hold on the
-    /// spot (the burst path clears `heldLine`), so a long hold can no longer
-    /// own his face against real information — only against silence, which is
-    /// the operator's explicit trade.
+    /// The cap is the LAST line of defence, and since the shield changed it
+    /// is the only one.
+    ///
+    /// This used to say "news kills any hold on the spot", which was true
+    /// while the shield ran on the short readable clock. It does not any
+    /// more: whatever is on screen finishes, so a hold owns his face for its
+    /// whole stay against news as well as against silence. That makes the cap
+    /// load-bearing rather than a backstop — it is what stops a future long
+    /// line from owning him for a minute.
     @Test("No line can hold the bubble longer than the cap")
     func nothingOwnsHisFace() {
         let everything = FunFacts.Category.allCases.flatMap { FunFacts.facts(in: $0) } + ClaudeTips.all

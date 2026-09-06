@@ -1027,13 +1027,18 @@ struct EditableCopyTests {
         }
     }
 
-    /// Bubble text truncates at 29 characters.
+    /// Bubble text truncates past the card's capacity.
     ///
-    /// Not a taste rule — it is arithmetic the bubble already commits to:
-    /// `maxWidth: 210` less 8pt padding a side, over the 6.62pt advance
-    /// `MarqueeText.measure` uses, is 29.3. This test previously allowed 46,
-    /// which let five shipped lines through that were cut off on screen —
-    /// including the one in the README hero, for months.
+    /// Not a taste rule — it is arithmetic the bubble commits to. Both
+    /// numbers this used to quote are now wrong: the card is `maxWidth: 276`,
+    /// not 210, and the advance is 6.7998, not the 6.62 that turned out to be
+    /// a different font's. Derived from the constants rather than restated,
+    /// so the next change to either moves this with it.
+    ///
+    /// The original finding stands and is worth keeping: this test once
+    /// allowed 46 characters against a 29-character card, which let five
+    /// shipped lines through that were cut off on screen — including the one
+    /// in the README hero, for months.
     ///
     /// The five lines that predate the measurement are named below rather than
     /// shortened. They are the operator's phrasing — a renderer discovering
