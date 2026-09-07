@@ -58,6 +58,7 @@ public enum CrabAnimator {
     /// | `89 &+ 11` | whether an idle flourish plays at all |
     /// | `89 &+ 17` | the skate session — 89 shared by addend |
     /// | `89 &+ 19` | the surf set — same family, same question |
+    /// | `89 &+ 23` | whether a landed trick is worth SAYING something about |
     ///
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
@@ -330,6 +331,23 @@ public enum CrabAnimator {
     /// disagree with the deck it is shouting about.
     static func skateLandingIsGolden(at landing: Double) -> Bool {
         skateBeatIsGolden(cycle: Int(floor((landing - 0.01) / flourishPeriod)))
+    }
+
+    /// 🛹💬 Whether he says anything at all about the trick he just landed.
+    ///
+    /// He used to shout on EVERY landing. Skate beats are about eighty per
+    /// cent of what he does when idle, so that was a green bubble over him
+    /// most of the time he was on screen — the operator's note, and the
+    /// right one: a skater who narrates every trick is not pleased with the
+    /// trick, he is talking.
+    ///
+    /// Same shape as the golden-board die next door: keyed on the LANDING's
+    /// own cycle, so the answer is fixed for that trick and every asker
+    /// agrees. Salt `89 &+ 23`, the whether-a-spell-fires family, beside the
+    /// flourish, the session and the surf.
+    static func skateLandingSpeaks(at landing: Double) -> Bool {
+        let cycle = Int(floor((landing - 0.01) / flourishPeriod))
+        return noise(cycle &* 89 &+ 23) < SpawnRates.skateShout
     }
 
     /// 🌊 THE SURF SET: a swell rolls through and he rides it out.

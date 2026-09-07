@@ -183,6 +183,15 @@ enum SpawnRates {
     /// one in fifty at the operator's call: the jackpot was so rare that
     /// most people running him had never once seen it, which makes it a
     /// feature nobody has.
+    /// 🛹💬 How often a landed trick is worth SAYING something about.
+    ///
+    /// Fifteen per cent, the operator's number. He shouted on every landing,
+    /// and with skate beats at roughly eighty per cent of idle spectacle that
+    /// meant a green bubble over him most of the time he was on screen. At
+    /// one in seven the line lands as a reaction to a trick rather than as
+    /// commentary on all of them.
+    static let skateShout = 0.15
+
     static let goldenBoard = 0.05
     /// 🧢 Nearly a beat in two comes out in headwear — the low half of the
     /// band is the beanie, the upper half the cap.

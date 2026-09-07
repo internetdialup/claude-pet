@@ -1471,6 +1471,20 @@ public enum CrabRig {
     /// passing through the centre rather than jumping between the ends is
     /// what keeps it inside the no-snap rule — at the fastest point of the
     /// spin the mark moves about 1.4 cells a frame.
+    /// The dark mark in the middle of a wheel — the bearing, and the thing
+    /// that makes three yellow cells read as a WHEEL rather than a block.
+    ///
+    /// It was always `.screenDark`, which works on the ordinary board where
+    /// the wheel is yellow: dark hub, light tyre. On the GOLDEN board the
+    /// wheel turns `.slate` and the hub stayed `.screenDark` — dark on dark,
+    /// so the hub disappeared and each wheel became a solid three-by-three
+    /// slab. That is the "orange skateboard with thick wheels": the wheels
+    /// are the same size as everyone else's, they had just lost the hole in
+    /// the middle. The fix is to invert the pair rather than resize anything.
+    static func bearingInk(golden: Bool) -> PixelBuffer.Ink {
+        golden ? .yellow : .screenDark
+    }
+
     private static func drawFlatSpin(_ b: inout PixelBuffer, dx: Int, dy: Int,
                                      pose: CrabPose, yaw: Double) {
         let deckHalfLength = 8.0
@@ -1495,7 +1509,7 @@ public enum CrabRig {
                 // it is the wheel's SHAPE that had no business differing.
                 b.rect(hub, deckY + 1, 3, 1, wheelInk)
                 b.pixel(hub, deckY + 2, wheelInk)
-                b.pixel(hub + 1, deckY + 2, .screenDark)
+                b.pixel(hub + 1, deckY + 2, bearingInk(golden: pose.goldenBoard))
                 b.pixel(hub + 2, deckY + 2, wheelInk)
                 b.rect(hub, deckY + 3, 3, 1, wheelInk)
             }
@@ -1594,7 +1608,7 @@ public enum CrabRig {
                 // the set once the widths were finally equal.
                 b.rect(hub, deckY + orbit - 2, 3, 1, wheelInk)
                 b.pixel(hub, deckY + orbit - 1, wheelInk)
-                b.pixel(hub + 1, deckY + orbit - 1, .screenDark)
+                b.pixel(hub + 1, deckY + orbit - 1, bearingInk(golden: pose.goldenBoard))
                 b.pixel(hub + 2, deckY + orbit - 1, wheelInk)
                 b.rect(hub, deckY + orbit, 3, 1, wheelInk)
             }
@@ -2079,7 +2093,7 @@ public enum CrabRig {
                     // suite measure the deck by looking for it — a bearing in
                     // the same ink put the wheel inside the deck's bounding box
                     // and made every frame look diagonal to the test.
-                    b.pixel(hub + 1, deckY + orbit, .screenDark)   // the bearing
+                    b.pixel(hub + 1, deckY + orbit, bearingInk(golden: pose.goldenBoard))   // the bearing
                     b.pixel(hub + 2, deckY + orbit, wheelInk)
                     b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
                 }
@@ -2140,7 +2154,7 @@ public enum CrabRig {
                 for hub in [cx - reach - 1, cx + reach - 1] {
                     b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
                     b.pixel(hub, deckY + orbit, wheelInk)
-                    b.pixel(hub + 1, deckY + orbit, .screenDark)
+                    b.pixel(hub + 1, deckY + orbit, bearingInk(golden: pose.goldenBoard))
                     b.pixel(hub + 2, deckY + orbit, wheelInk)
                     b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
                 }
@@ -2201,7 +2215,7 @@ public enum CrabRig {
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, .screenDark)      // the bearing
+                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))      // the bearing
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2249,7 +2263,7 @@ public enum CrabRig {
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, .screenDark)
+                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2279,7 +2293,7 @@ public enum CrabRig {
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, .screenDark)
+                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2376,7 +2390,7 @@ public enum CrabRig {
                 b.pixel(hub, deckY + 2, wheelInk)
                 b.pixel(hub + 2, deckY + 2, wheelInk)
                 b.rect(hub, deckY + 3, 3, 1, wheelInk)
-                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, .screenDark)
+                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, bearingInk(golden: pose.goldenBoard))
             }
 
             // Ground streaking past, in the floor band below him — the only

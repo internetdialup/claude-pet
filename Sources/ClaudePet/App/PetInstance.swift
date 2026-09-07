@@ -704,7 +704,10 @@ final class PetInstance {
             guard self.model.state.mood == .idle,
                   self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
             self.say(self.surfCursor.advance(Vocab.lines(for: .surf), id: "surf"),
-                     or: "Aloha 🌴", for: PetInstance.surfLineSeconds, mood: .done)
+                     or: "Aloha 🌴", for: PetInstance.surfLineSeconds,
+                     // Same reasoning as the skate shout: no leading tick on
+                     // something he is pleased about rather than finished with.
+                     mood: .idle)
             self.armSurfLine()        // and meet the next swell
         }
     }
@@ -833,6 +836,13 @@ final class PetInstance {
             // thing to have landed, and it should sound like it whatever he
             // has on. A costume with no voice of its own falls back to his,
             // rather than being handed a forced catchphrase.
+            // 🛹💬 …but only about one landing in seven. Asked at the same
+            // instant, from the same die, as the golden-board question — so
+            // the answer is the trick's own and cannot drift.
+            guard CrabAnimator.skateLandingSpeaks(at: landing) else {
+                self.armSkateLine()      // quiet about this one; meet the next
+                return
+            }
             let worn = self.model.costume
             let inCharacter = Vocab.skateLines(for: worn)
             // Drawn lazily, inside `say`, so a shout that arrives while a
@@ -846,7 +856,13 @@ final class PetInstance {
                             : self.skateCursor.advance(inCharacter,
                                                        id: "skate-\(worn.rawValue)"),
                      or: "Kowbunga 🤙!", for: PetInstance.skateLineSeconds,
-                     mood: .done)
+                     // `.idle`, not `.done` — the same green bubble WITHOUT
+                     // the leading checkmark. `.done`'s glyph is a tick, and
+                     // a tick in front of "Kowabunga" reads as a notification
+                     // that something finished rather than as him enjoying
+                     // himself. The hello line settled this same question the
+                     // same way.
+                     mood: .idle)
             self.armSkateLine()          // and meet the next one
         }
     }

@@ -593,4 +593,39 @@ struct TorsoTurnTests {
         }
     }
 
+
+    /// 🛹💬 **He does not narrate every trick.**
+    ///
+    /// Skate beats are about eighty per cent of what he does when idle, and
+    /// he used to shout on every landing — which put a green bubble over him
+    /// most of the time he was on screen. The operator asked for roughly one
+    /// in seven.
+    ///
+    /// Measured over a long walk rather than asserted from the constant, so
+    /// the die's actual distribution is what is pinned.
+    @Test("About one landed trick in seven is worth saying something about")
+    func heIsQuietAboutMostTricks() {
+        var landings = 0, spoke = 0
+        var t = 0.0
+        while let landing = CrabAnimator.nextSkateTrickLanding(after: t, horizon: 7200) {
+            landings += 1
+            if CrabAnimator.skateLandingSpeaks(at: landing) { spoke += 1 }
+            t = landing + 0.01
+            if landings >= 400 { break }
+        }
+        #expect(landings > 100, "only \(landings) landings in the walk — too few to measure")
+        let share = Double(spoke) / Double(landings)
+        #expect(abs(share - SpawnRates.skateShout) < 0.06,
+                "he spoke after \(share) of \(landings) landings, against a \(SpawnRates.skateShout) rate")
+        // And the answer is the TRICK's, not the asker's: same landing, same
+        // answer, however many times it is asked.
+        if let first = CrabAnimator.nextSkateTrickLanding(after: 0, horizon: 600) {
+            let once = CrabAnimator.skateLandingSpeaks(at: first)
+            for _ in 0..<5 {
+                #expect(CrabAnimator.skateLandingSpeaks(at: first) == once,
+                        "the die disagreed with itself about the same landing")
+            }
+        }
+    }
+
 }
