@@ -1773,6 +1773,10 @@ public enum CrabAnimator {
     /// about a pixel deep, and the done hop re-armed twice — then the
     /// envelope's tail cools everything back to a plain done before the mood
     /// decays away.
+    /// When the celebration's two re-armed hops start, done-local — hoisted
+    /// so the reel's beat map can name them for the sound editor.
+    nonisolated public static let celebrationHops: [Double] = [3.5, 7.0]
+
     public static func applyCelebration(t: Double, epic: Bool = false, to pose: inout CrabPose) {
         let envelope = Ease.window(t, duration: 10, edge: 0.6)
         guard envelope > 0.001 else { return }
@@ -1784,7 +1788,7 @@ public enum CrabAnimator {
         // two pixels off the floor in one frame and back the same way — which
         // is the snap the rest of the rig is not allowed. A floor-merge still,
         // so a poke or a greeting can deepen it.
-        for start in [3.5, 7.0] {
+        for start in celebrationHops {
             let hop = t - start
             if hop >= 0, hop < 1.2 {
                 pose.bob = min(pose.bob, -Int((max(0, sin(hop * 5)) * 2).rounded()))

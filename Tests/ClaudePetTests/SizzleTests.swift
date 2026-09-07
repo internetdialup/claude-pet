@@ -12,20 +12,17 @@ import SwiftUI
 @MainActor
 struct SizzleScriptTests {
 
-    @Test("The master chapters sum to exactly forty-nine seconds")
+    @Test("The master chapters sum to thirty-two seconds")
     func masterSums() {
-        // 45 → 48 when the montage grew three seasonal looks — the montage
-        // is `montageOrder.count` seconds by construction, and the holiday
-        // round appended three costumes. Re-balancing other chapters back to
-        // a 45 total is the operator's call, not this pin's.
+        // The authored performance lengths for the chapters every cut windows
+        // into (mirror 5.5, cook 6.0, finale 10.0) plus the reel lengths the
+        // rest are authored AT, so a `.window(offset: 0)` plays them at 1×:
+        // wake 1.0, glyphs 2.5, breath 0.5, montage 2.5, duet 1.0, outro 3.0.
+        // This was 50.0 when the montage was one second per look and every
+        // other chapter was time-stretched to fit around the finale.
         let total = SizzleScript.Chapter.allCases
             .reduce(0.0) { $0 + (SizzleScript.masterSeconds[$1] ?? 0) }
-        // FIFTY since the Easter bunny joined. The montage is
-        // `montageOrder.count` seconds by construction, so every look costs
-        // the master exactly one second — the holiday round took it to 49 and
-        // this takes it to 50. Re-balancing other chapters back down is the
-        // operator's call, not this pin's.
-        #expect(total == 50.0)
+        #expect(total == 32.0)
         #expect(SizzleScript.masterSeconds.count == SizzleScript.Chapter.allCases.count,
                 "every chapter must have a master duration")
     }
@@ -95,23 +92,24 @@ struct SizzleScriptTests {
             }
         }
 
-        // The hook: the finale's flash as a cold open, then landscape
-        // verbatim, still inside the law.
+        // The hook: the finale's apex as a cold open of one beat less a
+        // frame, then the landscape master verbatim, still inside the law.
         let opener = SizzleScript.hook.segments.first
-        #expect(opener?.chapter == .finale && opener?.seconds == 0.6)
+        #expect(opener?.chapter == .finale && opener?.seconds == 0.4)
         if case .window(let offset) = opener?.kind { #expect(offset == 2.05) }
         else { Issue.record("the hook must open on a window slice") }
         #expect(Array(SizzleScript.hook.segments.dropFirst()).count
                 == SizzleScript.landscape.segments.count)
-        #expect(abs(SizzleScript.hook.seconds - 24.8) < 1e-9)
-        #expect(SizzleScript.hook.frameCount == 744)
+        #expect(abs(SizzleScript.hook.seconds - (0.4 + SizzleScript.landscape.seconds)) < 1e-9)
+        #expect(SizzleScript.hook.frameCount == 747)
 
         // The montage carries every look, ending on Classic for the loop seam.
         #expect(Set(SizzleScript.montageOrder) == Set(Costume.allCases))
         #expect(SizzleScript.montageOrder.last == Costume.none)
 
-        // The glyph chapter shows every service.
+        // The glyph chapter shows every service, each with its own beat.
         #expect(SizzleScript.glyphBeats.map(\.glyph) == ServiceGlyph.allCases)
+        #expect(SizzleScript.glyphBeatSeconds.count == SizzleScript.glyphBeats.count)
     }
 
     @Test("Every canvas is H.264-even at its scale")
@@ -136,7 +134,7 @@ struct SizzleScriptTests {
             let fmt = SizzleRenderer.format(for: cut)
             let stops: [(String, CGFloat)] = [
                 ("rest", fmt.spriteSide), ("punch", fmt.punchSide),
-                ("face", fmt.faceSide), ("duo", fmt.duoSide),
+                ("hero", fmt.heroSide), ("duo", fmt.duoSide),
             ]
             for (name, side) in stops {
                 let devicePixels = side * cut.scale
@@ -148,7 +146,10 @@ struct SizzleScriptTests {
 
     @Test("The dice bases fire on camera")
     func diceBases() {
-        // The cooking shot: a clean lead-in, then disco and heat inside it.
+        // The cooking shot: a clean lead-in, then heat inside it. The disco
+        // fires here on the desktop too — the reel no longer passes it (no
+        // body colour before the finale's own), but the live schedule this
+        // base was chosen against must not drift under the window.
         #expect(CrabView.discoTint(cookingT: SizzleScript.cookBase + 0.5) == nil,
                 "the shot must open clean")
         #expect(CrabView.discoTint(cookingT: SizzleScript.cookBase + 3.5) != nil,
@@ -159,39 +160,57 @@ struct SizzleScriptTests {
         #expect(CrabAnimator.workingProp(at: SizzleScript.workBase + 1.0) == .terminal)
     }
 
-    @Test("Window segments enter their chapter's own clock; scaled ones compress")
+    @Test("Window segments enter their chapter's own clock, and nothing is stretched")
     func resolveKinds() {
         // README mirror opens at offset 1.6 into the chapter clock.
         let start = SizzleScript.resolve(SizzleScript.readme, at: 0)
         #expect(start?.chapter == .mirror)
         #expect(abs((start?.localT ?? 0) - 1.6) < 1e-9)
 
-        // The README montage compresses the master chapter into 5.5 — derived,
-        // not restated: this line once said "8.0" while the order grew to ten,
-        // and the restated constant is exactly how the drift stayed hidden.
-        let montageMaster = SizzleScript.masterSeconds[.montage] ?? 0
-        let montageStart = 3.0 + 3.0 + 8.0
-        let mid = SizzleScript.resolve(SizzleScript.readme, at: montageStart + 2.75)
-        #expect(mid?.chapter == .montage)
-        #expect(abs((mid?.localT ?? 0) - montageMaster / 2) < 1e-9,
-                "half the segment must be half the master chapter")
+        // Time is trimmed, never stretched: every segment of every cut is a
+        // window, so `scaleFactor` is 1 on every frame. The README montage
+        // used to compress fifteen looks into 5.5s — a 0.35s dissolve in one
+        // frame at 10fps, in the committed asset.
+        for cut in SizzleScript.cuts + SizzleScript.plates {
+            for index in 0..<cut.frameCount {
+                let t = Double(index) / Double(cut.fps)
+                #expect(SizzleScript.resolve(cut, at: t)?.scaleFactor == 1,
+                        "\(cut.name) is time-stretched at frame \(index)")
+            }
+        }
     }
 
     /// The trap the battery caught one edit before it fired: the montage clock
     /// said eight seconds, the running order held ten looks, and the pose
-    /// table held eight entries. Two costumes silently never rendered, and
-    /// fixing the clock alone would have subscripted `moods[8]` and trapped.
-    /// All three lengths are chained to `montageOrder` now, and this holds
-    /// them there.
-    @Test("The montage clock, order, and pose table agree")
-    func montageCoversItsOwnOrder() {
-        let looks = SizzleScript.montageOrder.count
-        #expect(SizzleScript.masterSeconds[.montage] == Double(looks),
-                "the montage clock is not one second per look")
-        #expect(SizzleRenderer.montageMoods.count == looks,
-                "\(SizzleRenderer.montageMoods.count) poses for \(looks) looks")
-        #expect(SizzleScript.montageOrder.last == Costume.none,
-                "the loop seam must land on Classic")
+    /// table held eight entries — two costumes silently never rendered. The
+    /// pose table is keyed by costume now and held to `Costume.allCases`; the
+    /// clock is each cut's own running order, and the segment must be exactly
+    /// as long as the looks it plays.
+    @Test("The montage is a running order, not a rate")
+    func montageIsARunningOrder() {
+        #expect(Set(SizzleRenderer.montageMoods.keys) == Set(Costume.allCases),
+                "every costume needs a montage pose")
+        for cut in SizzleScript.cuts + SizzleScript.plates {
+            for segment in cut.segments where segment.chapter == .montage {
+                if case .window(let offset) = segment.kind {
+                    #expect(offset == 0, "\(cut.name) montage must open on its first look")
+                } else {
+                    Issue.record("\(cut.name) montage must be a window, not a rate")
+                }
+                #expect(abs(segment.seconds - cut.looksSeconds) < 1e-9,
+                        "\(cut.name) montage plays \(segment.seconds)s of \(cut.looksSeconds)s of looks")
+            }
+            #expect(cut.looks.last?.costume == Costume.none,
+                    "\(cut.name) must close on Classic for the loop seam")
+        }
+        // The masters: every look long enough to register, the last held.
+        let looks = SizzleScript.masterLooks
+        for look in looks {
+            #expect(look.seconds >= 0.5, "\(look.costume) shows for \(look.seconds)s")
+        }
+        #expect((looks.last?.seconds ?? 0) >= 1.3 * (looks.first?.seconds ?? 1),
+                "the last look is the hold")
+        #expect(SizzleScript.masterSeconds[.montage] == looks.reduce(0) { $0 + $1.seconds })
     }
 }
 
@@ -341,7 +360,7 @@ struct SizzleCameraTests {
     func continuity() {
         let cut = SizzleScript.landscape
         let fmt = SizzleRenderer.format(for: cut)
-        let stops: Set<CGFloat> = [fmt.spriteSide, fmt.punchSide, fmt.faceSide]
+        let stops: Set<CGFloat> = [fmt.spriteSide, fmt.punchSide, fmt.heroSide]
         var previous: SizzleRenderer.Shot?
         var beforePrevious: SizzleRenderer.Shot?
         var lastChapter: SizzleScript.Chapter?
@@ -407,11 +426,9 @@ struct SizzlePlateTests {
             let image = try #require(SpriteImage.cgImage(of: view, scale: 1))
             return CGSize(width: image.width, height: image.height)
         }
-        for chapter in [SizzleScript.Chapter.mirror, .cook, .finale] {
-            let text = plateFmt.captions[chapter] ?? ""
-            guard !text.isEmpty else { continue }
-            let hidden = try size(SizzleRenderer.captionProbe(text, fmt: plateFmt))
-            let shown = try size(SizzleRenderer.captionProbe(text, fmt: masterFmt))
+        for (chapter, caption) in masterFmt.captions {
+            let hidden = try size(SizzleRenderer.captionProbe(caption.wide, fmt: plateFmt))
+            let shown = try size(SizzleRenderer.captionProbe(caption.wide, fmt: masterFmt))
             #expect(hidden == shown,
                     "\(chapter) caption is \(hidden) hidden and \(shown) shown")
         }
@@ -652,36 +669,62 @@ struct BeatMapTests {
         }
     }
 
-    @Test("The landscape glyph beats land where the cadence says")
+    @Test("The landscape glyph beats land where the table says, and every kind is present")
     func landscapeSpots() {
-        let map = SizzleScript.beatMap(for: SizzleScript.landscape)
-        // Glyphs start at 4.0 (wake 1.0 + mirror 3.0), compressed 6.0→2.8:
-        // beats at 4.0, 4.7, 5.4, 6.1 master → /2.142857…
-        #expect(map.contains("4.000\tglyph\tnpm"))
-        #expect(map.contains("4.700\tglyph\tgithub"))
-        #expect(map.contains("5.400\tglyph\tlinear"))
-        #expect(map.contains("6.100\tglyph\tdeploy"))
-        #expect(map.contains("chapter\tfinale"))
-        #expect(map.contains("look\tsonic"))
-    }
-}
-
-/// The montage tags: every resolved colour clears the field.
-@Suite("Montage tag colours")
-@MainActor
-struct MontageTagTests {
-
-    @Test func everyTagClears() {
-        for costume in Costume.allCases {
-            let color = SizzleRenderer.tagColor(for: costume)
-            let resolved = NSColor(color).usingColorSpace(.sRGB) ?? .white
-            let luminance = 0.2126 * resolved.redComponent
-                + 0.7152 * resolved.greenComponent
-                + 0.0722 * resolved.blueComponent
-            #expect(luminance >= 0.13, "\(costume) tag sinks into the field")
+        let cut = SizzleScript.landscape
+        let map = SizzleScript.beatMap(for: cut)
+        // Derived, not restated: the glyph chapter starts where the segments
+        // before it end, and each beat starts where the table says.
+        let glyphsIndex = cut.segments.firstIndex { $0.chapter == .glyphs } ?? 0
+        let glyphsAt = SizzleScript.segmentStarts(in: cut)[glyphsIndex]
+        for (start, entry) in zip(SizzleScript.glyphBeatStarts, SizzleScript.glyphBeats) {
+            let row = String(format: "%.3f\tglyph\t%@", glyphsAt + start, entry.glyph.rawValue)
+            #expect(map.contains(row), "missing \(row)")
         }
-        // The dark looks fall back rather than vanishing.
-        #expect(SizzleRenderer.tagColor(for: .retroBlack) == Palette.kraft)
+        #expect(map.contains("# grid 120bpm"))
+        // The face punch lands before the master's window opens (frame 0 IS
+        // the face), so it is not a row here; everything else is.
+        for kind in ["chapter\tfinale", "look\tninja", "stopdown\tfinale", "hop\thop",
+                     "badge\tdone", "pounce\tone", "card\turl", "punch\tmerged", "roster\tsessions",
+                     "flash-irregular\ttap"] {
+            #expect(map.contains(kind), "the sidecar must name \(kind)")
+        }
+    }
+
+    /// The sound editor cuts to this file with the audio off: no stretch of
+    /// a master may go two bars without a row to land on.
+    @Test("No two bars of silence in a master's sidecar")
+    func noSilence() {
+        for cut in [SizzleScript.landscape, SizzleScript.vertical] {
+            let times = SizzleScript.beatMap(for: cut)
+                .split(separator: "\n").filter { !$0.hasPrefix("#") }
+                .compactMap { Double($0.split(separator: "\t")[0]) }
+            for (a, b) in zip(times, times.dropFirst()) {
+                #expect(b - a <= 2 * SizzleScript.bar + 1e-9,
+                        "\(cut.name) is silent from \(a) to \(b)")
+            }
+        }
+    }
+
+    /// A render whose sidecar disagrees with the script is a render of a reel
+    /// that no longer exists — and a critique of it is void. When a rendered
+    /// set is on disk, its sidecars must be the script's.
+    @Test("An on-disk sidecar matches the script")
+    func noDrift() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let renders = root.appendingPathComponent("build/sizzle")
+        for cut in SizzleScript.cuts {
+            let base = (cut.name as NSString).deletingPathExtension
+            let sidecar = renders.appendingPathComponent("\(base).beats.txt")
+            guard FileManager.default.fileExists(atPath: sidecar.path) else { continue }
+            // Below the name line: the README GIF and its MP4 twin share one
+            // sidecar file, and whichever wrote last named itself in it.
+            func body(_ map: String) -> String { map.split(separator: "\n").dropFirst().joined(separator: "\n") }
+            let onDisk = try String(contentsOf: sidecar, encoding: .utf8)
+            #expect(body(onDisk) == body(SizzleScript.beatMap(for: cut)),
+                    "\(cut.name)'s rendered sidecar has drifted from the script — re-render")
+        }
     }
 }
 
@@ -723,20 +766,46 @@ struct IdleBalloonTests {
 @MainActor
 struct MatchCutTests {
 
-    @Test("The bridge is continuous across the boundary")
+    @Test("The bridge is one flash: the breath whites out, the first tap carries it down")
     func continuity() {
         let cut = SizzleScript.landscape
         let fmt = SizzleRenderer.format(for: cut)
-        // Landscape: cook ends at 8.8, finale begins there.
-        let exitFlash = SizzleRenderer.matchCutFlash(cut: cut, at: 8.799, fmt: fmt)
-        let entryFlash = SizzleRenderer.matchCutFlash(cut: cut, at: 8.801, fmt: fmt)
+        // Derived, not restated: the boundary is wherever the finale starts.
+        let finaleIndex = cut.segments.firstIndex { $0.chapter == .finale } ?? 0
+        let boundary = SizzleScript.segmentStarts(in: cut)[finaleIndex]
+        let frame = 1.0 / Double(cut.fps)
+        #expect(SizzleScript.isOnBeat(boundary), "the bang lands on the grid")
+        // Full white one frame before the cut, and across it.
         // 1.0, not 0.9: nine tenths of white composites to a grey over a dark
         // backdrop, which is the washed-out complaint in a different room.
-        #expect(abs(exitFlash - 1.0) < 0.02, "the cook must exit at full white")
-        #expect(abs(entryFlash - 1.0) < 0.02, "the finale must open at the same white")
-        // And it dies quickly on both sides.
-        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: 8.0, fmt: fmt) < 0.01)
-        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: 9.4, fmt: fmt) < 0.01)
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: boundary - frame, fmt: fmt) > 0.99,
+                "the breath must exit at full white")
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: boundary + 0.001, fmt: fmt) == 1,
+                "the finale must open at the same white")
+        // The white HOLDS through the first tap's plateau — one flash, not
+        // two edges 0.2s apart — then rides that tap's decay down, and is
+        // gone before the second tap so the second tap is its own hit.
+        let tap = CrabView.celebrationFlashes[0]
+        let plateauEnd = tap.at + CrabView.flashAttack + tap.hold
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: boundary + plateauEnd - 0.01, fmt: fmt) == 1)
+        #expect(CrabView.epicBlanch(doneT: plateauEnd - 0.01) == 1,
+                "the sprite's own tap must be inside the white")
+        let secondTap = CrabView.celebrationFlashes[1].at
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: boundary + secondTap - frame, fmt: fmt) < 0.01,
+                "the bridge must be gone before the second tap")
+        // Light arrives fast: nothing before the attack, and the attack is
+        // no longer than 0.12s.
+        #expect(SizzleRenderer.matchCutFlash(cut: cut, at: boundary - SizzleRenderer.bridgeAttack - 2 * frame,
+                                             fmt: fmt) < 0.01)
+        // Exactly one rising edge in the whole cut.
+        var risingEdges = 0
+        var wasLit = false
+        for index in 0..<cut.frameCount {
+            let lit = SizzleRenderer.matchCutFlash(cut: cut, at: Double(index) * frame, fmt: fmt) > 0.05
+            if lit && !wasLit { risingEdges += 1 }
+            wasLit = lit
+        }
+        #expect(risingEdges == 1, "\(risingEdges) flashes in a reel allowed one")
     }
 
     @Test("The hook's cold-open finale has no bridge, and readme never flashes")
@@ -763,12 +832,13 @@ struct GlyphReactionTests {
     @Test("Each beat gestures differently, and all return to rest")
     func distinctAndTransient() {
         var poses: [CrabPose] = []
+        // Beat-relative time: mid-beat gestures, the last few frames rest.
         for beat in 0...3 {
             var pose = CrabPose()
-            SizzleRenderer.applyGlyphReaction(beat: beat, beatT: 0.7, to: &pose)
+            SizzleRenderer.applyGlyphReaction(beat: beat, u: 0.5, to: &pose)
             poses.append(pose)
             var rest = CrabPose()
-            SizzleRenderer.applyGlyphReaction(beat: beat, beatT: 1.45, to: &rest)
+            SizzleRenderer.applyGlyphReaction(beat: beat, u: 0.97, to: &rest)
             #expect(rest == CrabPose(), "beat \(beat) must return to rest")
         }
         #expect(poses[0].bob == 1 && poses[0].gazeY == 1)
@@ -783,24 +853,444 @@ struct GlyphReactionTests {
 @MainActor
 struct ShowcaseDuetTests {
 
-    @Test("Text-free cuts skip the wake and stay lawful")
+    @Test("Every cut opens on the thesis, and the showcase is the master unclothed")
     func actionOpens() {
-        for cut in [SizzleScript.showcaseGradient, SizzleScript.showcaseGradientTall] {
-            #expect(cut.segments.first?.chapter != .wake, "\(cut.name) must open on action")
+        for cut in [SizzleScript.landscape, SizzleScript.vertical,
+                    SizzleScript.showcaseGradient, SizzleScript.showcaseGradientTall] {
+            #expect(cut.segments.first?.chapter == .mirror, "\(cut.name) must open on the thesis")
             #expect(cut.seconds < 25.0)
         }
-        #expect(abs(SizzleScript.showcaseGradient.seconds - 23.2) < 1e-9)
-        #expect(abs(SizzleScript.showcaseGradientTall.seconds - 22.1) < 1e-9)
+        #expect(SizzleScript.showcaseGradient.seconds == SizzleScript.landscape.seconds)
+        #expect(SizzleScript.showcaseGradientTall.seconds == SizzleScript.vertical.seconds)
     }
 
-    @Test("The duet pan dwells on the pounce, crosses, and settles")
-    func duetPan() {
+    @Test("The duet holds its frame: one second, one pounce, no pan")
+    func duetHolds() {
         let fmt = SizzleRenderer.format(for: SizzleScript.landscape)
-        #expect(SizzleRenderer.shot(for: .duet, t: 1.2, fmt: fmt).offset.x == 38,
-                "the pounce lands on the dwell")
-        #expect(SizzleRenderer.shot(for: .duet, t: 2.4, fmt: fmt).offset.x == -38,
-                "then the pan crosses to pet two")
-        #expect(SizzleRenderer.shot(for: .duet, t: 3.8, fmt: fmt).offset.x == 0,
-                "and settles wide")
+        for t in [0.0, 0.3, 0.6, 0.99] {
+            let shot = SizzleRenderer.shot(for: .duet, t: t, fmt: fmt)
+            #expect(shot.offset == .zero && shot.side == fmt.spriteSide, "the duet camera moved at \(t)")
+        }
+        #expect(SizzleScript.duetPounceAt < 0.5, "the pounce must land inside the second")
+    }
+}
+
+/// The reel-choreography doctrine, measured: the grid, the frame floor under
+/// every ease, the grounds' contrast, the type roles, the captions'
+/// readability, the boundaries, the poster frame, the button. Every rule
+/// here has a number because a rule that cannot fail is not a rule.
+@Suite("Reel choreography")
+@MainActor
+struct ReelChoreographyTests {
+
+    private var masters: [SizzleScript.Cut] { [SizzleScript.landscape, SizzleScript.vertical] }
+
+    private var packageRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    private func source(_ relative: String) throws -> String {
+        try String(contentsOf: packageRoot.appendingPathComponent(relative), encoding: .utf8)
+    }
+
+    // MARK: Time
+
+    @Test("Every master boundary is a beat; the finale and the montage open on bars")
+    func everyBoundaryIsOnABeat() {
+        for cut in masters {
+            let starts = SizzleScript.segmentStarts(in: cut)
+            for (start, segment) in zip(starts, cut.segments) {
+                #expect(SizzleScript.isOnBeat(start),
+                        "\(cut.name) \(segment.chapter) opens at \(start), off the beat")
+                // The climax and the list chapter open on bar lines; the
+                // outro opens on a beat (the skill asks no more of it).
+                if [.finale, .montage].contains(segment.chapter) {
+                    let bars = start / SizzleScript.bar
+                    #expect(abs(bars - bars.rounded()) < 1e-6,
+                            "\(cut.name) \(segment.chapter) opens at \(start), off the bar line")
+                }
+            }
+            #expect(SizzleScript.isOnBeat(cut.seconds), "\(cut.name) ends off the beat")
+        }
+    }
+
+    /// An ease under three output frames is a snap wearing an ease's clothes.
+    /// Measured in CUT frames at the cut's fps: every run of frames in which
+    /// the camera's side is changing is at least three long, every costume
+    /// dissolve spans at least three frames, and the type envelope's edges do.
+    @Test("No eased edge is shorter than three frames of the cut")
+    func noEaseUnderThreeFrames() {
+        for cut in [SizzleScript.landscape, SizzleScript.vertical, SizzleScript.meme, SizzleScript.hook] {
+            let fmt = SizzleRenderer.format(for: cut)
+            var run = 0
+            var previous: SizzleRenderer.Shot?
+            var lastChapter: SizzleScript.Chapter?
+            for index in 0..<cut.frameCount {
+                let t = Double(index) / Double(cut.fps)
+                guard let cue = SizzleScript.resolve(cut, at: t) else { continue }
+                let shot = SizzleRenderer.shot(for: cue.chapter, t: cue.localT, fmt: fmt)
+                if let previous, lastChapter == cue.chapter, shot.side != previous.side {
+                    run += 1
+                } else {
+                    if run > 0 {
+                        #expect(run >= 3, "\(cut.name): a \(run)-frame side move before frame \(index)")
+                    }
+                    run = 0
+                }
+                previous = shot
+                lastChapter = cue.chapter
+            }
+        }
+        for cut in SizzleScript.cuts {
+            let fmt = SizzleRenderer.format(for: cut)
+            for look in cut.looks {
+                let dissolve = min(0.35, look.seconds * 0.5)
+                #expect(dissolve / fmt.frame >= 3 - 1e-9,
+                        "\(cut.name): \(look.costume) dissolves in \(dissolve / fmt.frame) frames")
+            }
+            #expect(SizzleRenderer.typeAttack / fmt.frame >= 3 - 1e-9)
+            // The envelope floors its own decay at three frames — sample it.
+            let decayStart = 2.0
+            let gone = (0...40).first { step in
+                SizzleRenderer.typeEnvelope(decayStart + Double(step) * fmt.frame, from: 1.0,
+                                            until: decayStart, frame: fmt.frame) < 0.01
+            } ?? 0
+            #expect(gone >= 3, "\(cut.name): type leaves in \(gone) frames")
+        }
+    }
+
+    // MARK: Colour
+
+    private func rgb(_ color: Color) -> (r: Double, g: Double, b: Double) {
+        let c = NSColor(color).usingColorSpace(.sRGB) ?? .black
+        return (c.redComponent, c.greenComponent, c.blueComponent)
+    }
+
+    private func luminance(_ c: (r: Double, g: Double, b: Double)) -> Double {
+        func lin(_ v: Double) -> Double { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+        return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
+    }
+
+    private func hueSat(_ c: (r: Double, g: Double, b: Double)) -> (hue: Double, sat: Double) {
+        let n = NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1)
+        return (n.hueComponent * 360, n.saturationComponent)
+    }
+
+    private func bodyRGB(_ costume: Costume) -> (r: Double, g: Double, b: Double) {
+        if costume == .none { return SpriteTint.bodyRGB }
+        guard let ink = CostumeStyle.of(costume).inks[.body] else { return SpriteTint.bodyRGB }
+        return (ink.r, ink.g, ink.b)
+    }
+
+    /// The costumes a chapter puts on screen, for a cut.
+    private func cast(_ chapter: SizzleScript.Chapter, in cut: SizzleScript.Cut) -> [Costume] {
+        switch chapter {
+        case .montage: return cut.looks.map(\.costume)
+        case .duet, .outro: return [.none, .ninja]
+        default: return [.none]
+        }
+    }
+
+    /// A body clears its ground by luminance (≥ 0.15) or, failing that, by
+    /// hue (≥ 60° apart with both saturated) — terracotta on cobalt is the
+    /// social preview's pairing and reads on hue alone. The caption ink clears
+    /// its ground at the large-text ratio (≥ 3:1).
+    @Test("Every ground clears every costume it carries, and its ink reads")
+    func groundsClearTheirCostumes() {
+        for cut in masters + [SizzleScript.meme] {
+            for (chapter, ground) in cut.grounds {
+                let groundRGB = rgb(ground.color)
+                let groundL = luminance(groundRGB)
+                let groundHS = hueSat(groundRGB)
+                for costume in cast(chapter, in: cut) {
+                    let body = bodyRGB(costume)
+                    let deltaL = abs(luminance(body) - groundL)
+                    let bodyHS = hueSat(body)
+                    var deltaH = abs(bodyHS.hue - groundHS.hue)
+                    deltaH = min(deltaH, 360 - deltaH)
+                    let byHue = deltaH >= 60 && bodyHS.sat >= 0.25 && groundHS.sat >= 0.25
+                    #expect(deltaL >= 0.15 || byHue,
+                            "\(cut.name) \(chapter): \(costume) sinks into \(ground.name) (ΔL \(deltaL), Δhue \(deltaH))")
+                }
+                let inkL = luminance(rgb(ground.ink))
+                let ratio = (max(inkL, groundL) + 0.05) / (min(inkL, groundL) + 0.05)
+                #expect(ratio >= 3.0, "\(cut.name) \(chapter): ink on \(ground.name) is \(ratio):1")
+            }
+        }
+    }
+
+    @Test("No body tint before the finale's own")
+    func noTintBeforeTheFinale() {
+        for chapter in SizzleScript.Chapter.allCases where chapter != .finale {
+            for t in stride(from: 0.0, through: 10.0, by: 0.5) {
+                #expect(SizzleRenderer.bodyTint(for: chapter, t: t) == nil,
+                        "\(chapter) tints the body at \(t)")
+            }
+        }
+        #expect(SizzleRenderer.bodyTint(for: .finale, t: 5.0) != nil, "the finale is the colour")
+    }
+
+    // MARK: Type
+
+    @Test("Type roles sit on the sprite's cell grid, a step apart, over whole-cell margins")
+    func typeRolesAreOnTheCellGrid() {
+        for cut in SizzleScript.cuts {
+            let fmt = SizzleRenderer.format(for: cut)
+            let cell = fmt.cell
+            for (name, size) in [("tag", fmt.tag), ("caption", fmt.caption), ("wordmark", fmt.wordmark),
+                                 ("shout", fmt.caption * fmt.captionScale)] {
+                #expect(abs(size.truncatingRemainder(dividingBy: cell)) < 1e-6,
+                        "\(cut.name) \(name) \(size)pt is off the \(cell)pt cell")
+            }
+            #expect(fmt.caption >= 1.25 * fmt.tag && fmt.wordmark >= 1.25 * fmt.caption,
+                    "\(cut.name): roles are not a step apart")
+            #expect(abs(fmt.bottomMargin.truncatingRemainder(dividingBy: cell)) < 1e-6
+                    && fmt.bottomMargin >= 3 * cell,
+                    "\(cut.name): bottom margin \(fmt.bottomMargin) is not whole cells")
+            if fmt.vertical {
+                #expect(fmt.bottomMargin >= cut.canvas.height * 0.25,
+                        "\(cut.name): type sits inside the platform band")
+            }
+        }
+    }
+
+    /// ≤ 5 words, ≤ 45 characters, held long enough to read and never past
+    /// three seconds; proven by the frame it declares; gone half a second
+    /// before its segment ends; and type owns under half of any cut.
+    @Test("Every caption is readable, proven, and gone before the cut")
+    func captionsAreReadable() {
+        for cut in SizzleScript.cuts {
+            let fmt = SizzleRenderer.format(for: cut)
+            let starts = SizzleScript.segmentStarts(in: cut)
+            var distinct = Set<String>()
+            for (chapter, caption) in fmt.captions where chapter != .outro && chapter != .wake {
+                distinct.insert(caption.wide)
+                let words = caption.wide.split(whereSeparator: { $0 == " " || $0 == "\n" }).count
+                let chars = caption.wide.filter { $0 != "\n" }.count
+                #expect(words <= 5 && chars <= 45, "\(cut.name) \(chapter): \"\(caption.wide)\"")
+                #expect(caption.tall.split(whereSeparator: { $0 == " " || $0 == "\n" }).count == words,
+                        "\(cut.name) \(chapter): the tall line says something else")
+                let hold = caption.until - caption.from
+                #expect(hold >= max(0.83, Double(chars) / 15) - 1e-9 && hold <= 3.0,
+                        "\(cut.name) \(chapter) holds \(hold)s for \(chars) chars")
+                for (start, segment) in zip(starts, cut.segments) where segment.chapter == chapter {
+                    guard case .window(let offset) = segment.kind else { continue }
+                    _ = start
+                    let end = offset + segment.seconds
+                    func at(_ local: Double) -> Double {
+                        SizzleRenderer.typeEnvelope(local, from: caption.from, until: caption.until,
+                                                    frame: fmt.frame)
+                    }
+                    let peak = stride(from: offset, to: end, by: fmt.frame).map(at).max() ?? 0
+                    #expect(peak >= 0.9, "\(cut.name) \(chapter): the caption never shows")
+                    if let proves = caption.proves, proves >= offset, proves < end {
+                        #expect(at(proves - 0.3) >= 0.9,
+                                "\(cut.name) \(chapter): the line arrives after its proof")
+                    }
+                    #expect(at(end - 0.5) <= 0.1,
+                            "\(cut.name) \(chapter): the caption is still up half a second before the cut")
+                }
+            }
+            #expect(distinct.count <= 3, "\(cut.name) makes \(distinct.count) claims")
+
+            // Type-on time, whole cut: captions past a tenth, or a card.
+            guard fmt.type else { continue }
+            var on = 0
+            var uncaptioned = Set<SizzleScript.Chapter>()
+            for index in 0..<cut.frameCount {
+                let t = Double(index) / Double(cut.fps)
+                guard let cue = SizzleScript.resolve(cut, at: t) else { continue }
+                if cue.chapter == .outro || cue.chapter == .wake {
+                    on += 1
+                } else if let caption = fmt.captions[cue.chapter] {
+                    if SizzleRenderer.typeEnvelope(cue.localT, from: caption.from, until: caption.until,
+                                                   frame: fmt.frame) > 0.1 { on += 1 }
+                } else {
+                    uncaptioned.insert(cue.chapter)
+                }
+            }
+            #expect(Double(on) / Double(cut.frameCount) <= 0.5,
+                    "\(cut.name): type is up \(100 * on / cut.frameCount)% of the runtime")
+            #expect(uncaptioned.count >= 2, "\(cut.name): only \(uncaptioned) go without a caption")
+        }
+    }
+
+    /// SwiftUI never wraps reel type: every authored line fits its canvas
+    /// inside the margins (and, on 9:16, clear of the right-hand band).
+    @Test("Every authored caption line fits its canvas")
+    func authoredLineBreaks() {
+        for cut in SizzleScript.cuts {
+            let fmt = SizzleRenderer.format(for: cut)
+            guard fmt.type else { continue }
+            let size = fmt.caption * fmt.captionScale
+            let font = NSFont.monospacedSystemFont(ofSize: size, weight: .heavy)
+            let rightBand = fmt.vertical ? cut.canvas.width * 0.15 : 0
+            let available = cut.canvas.width - 3 * fmt.cell - max(3 * fmt.cell, rightBand)
+            for (chapter, caption) in fmt.captions {
+                for line in caption.text(vertical: fmt.vertical).split(separator: "\n") {
+                    let width = (String(line) as NSString).size(withAttributes: [.font: font]).width
+                    #expect(width <= available,
+                            "\(cut.name) \(chapter): \"\(line)\" is \(width)pt of \(available)pt")
+                }
+            }
+        }
+    }
+
+    @Test("Reel type is seven-bit; the bubbles keep the product's own strings")
+    func sevenBitReelType() {
+        for table in [SizzleScript.captions, SizzleScript.memeCaptions] {
+            for (chapter, caption) in table {
+                for text in [caption.wide, caption.tall] {
+                    #expect(text.unicodeScalars.allSatisfy { $0.isASCII },
+                            "\(chapter): \"\(text)\" carries non-ASCII reel type")
+                }
+            }
+        }
+        #expect(SizzleScript.url.unicodeScalars.allSatisfy { $0.isASCII })
+    }
+
+    @Test("One wordmark, in one file")
+    func oneWordmark() throws {
+        let sources = packageRoot.appendingPathComponent("Sources/ClaudePet")
+        let files = try FileManager.default.subpathsOfDirectory(atPath: sources.path)
+            .filter { $0.hasSuffix(".swift") }
+        // Wordmark.swift is the one file allowed the literal — and its doc
+        // comment names the caps version it replaced, so it is skipped whole.
+        for file in files where !file.hasSuffix("Wordmark.swift") {
+            let text = try source("Sources/ClaudePet/\(file)")
+            #expect(!text.contains("\"CLAUDE PET\""), "\(file) sets the wordmark in caps")
+            #expect(!text.contains("\"Claude Pet\""), "\(file) restates the wordmark")
+        }
+    }
+
+    /// The type paths ride the asymmetric envelope, never the symmetric
+    /// window — and reel furniture is square, unscaled, ungraded.
+    @Test("Type never rides a symmetric window; reel furniture is square")
+    func typeAndFurnitureHygiene() throws {
+        // Code only: the header comment names `.scaleEffect` as the thing the
+        // camera must never be, which is not a use of it.
+        let renderer = try source("Sources/ClaudePet/App/SizzleRenderer.swift")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let typeStart = try #require(renderer.range(of: "static let typeAttack")).lowerBound
+        let typeEnd = try #require(renderer.range(of: "private static func chapterLayout(")).lowerBound
+        let typeSection = String(renderer[typeStart..<typeEnd])
+        #expect(!typeSection.contains("Ease.window("), "type rides a symmetric window")
+        for forbidden in ["cornerRadius", ".scaleEffect", ".blur(", ".shadow(", "RadialGradient"] {
+            #expect(!renderer.contains(forbidden), "reel furniture uses \(forbidden)")
+        }
+        #expect(renderer.components(separatedBy: "LinearGradient").count == 2,
+                "the showcase dusk is the one sanctioned gradient")
+    }
+
+    // MARK: The cut
+
+    /// A hard cut changes the frame in at least two of: sprite side (a grid
+    /// step), sprite centre (a tenth of the width), the ground, whether the
+    /// chapter carries type, the mood. A change of caption text alone is not
+    /// a cut. The bridged boundary is exempt: the white IS the change.
+    @Test("Every master boundary changes the frame twice over")
+    func everyCutChangesTheFrame() {
+        for cut in masters {
+            let fmt = SizzleRenderer.format(for: cut)
+            let frame = fmt.frame
+            let starts = SizzleScript.segmentStarts(in: cut)
+            for index in 1..<cut.segments.count {
+                let before = cut.segments[index - 1]
+                let after = cut.segments[index]
+                if before.chapter == .breath && after.chapter == .finale { continue }
+                guard let a = SizzleScript.resolve(cut, at: starts[index] - frame),
+                      let b = SizzleScript.resolve(cut, at: starts[index]) else {
+                    Issue.record(Comment(rawValue: "\(cut.name): boundary \(index) does not resolve")); continue
+                }
+                let shotA = SizzleRenderer.shot(for: a.chapter, t: a.localT, fmt: fmt)
+                let shotB = SizzleRenderer.shot(for: b.chapter, t: b.localT, fmt: fmt)
+                var differences: [String] = []
+                if abs(shotA.side - shotB.side) >= 32 { differences.append("side") }
+                let shift = hypot(shotA.offset.x - shotB.offset.x, shotA.offset.y - shotB.offset.y)
+                if shift >= cut.canvas.width * 0.1 { differences.append("centre") }
+                if fmt.grounds[a.chapter] != fmt.grounds[b.chapter] { differences.append("ground") }
+                func typed(_ chapter: SizzleScript.Chapter) -> Bool {
+                    fmt.captions[chapter] != nil || chapter == .outro || chapter == .wake
+                }
+                if typed(a.chapter) != typed(b.chapter) { differences.append("type") }
+                if SizzleRenderer.mood(for: a.chapter, t: a.localT, fmt: fmt)
+                    != SizzleRenderer.mood(for: b.chapter, t: b.localT, fmt: fmt) {
+                    differences.append("mood")
+                }
+                #expect(differences.count >= 2,
+                        "\(cut.name) \(before.chapter)→\(after.chapter) changes only \(differences)")
+            }
+        }
+    }
+
+    // MARK: Shape
+
+    @Test("Frame 0 is the poster: the thesis, big, with nothing mid-fade")
+    func frameZeroIsThePoster() {
+        for cut in masters {
+            let fmt = SizzleRenderer.format(for: cut)
+            guard let cue = SizzleScript.resolve(cut, at: 0) else { Issue.record(Comment(rawValue: cut.name)); continue }
+            #expect(cue.chapter == .mirror, "\(cut.name) opens on \(cue.chapter), not the thesis")
+            let shot = SizzleRenderer.shot(for: cue.chapter, t: cue.localT, fmt: fmt)
+            #expect(shot.side >= cut.canvas.height * 0.4,
+                    "\(cut.name): he is \(shot.side)pt tall on a \(cut.canvas.height)pt frame")
+            #expect(shot.side == fmt.punchSide, "\(cut.name): frame 0 should be the face")
+            for (chapter, caption) in fmt.captions where chapter == cue.chapter {
+                let presence = SizzleRenderer.typeEnvelope(cue.localT, from: caption.from,
+                                                           until: caption.until, frame: fmt.frame)
+                #expect(presence == 0 || presence >= 0.95, "\(cut.name): frame 0 type is mid-fade")
+            }
+            // The thesis line is up and the session signal follows within 3s.
+            #expect(fmt.captions[.mirror] != nil)
+            #expect(cue.localT <= 2.0, "\(cut.name): the working bubble arrives after 3.0s")
+        }
+    }
+
+    @Test("The finale is the star: longest by a bar's margin, the largest stop, first hit in the window")
+    func finaleIsTheStar() {
+        for cut in masters {
+            let fmt = SizzleRenderer.format(for: cut)
+            let finale = cut.segments.first { $0.chapter == .finale }?.seconds ?? 0
+            let rest = cut.segments.filter { $0.chapter != .finale }.map(\.seconds).max() ?? 0
+            #expect(finale - rest >= 1.5, "\(cut.name): the finale is not the longest by 1.5s")
+            #expect(fmt.heroSide > fmt.punchSide && fmt.heroSide > fmt.spriteSide,
+                    "\(cut.name): the finale's stop is not the largest")
+            #expect(fmt.heroSide - fmt.punchSide >= 32, "by at least one grid step")
+            let starts = SizzleScript.segmentStarts(in: cut)
+            let finaleIndex = cut.segments.firstIndex { $0.chapter == .finale } ?? 0
+            let firstHit = starts[finaleIndex] + CrabView.celebrationFlashes[0].at
+            let fraction = firstHit / cut.seconds
+            #expect(fraction >= 0.25 && fraction <= 0.40,
+                    "\(cut.name): the first hit lands at \(Int(fraction * 100))% of the runtime")
+            #expect(starts[finaleIndex] <= finale, "the build is longer than the payoff")
+            // The stopdown sits immediately before it.
+            #expect(cut.segments[finaleIndex - 1].chapter == .breath, "\(cut.name): no breath before the bang")
+            let breath = cut.segments[finaleIndex - 1].seconds
+            #expect(breath >= 0.4 && breath <= 0.8)
+        }
+    }
+
+    @Test("The button holds: the URL is up for two and a half seconds and nothing else moves")
+    func theButtonHolds() {
+        for cut in masters {
+            let fmt = SizzleRenderer.format(for: cut)
+            let outro = cut.segments.last
+            #expect(outro?.chapter == .outro)
+            let seconds = outro?.seconds ?? 0
+            // The URL arrives by 0.1 + the type attack; from there it holds.
+            let urlFullBy = 0.1 + SizzleRenderer.typeAttack
+            #expect(seconds - urlFullBy >= 2.5, "\(cut.name): the URL reads for \(seconds - urlFullBy)s")
+            for t in stride(from: seconds - 0.5, to: seconds, by: fmt.frame) {
+                let shot = SizzleRenderer.shot(for: .outro, t: t, fmt: fmt)
+                #expect(shot.offset == .zero && shot.side == fmt.spriteSide,
+                        "\(cut.name): the camera moves under the end card")
+            }
+            // The URL appears in exactly one place.
+            let urlChapters = fmt.captions.values.filter { $0.wide.contains("github.com") }
+            #expect(urlChapters.isEmpty, "the URL is a card line, never a caption")
+        }
     }
 }

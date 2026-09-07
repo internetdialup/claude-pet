@@ -17,14 +17,21 @@ import SwiftUI
 @MainActor
 enum SizzleRenderer {
 
-    /// Per-cut layout: sprite, camera stops, and type sizes per aspect.
+    /// Per-cut layout: sprite, camera stops, type roles, grounds — plus the
+    /// per-frame dressing `frameImage` sets before handing it to a scene.
     struct Format {
         let spriteSide: CGFloat
-        /// Camera stops. Rest is `spriteSide`; new stops are even-celled
-        /// (side × scale % 32 == 0) so dwells never shimmer.
+        /// Camera stops. Rest is `spriteSide`; every stop is even-celled
+        /// (side × scale % 32 == 0) so dwells never shimmer. The punch is two
+        /// grid steps up from rest (224 → 288 — a one-step punch to 256 read
+        /// as breathing, not a decision); the hero stop is the finale's own
+        /// and the largest in the cut, because the star is the biggest thing.
         let punchSide: CGFloat
-        let faceSide: CGFloat
+        let heroSide: CGFloat
         let duoSide: CGFloat
+        /// The three type roles, in whole sprite cells: tag 2, caption 3,
+        /// wordmark 5 — 14 / 21 / 35 on a 7pt cell. Sizes off the cell grid
+        /// float over the pixel art.
         let wordmark: CGFloat
         let caption: CGFloat
         let tag: CGFloat
@@ -40,35 +47,57 @@ enum SizzleRenderer {
         /// is suppressed, the field is the dark-red key field.
         let plate: Bool
         /// The cut's language and its volume — the meme family shouts.
-        let captions: [SizzleScript.Chapter: String]
+        let captions: [SizzleScript.Chapter: SizzleScript.Caption]
         let captionScale: CGFloat
         /// Title cards, captions, tags. Off for plates (they fringe keys)
         /// and showcase cuts (the operator's ruling: just show the pet).
         let type: Bool
         /// Cards and the roster. Off wherever type is off — they are text.
         let furniture: Bool
+        /// The cut's flat grounds per chapter and its montage running order.
+        let grounds: [SizzleScript.Chapter: SizzleScript.Ground]
+        let looks: [SizzleScript.Look]
+        /// The bottom margin under the caption slot: three cells, or the
+        /// platform's UI band on 9:16 (the bottom quarter carries the
+        /// player's own chrome, and type under it is type nobody sees).
+        let bottomMargin: CGFloat
+        /// One output frame in seconds — the unit every eased edge is
+        /// measured in. Nothing eases in fewer than three of these.
+        let frame: Double
+
+        /// Per-frame dressing, set by `frameImage`: the ink that reads on
+        /// this chapter's ground, the luminance bridge, the segment's
+        /// compression factor.
+        var ink: Color = Palette.kraft
+        var flash: Double = 0
+        var scaleFactor: Double = 1
+
+        /// One sprite cell in points at the rest stop — the grid every reel
+        /// element sits on.
+        var cell: CGFloat { spriteSide / CGFloat(PixelBuffer.side) }
+        /// The caption slot's fixed height: two lines, so a one-line caption
+        /// and a two-line one leave the sprite exactly where it was, and a
+        /// chapter with no caption at all leaves it there too.
+        var captionSlot: CGFloat { (caption * captionScale * 1.25 * 2).rounded() }
     }
 
     static func format(for cut: SizzleScript.Cut) -> Format {
         let vertical = cut.canvas.width < cut.canvas.height
         switch cut.family {
         case .master, .meme, .plate, .showcase:
-            let base: (side: CGFloat, punch: CGFloat, word: CGFloat, cap: CGFloat, tag: CGFloat) =
-                // Every side is a whole number of cells at its cut's scale —
-                // 256×3 and 288×3 are both multiples of 32. The vertical rest
-                // used to be 264, which is 8.25 points per cell, so every
-                // fourth pixel column of Claw'd rendered an eighth wider than
-                // its neighbours. It was the only side in this table that was
-                // not on the grid, and it was the REST stop, where the vertical
-                // camera sits for most of every 9:16 frame.
-                vertical ? (256, 288, 26, 15, 13) : (224, 256, 30, 16, 12)
+            // Every side is a whole number of cells at its cut's scale — 224,
+            // 288 and 320 × 3 are all multiples of 32. The vertical rest sat
+            // at 264 once (8.25 points per cell: every fourth column an eighth
+            // wider) and then at 256, one grid step under its 288 punch, so
+            // the punch read as breathing. Both aspects rest at 224 now and
+            // punch two steps; the vertical frame is taller, not larger.
             let quiet = cut.family == .plate || cut.family == .showcase
-            return Format(spriteSide: base.side, punchSide: base.punch, faceSide: 320,
-                          duoSide: 160, wordmark: base.word, caption: base.cap, tag: base.tag,
+            return Format(spriteSide: 224, punchSide: 288, heroSide: 320, duoSide: 160,
+                          wordmark: 35, caption: 21, tag: 14,
                           vertical: vertical, gifSafe: false, rich: true,
                           plate: cut.family == .plate,
                           // A PLATE keeps the master's captions and hides them:
-                          // an empty string is a different height than a real
+                          // an empty slot is a different height than a real
                           // line, and that moves the sprite — the one thing a
                           // plate may not do, since it exists to be keyed
                           // against the titled master frame for frame. The
@@ -76,15 +105,24 @@ enum SizzleRenderer {
                           // nothing, so it alone empties.
                           captions: cut.family == .meme ? SizzleScript.memeCaptions
                               : cut.family == .showcase ? [:] : SizzleScript.captions,
-                          captionScale: cut.family == .meme ? 1.6 : 1,
+                          // The meme shouts at five cells (35pt), still on the grid.
+                          captionScale: cut.family == .meme ? 5.0 / 3.0 : 1,
                           type: !quiet,
-                          furniture: !quiet)
+                          furniture: !quiet,
+                          grounds: cut.grounds, looks: cut.looks,
+                          // Three cells, or the platform band rounded UP to
+                          // whole cells (23 × 7 = 161 on the 640pt canvas).
+                          bottomMargin: vertical
+                              ? (cut.canvas.height * 0.25 / 7).rounded(.up) * 7 : 21,
+                          frame: 1.0 / Double(cut.fps))
         case .readme:
-            return Format(spriteSide: 128, punchSide: 128, faceSide: 128,
-                          duoSide: 96, wordmark: 14, caption: 9, tag: 8,
+            return Format(spriteSide: 128, punchSide: 128, heroSide: 128,
+                          duoSide: 96, wordmark: 20, caption: 12, tag: 8,
                           vertical: false, gifSafe: cut.fps == 10, rich: false,
-                          plate: false, captions: SizzleScript.captions, captionScale: 1,
-                          type: true, furniture: false)
+                          plate: false, captions: SizzleScript.readmeCaptions, captionScale: 1,
+                          type: true, furniture: false,
+                          grounds: cut.grounds, looks: cut.looks,
+                          bottomMargin: 12, frame: 1.0 / Double(cut.fps))
         }
     }
 
@@ -99,9 +137,10 @@ enum SizzleRenderer {
         var bubbleFade: Double = 1
     }
 
-    /// Pure in (chapter, localT, fmt): `.scaled` segments compress the
-    /// camera with the scene, plates match titled framing frame-for-frame,
-    /// and the meme cut's windows enter these curves mid-move.
+    /// Pure in (chapter, localT, fmt): plates match titled framing
+    /// frame-for-frame, and the meme cut's windows enter these curves
+    /// mid-move. Every master segment plays at 1×, so a move authored here
+    /// is the move the viewer sees.
     static func shot(for chapter: SizzleScript.Chapter, t: Double,
                      fmt: Format) -> Shot {
         var shot = Shot(side: fmt.spriteSide)
@@ -113,64 +152,66 @@ enum SizzleRenderer {
             shot.offset.y = ((1 - Ease.smoothstep(min(1, t / 0.7))) * 28).rounded()
 
         case .mirror:
-            // The face punch rides the thinking beat [0.6, 2.2] (the dots
-            // fade with the zoom); the roster beat then slides him aside.
+            // The face punch rides the thinking beat: two grid steps up over
+            // [0.6, 2.15], the dots fading with the zoom. The master's window
+            // enters at 1.0, mid-punch — so frame 0 IS the face, which is the
+            // poster frame socials thumbnail. Then the roster beat slides him
+            // aside: a reveal, not a punch, on slow 0.9s edges, or ninety
+            // points in a third of a second reads as a yank.
             let inU = Ease.smoothstep(min(1, max(0, (t - 0.6) / 0.25)))
             let outU = Ease.smoothstep(min(1, max(0, (t - 1.8) / 0.35)))
             let zoom = inU * (1 - outU)
-            shot.side = fmt.spriteSide + (fmt.faceSide - fmt.spriteSide) * zoom
-            shot.offset.y = (24 * zoom).rounded()
+            shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * zoom
+            shot.offset.y = (16 * zoom).rounded()
             shot.bubbleFade = 1 - zoom
-            // A reveal, not a punch: the slide's edges are slow (0.9s), or
-            // ninety points in a third of a second reads as a yank.
-            let rosterU = Ease.window(t - 2.8, duration: 2.5, edge: 0.9)
-            if fmt.vertical {
-                shot.offset.y -= (40 * rosterU).rounded()
-            } else {
-                shot.offset.x -= (90 * rosterU).rounded()
+            // The roster is a landscape idea: a 270pt panel beside a 224pt
+            // crab has no room on a 360pt-wide frame without landing on the
+            // caption, so the portrait cut carries the session signal in the
+            // bubble and its tool badge alone, and does not slide.
+            if !fmt.vertical {
+                let rosterU = Ease.window(t - 2.5, duration: 2.5, edge: 0.9)
+                shot.offset.x -= (60 * rosterU).rounded()
             }
 
         case .glyphs:
-            // A beat punch on each service.
-            let beatT = t.truncatingRemainder(dividingBy: 1.5)
-            let env = Ease.window(beatT, duration: 0.32, edge: 0.11)
-            shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env
+            // ONE punch in the chapter, on the merged PR — the beat that
+            // earns it. Four identical punches at 0.7s was a drum machine,
+            // and it hid the four different gestures under it.
+            let beat = SizzleScript.glyphBeat(at: t)
+            if beat.index == 1 {
+                let env = Ease.window(beat.into, duration: beat.seconds, edge: 0.2)
+                shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env
+            }
 
         case .cook:
-            // The 8-bit shake, gated to the heat cascade: a 15Hz tick of
-            // ±1-point jitter from the same splitmix64 hash everything else
-            // schedules with. Single-pixel steps are the sanctioned no-snap
-            // exemption; amp is zero at the chapter's edges.
-            let amp = Ease.window(t - 3.0, duration: 2.4, edge: 0.3)
+            // The 8-bit shake, gated to the heat cascade's first second: a
+            // 15Hz tick of ±1-point jitter from the same splitmix64 hash
+            // everything else schedules with. Single-pixel steps are the
+            // sanctioned no-snap exemption; amp is zero by local 4.0 so the
+            // breath opens on a still frame.
+            let amp = Ease.window(t - 3.0, duration: 1.0, edge: 0.3)
             let n = Int(t * 15)
             let dx = Double(Int(CrabAnimator.noise(n &* 31 &+ 7) * 3) - 1) * amp
             let dy = Double(Int(CrabAnimator.noise(n &* 53 &+ 11) * 3) - 1) * amp
             shot.offset = CGPoint(x: dx.rounded(), y: dy.rounded())
 
+        case .breath:
+            break   // the held breath: rest side, zero offset, by rule
+
         case .finale:
-            // Hold wide; punch with the flash; settle back for the badge.
+            // Hold wide; punch to the HERO stop with the flash — the largest
+            // stop in the cut, because the payoff is the biggest thing in the
+            // reel; settle back for the badge.
             let inU = Ease.smoothstep(min(1, max(0, (t - 1.2) / 0.28)))
             let outU = Ease.smoothstep(min(1, max(0, (t - 3.8) / 0.5)))
             let zoom = inU * (1 - outU)
-            shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * zoom
+            shot.side = fmt.spriteSide + (fmt.heroSide - fmt.spriteSide) * zoom
 
         case .montage:
-            // Alternating punch per look, drifting with the beat's parity.
-            let beat = min(Int(t), SizzleScript.montageOrder.count - 1)
-            let beatT = t - Double(beat)
-            let env = Ease.window(beatT, duration: 0.32, edge: 0.11)
-            let dir: CGFloat = beat % 2 == 0 ? 1 : -1
-            // Full punch — the window's plateau then dwells at a sanctioned
-            // stop, and half-measures read as hesitation at meme speed.
-            shot.side = fmt.spriteSide + (fmt.punchSide - fmt.spriteSide) * env
-            shot.offset.x = (dir * 10 * env).rounded()
+            break   // a montage cuts on content; the camera holds
 
         case .duet:
-            // The crossing pan: dwell on pet 1 to catch the pounce, cross
-            // to pet 2, settle wide. ~4.8pt/frame, inside the bounds.
-            let toTwo = Ease.smoothstep(min(1, max(0, (t - 1.6) / 0.8)))
-            let widen = Ease.smoothstep(min(1, max(0, (t - 2.8) / 0.8)))
-            shot.offset.x = ((38 - 76 * toTwo) * (1 - widen)).rounded()
+            break   // one second, two crabs, one pounce — the frame holds
 
         case .outro:
             break   // the goodnight stays locked
@@ -257,7 +298,7 @@ enum SizzleRenderer {
     }
 
     static func titleProbe(fmt: Format) -> AnyView {
-        titleCard(SizzleScript.wordmark, sub: "probe", fmt: fmt)
+        titleCard(nil, sub: "probe", fmt: fmt)
     }
 
     // NOTE: deliberately no `.clipped()` on the frame — ImageRenderer already
@@ -268,13 +309,15 @@ enum SizzleRenderer {
     private static func frameImage(cut: SizzleScript.Cut, index: Int) -> CGImage? {
         let t = Double(index) / Double(cut.fps)
         guard let cue = SizzleScript.resolve(cut, at: t) else { return nil }
-        let fmt = format(for: cut)
-        let flash = matchCutFlash(cut: cut, at: t, fmt: fmt)
+        var fmt = format(for: cut)
+        fmt.flash = matchCutFlash(cut: cut, at: t, fmt: fmt)
+        fmt.scaleFactor = cue.scaleFactor
+        fmt.ink = fmt.grounds[cue.chapter]?.ink ?? Palette.kraft
         let scene = ZStack {
-            scenery(for: cut, t: t, fmt: fmt)
+            scenery(for: cut, chapter: cue.chapter, t: t, fmt: fmt)
             chapterScene(cue.chapter, t: cue.localT, fmt: fmt)
-            if flash > 0.001 {
-                Color.white.opacity(flash)
+            if fmt.flash > 0.001 {
+                Color.white.opacity(fmt.flash)
             }
         }
         .frame(width: cut.canvas.width, height: cut.canvas.height)
@@ -282,15 +325,20 @@ enum SizzleRenderer {
     }
 
     /// What stands behind him this frame. Plates override everything with
-    /// the key field; the forest scrolls in CUT time, so its drift is
-    /// continuous across chapter cuts.
+    /// the key field; a chapter with a flat ground stands on it — the room
+    /// this chapter plays in, and a hard cut that changes the room is a cut
+    /// the eye registers, where seven boundaries on one plate read as state
+    /// toggles on a locked-off shot; the forest scrolls in CUT time, so its
+    /// drift is continuous across chapter cuts.
     @ViewBuilder
-    private static func scenery(for cut: SizzleScript.Cut, t: Double,
-                                fmt: Format) -> some View {
+    private static func scenery(for cut: SizzleScript.Cut, chapter: SizzleScript.Chapter,
+                                t: Double, fmt: Format) -> some View {
         if fmt.plate {
             // The keying field: a single-entry ramp rides Backdrop's
             // whole-point, no-antialiasing path.
             Backdrop(style: .init(ramp: [Palette.keyField], foam: nil))
+        } else if let ground = fmt.grounds[chapter] {
+            ground.color
         } else {
             switch cut.scenery {
             case .ocean:
@@ -391,25 +439,35 @@ enum SizzleRenderer {
         }
     }
 
-    /// The one motivated transition: the cook IS the finale's cause, so its
-    /// exit whites out over 0.4s and the finale opens at the same white,
-    /// decaying over 0.3s — a continuous luminance bridge where every other
-    /// chapter boundary stays a hard cut. Rich MP4 cuts only: a full-frame
-    /// translucent white would fringe a key and explode a GIF's palette,
-    /// and the readme twins must not diverge from each other.
+    /// The one motivated transition — and ONE flash, not two. The breath's
+    /// last 0.12s attacks to full white, complete one frame before the cut;
+    /// the finale holds that white through its first tap's plateau and then
+    /// rides THAT tap's own decay down, so the bridge and the bang are a
+    /// single event. Two white edges 0.2s apart would breach the
+    /// photosensitivity spacing and read as a stutter; a 0.4s swell in was a
+    /// fade, not a flash — light arrives faster than it leaves. Rich MP4 cuts
+    /// only: a full-frame translucent white would fringe a key and explode a
+    /// GIF's palette, and the readme twins must not diverge from each other.
+    /// Every other chapter boundary stays a hard cut.
+    static let bridgeAttack = 0.12
+
     static func matchCutFlash(cut: SizzleScript.Cut, at t: Double,
                               fmt: Format) -> Double {
         guard !fmt.plate, cut.family != .readme,
               let cue = SizzleScript.resolve(cut, at: t),
               let hood = SizzleScript.neighbors(in: cut, at: t) else { return 0 }
-        // 1.0, not 0.9: nine tenths of white over a dark backdrop composites to
-        // about #E5E5E5 — a grey, which is the same washed-out complaint in a
-        // different room. The ramps are unchanged; only the peak is honest now.
-        if cue.chapter == .cook, hood.next == .finale {
-            return Ease.smoothstep(max(0, min(1, (0.4 - hood.remaining) / 0.4)))
+        let frame = 1.0 / Double(cut.fps)
+        if cue.chapter == .breath, hood.next == .finale {
+            // 1.0, not 0.9: nine tenths of white over a dark backdrop
+            // composites to about #E5E5E5 — a grey, which is the same
+            // washed-out complaint in a different room.
+            return Ease.smoothstep((bridgeAttack + frame - hood.remaining) / bridgeAttack)
         }
-        if cue.chapter == .finale, hood.previous == .cook {
-            return 1 - Ease.smoothstep(min(1, hood.into / 0.3))
+        if cue.chapter == .finale, hood.previous == .breath {
+            let tap = CrabView.celebrationFlashes[0]
+            let plateauEnd = tap.at + CrabView.flashAttack + tap.hold
+            if hood.into <= plateauEnd { return 1 }
+            return 1 - Ease.smoothstep((hood.into - plateauEnd) / tap.decay)
         }
         return 0
     }
@@ -424,6 +482,7 @@ enum SizzleRenderer {
         case .mirror: mirrorScene(t: t, fmt: fmt)
         case .glyphs: glyphsScene(t: t, fmt: fmt)
         case .cook: cookScene(t: t, fmt: fmt)
+        case .breath: breathScene(t: t, fmt: fmt)
         case .finale: finaleScene(t: t, fmt: fmt)
         case .montage: montageScene(t: t, fmt: fmt)
         case .duet: duetScene(t: t, fmt: fmt)
@@ -431,9 +490,11 @@ enum SizzleRenderer {
         }
     }
 
+    /// The wake: asleep under the wordmark, then up. No master plays it any
+    /// more — product first, brand last — but the sequence tests still do.
     private static func wakeScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .wake, t: t, fmt: fmt)
-        let card = Ease.window(t, duration: 2.5, edge: 0.4)
+        let card = Ease.smoothstep(min(1, t / typeAttack))
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { side, _ in
                                  var pose: CrabPose
@@ -449,15 +510,14 @@ enum SizzleRenderer {
                                  }
                                  return sizzlePet(pose: pose, side: side, fmt: fmt)
                              },
-                             top: titleCard(SizzleScript.wordmark,
-                                            sub: SizzleScript.tagline,
-                                            fmt: fmt).opacity(card))
+                             top: titleCard(nil, sub: SizzleScript.tagline, fmt: fmt, star: true,
+                                            presence: (card, card, card)),
+                             bottom: emptySlot(fmt))
     }
 
     private static func mirrorScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .mirror, t: t, fmt: fmt)
-        let caption = Ease.window(t - 0.4, duration: 5.1, edge: 0.3)
-        let rosterU = Ease.window(t - 2.8, duration: 2.5, edge: 0.35)
+        let rosterU = Ease.window(t - 2.5, duration: 2.5, edge: 0.35)
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { side, fade in
                                  var pose: CrabPose
@@ -483,26 +543,28 @@ enum SizzleRenderer {
                                  return sizzlePet(pose: pose, bubble: bubble,
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
-                             furniture: fmt.furniture && rosterU > 0.001
+                             furniture: fmt.furniture && !fmt.vertical && rosterU > 0.001
                                  ? rosterCard(fmt: fmt, presence: rosterU) : nil,
-                             bottom: captionText(fmt.captions[.mirror] ?? "",
-                                                 fmt: fmt).opacity(caption))
+                             bottom: captionSlot(for: .mirror, t: t, fmt: fmt))
     }
 
     private static func glyphsScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .glyphs, t: t, fmt: fmt)
-        let beat = min(Int(t / 1.5), SizzleScript.glyphBeats.count - 1)
-        let beatT = t - Double(beat) * 1.5
-        let entry = SizzleScript.glyphBeats[beat]
-        let caption = Ease.window(t - 0.3, duration: 5.5, edge: 0.3)
+        let beat = SizzleScript.glyphBeat(at: t)
+        // Everything inside a beat is authored in BEAT-relative time, 0…1,
+        // so a beat-and-a-half holds its gesture longer than a beat does and
+        // nothing overruns into the next service. The 0.2 edges are three
+        // frames on the shortest beat — the floor under every eased edge.
+        let u = beat.into / beat.seconds
+        let entry = SizzleScript.glyphBeats[beat.index]
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { side, fade in
                                  let workT = SizzleScript.workBase + 3.5 + t
                                  var pose = CrabAnimator.pose(mood: .working, t: workT)
                                  CrabAnimator.applyPropDissolve(at: workT, to: &pose)
                                  pose.serviceGlyph = entry.glyph
-                                 pose.serviceGlyphVisibility = Ease.window(beatT, duration: 1.5, edge: 0.3)
-                                 applyGlyphReaction(beat: beat, beatT: beatT, to: &pose)
+                                 pose.serviceGlyphVisibility = Ease.window(u, duration: 1.0, edge: 0.2)
+                                 applyGlyphReaction(beat: beat.index, u: u, to: &pose)
                                  let bubble = AnyView(ThoughtBubble(text: entry.bubble, tool: "Bash",
                                                                     mood: .working, style: .plain,
                                                                     service: entry.glyph, frozenTime: t))
@@ -510,15 +572,19 @@ enum SizzleRenderer {
                                                   bubbleOpacity: fade, side: side, fmt: fmt)
                              },
                              furniture: fmt.furniture
-                                 ? glyphFurniture(beat: beat, beatT: beatT, fmt: fmt) : nil,
-                             bottom: captionText(fmt.captions[.glyphs] ?? "",
-                                                 fmt: fmt).opacity(caption))
+                                 ? glyphFurniture(beat: beat.index, u: u, fmt: fmt) : nil,
+                             bottom: captionSlot(for: .glyphs, t: t, fmt: fmt))
     }
 
+    /// The cook as a held breath rather than a second rainbow: the fire prop,
+    /// the heat cascade, the shake — and NO disco tint. The desktop fires it
+    /// in this window; the reel keeps the body's colour for the finale, so
+    /// the payoff is the first time he changes colour, not the second.
     private static func cookScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .cook, t: t, fmt: fmt)
         let cookT = SizzleScript.cookBase + t
-        let caption = Ease.window(t - 0.3, duration: 5.5, edge: 0.3)
+        // The bubble leaves before the breath: gone by local 4.0.
+        let bubbleOut = 1 - Ease.smoothstep((t - 3.6) / 0.4)
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { side, fade in
                                  let pose = CrabAnimator.pose(mood: .cooking, t: cookT)
@@ -526,22 +592,32 @@ enum SizzleRenderer {
                                                                     tool: nil, mood: .cooking,
                                                                     style: .plain, frozenTime: t))
                                  return sizzlePet(pose: pose, bubble: bubble,
-                                                  bubbleOpacity: fade,
-                                                  tint: CrabView.discoTint(cookingT: cookT),
+                                                  bubbleOpacity: fade * bubbleOut,
                                                   side: side, fmt: fmt)
                              },
-                             bottom: captionText(fmt.captions[.cook] ?? "",
-                                                 fmt: fmt).opacity(caption))
+                             bottom: captionSlot(for: .cook, t: t, fmt: fmt))
+    }
+
+    /// The stopdown: him at rest on the dark ground, no bubble, no type, no
+    /// tint, no furniture — half a second of nothing but breathing, so the
+    /// bang has a silence to break and the music editor has a drop to land.
+    private static func breathScene(t: Double, fmt: Format) -> some View {
+        let camera = shot(for: .breath, t: t, fmt: fmt)
+        return chapterLayout(fmt: fmt, camera: camera,
+                             petBuilder: { side, _ in
+                                 let pose = CrabAnimator.pose(mood: .idle, t: 40.0 + t, flourishes: false)
+                                 return sizzlePet(pose: pose, side: side, fmt: fmt)
+                             },
+                             bottom: emptySlot(fmt))
     }
 
     private static func finaleScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .finale, t: t, fmt: fmt)
-        let caption = Ease.window(t - 0.3, duration: 2.7, edge: 0.4)
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { side, _ in
                                  var pose = CrabAnimator.pose(mood: .done, t: t)
                                  CrabAnimator.applyCelebration(t: t, epic: true, to: &pose)
-                                 pose.doneBadge = Ease.smoothstep(max(0, min(1, (t - 8.2) / 0.5)))
+                                 pose.doneBadge = Ease.smoothstep(max(0, min(1, (t - SizzleScript.badgeAt) / 0.5)))
                                  // The flash rides the same chapter clock the
                                  // pose does, so the reel and the desktop
                                  // detonate on identical frames.
@@ -556,77 +632,72 @@ enum SizzleRenderer {
                                  // terracotta does, and keyed footage must not
                                  // show him calm while the titled twin flashes.
                                  return sizzlePet(pose: pose,
-                                                  tint: CrabView.epicTint(doneT: t),
+                                                  tint: bodyTint(for: .finale, t: t),
                                                   blanch: blanch,
                                                   behind: glow,
                                                   side: side, fmt: fmt)
                              },
-                             bottom: captionText(fmt.captions[.finale] ?? "",
-                                                 fmt: fmt).opacity(caption))
+                             bottom: captionSlot(for: .finale, t: t, fmt: fmt))
     }
 
-    /// One high-energy pose per montage look, each at a small local t so its
-    /// one-shots actually fire on camera.
-    ///
-    /// EXACTLY as long as `SizzleScript.montageOrder`, and a test holds the two
-    /// together. This table sat at eight entries while the order grew to ten:
-    /// the montage clock hid it (Arcade and Classic simply never rendered), and
-    /// the obvious clock fix alone would have subscripted past the end and
-    /// trapped. The clock is derived from the order now, so this array is the
-    /// only place left for the drift to hide — hence the test.
-    static let montageMoods: [(PetMood, Double)] = [
-        (.done, 0.3), (.working, SizzleScript.workBase + 1.0), (.nudging, 0.5),
-        (.cooking, SizzleScript.cookBase + 1.0), (.done, 0.2), (.thinking, 1.0),
-        (.needsAttention, 0.3), (.done, 0.4),
+    /// One high-energy pose per look, each at a small local t so its
+    /// one-shots actually fire on camera. Keyed by COSTUME, so a cut's own
+    /// running order can be any subset in any order; a test holds the table
+    /// to `Costume.allCases`, because this sat at eight entries while the
+    /// order grew to ten and two costumes silently never rendered.
+    static let montageMoods: [Costume: (PetMood, Double)] = [
+        .ninja: (.done, 0.3), .retroBlack: (.working, SizzleScript.workBase + 1.0),
+        .matrix: (.nudging, 0.5), .tiger: (.cooking, SizzleScript.cookBase + 1.0),
+        .white: (.done, 0.2), .gundam: (.thinking, 1.0), .sonic: (.needsAttention, 0.3),
+        .frankenstein: (.done, 0.4),
         // Arcade glows from inside, so the screen-lit working pose.
-        (.working, SizzleScript.workBase + 2.0),
+        .arcade: (.working, SizzleScript.workBase + 2.0),
         // The seasonal three: the pumpkin grins through a nudge, the turkey
-        // struts a wave-adjacent done, the santa naps — and the Classic
-        // closer is CALM on purpose: it is the loop seam, and the reel wraps
-        // back to a resting crab.
-        (.nudging, 0.6), (.done, 0.7), (.idle, 2.2),
-        // The bunny between santa and the skater, matching `montageOrder`.
-        // A calm idle: the ears are the whole joke and they read best on a
-        // still crab rather than through a pose.
-        (.idle, 1.4),
-        // The skater rides his own beat before the Classic closer.
-        (.working, SizzleScript.workBase + 3.0),
-        (.idle, 1.0),
+        // struts a wave-adjacent done, the santa naps. The bunny is a calm
+        // idle: the ears are the whole joke and they read best on a still
+        // crab rather than through a pose.
+        .pumpkin: (.nudging, 0.6), .turkey: (.done, 0.7), .santa: (.idle, 2.2),
+        .easterBunny: (.idle, 1.4),
+        // The skater rides his own beat; the Classic closer is CALM on
+        // purpose — it is the loop seam, and the reel wraps back to a
+        // resting crab.
+        .skater: (.working, SizzleScript.workBase + 3.0),
+        .none: (.idle, 1.0),
     ]
 
     private static func montageScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .montage, t: t, fmt: fmt)
-        let order = SizzleScript.montageOrder
-        let beat = min(Int(t), order.count - 1)
-        let beatT = t - Double(beat)
-        let from = beat == 0 ? Costume.none : order[beat - 1]
-        let to = order[beat]
-        let u = Ease.smoothstep(min(1, beatT / 0.35))
-
-        let (mood, base) = Self.montageMoods[min(beat, Self.montageMoods.count - 1)]
-        let tagOpacity = Ease.window(beatT, duration: 1.0, edge: 0.25)
+        let looks = fmt.looks
+        let cue = SizzleScript.look(in: looks, at: t)
+        let to = looks[cue.index].costume
+        let from = cue.index == 0 ? Costume.none : looks[cue.index - 1].costume
+        // The dissolve is never longer than half the look, so the pure
+        // costume shows for at least half its hold — and never a hard pop:
+        // a costume changing in one frame mid-shot is the snap the rest of
+        // the rig is not allowed.
+        let dissolve = min(0.35, cue.seconds * 0.5)
+        let u = Ease.smoothstep(min(1, cue.into / dissolve))
+        let (mood, base) = Self.montageMoods[to] ?? (.idle, 1.0)
         return chapterLayout(
             fmt: fmt, camera: camera,
             petBuilder: { side, _ in
-                let pose = CrabAnimator.pose(mood: mood, t: base + beatT)
+                let pose = CrabAnimator.pose(mood: mood, t: base + cue.into)
                 return sizzlePet(pose: pose, costume: to,
                                  ghost: u < 1 ? from : Costume.none, costumeU: u,
                                  side: side, fmt: fmt)
             },
-            top: captionText(fmt.captions[.montage] ?? "", fmt: fmt,
-                             size: fmt.wordmark),
-            bottom: captionText(to.title, fmt: fmt,
-                                color: tagColor(for: to)).opacity(tagOpacity))
+            bottom: captionSlot(for: .montage, t: t, fmt: fmt))
     }
 
+    /// One second, two crabs, one pounce — the reaction shot after the
+    /// payoff, and the setup for the second sleeper on the end card.
     private static func duetScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .duet, t: t, fmt: fmt)
-        let caption = Ease.window(t - 0.3, duration: 3.5, edge: 0.3)
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { _, _ in
                                  var one = CrabAnimator.pose(mood: .working, t: SizzleScript.workBase + t)
-                                 if t >= 1.2 {
-                                     CrabAnimator.applyPounce(elapsed: t - 1.2, to: &one)
+                                 if t >= SizzleScript.duetPounceAt {
+                                     CrabAnimator.applyPounce(elapsed: t - SizzleScript.duetPounceAt, to: &one)
                                  }
                                  let two = CrabAnimator.pose(mood: .working, t: 27.3 + t)
                                  return AnyView(HStack(spacing: -fmt.duoSide * 0.05) {
@@ -635,13 +706,18 @@ enum SizzleRenderer {
                                                side: fmt.duoSide, fmt: fmt)
                                  })
                              },
-                             bottom: captionText(fmt.captions[.duet] ?? "",
-                                                 fmt: fmt).opacity(caption))
+                             bottom: emptySlot(fmt))
     }
 
+    /// The button: wordmark and URL arrive a tenth apart in reading order
+    /// and hold to the last frame — no decay, so the final fifteen frames
+    /// carry nothing but the sleepers' breath. The meme's "SHIP IT" replaces
+    /// the wordmark here; the URL is the one call to action and appears
+    /// nowhere else.
     private static func outroScene(t: Double, fmt: Format) -> some View {
         let camera = shot(for: .outro, t: t, fmt: fmt)
-        let card = Ease.smoothstep(min(1, t / 0.4))
+        func arrive(_ delay: Double) -> Double { Ease.smoothstep((t - delay) / typeAttack) }
+        let title = fmt.captions[.outro]?.text(vertical: fmt.vertical)
         return chapterLayout(fmt: fmt, camera: camera,
                              petBuilder: { _, _ in
                                  let one = CrabAnimator.pose(mood: .sleeping, t: t)
@@ -652,9 +728,35 @@ enum SizzleRenderer {
                                                side: fmt.duoSide, fmt: fmt)
                                  })
                              },
-                             top: titleCard(fmt.captions[.outro] ?? SizzleScript.wordmark,
-                                            sub: SizzleScript.url,
-                                            fmt: fmt).opacity(card))
+                             top: titleCard(title, sub: SizzleScript.url, fmt: fmt,
+                                            presence: (1, arrive(0), arrive(0.1))),
+                             bottom: emptySlot(fmt))
+    }
+
+    /// The body tint a chapter passes the sprite — the finale's, and ONLY the
+    /// finale's. The cook's disco fires on the desktop in the same window;
+    /// the reel withholds it so the payoff is the first colour change in the
+    /// reel rather than the second. Pure, so a test can sweep it.
+    static func bodyTint(for chapter: SizzleScript.Chapter, t: Double) -> Color? {
+        chapter == .finale ? CrabView.epicTint(doneT: t) : nil
+    }
+
+    /// The mood the sprite wears at chapter-local `t` — the boundary test's
+    /// fifth dimension (a hard cut must change the frame in two ways, and a
+    /// mood change is one of them).
+    static func mood(for chapter: SizzleScript.Chapter, t: Double, fmt: Format) -> PetMood {
+        switch chapter {
+        case .wake: return t < 1.0 ? .sleeping : .idle
+        case .mirror: return t < 2.0 ? .thinking : .working
+        case .glyphs, .duet: return .working
+        case .cook: return .cooking
+        case .breath: return .idle
+        case .finale: return .done
+        case .montage:
+            let look = fmt.looks[SizzleScript.look(in: fmt.looks, at: t).index].costume
+            return Self.montageMoods[look]?.0 ?? .idle
+        case .outro: return .sleeping
+        }
     }
 
     // MARK: - The pixel cards (fake repo furniture — every string fabricated)
@@ -667,6 +769,13 @@ enum SizzleRenderer {
             case prMerged
             case npmInstall(progress: Double)
             case buildPassing
+            /// The roster, told in the reel's own grammar: the three
+            /// fabricated sessions as name-over-activity rows behind a square
+            /// mood dot. The live app's `RosterPanel` used to stand here — a
+            /// 324pt vector panel with radius-10 corners at a 0.85 CTM, which
+            /// ran off the right edge of a 640pt frame beside a 224pt crab and
+            /// resampled its own pixel art on the way.
+            case sessions
         }
         let kind: Kind
 
@@ -723,75 +832,97 @@ enum SizzleRenderer {
                         .padding(.vertical, 3)
                         .background(Rectangle().fill(Palette.green))
                 }
+            case .sessions:
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Claude sessions")
+                        .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(Palette.kraft)
+                    ForEach(DemoMode.sessions, id: \.id) { session in
+                        HStack(alignment: .top, spacing: 6) {
+                            // A square dot, one UI cell, in the mood's own accent.
+                            Rectangle()
+                                .fill(Palette.accent(for: session.mood))
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 2)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(session.name)
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(Palette.kraft)
+                                Text(session.activity ?? "")
+                                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(Palette.steel)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
     /// He reacts to what he ships — a distinct beat-sized gesture per
-    /// service, all integer channels, all eased inside the beat so
-    /// `.scaled` compresses them with everything else. npm: a nod with the
-    /// eyes down. The merged PR: the right arm goes up with the card.
-    /// Linear: a one-pixel head tilt. Deploy: a lean back, eyes wide.
-    static func applyGlyphReaction(beat: Int, beatT: Double, to pose: inout CrabPose) {
-        let u = Ease.window(beatT - 0.25, duration: 0.9, edge: 0.3)
-        guard u > 0.001 else { return }
+    /// service, all integer channels, eased inside the beat in BEAT-relative
+    /// time `u` (0…1), so a longer beat holds its gesture longer and no beat
+    /// overruns. npm: a nod with the eyes down. The merged PR: the right arm
+    /// goes up with the card. Linear: a one-pixel head tilt. Deploy: a lean
+    /// back, eyes wide.
+    static func applyGlyphReaction(beat: Int, u: Double, to pose: inout CrabPose) {
+        let w = Ease.window(u - 0.15, duration: 0.7, edge: 0.2)
+        guard w > 0.001 else { return }
         switch beat {
         case 0:
-            pose.bob += u > 0.5 ? 1 : 0
-            pose.gazeY += u > 0.5 ? 1 : 0
+            pose.bob += w > 0.5 ? 1 : 0
+            pose.gazeY += w > 0.5 ? 1 : 0
         case 1:
-            pose.armRight = max(pose.armRight, u)
+            pose.armRight = max(pose.armRight, w)
         case 2:
-            pose.tilt = u > 0.5 ? 1 : 0
+            pose.tilt = w > 0.5 ? 1 : 0
         default:
-            pose.lean += u > 0.5 ? -1 : 0
-            pose.eyes = u > 0.4 ? .wide : pose.eyes
+            pose.lean += w > 0.5 ? -1 : 0
+            pose.eyes = w > 0.4 ? .wide : pose.eyes
         }
     }
 
     /// The card each glyph beat pops: npm's progress bar, the merged PR on
     /// the push, the shields-style badge on the deploy. Linear keeps the
     /// frame clean — the diamond alone carries that beat.
-    private static func glyphFurniture(beat: Int, beatT: Double, fmt: Format) -> AnyView? {
+    private static func glyphFurniture(beat: Int, u: Double, fmt: Format) -> AnyView? {
         let dx = fmt.spriteSide / 2 + 80
         switch beat {
-        case 0: return cardPop(.npmInstall(progress: (beatT - 0.2) / 1.1), beatT: beatT, x: dx)
-        case 1: return cardPop(.prMerged, beatT: beatT, x: -dx)
-        case 3: return cardPop(.buildPassing, beatT: beatT, x: dx)
+        case 0: return cardPop(.npmInstall(progress: (u - 0.15) / 0.7), u: u, x: dx)
+        case 1: return cardPop(.prMerged, u: u, x: -dx)
+        case 3: return cardPop(.buildPassing, u: u, x: dx)
         default: return nil
         }
     }
 
-    /// A card's pop: eased presence plus a small integer-stepped rise.
-    private static func cardPop(_ kind: PixelCard.Kind, beatT: Double,
+    /// A card's pop: eased presence plus a small integer-stepped rise, in
+    /// beat-relative time.
+    private static func cardPop(_ kind: PixelCard.Kind, u: Double,
                                 x: CGFloat) -> AnyView {
-        let appear = Ease.window(beatT - 0.15, duration: 1.25, edge: 0.22)
-        let rise = CGFloat(Int((6 * Ease.smoothstep(min(1, max(0, (beatT - 0.15) / 1.25)))).rounded()))
+        let appear = Ease.window(u - 0.1, duration: 0.85, edge: 0.2)
+        let rise = CGFloat(Int((6 * Ease.smoothstep(min(1, max(0, (u - 0.1) / 0.85)))).rounded()))
         return AnyView(PixelCard(kind: kind)
             .opacity(appear)
             .offset(x: x, y: -rise))
     }
 
-    /// The roster beat's decorated panel — the still renderer's exact chain,
-    /// on the sizzle's own backdrop. Fixed elapsed 7.0 so the fabricated
-    /// sessions hold still mid-shot.
+    /// The roster beat's card: the sessions in the PixelCard recipe, to the
+    /// right of the crab as he slides sixty points left to make room. Frame
+    /// space, so the face punch never scales its text.
     private static func rosterCard(fmt: Format, presence: Double) -> AnyView {
-        AnyView(RosterPanel(state: DemoMode.state(at: 7.0),
-                            pinnedID: DemoMode.sessions[1].id,
-                            onPin: { _ in }, scrolls: false)
-            .environment(\.colorScheme, .dark)
-            .background(Palette.slate)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .scaleEffect(fmt.vertical ? 1.0 : 0.85)   // vector text — CTM-safe
+        AnyView(PixelCard(kind: .sessions)
             .opacity(presence)
-            .offset(x: fmt.vertical ? 0 : 178,
-                    y: fmt.vertical ? 205 : 0))
+            .offset(x: 140))
     }
 
     // MARK: - The pet stack
 
-    /// The sprite over its ground shadow, optionally behind a glow, under an
-    /// optional bubble — the live window's arrangement, reconstructed.
+    /// The sprite, optionally behind a glow, under an optional bubble — the
+    /// live window's arrangement, reconstructed. The rig draws his shadow
+    /// itself (two pools under the legs); the live window's translucent
+    /// floor bar is NOT reproduced here, because none of the marketing
+    /// stills carry it and a one-and-a-half-cell translucent strip is a
+    /// second pixel grid in the frame.
     private static func sizzlePet(pose: CrabPose,
                                   costume: Costume = .none,
                                   ghost: Costume = .none,
@@ -820,23 +951,14 @@ enum SizzleRenderer {
                             seamBleed: 0,
                             blanch: blanch)
                 .frame(width: spriteSide, height: spriteSide)
-                // The floor's opinion, same numbers as the live window.
-                // Suppressed on plates: translucent black over green keys
-                // as a hole.
-                .overlay(alignment: .top) {
-                    if !fmt.plate {
-                        Rectangle()
-                            .fill(Color.black.opacity(0.15))
-                            .frame(width: 20 * px, height: 1.5 * px)
-                            .offset(y: 25 * px)
-                    }
-                }
         }
         if let bubble {
             // Plates keep the bubble IN LAYOUT at opacity zero — omission
-            // would shift the sprite against its titled twin.
+            // would shift the sprite against its titled twin. Under the
+            // luminance bridge the bubble fades with the frame, so nothing
+            // reads through the white.
             return AnyView(VStack(spacing: -crown) {
-                bubble.opacity(fmt.plate ? 0 : bubbleOpacity).zIndex(1)
+                bubble.opacity(fmt.plate ? 0 : bubbleOpacity * (1 - fmt.flash)).zIndex(1)
                 sprite
             })
         }
@@ -845,17 +967,76 @@ enum SizzleRenderer {
 
     // MARK: - Type
 
-    private static func titleCard(_ title: String, sub: String, fmt: Format) -> AnyView {
-        AnyView(VStack(spacing: fmt.tag * 0.8) {
-            StarSting(cell: (fmt.tag * 0.45).rounded(), inked: fmt.type)
-            Text(title)
-                .font(.system(size: fmt.wordmark, weight: .heavy, design: .monospaced))
-                .tracking(4)
-                .foregroundStyle(fmt.type ? Palette.kraft : Color.clear)
+    /// Type inverts the rig's first law, and says so: motion-design has
+    /// release slower than arrival; type enters decelerating over 0.30s and
+    /// leaves accelerating over 0.18s, because a caption that lingers on the
+    /// way out is the universal default tween. The exception applies to
+    /// type only, never to the character.
+    static let typeAttack = 0.30
+    static let typeDecay = 0.18
+
+    /// A caption's presence at chapter-local `t`: full ink over
+    /// [from, until], eased in before and out after with the type envelope.
+    static func typeEnvelope(_ t: Double, from: Double, until: Double,
+                             frame: Double = 1.0 / 30) -> Double {
+        // The 0.18s exit is 1.8 frames at the GIF's 10fps — a snap in an
+        // ease's clothes — so the decay floors at three frames of the cut.
+        Ease.pulse(t - (from - typeAttack), attack: typeAttack,
+                   hold: max(0, until - from), decay: max(typeDecay, 3 * frame))
+    }
+
+    /// The brand face: the wordmark's, on title and end cards only.
+    static func brandFont(_ size: CGFloat) -> Font {
+        .system(size: size, weight: .heavy, design: .rounded)
+    }
+
+    /// The product face: the pet's own monospaced type — bubbles, cards,
+    /// captions, the URL.
+    static func productFont(_ size: CGFloat, weight: Font.Weight = .heavy) -> Font {
+        .system(size: size, weight: weight, design: .monospaced)
+    }
+
+    /// All-caps tracking as a ratio of the size — 0.08, inside Butterick's
+    /// 5–12% band — and zero for lowercase. `.tracking(4)` was 13% at 16:9,
+    /// 15% at 9:16 and 29% in the README GIF.
+    static func tracking(for text: String, size: CGFloat) -> CGFloat {
+        let letters = text.filter(\.isLetter)
+        guard !letters.isEmpty, letters == letters.uppercased() else { return 0 }
+        return (0.08 * size).rounded()
+    }
+
+    /// The title / end card: the wordmark (or a cut's own line in the brand
+    /// face) over a sub line in the product face, each element with its own
+    /// presence so a card can arrive in reading order. The star sting is
+    /// optional: a 9×9 mark on the sprite's 7pt cell is 63pt tall and would
+    /// own the end card, so the masters leave it to the README hero.
+    private static func titleCard(_ title: String?, sub: String, fmt: Format,
+                                  star: Bool = false,
+                                  presence: (star: Double, title: Double, sub: Double) = (1, 1, 1)) -> AnyView {
+        let ink = fmt.type ? fmt.ink : Color.clear
+        return AnyView(VStack(spacing: fmt.cell) {
+            if star {
+                StarSting(cell: fmt.cell, inked: fmt.type).opacity(presence.star)
+            }
+            Group {
+                if let title {
+                    Text(title)
+                        .font(brandFont(fmt.wordmark))
+                        .tracking(tracking(for: title, size: fmt.wordmark))
+                        .foregroundStyle(ink)
+                } else {
+                    Wordmark(size: fmt.wordmark, color: ink)
+                }
+            }
+            .opacity(presence.title)
+            // The sub line is the caption role — except on 9:16, where the
+            // 36-character URL at 21pt is 454pt on a 360pt frame and SwiftUI
+            // would wrap it; there it takes the tag role and stays one line.
             Text(sub)
-                .font(.system(size: fmt.tag, weight: .semibold, design: .monospaced))
+                .font(productFont(fmt.vertical ? fmt.tag : fmt.caption))
                 .multilineTextAlignment(.center)
-                .foregroundStyle(fmt.type ? Palette.kraft.opacity(0.7) : Color.clear)
+                .foregroundStyle(ink)
+                .opacity(presence.sub)
         })
     }
 
@@ -890,44 +1071,40 @@ enum SizzleRenderer {
         }
     }
 
-    private static func captionText(_ text: String, fmt: Format,
-                                    size: CGFloat? = nil,
-                                    color: Color? = nil) -> AnyView {
-        AnyView(Text(text)
-            .font(.system(size: (size ?? fmt.caption) * fmt.captionScale,
-                          weight: .heavy, design: .monospaced))
+    /// A caption in the product face at the caption role's size, full ink —
+    /// the shot's one message is never dimmed to look secondary.
+    private static func captionText(_ text: String, fmt: Format) -> AnyView {
+        let size = fmt.caption * fmt.captionScale
+        return AnyView(Text(text)
+            .font(productFont(size))
+            .tracking(tracking(for: text, size: size))
             .multilineTextAlignment(.center)
-            .foregroundStyle(fmt.type ? (color ?? Palette.kraft.opacity(size == nil ? 0.85 : 1))
-                                       : Color.clear))
+            .foregroundStyle(fmt.type ? fmt.ink : Color.clear))
     }
 
-    /// The montage tag's colour: the costume's own key colour — the first
-    /// ink bright enough to be VIVID on the dark field (luminance ≥ 0.3,
-    /// well past bare 3:1 legibility, because a tag is branding, not body
-    /// text). The ninja's shadowed shell fails and his headband red tags
-    /// him instead; retroBlack's darks all fail and fall back to kraft;
-    /// Classic tags in his own terracotta.
-    static func tagColor(for costume: Costume) -> Color {
-        if costume == .none {
-            let body = SpriteTint.bodyRGB
-            return Color(red: body.r, green: body.g, blue: body.b)
-        }
-        let inks = CostumeStyle.of(costume).inks
-        for slot in [PixelBuffer.Ink.body, .costumeA, .costumeB, .costumeC] {
-            guard let ink = inks[slot] else { continue }
-            let luminance = 0.2126 * ink.r + 0.7152 * ink.g + 0.0722 * ink.b
-            if luminance >= 0.3 {
-                return Color(red: ink.r, green: ink.g, blue: ink.b)
-            }
-        }
-        return Palette.kraft
+    /// The bottom slot for a chapter: its caption at its authored presence,
+    /// times (1 − flash) so nothing reads through the white, in a slot of
+    /// FIXED height — a chapter with no caption keeps the sprite exactly
+    /// where a captioned one has it.
+    private static func captionSlot(for chapter: SizzleScript.Chapter, t: Double,
+                                    fmt: Format) -> AnyView {
+        guard let caption = fmt.captions[chapter] else { return emptySlot(fmt) }
+        let presence = typeEnvelope(t, from: caption.from, until: caption.until, frame: fmt.frame)
+        return AnyView(captionText(caption.text(vertical: fmt.vertical), fmt: fmt)
+            .opacity(presence * (1 - fmt.flash))
+            .frame(height: fmt.captionSlot, alignment: .top))
+    }
+
+    private static func emptySlot(_ fmt: Format) -> AnyView {
+        AnyView(Color.clear.frame(width: 1, height: fmt.captionSlot))
     }
 
     /// One arrangement for every chapter, with the camera as a layout no-op:
     /// the rest-side pet occupies the slot hidden (defining the layout the
     /// type negotiates against), and the SHOT pet draws in its overlay —
     /// overlays never affect layout, so captions provably cannot move when
-    /// the camera does. Type sits above punch overflow via zIndex.
+    /// the camera does. Type sits above punch overflow via zIndex. Margins
+    /// are whole cells: three at the top, and `bottomMargin` under the slot.
     private static func chapterLayout(fmt: Format,
                                       camera: Shot,
                                       petBuilder: (CGFloat, Double) -> AnyView,
@@ -935,7 +1112,7 @@ enum SizzleRenderer {
                                       top: (some View)? = Optional<AnyView>.none,
                                       bottom: (some View)? = Optional<AnyView>.none) -> some View {
         VStack(spacing: 0) {
-            Spacer(minLength: fmt.vertical ? 40 : 8)
+            Spacer(minLength: fmt.cell * 3)
             if let top { top.zIndex(1) }
             Spacer(minLength: 4)
             petBuilder(fmt.spriteSide, 1)
@@ -949,8 +1126,8 @@ enum SizzleRenderer {
                 .overlay { if let furniture { furniture } }
             Spacer(minLength: 4)
             if let bottom {
-                bottom.padding(.bottom, fmt.vertical ? 44 : 12).zIndex(1)
-            } else { Spacer(minLength: fmt.vertical ? 44 : 12) }
+                bottom.padding(.bottom, fmt.bottomMargin).zIndex(1)
+            } else { Spacer(minLength: fmt.bottomMargin) }
         }
     }
 }

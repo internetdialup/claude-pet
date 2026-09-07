@@ -34,6 +34,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **🎬 The reel is cut by hand.** The sizzle masters are cut to a 120 BPM
+  grid — every chapter boundary on a beat, the payoff and the wardrobe on
+  bar lines — and nothing is time-stretched any more: every chapter plays at
+  the speed it was animated, where before six of eight were sped up to fit
+  and every fade collapsed to a couple of frames. It opens on him, not on a
+  title. He stands on the marketing palette (cobalt, gold, cream, sky) instead
+  of the ocean, and the room changes with the cut. The session list is a
+  pixel card now, not the app's own panel pasted in. Half a second of stillness
+  before the big one, then one flash, not two. The wardrobe shows four looks
+  you can actually see instead of fifteen you can't; the meme cut shouts
+  three times, not five. One wordmark everywhere — "Claude Pet", the same as
+  the banner. The end card holds long enough to read the address.
 - **The shadow is two pools, not a plinth.** One under each pair of feet,
   with daylight between — the old single line read as something he was
   standing on.

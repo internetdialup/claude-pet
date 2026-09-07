@@ -190,10 +190,7 @@ enum ReelRenderer {
 
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("CLAUDE PET")
-                        .font(.system(size: 30, weight: .heavy, design: .monospaced))
-                        .foregroundStyle(Palette.kraft)
-                        .tracking(4)
+                    Wordmark(size: 30)
                     Text("what Claude Code is doing,\non your desktop")
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundStyle(Palette.kraft.opacity(0.72))
@@ -227,10 +224,7 @@ enum ReelRenderer {
 
             VStack(spacing: 0) {
                 VStack(spacing: 6) {
-                    Text("CLAUDE PET")
-                        .font(.system(size: 22, weight: .heavy, design: .monospaced))
-                        .foregroundStyle(Palette.kraft)
-                        .tracking(3)
+                    Wordmark(size: 22)
                     Text("what Claude Code is doing,\non your desktop")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .multilineTextAlignment(.center)
@@ -510,9 +504,7 @@ enum ReelRenderer {
                                 seamBleed: 0)
                     .frame(width: 96, height: 96)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Claude Pet")
-                        .font(.system(size: 52, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
+                    Wordmark(size: 52, color: .white)
                     Text("Your Claude Code sessions, as a crab on your desk")
                         .font(.system(size: 17, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.82))
@@ -541,9 +533,7 @@ enum ReelRenderer {
         let view = ZStack {
             Backdrop(style: .sky)
             VStack(spacing: 10) {
-                Text("Claude Pet")
-                    .font(.system(size: 64, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
+                Wordmark(size: 64, color: .white)
                 Text("Your Claude Code sessions, as a crab on your desk")
                     .font(.system(size: 20, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
@@ -591,9 +581,7 @@ enum ReelRenderer {
                                 seamBleed: 0)
                     .frame(width: 128, height: 128)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Claude Pet")
-                        .font(.system(size: 54, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Palette.slate)
+                    Wordmark(size: 54, color: Palette.slate)
                     Text("Your Claude Code sessions, as a crab on your desk")
                         .font(.system(size: 17, weight: .medium, design: .rounded))
                         .foregroundStyle(Palette.slateSoft)
