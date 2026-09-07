@@ -47,7 +47,7 @@ means an `ExitPlanMode` is sitting there waiting for your answer.
 **Thinking** just shows three dots. There's no honest label for that moment,
 so he doesn't pretend to have one.
 
-## ✨ Sixteen things he does when nobody asked
+## ✨ Seventeen things he does when nobody asked
 
 <table>
 <tr>
@@ -66,14 +66,14 @@ so he doesn't pretend to have one.
 </tr>
 <tr>
   <td align="center"><img src="docs/media/flourish-manual.gif" width="110"><br><strong>Manual</strong></td>
-  <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
+  <td align="center"><img src="docs/media/flourish-noseManual.gif" width="110"><br><strong>Nose manual</strong></td>
   <td align="center"><img src="docs/media/flourish-nollie.gif" width="110"><br><strong>Nollie</strong></td>
   <td align="center"><img src="docs/media/flourish-bigspin.gif" width="110"><br><strong>Bigspin</strong></td>
   <td align="center"><img src="docs/media/flourish-treFlip.gif" width="110"><br><strong>Tre flip</strong></td>
 </tr>
 <tr>
   <td align="center"><img src="docs/media/flourish-laserFlip.gif" width="110"><br><strong>Laser flip</strong></td>
-  <td align="center"></td>
+  <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
   <td align="center"></td>
   <td align="center"></td>
   <td align="center"></td>
@@ -231,7 +231,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All twenty-five props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, ten skateboards and a surfboard">
+  <img src="docs/media/props.png" width="100%" alt="All twenty-six props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, eleven skateboards and a surfboard">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

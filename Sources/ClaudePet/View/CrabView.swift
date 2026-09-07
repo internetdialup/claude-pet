@@ -125,7 +125,9 @@ public enum CrabAnimator {
              // The board comes round a whole turn and he comes round with it.
              bigspin,
              // The two 360 flips — mirrors of each other in both axes.
-             treFlip, laserFlip
+             treFlip, laserFlip,
+             // The wheelie's mirror: nose planted, tail in the air.
+             noseManual
 
         /// Everything he does on a board. Six are tricks and one is a cruise,
         /// which is why this is not called `skateTricks` — he shouts after all
@@ -133,7 +135,7 @@ public enum CrabAnimator {
         /// does over an actual kickflip.
         static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
                                                 .manual, .shoveIt, .nollie, .bigspin,
-                                                .treFlip, .laserFlip]
+                                                .treFlip, .laserFlip, .noseManual]
 
         var duration: Double {
             switch self {
@@ -159,6 +161,10 @@ public enum CrabAnimator {
             // The manual is a HOLD — balance needs time on the clock the
             // same way the ollie's hang does.
             case .manual: 2.6
+            // The same ride as the manual, and the same clock: the pair are
+            // mirrors and a different length would make one of them feel
+            // like the harder trick.
+            case .noseManual: 2.6
             case .shoveIt: 2.2
             // The same air as the flips: long enough for the board to come
             // round twice and for him to finish his own turn on the way out.
@@ -261,6 +267,10 @@ public enum CrabAnimator {
         .cruise: 2,
         .kickflip: 3, .ollie: 3, .manual: 3, .shoveIt: 3,
         .varialFlip: 4, .nollie: 4, .bigspin: 4, .treFlip: 4, .laserFlip: 4,
+        // Weighted with the manual it mirrors, not with the flips: it is a
+        // balance ride, and the pair reads best when they come round about
+        // as often as each other.
+        .noseManual: 3,
     ]
 
     /// Expanded from the weights, over `allCases` rather than over the
@@ -2362,6 +2372,33 @@ public enum CrabAnimator {
             if held > 0.45 { pose.bob = -1 }
             if held > 0.65 { pose.gazeX = 1 }
             if held > 0.85 { pose.eyes = .determined }
+
+        case .noseManual:
+            // 🛹 THE NOSE MANUAL — the wheelie's mirror. Front wheels down,
+            // TAIL in the air, and hold.
+            //
+            // Everything that made the manual work is kept and reflected: the
+            // board carries the pitch on its own eased envelope, he carries
+            // the concentration, and the four whole-pixel switches stay 0.2
+            // of `held` apart so no two of them land on one frame at 20fps.
+            //
+            // What changes is which end is up, and therefore where he looks
+            // and which way he braces. On a manual his weight is back and he
+            // watches the nose he has lifted; on a nose manual his weight is
+            // forward over a planted nose and the tail is the thing behind
+            // him, so the gaze goes the other way and the arms lead with the
+            // opposite side.
+            pose.prop = .skateboardNoseManual
+            pose.propVisibility = 1
+            pose.propPhase = progress
+            let heldNose = Ease.smoothstep(min(progress, 1 - progress) * 5)
+            let sawNose = sin(t * 6)
+            pose.armLeft = heldNose * (0.5 - 0.3 * sawNose)
+            pose.armRight = heldNose * (0.5 + 0.3 * sawNose)
+            if heldNose > 0.25 { pose.mouth = .flat }
+            if heldNose > 0.45 { pose.bob = -1 }
+            if heldNose > 0.65 { pose.gazeX = -1 }
+            if heldNose > 0.85 { pose.eyes = .determined }
 
         case .shoveIt:
             // The flat spin: he hops, the board does a half turn UNDERNEATH

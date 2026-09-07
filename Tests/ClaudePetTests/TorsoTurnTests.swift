@@ -628,4 +628,49 @@ struct TorsoTurnTests {
         }
     }
 
+
+    /// 🛹 **The nose manual is the manual, reflected.** Front wheels planted,
+    /// tail in the air — the mirror of the wheelie, and the pair should read
+    /// as one trick done two ways rather than two that happen to rhyme.
+    ///
+    /// Pinned on the DECK's slope rather than on the code, because the whole
+    /// claim is geometric: whichever end of the board is on the ground, the
+    /// other one is up, and the two tricks disagree about which is which.
+    @Test("The nose manual lifts the end the manual plants")
+    func theNoseManualMirrorsTheManual() {
+        func deckSlope(_ trick: CrabAnimator.Flourish, at progress: Double) -> Int? {
+            let pose = CrabAnimator.flourishPose(trick, at: progress * trick.duration)
+            let buffer = CrabRig.render(pose)
+            func topRow(_ range: Range<Int>) -> Int? {
+                for y in 0..<PixelBuffer.side {
+                    for x in range where buffer[x, y] == .deck { return y }
+                }
+                return nil
+            }
+            // Symmetric about the board's centre at x=16, or the comparison
+            // is not a mirror test: [8,13] reflects onto [19,24]. The first
+            // cut sampled 6..<14 against 18..<26 and reported the pair as
+            // 3 against 2 — an artefact of the windows, not the art.
+            guard let left = topRow(8..<14), let right = topRow(19..<25) else { return nil }
+            return left - right          // + means the RIGHT end is higher
+        }
+        // Mid-ride, where the pitch is fully up.
+        guard let manual = deckSlope(.manual, at: 0.5),
+              let nose = deckSlope(.noseManual, at: 0.5)
+        else {
+            Issue.record("one of the boards drew no deck at mid-ride")
+            return
+        }
+        #expect(manual > 0, "the manual should lift its NOSE — slope \(manual)")
+        #expect(nose < 0, "the nose manual should lift its TAIL — slope \(nose)")
+        #expect(manual == -nose,
+                "the pair are not mirrors: manual \(manual) against nose \(nose)")
+        // And he watches the opposite way in each.
+        let m = CrabAnimator.flourishPose(.manual, at: 0.5 * CrabAnimator.Flourish.manual.duration)
+        let n = CrabAnimator.flourishPose(.noseManual,
+                                          at: 0.5 * CrabAnimator.Flourish.noseManual.duration)
+        #expect(m.gazeX == -n.gazeX && m.gazeX != 0,
+                "his gaze should flip with the board: \(m.gazeX) against \(n.gazeX)")
+    }
+
 }

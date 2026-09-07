@@ -120,6 +120,9 @@ public struct CrabPose: Sendable, Equatable {
         case skateboardTre, skateboardLaser
         // Appended: the surfboard. Worn, like every board he stands on.
         case surfboard
+        // Appended: the NOSE MANUAL's board — the manual's wheelie reflected,
+        // front wheels planted and the tail stepping up behind him.
+        case skateboardNoseManual
 
         var isWorn: Bool {
             switch self {
@@ -2312,6 +2315,49 @@ public enum CrabRig {
                 for lane in 0..<3 {
                     let x = ((28 - rush + lane * 11) % 32 + 32) % 32
                     b.rect(x, 29, dash, 1, .shadow)
+                }
+            }
+
+        case .skateboardNoseManual:
+            // The nose wheelie: NOSE on the ground, tail stepping up through
+            // the same eased pitch the manual uses, front wheel planted and
+            // the back one riding the raised tail. Mirrored end for end, and
+            // nothing else changed — the pair should read as one trick done
+            // two ways, not as two tricks that happen to rhyme.
+            let p = min(1, max(0, pose.propPhase))
+            let pitch = Ease.smoothstep(min(p, 1 - p) * 5)
+            let rise = Int((3 * pitch).rounded())
+            let cx = 16 + dx, deckY = 25 + dy
+            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
+            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let yNose = deckY
+            let yMid = deckY - rise / 2
+            let yTail = deckY - rise
+            b.rect(cx + 3, yNose, 6, 1, deckInk)
+            b.rect(cx - 3, yMid, 6, 1, deckInk)
+            b.rect(cx - 8, yTail, 5, 1, deckInk)
+            if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
+            if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
+            for (hub, y) in [(cx + 4, yNose), (cx - 6, yTail)] {
+                b.rect(hub, y + 1, 3, 1, wheelInk)
+                b.pixel(hub, y + 2, wheelInk)
+                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 2, y + 2, wheelInk)
+                b.rect(hub, y + 3, 3, 1, wheelInk)
+            }
+            if wheelShimmer(pose.propPhase * 2.6) {
+                b.pixel(cx + 4, yNose + 1, .flameCore)
+            }
+            // The same ground rush the manual rides, for the same reason: a
+            // nose manual ROLLS, and on a fixed camera the world moves rather
+            // than the rider. Without it the two halves of the pair read as
+            // different tricks — one travelling, one balanced on the spot.
+            let noseRush = Int((p * 34).rounded())
+            let noseDash = Int((3 * pitch).rounded())
+            if noseDash > 0 {
+                for lane in 0..<3 {
+                    let x = ((28 - noseRush + lane * 11) % 32 + 32) % 32
+                    b.rect(x, 29, noseDash, 1, .shadow)
                 }
             }
 
