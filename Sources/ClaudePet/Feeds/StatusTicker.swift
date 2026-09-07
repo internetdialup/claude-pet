@@ -48,8 +48,19 @@ public enum StatusTicker {
     /// Absolute difference, so a timestamp from the future is rejected too — a
     /// one-sided check treated any future-dated cache as eternally fresh.
     static func isFresh(_ cache: UsageCache, now: Date) -> Bool {
-        guard let writtenAt = cache.writtenAt else { return true }
+        // No timestamp is no evidence of freshness. This used to return true,
+        // which made a cache with no `writtenAt` fresh for ever.
+        guard let writtenAt = cache.writtenAt else { return false }
         return abs(now.timeIntervalSince1970 - writtenAt) <= maxAge
+    }
+
+    /// A percentage worth printing: finite and inside 0…100. `Int(x)` traps the
+    /// whole process for any finite |x| ≥ 2⁶³, and `JSONDecoder` happily
+    /// decodes `1e300` — a buggy statusLine script must not be able to crash
+    /// the pet on its first idle line.
+    static func percent(_ value: Double?) -> Int? {
+        guard let value, value.isFinite, (0...100).contains(value) else { return nil }
+        return Int(value.rounded())
     }
 
     /// Turns a model id into something worth reading on a pet's forehead.
@@ -106,8 +117,8 @@ public enum StatusTicker {
 
         if let model = snapshot.model {
             let name = displayName(forModel: model)
-            if let context = cache?.contextUsedPercent {
-                result.append("MODEL · \(name) @ \(Int(context.rounded()))% CONTEXT")
+            if let context = percent(cache?.contextUsedPercent) {
+                result.append("MODEL · \(name) @ \(context)% CONTEXT")
             } else {
                 result.append("MODEL · \(name)")
             }
@@ -117,11 +128,11 @@ public enum StatusTicker {
         // rate limits to disk, and a percentage without a measured numerator is
         // a fabrication (Numerical Grounding). They light up on their own if the data
         // returns — that is the whole reason the cache is still read.
-        if let fiveHour = cache?.fiveHourPercent {
-            result.append("5-HOUR LIMIT @ \(Int(fiveHour.rounded()))%")
+        if let fiveHour = percent(cache?.fiveHourPercent) {
+            result.append("5-HOUR LIMIT @ \(fiveHour)%")
         }
-        if let weekly = cache?.sevenDayPercent {
-            result.append("WEEKLY USAGE @ \(Int(weekly.rounded()))%")
+        if let weekly = percent(cache?.sevenDayPercent) {
+            result.append("WEEKLY USAGE @ \(weekly)%")
         }
 
         if snapshot.sessionCount > 1 {

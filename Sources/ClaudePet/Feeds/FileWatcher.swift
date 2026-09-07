@@ -38,17 +38,35 @@ final class FileWatcher: @unchecked Sendable {
     private var pending: DispatchWorkItem?
     private var cancelled = false
     private var retries = 0
+    private var everArmed = false
+    private var exhausted = false
 
     private let url: URL
     private let queue: DispatchQueue
     private let coalesce: TimeInterval
     private let onChange: @Sendable () -> Void
 
-    /// How long to keep trying to re-open a path that has gone missing. During
-    /// a rename the gap is sub-millisecond; a file that stays gone for a minute
-    /// belongs to a session that `reapDeadSessions` will retire anyway.
-    private static let retryInterval: TimeInterval = 0.25
-    private static let maxRetries = 240
+    /// How the watcher waits. `interval` between attempts. After `maxRetries`
+    /// attempts a path that was ONCE open and has now vanished is given up on —
+    /// during a rename the gap is sub-millisecond, and a file that stays gone
+    /// for a minute belongs to a session `reapDeadSessions` will retire anyway.
+    /// A path that has NEVER appeared is a different case: it is waited for at
+    /// `slowInterval` for as long as the watcher lives. The task directory is
+    /// written on Claude's first TodoWrite, which is usually minutes into a
+    /// session; giving up on it at sixty seconds left the task feed silently
+    /// deaf for the rest of that session, and a pet launched at login before
+    /// the first `claude` never found the sessions directory at all.
+    struct RetryPolicy: Sendable {
+        var interval: TimeInterval = 0.25
+        var maxRetries = 240
+        var slowInterval: TimeInterval = 5
+        static let standard = RetryPolicy()
+    }
+    private let policy: RetryPolicy
+
+    /// True once a path that had been open vanished and the budget ran out.
+    /// A path that never appeared never gives up, so this stays false for it.
+    var gaveUp: Bool { lock.lock(); defer { lock.unlock() }; return exhausted }
 
     /// - Parameters:
     ///   - url: file or directory to watch. It does NOT have to exist yet —
@@ -56,10 +74,12 @@ final class FileWatcher: @unchecked Sendable {
     ///     re-arm uses, and `onChange` fires once it does.
     ///   - coalesce: quiet period before `onChange` fires.
     init(url: URL, queue: DispatchQueue, coalesce: TimeInterval = 0.12,
+         retry: RetryPolicy = .standard,
          onChange: @escaping @Sendable () -> Void) {
         self.url = url
         self.queue = queue
         self.coalesce = coalesce
+        self.policy = retry
         self.onChange = onChange
         // Not failable, deliberately. The one caller that mattered assigned the
         // result straight into a dictionary, so a nil meant "this session has
@@ -100,9 +120,11 @@ final class FileWatcher: @unchecked Sendable {
         }
         self.source = source
         self.descriptor = fd
-        // Only a successful arm refills the budget, and only once armed: a
-        // path that never appears must not retry for ever.
+        // A successful arm refills the budget and marks the path as one that
+        // has existed — from here on, vanishing for longer than the budget
+        // means the session is gone, not that it has not started yet.
         self.retries = 0
+        self.everArmed = true
         lock.unlock()
 
         source.resume()
@@ -128,14 +150,20 @@ final class FileWatcher: @unchecked Sendable {
         scheduleRetry()
     }
 
-    /// Tries again shortly, until the path shows up or the budget runs out.
-    /// Shared by the re-arm (the file was replaced) and by construction (the
-    /// file has not been written yet).
+    /// Tries again shortly. Shared by the re-arm (the file was replaced) and by
+    /// construction (the file has not been written yet). The budget ends only
+    /// a watch on a path that once existed; a path that has never appeared is
+    /// waited for at the slow interval until `cancel()`.
     private func scheduleRetry() {
-        queue.asyncAfter(deadline: .now() + Self.retryInterval) { [weak self] in
+        lock.lock()
+        let waitedOut = retries >= policy.maxRetries
+        let delay = waitedOut && !everArmed ? policy.slowInterval : policy.interval
+        lock.unlock()
+        queue.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             self.lock.lock()
-            let stop = self.cancelled || self.retries >= Self.maxRetries
+            let stop = self.cancelled || (self.everArmed && self.retries >= self.policy.maxRetries)
+            if stop, !self.cancelled { self.exhausted = true }
             self.retries += 1
             self.lock.unlock()
             guard !stop else { return }

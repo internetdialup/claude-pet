@@ -668,8 +668,9 @@ public final class ActivityCoordinator {
                 session.mood = .needsAttention
                 session.activity = Self.condense(reason)
             case .activeTask(let label):
-                session.activeTaskLabel = label
-                if let label { session.activity = label }
+                let safe = label.map { Self.displaySafe($0, limit: 120) }
+                session.activeTaskLabel = safe
+                if let safe { session.activity = safe }
             case .taskProgress(let completed, let total):
                 session.tasksCompleted = completed
                 session.tasksTotal = total
@@ -684,7 +685,7 @@ public final class ActivityCoordinator {
                     }
                 }
             case .title(let title):
-                session.title = title
+                session.title = Self.displaySafe(title, limit: 120)
             case .subagents(let count):
                 session.subagentCount = count
             case .model(let model):
@@ -692,7 +693,7 @@ public final class ActivityCoordinator {
             case .awaitingApproval(let waiting):
                 session.awaitingApproval = waiting
             case .branch(let branch):
-                session.branch = branch
+                session.branch = Self.displaySafe(branch, limit: 80)
             case .activityStamps(let stamps):
                 // Span from the first to the last assistant message today. A
                 // measured window, not a sum of guessed session lengths.
@@ -1726,14 +1727,19 @@ public final class ActivityCoordinator {
     /// touches a disk belongs on the main actor. This finally constructs the
     /// `.subagents` event, which the model has always consumed but which nothing
     /// had ever emitted, leaving `subagentCount` permanently zero.
+    /// The journals' parse memo: a 400 KB journal that has not changed since
+    /// the last two-second tick is counted, not re-read.
+    private let journalCache = WorkloadWatcher.JournalCache()
+
     private func refreshWorkload() {
         let targets = sessions.values.map { (id: $0.id, directory: $0.subagentsDirectory) }
         guard !targets.isEmpty else { return }
+        let cache = journalCache
         queue.async { [weak self] in
             guard let self else { return }
             let now = Date()
             let counts = targets.map {
-                ($0.id, WorkloadWatcher.agentsInFlight(subagents: $0.directory, now: now))
+                ($0.id, WorkloadWatcher.agentsInFlight(subagents: $0.directory, now: now, cache: cache))
             }
             let events = counts.map {
                 ActivityEvent(sessionID: $0.0, kind: .subagents($0.1), timestamp: now)
@@ -1756,10 +1762,35 @@ public final class ActivityCoordinator {
     /// Squeeze a shell command or long description into bubble-sized text.
     /// Pure string work — no actor state, so it needs no isolation.
     nonisolated static func condense(_ raw: String, limit: Int = 46) -> String {
-        let flat = raw
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard flat.count > limit else { return flat }
+        displaySafe(raw, limit: limit)
+    }
+
+    /// Text from a transcript, a task file or a hook payload is written by
+    /// whatever repository Claude happens to be working in. Before any of it
+    /// reaches the bubble, the roster, a menu or a notification: control and
+    /// format characters (a bidi override that renders a branch name
+    /// backwards, a zero-width joiner, a line separator that grows the marquee
+    /// fifty rows tall) and every kind of whitespace become one space, runs
+    /// collapse, the ends are trimmed, and the result is bounded. Pure, so the
+    /// display rule has one home.
+    nonisolated static func displaySafe(_ raw: String, limit: Int? = nil) -> String {
+        var out = String.UnicodeScalarView()
+        var pendingSpace = false
+        for scalar in raw.unicodeScalars {
+            let category = scalar.properties.generalCategory
+            let isBreak = category == .control || category == .format
+                || category == .lineSeparator || category == .paragraphSeparator
+                || category == .spaceSeparator
+            if isBreak {
+                pendingSpace = true
+            } else {
+                if pendingSpace, !out.isEmpty { out.append(" ") }
+                pendingSpace = false
+                out.append(scalar)
+            }
+        }
+        let flat = String(out)
+        guard let limit, flat.count > limit else { return flat }
         return String(flat.prefix(limit - 1)) + "…"
     }
 }

@@ -149,7 +149,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         for session in state.sessions {
             let entry = action(session.name) { [weak self] in self?.onPin(session.id) }
             entry.state = pinned == session.id ? .on : .off
-            entry.toolTip = session.cwd
+            entry.toolTip = PathDisplay.abbreviatingHome(session.cwd)
             pinMenu.addItem(entry)
         }
         pinItem.submenu = pinMenu
@@ -177,7 +177,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             for session in state.sessions {
                 let entry = action(session.name) { [weak self] in self?.onPinSecond(session.id) }
                 entry.state = pinned2 == session.id ? .on : .off
-                entry.toolTip = session.cwd
+                entry.toolTip = PathDisplay.abbreviatingHome(session.cwd)
                 followMenu.addItem(entry)
             }
             followItem.submenu = followMenu
@@ -265,11 +265,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let hooks = action(HookInstaller.isInstalled ? "Reinstall Claude hooks…" : "Install Claude hooks…") {
+        let installed = HookInstaller.isInstalled
+        let hooks = action(installed ? "Reinstall Claude hooks…" : "Install Claude hooks…") {
             HookInstaller.promptAndInstall()
         }
-        hooks.toolTip = "Adds a hooks entry to ~/.claude/settings.json for instant reactions. Shows the change and backs up first."
+        hooks.toolTip = "Adds a hooks entry to ~/.claude/settings.json for instant reactions. Shows the exact JSON and backs up first."
         menu.addItem(hooks)
+        if installed {
+            // Deleting the .app used to leave the hook firing forever, writing
+            // event files nobody drained. Removal lives one row under install.
+            let remove = action("Remove Claude hooks…") {
+                HookInstaller.promptAndUninstall()
+            }
+            remove.toolTip = "Takes the pet's entries back out of ~/.claude/settings.json (backs up first) and deletes the hook script."
+            menu.addItem(remove)
+        }
 
         menu.addItem(.separator())
         menu.addItem(action("Quit Claude Pet") { [weak self] in self?.onQuit() })

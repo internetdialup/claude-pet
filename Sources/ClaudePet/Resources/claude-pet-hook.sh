@@ -13,7 +13,7 @@ mkdir -p "$DIR" 2>/dev/null
 # never happens and this directory would grow forever. Prune occasionally rather
 # than on every hook, so the common path stays a single write.
 if [ $((RANDOM % 40)) -eq 0 ]; then
-    find "$DIR" -type f -name '*.json' -mmin +10 -delete 2>/dev/null
+    find "$DIR" -type f \( -name '*.json' -o -name '.*.partial' \) -mmin +10 -delete 2>/dev/null
 fi
 
 # Write to a scratch name, then rename into place. `mv` within one directory is

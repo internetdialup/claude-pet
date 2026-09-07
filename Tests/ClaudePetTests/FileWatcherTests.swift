@@ -179,4 +179,45 @@ struct FileWatcherTests {
         #expect(await waitForChange(counter, from: before),
                 "a todo written inside the directory went unheard")
     }
+
+    /// The task directory is written on Claude's first TodoWrite, usually
+    /// minutes into a session. The old sixty-second budget applied to a path
+    /// that had never existed, so the watcher gave up before the directory
+    /// appeared and the task feed stayed deaf for the session.
+    @Test("A directory that appears after the budget is still heard")
+    func lateDirectoryBeyondBudget() async throws {
+        let dir = try scratch()
+        let late = dir.appendingPathComponent("tasks")
+        let counter = Counter()
+        let queue = DispatchQueue(label: "watcher-test")
+        let policy = FileWatcher.RetryPolicy(interval: 0.01, maxRetries: 3, slowInterval: 0.02)
+        let watcher = FileWatcher(url: late, queue: queue, coalesce: 0.02, retry: policy) { counter.bump() }
+        // Well past three attempts at ten milliseconds.
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(!watcher.gaveUp, "a path that never existed must not be given up on")
+        try FileManager.default.createDirectory(at: late, withIntermediateDirectories: true)
+        #expect(await waitForChange(counter, from: 0), "the late directory must be heard")
+        watcher.cancel()
+    }
+
+    /// The other half of the same rule: a path that WAS open and then vanished
+    /// for longer than the budget is a dead session, and the watcher stops —
+    /// the leak guard the budget always existed for.
+    @Test("A file that vanishes and never returns is given up on")
+    func vanishedFileGivesUp() async throws {
+        let dir = try scratch()
+        let file = dir.appendingPathComponent("t.jsonl")
+        try Data("a\n".utf8).write(to: file)
+        let counter = Counter()
+        let queue = DispatchQueue(label: "watcher-test")
+        let policy = FileWatcher.RetryPolicy(interval: 0.01, maxRetries: 5, slowInterval: 0.02)
+        let watcher = FileWatcher(url: file, queue: queue, coalesce: 0.02, retry: policy) { counter.bump() }
+        try FileManager.default.removeItem(at: file)
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline, !watcher.gaveUp {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(watcher.gaveUp, "a vanished file must exhaust its budget")
+        watcher.cancel()
+    }
 }

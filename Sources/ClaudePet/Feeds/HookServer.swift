@@ -2,21 +2,38 @@ import Foundation
 
 /// Receives push events from the Claude Code hook shim.
 ///
-/// The shim appends one JSON file per event into `~/.claude/claude-pet-events/`
+/// The shim drops one JSON file per event into `~/.claude/claude-pet-events/`
 /// and this watches that directory. A drop-directory rather than a socket,
 /// deliberately: the redline requires the pet never block Claude, and a
 /// failed `nc -U` to a dead socket can stall a hook, whereas a failed file write
 /// cannot. The shim exits 0 unconditionally either way.
 ///
-/// Safety: `watcher` is only assigned in `start()`/`stop()`, both called from the
-/// main actor; `drain()` runs exclusively on the serial `queue`. There is no
-/// shared mutable state between the two.
+/// Each file is the hook's whole payload — tool input and tool output included
+/// — and is deleted the moment it is read. Anything over `maxEventBytes` is
+/// deleted UNREAD: the redline says every read is bounded, and a complete
+/// oversized file arrived by an atomic `mv`, so removing it is not a race and
+/// the transcript fold covers the event it carried.
+///
+/// Concurrency: `watcher` is only assigned in `start()`/`stop()`, both called
+/// from the main actor; every `drain()` — the launch-time backlog included —
+/// runs on the serial `queue`, so a directory full of files from a session the
+/// pet missed never parses on the UI thread.
 public final class HookServer: @unchecked Sendable {
+    /// The largest event file that will be parsed. Claude Code truncates tool
+    /// output before hooks see it, so real payloads are tens of KB; this is a
+    /// ceiling, not a budget.
+    public static let maxEventBytes = 256 * 1024
+
     private var watcher: FileWatcher?
     private let queue = DispatchQueue(label: "com.internetdialup.claude-pet.hooks")
+    private let events: URL
     private let onEvents: @Sendable ([ActivityEvent]) -> Void
 
-    public init(onEvents: @escaping @Sendable ([ActivityEvent]) -> Void) {
+    /// - Parameter events: the drop directory. Defaults to the live one; tests
+    ///   hand it a directory under `FileManager.temporaryDirectory`.
+    public init(events: URL = ClaudeHome.events,
+                onEvents: @escaping @Sendable ([ActivityEvent]) -> Void) {
+        self.events = events
         self.onEvents = onEvents
     }
 
@@ -24,9 +41,9 @@ public final class HookServer: @unchecked Sendable {
         let fm = FileManager.default
         // Creating our own drop directory is not a write to Claude's state; no
         // Claude Code file is read or modified here.
-        try? fm.createDirectory(at: ClaudeHome.events, withIntermediateDirectories: true)
-        drain()
-        watcher = FileWatcher(url: ClaudeHome.events, queue: queue, coalesce: 0.05) { [weak self] in
+        try? fm.createDirectory(at: events, withIntermediateDirectories: true)
+        queue.async { [weak self] in self?.drain() }
+        watcher = FileWatcher(url: events, queue: queue, coalesce: 0.05) { [weak self] in
             self?.drain()
         }
     }
@@ -36,19 +53,28 @@ public final class HookServer: @unchecked Sendable {
         watcher = nil
     }
 
+    /// Drains once, synchronously, on the caller's thread — the test seam.
+    func drainNow() { drain() }
+
     /// Consume and delete every queued event file.
     private func drain() {
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(at: ClaudeHome.events, includingPropertiesForKeys: nil)
+        guard let entries = try? fm.contentsOfDirectory(at: events,
+                                                        includingPropertiesForKeys: [.fileSizeKey])
         else { return }
 
-        var events: [ActivityEvent] = []
+        var collected: [ActivityEvent] = []
         let now = Date()
 
         for url in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             // `.partial` scratch files belong to a shim that is still writing.
             guard url.pathExtension == "json" else {
                 reapIfAbandoned(url, now: now, fileManager: fm)
+                continue
+            }
+            if let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
+               size > Self.maxEventBytes {
+                try? fm.removeItem(at: url)
                 continue
             }
 
@@ -61,10 +87,10 @@ public final class HookServer: @unchecked Sendable {
                 continue
             }
             try? fm.removeItem(at: url)
-            events.append(event)
+            collected.append(event)
         }
-        guard !events.isEmpty else { return }
-        onEvents(events)
+        guard !collected.isEmpty else { return }
+        onEvents(collected)
     }
 
     /// Files older than this are assumed abandoned rather than in flight.
@@ -81,7 +107,9 @@ public final class HookServer: @unchecked Sendable {
     }
 
     /// Hook payloads carry `hook_event_name` and `session_id`; the rest varies by
-    /// event. Unknown shapes are dropped rather than guessed at.
+    /// event. Unknown shapes are dropped rather than guessed at. The detail that
+    /// reaches the bubble has the home directory abbreviated; the raw command
+    /// stays on the event for the service classifier.
     static func parse(_ data: Data) -> ActivityEvent? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let sessionID = object["session_id"] as? String,
@@ -94,8 +122,8 @@ public final class HookServer: @unchecked Sendable {
             let input = object["tool_input"] as? [String: Any] ?? [:]
             let detail = (input["description"] as? String)
                 ?? (input["file_path"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
-                ?? (input["pattern"] as? String)
-                ?? (input["command"] as? String)
+                ?? (input["pattern"] as? String).map { PathDisplay.abbreviatingHome($0) }
+                ?? (input["command"] as? String).map { PathDisplay.abbreviatingHome($0) }
             return ActivityEvent(sessionID: sessionID,
                                  kind: .toolStarted(name: tool, detail: detail,
                                                     command: input["command"] as? String))

@@ -25,19 +25,54 @@ public enum WorkloadWatcher {
     /// Generous because an agent goes quiet while a long tool call runs.
     static let liveWindow: TimeInterval = 180
 
+    /// Per-journal memo of the last parse, keyed by path and stamped with the
+    /// size and mtime that produced it. The workload poll runs every two
+    /// seconds; a journal that has not changed since the last tick is counted
+    /// from the memo, not read and parsed line by line again (a real 13-agent
+    /// journal is 413 KB — thirty full parses a minute per session, for the
+    /// same answer). Thread-safe: the poll runs on the feed queue.
+    public final class JournalCache: @unchecked Sendable {
+        private struct Entry { let size: Int; let modified: Date; let inFlight: Int }
+        private var entries: [URL: Entry] = [:]
+        private var parseCount = 0
+        private let lock = NSLock()
+
+        public init() {}
+
+        func cached(_ url: URL, size: Int, modified: Date) -> Int? {
+            lock.lock(); defer { lock.unlock() }
+            guard let entry = entries[url], entry.size == size, entry.modified == modified else { return nil }
+            return entry.inFlight
+        }
+
+        func remember(_ url: URL, size: Int, modified: Date, inFlight: Int) {
+            lock.lock(); defer { lock.unlock() }
+            entries[url] = Entry(size: size, modified: modified, inFlight: inFlight)
+            parseCount += 1
+        }
+
+        /// How many journals have actually been parsed through this cache —
+        /// the test seam that proves an unchanged file is not re-read.
+        public var parses: Int { lock.lock(); defer { lock.unlock() }; return parseCount }
+    }
+
     /// How many agents are working for this session right now.
     ///
-    /// - Parameter subagents: the session's `subagents/` directory.
-    public static func agentsInFlight(subagents: URL, now: Date = Date()) -> Int {
+    /// - Parameters:
+    ///   - subagents: the session's `subagents/` directory.
+    ///   - cache: the parse memo; nil parses every fresh journal.
+    public static func agentsInFlight(subagents: URL, now: Date = Date(),
+                                      cache: JournalCache? = nil) -> Int {
         let workflows = subagents.appendingPathComponent("workflows")
-        let fromJournals = workflowAgentsInFlight(workflows: workflows, now: now)
+        let fromJournals = workflowAgentsInFlight(workflows: workflows, now: now, cache: cache)
         // Plain `Task` subagents have no journal, so fall back to counting live
         // transcripts. Whichever sees more is the honest answer.
         return max(fromJournals, liveAgentTranscripts(subagents: subagents, now: now))
     }
 
     /// `started` minus `result`, summed across every run whose journal is fresh.
-    static func workflowAgentsInFlight(workflows: URL, now: Date) -> Int {
+    static func workflowAgentsInFlight(workflows: URL, now: Date,
+                                       cache: JournalCache? = nil) -> Int {
         let fm = FileManager.default
         guard let runs = try? fm.contentsOfDirectory(at: workflows, includingPropertiesForKeys: nil)
         else { return 0 }
@@ -48,10 +83,16 @@ public enum WorkloadWatcher {
             guard let attributes = try? fm.attributesOfItem(atPath: journal.path),
                   let size = attributes[.size] as? Int, size <= maxJournalBytes,
                   let modified = attributes[.modificationDate] as? Date,
-                  now.timeIntervalSince(modified) < liveWindow,
-                  let text = try? String(contentsOf: journal, encoding: .utf8)
+                  now.timeIntervalSince(modified) < liveWindow
             else { continue }
-            total += inFlight(inJournal: text)
+            if let known = cache?.cached(journal, size: size, modified: modified) {
+                total += known
+                continue
+            }
+            guard let text = try? String(contentsOf: journal, encoding: .utf8) else { continue }
+            let count = inFlight(inJournal: text)
+            cache?.remember(journal, size: size, modified: modified, inFlight: count)
+            total += count
         }
         return total
     }

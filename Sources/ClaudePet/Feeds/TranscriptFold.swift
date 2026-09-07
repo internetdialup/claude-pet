@@ -154,11 +154,15 @@ public final class TranscriptFold {
             case "tool_use":
                 let name = block["name"] as? String ?? "tool"
                 let input = block["input"] as? [String: Any] ?? [:]
+                // The fallbacks can carry an absolute path — a `cd` into the
+                // home directory, a grep over it — and the bubble is on screen
+                // in every recording. The home prefix becomes `~` here; the raw
+                // command stays on the event for the service classifier.
                 let detail = (input["description"] as? String)
                     ?? (input["file_path"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
-                    ?? (input["pattern"] as? String)
-                    ?? (input["command"] as? String)
-                    ?? (input["query"] as? String)
+                    ?? (input["pattern"] as? String).map { PathDisplay.abbreviatingHome($0) }
+                    ?? (input["command"] as? String).map { PathDisplay.abbreviatingHome($0) }
+                    ?? (input["query"] as? String).map { PathDisplay.abbreviatingHome($0) }
                 // An ExitPlanMode call with no result yet means Claude has
                 // written a plan and is blocked on the human.
                 if name == "ExitPlanMode" {

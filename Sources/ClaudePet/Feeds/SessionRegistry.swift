@@ -37,7 +37,8 @@ public enum SessionRegistry {
             sessions.append(ClaudeSession(
                 id: file.sessionId,
                 pid: file.pid,
-                name: file.name ?? URL(fileURLWithPath: file.cwd).lastPathComponent,
+                name: ActivityCoordinator.displaySafe(
+                    file.name ?? URL(fileURLWithPath: file.cwd).lastPathComponent, limit: 80),
                 cwd: file.cwd,
                 procStart: file.procStart ?? "",
                 startedAt: Date(timeIntervalSince1970: (file.startedAt ?? 0) / 1000)
