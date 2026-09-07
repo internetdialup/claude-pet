@@ -95,6 +95,26 @@ public enum Vocab {
 
     // ═════════════════════════════════════════════════════════════════════════
     //  ✏️  EDIT FROM HERE
+    //
+    //  Everything he says lives in the switch below, grouped by what makes
+    //  him say it. Add, cut and reword freely — the rules are few:
+    //
+    //   • **76 characters** is the bubble. Thirty-eight columns over two
+    //     wrapped lines. Go over and the line is cut off on screen, so a test
+    //     stops you: `everyLineFitsTwoRows`.
+    //   • **An emoji is worth two and a bit letters** (16pt against 6.8), so a
+    //     line thick with them runs out of room sooner than its length
+    //     suggests. The same test measures in points and knows the difference.
+    //   • **Never leave a pool empty.** He falls silent for that occasion, and
+    //     `everyOccasionHasLines` fails.
+    //   • **Two lines is the floor for variety.** A one-entry pool becomes a
+    //     catchphrase and a two-entry pool strictly alternates.
+    //   • Order inside a pool does not matter — they are shuffled — but do not
+    //     reorder the `ShoutoutOccasion` cases themselves.
+    //
+    //  After editing: `swift test --scratch-path /tmp/claude-pet-fix`. Every
+    //  rule above has a test behind it, so a mistake is a red suite, never a
+    //  surprise on the desk.
     // ═════════════════════════════════════════════════════════════════════════
 
     /// What he says for each occasion.
@@ -105,6 +125,16 @@ public enum Vocab {
     /// would silently say nothing.
     public static func lines(for occasion: ShoutoutOccasion) -> [String] {
         switch occasion {
+
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🛹  SKATEBOARDING
+        //  He lands a trick and, about one time in seven, says something about it.
+        //  The odds live in `SpawnRates.skateShout` — raise that, not these lines,
+        //  if you want him chattier.
+        //
+        //  PER-COSTUME lines are further down in `skateLines(for:)` — Sonic and the
+        //  Gundam have their own voices, and anything without one falls back here.
+        // ────────────────────────────────────────────────────────────────────
 
         // 🛹 He just landed a trick. Dealt from a cursor like the pounce is, so
         // the same one never lands twice running.
@@ -134,6 +164,13 @@ public enum Vocab {
             "Midas grip tape today",
         ]
 
+
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🌊  SURFING
+        //  A swell carries him, about twice an hour, and he says one of these as it
+        //  goes. Your words, kept as you wrote them.
+        // ────────────────────────────────────────────────────────────────────
+
         // 🌊 A swell rolled through and he rode it. The operator's words,
         // and three of them are wider than the plain bubble — like the Hall
         // of Meat line in the skate deck, they are NOT shortened. The
@@ -150,43 +187,13 @@ public enum Vocab {
             "Aloha 🌴",
         ]
 
-        // 💛 Ten unbroken seconds of petting. He noticed.
-        case .longPet: [
-            "Best. Human. Ever 💛",
-            "Ten whole seconds 🥹",
-            "Okay YOU get a raise",
-        ]
 
-        // 👋 The first launch, ever — the one moment a new arrival has no idea
-        // what the thing on their desktop is. So every line NAMES him; a
-        // friendly noise that does not introduce him wastes the only
-        // introduction he gets.
-        //
-        // Kept comfortably under the ceiling rather than near it. These render
-        // beside a wave on a first impression, and an emoji costs about two
-        // columns, so there is no room here for the one-over that `knownLong`
-        // forgives elsewhere.
-        case .hello: [
-            "Hi, I'm Claw'd 🦀",
-            "👋 Hey, I'm Claw'd",
-            "Oh! Hi — I'm Claw'd 🦀",
-            "Hi — I'm your crab 🦀",
-        ]
-
-        // 💬 Between tasks. Encouragement, mostly.
-        case .idle: [
-            "Let's build something awesome!",
-            "Now we're cooking with crisco 🍳",
-            "Hope you're ready to build",
-            "I'm hungry for something new!",
-            "Excited to see what you cook up",
-            "Ooo that's a spicy idea 🌶️",
-            "What are we making?",
-            "Mise en place, chef",
-            "Give me something hard",
-            "Say the word",
-            "Burner's on",
-        ]
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🤖  WHAT HE IS DOING
+        //  The session's own state, in his voice. These only appear in the gaps —
+        //  when there is a real task label he shows that instead, because a pet
+        //  that hides "Running the test suite" behind a joke is worse.
+        // ────────────────────────────────────────────────────────────────────
 
         // 💭 Reasoning. Usually shown as pulsing dots instead, so these are rare.
         case .thinking: [
@@ -253,6 +260,28 @@ public enum Vocab {
             "Stuck without a yes",
         ]
 
+
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 😴  QUIET
+        //  Between tasks, and asleep. The two he says most often, so the two most
+        //  worth getting right.
+        // ────────────────────────────────────────────────────────────────────
+
+        // 💬 Between tasks. Encouragement, mostly.
+        case .idle: [
+            "Let's build something awesome!",
+            "Now we're cooking with crisco 🍳",
+            "Hope you're ready to build",
+            "I'm hungry for something new!",
+            "Excited to see what you cook up",
+            "Ooo that's a spicy idea 🌶️",
+            "What are we making?",
+            "Mise en place, chef",
+            "Give me something hard",
+            "Say the word",
+            "Burner's on",
+        ]
+
         // 😴 Nothing running. Shown occasionally, not on every frame — a
         // sleeping pet that talks constantly is not asleep.
         case .sleeping: [
@@ -263,6 +292,21 @@ public enum Vocab {
             "Burners are cold",
         ]
 
+
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 👋  YOU TOUCHED HIM
+        //  Direct reactions to your hands: a long pet, a caught bug, and the hello
+        //  he says once on the first launch ever. These always get through, even
+        //  over a fact he is holding — the person did something and is owed a reply.
+        // ────────────────────────────────────────────────────────────────────
+
+        // 💛 Ten unbroken seconds of petting. He noticed.
+        case .longPet: [
+            "Best. Human. Ever 💛",
+            "Ten whole seconds 🥹",
+            "Okay YOU get a raise",
+        ]
+
         // 🐛 He caught the bug. The oldest joke in the trade, four ways.
         case .bugCaught: [
             "Bug fixed 🐛✅",
@@ -271,6 +315,22 @@ public enum Vocab {
             "Closed as completed",
             "Off-by-one, obviously",
             "Delicious 😋",
+        ]
+
+        // 👋 The first launch, ever — the one moment a new arrival has no idea
+        // what the thing on their desktop is. So every line NAMES him; a
+        // friendly noise that does not introduce him wastes the only
+        // introduction he gets.
+        //
+        // Kept comfortably under the ceiling rather than near it. These render
+        // beside a wave on a first impression, and an emoji costs about two
+        // columns, so there is no room here for the one-over that `knownLong`
+        // forgives elsewhere.
+        case .hello: [
+            "Hi, I'm Claw'd 🦀",
+            "👋 Hey, I'm Claw'd",
+            "Oh! Hi — I'm Claw'd 🦀",
+            "Hi — I'm your crab 🦀",
         ]
         }
     }

@@ -68,6 +68,9 @@ public enum FunFacts {
         switch category {
 
         // 💻 Computer science.
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 💻  COMPUTER SCIENCE
+        // ────────────────────────────────────────────────────────────────────
         case .computerScience: [
             // Harvard Mark II log, 9 Sept 1947; the moth is at the Smithsonian.
             // NOT "the first computer bug": "bug" was engineering slang decades
@@ -112,6 +115,9 @@ public enum FunFacts {
         ]
 
         // 🤖 AI, mostly its history — the part that will still be true later.
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🤖  AI
+        // ────────────────────────────────────────────────────────────────────
         case .ai: [
             // McCarthy coined it in the WRITTEN PROPOSAL, dated August 1955, for
             // the workshop held in 1956. The phrase predates the meeting.
@@ -158,6 +164,12 @@ public enum FunFacts {
         ]
 
         // 🧡 Claude and Anthropic. The riskiest pool — rule 4 especially.
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🧡  CLAUDE & ANTHROPIC
+        //  Needs THIRTY facts. It owns 60% of the mix, and the suite fails if any
+        //  category comes round sooner than every 50 draws — remove one without
+        //  replacing it and `poolsAreProportional` goes red.
+        // ────────────────────────────────────────────────────────────────────
         case .claude: [
             // Anthropic's own public description.
             "Anthropic is a public benefit corporation",
@@ -259,6 +271,9 @@ public enum FunFacts {
         // the pool: it appears whole and holds still for its fourteen seconds
         // instead of scrolling past. A line that outgrows the ceiling does not
         // belong here — it belongs in `computerScience`, which scrolls.
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 📗  COMPUTER SCIENCE 101
+        // ────────────────────────────────────────────────────────────────────
         case .compSci101: [
             // Hedged deliberately. Eight bits is a CONVENTION with live
             // exceptions, not a definition: 6- and 9-bit bytes were ordinary in
@@ -296,6 +311,9 @@ public enum FunFacts {
         ]
 
         // 🛠️ AI and prompt engineering. Papers, mostly — the durable class.
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🔧  AI ENGINEERING
+        // ────────────────────────────────────────────────────────────────────
         case .aiEngineering: [
             // Wei et al., "Chain-of-Thought Prompting Elicits Reasoning in
             // Large Language Models", 2022. "Arrived in", not "was invented
@@ -334,6 +352,9 @@ public enum FunFacts {
         // origin, its dating and its dictionary recognition — the only parts of
         // a practice this young that a compiled binary can still vouch for in
         // three years.
+        // ────────────────────────────────────────────────────────────────────
+        // MARK: 🎧  VIBE CODING
+        // ────────────────────────────────────────────────────────────────────
         case .vibeCoding: [
             // Karpathy's post, February 2025. The coinage is uncontested.
             "Andrej Karpathy coined 'vibe coding' in February 2025 ⚡",

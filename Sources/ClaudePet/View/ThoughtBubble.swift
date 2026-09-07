@@ -217,7 +217,21 @@ public struct ThoughtBubble: View {
     private var glyph: String {
         if style == .dots { return "" }        // the dots are the whole message
         if style == .marquee { return "▮" }
-        guard let tool else { return mood.style.glyph }
+        // 📜 A KNOWLEDGE CARD WEARS NO MOOD BADGE.
+        //
+        // The card already leaves the mood palette entirely — that ruling is
+        // three doc-comments up: "knowledge is a note, not a feeling, and
+        // green was reading as a mood while the content was a citation". The
+        // badge was the half of the mood that stayed behind, so a fact shown
+        // while the mood was `.done` opened with a ✓ and read as a
+        // notification that something had finished. The operator caught it on
+        // the facts after we had already fixed the same tick on the skate and
+        // surf lines; this is the same mistake in the one place it could
+        // still happen.
+        //
+        // A TOOL glyph still shows, because that is not the mood — it is what
+        // is happening right now, and it is true whatever he is saying.
+        guard let tool else { return knowledge ? "" : mood.style.glyph }
         return Self.glyph(forTool: tool)
     }
 
@@ -277,7 +291,10 @@ public struct ThoughtBubble: View {
                                    expiresAt: expiresAt, ink: foreground,
                                    room: Self.textWidth - slotReserve)
                 }
-                if mood == .nudging, style == .plain {
+                // …and not on a knowledge card either. Same ruling as the
+                // glyph above: the tick means "a plan is waiting for your
+                // verdict", and a fun fact is not waiting for anything.
+                if mood == .nudging, style == .plain, !knowledge {
                     // The plan is ready and he wants a verdict: a slow, eased
                     // pulse on the check, always present so the bubble never
                     // changes width, never brighter than the text it trails.
