@@ -23,6 +23,9 @@ scratch/
 build/marketing/
 
 # Operator-private docs and local Claude Code config — never tracked.
+# .anonymity-patterns holds the identity words scripts/anonymity-check.sh
+# greps for; tracking it would BE the leak.
+.anonymity-patterns
 docs/internal/
 /CLAUDE.md
 /AGENT.md

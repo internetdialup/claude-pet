@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
 
+# The token can read the repository and nothing else. The repository default
+# is already read-only; saying so here keeps it true if the default changes.
+permissions:
+  contents: read
+
+# One run per ref: a push while the previous run is still going cancels it,
+# so a hung test cannot pin two hosted macOS runners.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     # macos-15, not macos-14. The 14 image's default toolchain is Swift 5.10,
@@ -17,8 +28,19 @@ jobs:
     # different hat. The image default is the contract, and the step below makes
     # it visible so the next mismatch is legible from the first line of the log.
     runs-on: macos-15
+    # A sleep-based test that hangs would otherwise hold the runner for
+    # GitHub's six-hour default.
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a commit, not a tag: a tag can be moved. fetch-depth 0 because
+      # the anonymity gate reads authors over the whole history since the
+      # amnesty commit, not just the tip.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Anonymity gate (history, tree, media)
+        run: scripts/anonymity-check.sh --history --tree --media
 
       - name: Toolchain
         run: |
@@ -30,3 +52,12 @@ jobs:
 
       - name: Test
         run: swift test
+
+      # The configuration that actually ships: release, -gnone, built under
+      # /tmp and ad-hoc signed by run.sh. A green debug build says nothing about
+      # the binary that goes into the DMG.
+      - name: Release build (as shipped)
+        run: ./run.sh --no-launch
+
+      - name: Anonymity gate (bundle)
+        run: scripts/anonymity-check.sh --bundle build/ClaudePet.app
