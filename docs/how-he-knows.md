@@ -7,7 +7,7 @@ Claude Code already writes everything needed, and the pet only reads it:
 | `~/.claude/sessions/<pid>.json` | Live session registry. The filename is the PID, so liveness is `kill(pid,0)` **plus** a `procStart` match to guard PID reuse. |
 | `~/.claude/projects/<encoded-cwd>/<id>.jsonl` | The transcript. `tool_use` blocks give the running tool and its description; `thinking` blocks and `stop_reason` give the rest. Also the model and git branch. |
 | `~/.claude/tasks/<id>/*.json` | Todos. The in-progress item's `activeForm` is already phrased for a human, so it wins the bubble. |
-| Hooks (optional) | `PreToolUse` / `PostToolUse` / `Stop` / `Notification` for sub-100ms reactions, and the only way to see a permission prompt. |
+| Hooks (optional) | `PreToolUse` / `PostToolUse` / `Stop` / `Notification` for sub-100ms reactions, and the only way to see a permission prompt. Each event lands as one JSON file — the hook's whole payload, tool input and output included — in `~/.claude/claude-pet-events/`, read and deleted on the spot; files over 256 KB are deleted unread. |
 
 Filesystem watching is the ground truth, and hooks only make him faster. Hooks
 can't see sessions that started before they were installed, so the pet has to

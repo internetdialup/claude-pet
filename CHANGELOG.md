@@ -140,6 +140,47 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
   with the forehead V. The five vertical bars read as a pattern on a box.
 
+### Fixed
+
+- **The task feed no longer goes deaf.** The watcher that waits for a
+  session's task directory gave up after sixty seconds, and the first TodoWrite
+  usually comes later than that — so for most sessions the active task, the
+  progress glow and the cooking milestones silently never fired until a
+  relaunch. A path that has never appeared is now waited for as long as the
+  session lives; a file that vanished and never came back still stops.
+
+### Security
+
+- **An identity gate.** `scripts/anonymity-check.sh` checks git authors and
+  committers since the last web merge, tracked files, committed media and the
+  whole shipped bundle for anything that names a person or a build machine; CI
+  runs it on every push and the DMG script runs it before a single byte of
+  image is written. Thirty-seven older merge commits made with GitHub's web
+  Merge button carry the maintainer's former display name; they are on record
+  and not rewritten.
+- **The hook installer is testable, surgical and reversible.** The merge is a
+  pure function with tests against a temp directory; the dialog shows the
+  resulting JSON rather than prose; settings.json is written last and
+  atomically, refused if it changed underneath; slashes are no longer escaped;
+  a hook that shares a matcher group with ours is no longer removed with it;
+  backups are pruned to five; and "Remove Claude hooks…" takes it all back out.
+- **Bounded reads, everywhere.** Hook payload files over 256 KB are deleted
+  unread; the launch-time backlog drains off the main actor; subagent journals
+  that have not changed are counted from a memo, not re-parsed every two
+  seconds.
+- **He cannot be crashed by a percentage.** A usage cache carrying `1e300`
+  used to trap the process on the first idle status line; percentages are now
+  finite and 0–100 or not shown, and a cache with no timestamp is stale.
+- **Display text is sanitised.** Control and format characters — a bidi
+  override in a branch name, a zero-width joiner, a line separator — become
+  spaces before anything reaches the bubble, roster, menu or a notification,
+  and names are bounded.
+- **Your home directory never reaches the screen.** Commands, patterns and
+  working directories show `~` in the bubble, the tooltips and the installer's
+  dialogs.
+- **CI** pins its action to a commit, reads only, cancels superseded runs,
+  times out, and builds the release configuration that actually ships.
+
 ## [1.7.0] — 2026-09-02
 
 ### Added

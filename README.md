@@ -204,9 +204,13 @@ does with it. Specifics, so you can check them yourself.
 - **He never reads a transcript whole.** A bounded tail off the end. Measured on
   a 92 MB file: 21 events in 0.006s, 426 KB of memory.
 - **One writer, and you press it.** "Install Claude hooks…" is the only thing
-  that touches `settings.json`. It backs up first, merges without destroying
-  your existing hooks, preserves file permissions, and refuses rather than
-  resets if the file will not parse.
+  that touches `settings.json`. It shows you the exact `hooks` JSON it will
+  write, backs up first (the newest five are kept), merges without touching
+  your existing hooks, refuses rather than resets if the file will not parse,
+  and writes settings last, atomically. The hook itself drops each event's
+  payload — tool input and output included — as one small file the pet reads
+  and deletes on the spot; anything over 256 KB is deleted unread.
+  "Remove Claude hooks…" undoes all of it, backup first.
 - **Nothing leaves your machine**, because nothing can.
 
 ## 🔨 Build him yourself
