@@ -101,7 +101,7 @@ enum SizzleScript {
         .glyphs: "he knows what you're shipping",
         .cook: "when it cooks, he cooks",
         .finale: "and when a big one lands…",
-        .montage: "14 LOOKS",
+        .montage: "\(montageOrder.count) LOOKS",
         .duet: "summon a second",
     ]
 
@@ -113,7 +113,7 @@ enum SizzleScript {
         .glyphs: "HE SHIPS",
         .cook: "HE COOKS",
         .finale: "BIG ONE",
-        .montage: "14 LOOKS",
+        .montage: "\(montageOrder.count) LOOKS",
         .outro: "SHIP IT",
     ]
 

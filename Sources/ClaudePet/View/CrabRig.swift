@@ -564,19 +564,24 @@ public enum CrabRig {
         case .valentines:
             HolidayAmbience.drawHearts(&buffer, phase: pose.propPhase)
         case .easter:
-            // COSTUME ONLY, and said out loud rather than left to `default`.
-            // Easter dresses him — the ears are the whole event — and spring
-            // has no weather that reads at this size: petals are leaves in a
-            // different colour, and he already has leaves twice a year.
-            //
-            // Written as its own arm because falling through to `default` is
-            // indistinguishable from forgetting, and the next person adding a
-            // holiday needs to know which of those this was.
+            // No SKY weather — spring has none that reads at this size;
+            // petals are leaves in a different colour and he already has
+            // leaves twice a year. Easter's ambience is on the GROUND, below,
+            // with the pumpkins: an egg, a flower and grass at his flanks.
+            // Its own arm regardless, because falling through to `default` is
+            // indistinguishable from forgetting.
             break
         default:
             break
         }
-        if pose.holidayGround { HolidayAmbience.drawFloorPumpkins(&buffer) }
+        // Ground furniture, by season. `holidayGround` says whether the floor
+        // is dressed; the holiday says with what.
+        if pose.holidayGround {
+            switch pose.holiday {
+            case .easter: HolidayAmbience.drawEasterGround(&buffer)
+            default: HolidayAmbience.drawFloorPumpkins(&buffer)
+            }
+        }
         if let firework = pose.fireworkProgress {
             HolidayAmbience.drawFireworks(&buffer, progress: firework,
                                           cycle: pose.fireworkCycle)
@@ -1657,13 +1662,24 @@ public enum CrabRig {
         default: break
         }
         let rise = max(0, -dy)
-        let width = 20 - rise * 2
-        guard width >= 8 else { return }
-        // A SOLID line, at the operator's call: the checkerboard dots read
-        // as grit to a viewer, not softness. The ink's own translucency
-        // keeps it gentle live; in a GIF it collapses to a clean dark line,
-        // which is the look.
-        b.rect(16 + dx - width / 2, 25, width, 1, .shadow)
+        // TWO shadows, one under each pair of feet — the operator's sketch
+        // was `__.    __`. One line the width of his whole body read as a
+        // plinth he was standing on rather than as the ground he cast a
+        // shadow onto; the gap between his leg pairs is where daylight gets
+        // through, and drawing it is what puts his feet on a floor.
+        //
+        // Each segment spans its pair exactly at rest — `legX` puts the left
+        // pair at 7 and 11 and the right at 20 and 24, two cells wide each —
+        // and shrinks toward its own centre as he rises, so an airborne crab
+        // casts two shrinking pools rather than one shrinking bar. Solid,
+        // not dithered, for the reason the single line was: the checkerboard
+        // read as grit, and the ink's own translucency keeps it gentle live.
+        let span = 6 - rise
+        guard span >= 2 else { return }
+        for pairLeft in [legX[0], legX[2]] {
+            let centre = pairLeft + 3          // 7…12 centres on 9.5, so 9 or 10
+            b.rect(centre + dx - span / 2, 25, span, 1, .shadow)
+        }
     }
 
     /// 💨 Landing dust: two puffs racing outward from the feet, chunky at

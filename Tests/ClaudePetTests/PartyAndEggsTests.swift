@@ -197,9 +197,17 @@ struct SkyAndDeckTests {
         }
         let rate = Double(beanies + caps) / Double(n)
         let wantedHeadwear = SpawnRates.headwear
-        #expect(abs(rate - wantedHeadwear) < wantedHeadwear * 0.1,
-                "headwear rate \(rate), table says \(wantedHeadwear)")
-        #expect(beanies > 2_000 && caps > 2_000, "both cuts must actually occur")
+        if wantedHeadwear == 0 {
+            // The hats are OFF — being redrawn in Figma. While the rate is
+            // zero, nothing may appear, and the drawing code stays exercised
+            // by the render probe below so it is ready to come back.
+            #expect(beanies == 0 && caps == 0,
+                    "the table says no hats, but \(beanies) beanies and \(caps) caps appeared")
+        } else {
+            #expect(abs(rate - wantedHeadwear) < wantedHeadwear * 0.1,
+                    "headwear rate \(rate), table says \(wantedHeadwear)")
+            #expect(beanies > 2_000 && caps > 2_000, "both cuts must actually occur")
+        }
         #expect(CrabAnimator.skateHeadwear(cycle: 0) == .none, "cycle zero must stay bare")
         for t in stride(from: 0.0, through: 3.2, by: 0.4) {
             #expect(CrabAnimator.flourishPose(.ollie, at: t).headwear == .none)

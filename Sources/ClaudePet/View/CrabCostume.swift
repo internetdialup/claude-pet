@@ -196,18 +196,22 @@ struct CostumeStyle {
                 ],
                 yieldsCrownToProps: true, crownRows: 4)
         case .easterBunny:
-            // 🐰 EARS, and nothing else. Santa's rule: the shell stays his
-            // own terracotta.
+            // 🐰 A SUIT, not a hat. The operator's call: "recolor the entire
+            // character or wrap his face like he's wearing a bunny suit." So
+            // the shell goes off-white — the suit — and his own terracotta
+            // comes back as a costume ink, painted where the hood opens.
             //
-            // Keeping `.body` unset is the cheap and the safe choice at once.
-            // Cheap, because a respray must also set `.bodyShade` or the
-            // flank and the turn shade fall through to bare terracotta. Safe,
-            // because nothing but body inks may survive inside his outline on
-            // the face and chest rows when he turns edge-on — so a bunny bib
-            // would fail where ears above the crown cannot.
+            // The face patch is legal where a bib would not be. It lives on
+            // `.onBody`, which draws BEFORE `drawFace` — so the eyes and mouth
+            // land on top of it and the open-eye rule holds — and `yawPass`
+            // fades face-row paint out as he turns edge-on, which is how the
+            // Gundam's chest band has always passed the flank test.
             return CostumeStyle(
                 inks: [
-                    .costumeA: rgb(0xF4_F1EA),  // the ears, off-white
+                    .body: rgb(0xF4_F1EA),      // the suit, off-white
+                    .bodyShade: rgb(0xDD_D9CF), // one step under — every respray needs it
+                    .mouth: rgb(0x3D_3D3A),     // Arctic White's rule: a white mouth on white is no mouth
+                    .costumeA: rgb(0xCE_7B5C),  // his own face, Palette.body exactly
                     .costumeB: rgb(0xE8_9BB0),  // the inner ear, pink
                 ],
                 yieldsCrownToProps: true, crownRows: 5)
@@ -971,20 +975,33 @@ enum CrabCostume {
             }
 
         case .easterBunny:
-            guard layer == .front else { break }
             let crown = bodyY + dy + squash
-            // Two ears, standing. Six rows above the crown, which is what
-            // `crownRows` declares — a costume that paints higher than it
-            // declares gets caught by `crownRoomIsHonest`, and one that
-            // declares more than it paints wastes room every prop has to
-            // clear.
-            //
-            // Set slightly apart and each one cell wide at the base, two at
-            // the top: a straight two-wide column read as a rabbit only if
-            // you were told it was one, and the taper is what says ear.
+            if layer == .onBody {
+                // The hood's opening: his own face, showing through the suit.
+                // Rows 12–18 and two cells in from each flank, so the
+                // off-white frames it on every side — that frame is what
+                // reads as a hood rather than as a crab who is half painted.
+                // `drawFace` runs after this layer, so the eyes and the mouth
+                // are drawn onto the patch, not under it.
+                b.rect(bodyX + 3 + dx - squash, 12 + dy, bodyW - 6 + squash * 2, 7, .costumeA)
+                // Rounded at the corners: a hood is a circle, not a window.
+                for (cx, cy) in [(bodyX + 3 + dx - squash, 12 + dy),
+                                 (bodyX + bodyW - 4 + dx + squash, 12 + dy),
+                                 (bodyX + 3 + dx - squash, 18 + dy),
+                                 (bodyX + bodyW - 4 + dx + squash, 18 + dy)] {
+                    b.pixel(cx, cy, .body)
+                }
+                break
+            }
+            guard layer == .front else { break }
+            // Two ears, standing, in the SUIT's own ink now that the suit is
+            // white — five rows above the crown, which is what `crownRows`
+            // declares. Set slightly apart and leaning outward: a straight
+            // two-wide column read as a rabbit only if you were told it was
+            // one, and the taper is what says ear.
             for (base, lean) in [(12 + dx, -1), (19 + dx, 1)] {
-                b.rect(base, crown - 2, 2, 3, .costumeA)
-                b.rect(base + lean, crown - 5, 2, 3, .costumeA)
+                b.rect(base, crown - 2, 2, 3, .body)
+                b.rect(base + lean, crown - 5, 2, 3, .body)
                 // The inner ear, one cell shorter at both ends so the
                 // off-white always frames it.
                 b.pixel(base + (lean > 0 ? 0 : 1), crown - 1, .costumeB)

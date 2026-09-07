@@ -1201,7 +1201,9 @@ public enum CrabAnimator {
                 // 🎃 Halloween's floor pumpkins keep the same company —
                 // attention-owning ground furniture, so the telescope and
                 // the sun suppress them with everything else here.
-                pose.holidayGround = holiday == .halloween
+                // Halloween's pumpkins and Easter's egg both stand on the
+                // floor; which one is decided where the floor is drawn.
+                pose.holidayGround = holiday == .halloween || holiday == .easter
             }
 
             // 🎆 New Year's fireworks are weather-class sky content: dice on

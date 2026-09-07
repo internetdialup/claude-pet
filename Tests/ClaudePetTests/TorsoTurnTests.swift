@@ -673,4 +673,48 @@ struct TorsoTurnTests {
                 "his gaze should flip with the board: \(m.gazeX) against \(n.gazeX)")
     }
 
+
+    /// **The shadow is two pools, not a plinth.**
+    ///
+    /// One line the width of his body read as something he was standing ON;
+    /// the operator's sketch was `__.    __`. So the shadow is a pool under
+    /// each pair of feet with daylight between them, and it stays that way
+    /// as he rises — two shrinking pools, never one shrinking bar — until it
+    /// is gone at the apex.
+    @Test("The shadow is two pools under the feet, with daylight between")
+    func theShadowIsTwoPools() {
+        func shadowRuns(_ pose: CrabPose) -> [(Int, Int)] {
+            let b = CrabRig.render(pose)
+            var runs: [(Int, Int)] = [], start: Int? = nil
+            for x in 0...PixelBuffer.side {
+                let on = x < PixelBuffer.side && b[x, 25] == .shadow
+                if on, start == nil { start = x }
+                if !on, let s = start { runs.append((s, x - 1)); start = nil }
+            }
+            return runs
+        }
+        // Standing: exactly two runs, one under each leg pair, spanning them.
+        let standing = shadowRuns(CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false))
+        #expect(standing.count == 2, "standing he casts \(standing.count) shadow runs, not two")
+        if standing.count == 2 {
+            let (left, right) = (standing[0], standing[1])
+            #expect(left.0 <= CrabRig.legX[0] && left.1 >= CrabRig.legX[1] + 1,
+                    "the left pool \(left) does not cover the left feet")
+            #expect(right.0 <= CrabRig.legX[2] && right.1 >= CrabRig.legX[3] + 1,
+                    "the right pool \(right) does not cover the right feet")
+            #expect(right.0 - left.1 >= 4, "no daylight between the pools: \(left) and \(right)")
+        }
+        // Rising: still two, and each narrower than at rest — never merged.
+        var seenTwo = false
+        for step in 1...4 {
+            let pose = CrabAnimator.flourishPose(.jump, at: Double(step) * 0.06 * CrabAnimator.Flourish.jump.duration)
+            let runs = shadowRuns(pose)
+            guard !runs.isEmpty else { continue }
+            #expect(runs.count == 2, "airborne he casts \(runs.count) runs at step \(step)")
+            seenTwo = seenTwo || runs.count == 2
+            for r in runs { #expect(r.1 - r.0 + 1 <= 6, "a pool grew while he rose: \(r)") }
+        }
+        #expect(seenTwo, "no airborne frame showed the two pools")
+    }
+
 }

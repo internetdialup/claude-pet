@@ -9,6 +9,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **🗓 The calendar fills in.** Hearts rise through the air February 12–14,
+  fireworks light the sky July 2–4, and for Holy Week he wears a bunny suit
+  — off-white, his own face showing through the hood, pink-lined ears — with
+  an egg, a flower and grass at his feet. Easter is the one moveable feast,
+  so its date is worked out rather than looked up, and checked against the
+  published Sundays through 2038. Fifteen looks.
+- **🛹 The nose manual.** The wheelie's mirror: nose planted, tail in the
+  air, and hold. Seventeen idle moves.
 - **🛹 He's a skateboarder now.** Two new tricks — a held manual with the
   ground rushing under him, and a flat shove-it he watches spin beneath his
   own hop — plus, rarely, a whole session: several tricks and roll-aways
@@ -26,6 +34,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **The shadow is two pools, not a plinth.** One under each pair of feet,
+  with daylight between — the old single line read as something he was
+  standing on.
+- **The hats are off** while they're redrawn. No beanie or cap on any trick;
+  the plumbing stays so they drop straight back in.
+- **The bubble reads better.** Text centres, wraps to two lines at 38
+  columns so nothing he knows scrolls any more, types itself in with a soft
+  ramp, and a fact lingers three seconds longer before it goes. Facts wear no
+  mood badge — a citation isn't a checkmark. He shouts after about one landed
+  trick in seven, not every one, and never with a leading tick.
+- **A held fact finishes.** The thinking dots, and news, wait for it now
+  instead of taking the face mid-sentence.
 - **🌊 The surf set.** Rarely — about twice an hour of unbroken idle — a
   swell rolls through. The sea rises from below the frame, he paddles up the
   face on a pink board, crests it with a determined look, and settles as the

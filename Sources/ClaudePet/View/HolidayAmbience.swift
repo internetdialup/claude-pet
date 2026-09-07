@@ -110,6 +110,41 @@ enum HolidayAmbience {
         b.composite(scratch, visibility: 1, seed: 765, preservingExisting: true)
     }
 
+    /// 🥚 Easter's floor: an egg at his side, a flower, and tufts of grass.
+    ///
+    /// The pumpkins' arrangement, re-dressed for spring — ground furniture at
+    /// the two flanks, composited `preservingExisting` so it frames him and
+    /// never paints over him. The egg stands on the left where a pumpkin
+    /// would, a single flower on the right, and grass under both because a
+    /// lawn is what makes an egg an Easter egg rather than a breakfast.
+    ///
+    /// The egg is `.pink` with a `.paper` band — a pattern, because a plain
+    /// pink oval three cells wide is a stone.
+    static func drawEasterGround(_ b: inout PixelBuffer) {
+        var scratch = PixelBuffer()
+        // The egg, left flank.
+        scratch.stamp([
+            ".pp.",
+            "pwwp",
+            "pppp",
+            ".pp.",
+        ], at: (x: 1, y: 26), key: ["p": .pink, "w": .paper])
+        // The flower, right flank: a yellow face on a green stalk.
+        scratch.stamp([
+            ".y.",
+            "yyy",
+            ".g.",
+            ".g.",
+        ], at: (x: 27, y: 26), key: ["y": .yellow, "g": .green])
+        // Grass: blades either side, two heights so it reads as tufts and
+        // not as a fence.
+        for (x, tall) in [(0, false), (5, true), (6, false), (25, false), (30, true), (31, false)] {
+            scratch.pixel(x, 29, .green)
+            if tall { scratch.pixel(x, 28, .green) }
+        }
+        b.composite(scratch, visibility: 1, seed: 766, preservingExisting: true)
+    }
+
     /// A New Year's firework: a paper launch pixel climbing the sky, then
     /// six flecks radiating and dissolving under their own per-fleck seeds
     /// (746–751). The column and palette ride `noise(cycle &* 97 &+ 37)`, so

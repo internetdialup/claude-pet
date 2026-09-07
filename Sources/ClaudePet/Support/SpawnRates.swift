@@ -195,7 +195,11 @@ enum SpawnRates {
     static let goldenBoard = 0.05
     /// 🧢 Nearly a beat in two comes out in headwear — the low half of the
     /// band is the beanie, the upper half the cap.
-    static let headwear = 0.45
+    /// ZERO — the hats are off, at the operator's call. "I don't like them,
+    /// remove them"; they are being redrawn in Figma. The die and the drawing
+    /// both stay, so the Figma pass drops straight back in by raising this
+    /// number and swapping the art; nothing else has to be rebuilt.
+    static let headwear = 0.0
     /// 🦵 Half of his ollies are steezed, the back leg boned out.
     static let steeze = 0.50
 

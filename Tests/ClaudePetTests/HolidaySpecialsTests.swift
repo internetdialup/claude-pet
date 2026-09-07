@@ -128,4 +128,48 @@ struct HolidaySpecialsTests {
         let inks = CostumeStyle.of(.santa).inks
         #expect(inks[.body] == nil, "santa resprayed the shell")
     }
+
+    /// 🥚 Easter dresses the FLOOR — an egg, a flower and grass at his flanks
+    /// — and, like every piece of ambience, it frames him without ever
+    /// painting over him. `weatherIsPolite` sweeps the sky; the floor is set
+    /// by the animator rather than by `pose.holiday`, so it needs its own
+    /// sweep or a cell on his shell could be quietly repainted green.
+    @Test("Easter furnishes the floor, and never paints over him")
+    func easterFloorIsPolite() {
+        var appeared = false
+        for step in 0..<12 {
+            var pose = CrabAnimator.pose(mood: .idle, t: Double(step) * 0.7, flourishes: false)
+            let bare = CrabRig.render(pose)
+            pose.holiday = .easter
+            pose.holidayGround = true
+            let furnished = CrabRig.render(pose)
+            var added = 0
+            for y in 0..<PixelBuffer.side {
+                for x in 0..<PixelBuffer.side {
+                    if bare[x, y] != .clear {
+                        #expect(furnished[x, y] == bare[x, y],
+                                "Easter's floor painted over him at (\(x),\(y))")
+                    } else if furnished[x, y] != .clear {
+                        added += 1
+                    }
+                }
+            }
+            appeared = appeared || added > 0
+        }
+        #expect(appeared, "no egg, flower or grass appeared at all")
+        // …and it is Easter's furniture, not Halloween's: no pumpkin ember.
+        var pose = CrabAnimator.pose(mood: .idle, t: 0.9, flourishes: false)
+        pose.holiday = .easter; pose.holidayGround = true
+        let b = CrabRig.render(pose)
+        var ember = 0, pinkOrGreen = 0
+        for y in 26..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side {
+                if b[x, y] == .ember { ember += 1 }
+                if b[x, y] == .pink || b[x, y] == .green { pinkOrGreen += 1 }
+            }
+        }
+        #expect(ember == 0, "a pumpkin's ember showed up on Easter's floor")
+        #expect(pinkOrGreen > 0, "Easter's floor had no egg and no grass")
+    }
+
 }
