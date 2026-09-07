@@ -1209,11 +1209,22 @@ public final class ActivityCoordinator {
                 // the hold is already sized to one comfortable read, so there
                 // is nothing left for a second, shorter clock to mean.
                 // Whatever is on screen finishes.
+                // Tone-gated, and carrying the tone rather than asserting it
+                // — the last two places that still got this wrong.
+                //
+                // `tone = .knowledge` was hardcoded here while `heldLine` had
+                // long since started holding his own voice too, so a
+                // sleep-talk hold surviving into a waking mood would have
+                // come back wearing the knowledge card. And the shield
+                // itself should not spend itself on a mutter: news may take
+                // the face from his chatter, and may not take it from
+                // something you were reading. Same rule the dots now follow.
                 if let held = chatterCache[slot].heldLine,
+                   held.tone == .knowledge,
                    Self.factMoods.contains(mood), now < held.until {
                     bubble = held.text
                     style = held.style
-                    tone = .knowledge
+                    tone = held.tone
                     flair = held.flair
                     shielded = true
                 } else {
@@ -1377,6 +1388,23 @@ public final class ActivityCoordinator {
         line.count <= ThoughtBubble.plainCapacity ? .plain : .marquee
     }
 
+    /// Drop every held line, so the next recompute starts from nothing held.
+    ///
+    /// **A seam for tests, and deliberately an INSTANCE method.** A test that
+    /// needs to exercise a branch with no fact on the face has no other way
+    /// to say so: `heldLine` is private, every hold is floored at
+    /// `dwellFloor`, and whether the dice deal a fact at all is seeded off
+    /// the wall clock, so "wait for a quiet moment" is not repeatable.
+    ///
+    /// The first cut of this made `maxLineHold` a `var` and shrank it. That
+    /// worked and it was wrong: the cap is read by `LineHoldTests` in another
+    /// suite, suites run concurrently, and the result was a test that passed
+    /// alone, passed twice more, and failed in the full run. Per-instance
+    /// state cannot race another suite's coordinator.
+    func forgetHeldLines() {
+        for slot in chatterCache.indices { chatterCache[slot].heldLine = nil }
+    }
+
     /// The longest a single scrolling line may hold the bubble.
     ///
     /// Three read-throughs of the longest fact is thirty-five seconds, and a
@@ -1390,12 +1418,7 @@ public final class ActivityCoordinator {
     /// pool needs 37.8s for that. Forty exists to catch a future 90-character
     /// fact before it can own his face for a minute, and binds on nothing
     /// that ships today.
-    /// A `var` for the reason `readableGrace` is one: a test that needs to
-    /// exercise what happens with NO line held has no other way to say so —
-    /// `heldLine` is private and every hold is floored at `dwellFloor`.
-    /// Shrinking the cap to a millisecond is the honest way to ask for
-    /// "nothing is holding the face right now".
-    nonisolated(unsafe) static var maxLineHold: TimeInterval = 40
+    nonisolated static let maxLineHold: TimeInterval = 40
 
     /// How long a scrolling line stays up: **two whole cycles**.
     ///

@@ -563,23 +563,39 @@ struct MoodDecayTests {
                 "the fact came back wearing the wrong card")
     }
 
+    // WHY THERE IS NO SECOND TEST FOR THE IDLE PATH.
+    //
+    // The operator was watching a BARE IDLE pet when the dots took his fact,
+    // and this test surfaces its fact through a tool call, which is the
+    // `.working` branch. That looks like a coverage hole and is not one: the
+    // guard reads `chatterCache[slot].heldLine` and cares only about its
+    // `tone`, never about which branch dealt it. Both dealers build the same
+    // struct through the same call — `ActivityCoordinator.swift:1296`
+    // (idleChatter's fact-or-tip) and `:1626` (quietBeatFact) both pass
+    // `knowledge: true` and stamp `tone: .knowledge`.
+    //
+    // A test that drove the bare-idle path was written and thrown away. It
+    // could not deal a fact on demand: the chatter dice are seeded off
+    // `now.timeIntervalSince1970 / chatterSeedInterval`, so whether a fact
+    // appears depends on the wall-clock second the test happens to run in. It
+    // passed, then failed on a rerun seconds later for that reason alone. A
+    // test that passes on the clock is worse than no test, and the honest
+    // alternative — skipping when the dice miss — is a green test that
+    // checked nothing.
+
     @Test("Stale thinking dots retire long before the mood does")
     func staleDotsRetire() async throws {
         let stored = ActivityCoordinator.dotsQuietAfter
         ActivityCoordinator.dotsQuietAfter = 0.15
-        // …and no fact holding the face, which is a separate rule with its
-        // own test (`theDotsWaitForAFact`). A held fact now outranks the
-        // dots, so without this the coordinator's own opening deal decides
-        // whether this test is about dots at all.
-        let storedCap = ActivityCoordinator.maxLineHold
-        ActivityCoordinator.maxLineHold = 0.001
-        defer {
-            ActivityCoordinator.dotsQuietAfter = stored
-            ActivityCoordinator.maxLineHold = storedCap
-        }
+        defer { ActivityCoordinator.dotsQuietAfter = stored }
 
         let id = "s-dots"
         let coordinator = try quietCoordinator([id])
+        // Nothing holding the face — a held fact now outranks the dots, and
+        // that is a separate rule with its own test (`theDotsWaitForAFact`).
+        // Without this the coordinator's own opening deal decides whether
+        // this test is about dots at all, on a die seeded off the wall clock.
+        coordinator.forgetHeldLines()
         coordinator.ingest([ActivityEvent(sessionID: id, kind: .thinking)])
         #expect(coordinator.state.bubble == "…")
         #expect(coordinator.state.bubbleStyle == .dots)
