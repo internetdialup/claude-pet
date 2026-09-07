@@ -561,6 +561,8 @@ public enum CrabRig {
             HolidayAmbience.drawLeaves(&buffer, phase: pose.propPhase)
         case .winter where costume != .white && ghostCostume != .white:
             HolidayAmbience.drawSnow(&buffer, phase: pose.propPhase)
+        case .valentines:
+            HolidayAmbience.drawHearts(&buffer, phase: pose.propPhase)
         default:
             break
         }

@@ -17,6 +17,10 @@ import Foundation
 ///   tie-break. Jan 1 belongs to the PREVIOUS year's window.
 public enum Holiday: String, CaseIterable, Sendable {
     case halloween, thanksgiving, winter, newYear
+    // Appended — the two ambience-only dates. Neither dresses him: the world
+    // changes and he stays himself, which is the New Year's precedent
+    // (`costume` returns nil there too).
+    case valentines, independenceDay
 
     /// The window for this holiday anchored in `year` — half-open, from the
     /// first day's midnight to the midnight after the last day. All arithmetic
@@ -44,6 +48,17 @@ public enum Holiday: String, CaseIterable, Sendable {
         case .newYear:
             guard let start = day(12, 26), let last = day(1, 1, year + 1) else { return nil }
             return interval(start, last, calendar)
+        case .valentines:
+            // Three days, not one. A single-day window is invisible to anyone
+            // who does not happen to open their laptop on the day, and the
+            // run-up is the part people are actually in.
+            guard let start = day(2, 12), let last = day(2, 14) else { return nil }
+            return interval(start, last, calendar)
+        case .independenceDay:
+            // The 4th and the two days before it — the weekend it usually
+            // gets, without pretending to know which weekend that is.
+            guard let start = day(7, 2), let last = day(7, 4) else { return nil }
+            return interval(start, last, calendar)
         }
     }
 
@@ -70,13 +85,20 @@ public enum Holiday: String, CaseIterable, Sendable {
         return nil
     }
 
-    /// The season's wardrobe — nil for New Year, which is ambience only.
+    /// The season's wardrobe, or nil where the date is AMBIENCE ONLY.
+    ///
+    /// Three of these dress him and three change the world around him. The
+    /// split is deliberate: a costume is a character he becomes and there is
+    /// only so much room on a 32-cell crab, so a date earns one by being a
+    /// date people dress up for. Hearts in the air and fireworks over his
+    /// head say "it's the fourteenth" and "it's the fourth" without spending
+    /// a costume slot on either.
     public var costume: Costume? {
         switch self {
         case .halloween: .pumpkin
         case .thanksgiving: .turkey
         case .winter: .santa
-        case .newYear: nil
+        case .newYear, .valentines, .independenceDay: nil
         }
     }
 

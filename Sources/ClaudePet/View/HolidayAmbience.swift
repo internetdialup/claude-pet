@@ -21,6 +21,64 @@ enum HolidayAmbience {
         }
     }
 
+    /// 💗 Valentine's hearts, RISING — the snow's arithmetic turned upside
+    /// down.
+    ///
+    /// Snow and leaves fall, so their `y` grows with the phase; hearts go the
+    /// other way, because a heart that sinks is a different feeling entirely.
+    /// Same five-column spread, same clear-cell mask, same no-dice rule:
+    /// weather does not take turns.
+    ///
+    /// Two sizes, by column parity. A one-cell heart is a dot, and a field of
+    /// dots is static; the three-cell one gives the eye something to read as
+    /// a shape, and mixing them keeps the field from looking like a grid.
+    static func drawHearts(_ b: inout PixelBuffer, phase: Double) {
+        for (index, pair) in [(3, 0.5), (10, 0.72), (16, 0.44), (23, 0.63), (29, 0.85)].enumerated() {
+            let (column, speed) = pair
+            let side = Double(PixelBuffer.side)
+            // RISING: subtract, so the field climbs out of the floor.
+            let climb = (side - (phase * speed * 4 + Double(column * 5))
+                .truncatingRemainder(dividingBy: side))
+            let sway = Int(sin(phase * 0.6 + Double(column)) * 1.6)
+            let x = column + sway, y = Int(climb)
+            guard x >= 2, x < PixelBuffer.side - 2, y >= 1, y < PixelBuffer.side else { continue }
+            let ink: PixelBuffer.Ink = index % 2 == 0 ? .alert : .pink
+            if index % 2 == 0 {
+                // The small one: a single cell, for the far-away hearts.
+                guard b[x, y] == .clear else { continue }
+                b.pixel(x, y, ink)
+            } else {
+                // The near one, FIVE wide rather than three.
+                //
+                // The first cut reused the idle heart's opening shape —
+                // `r.r / rrr / .r.` — on the reasoning that the shapes in
+                // this app should agree with each other. Rendered and zoomed,
+                // it reads as antlers: at three cells the notch between the
+                // lobes is a third of the width and dominates. The idle heart
+                // gets away with it because it is one cell of a sequence that
+                // grows into the full seven-wide heart a beat later, and
+                // because it sits against his shell rather than alone in the
+                // sky. Five cells is the smallest that unambiguously reads as
+                // a heart standing on its own.
+                let rows = [
+                    [-1, 1],
+                    [-2, -1, 0, 1, 2],
+                    [-1, 0, 1],
+                    [0],
+                ]
+                for (row, offsets) in rows.enumerated() {
+                    for dx in offsets {
+                        let px = x + dx, py = y + row - 1
+                        guard px >= 0, px < PixelBuffer.side,
+                              py >= 0, py < PixelBuffer.side,
+                              b[px, py] == .clear else { continue }
+                        b.pixel(px, py, ink)
+                    }
+                }
+            }
+        }
+    }
+
     /// Autumn leaves for both fall windows: the snow's arithmetic slowed
     /// down and swayed wider — leaves drift, they do not fall — in ember and
     /// gold by column parity. No dice: weather does not take turns.

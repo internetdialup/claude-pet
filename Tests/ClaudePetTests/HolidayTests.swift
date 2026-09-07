@@ -121,4 +121,41 @@ struct HolidayTests {
                                          alreadyGreeted: false, calendar: calendar)
                 == HolidayWardrobe.Verdict())
     }
+
+    /// 💗🎆 The two AMBIENCE-only dates. Neither dresses him — the world
+    /// changes and he stays himself, which is what New Year has always done.
+    @Test func ambienceDatesDressNobody() {
+        for holiday in [Holiday.valentines, .independenceDay, .newYear] {
+            #expect(holiday.costume == nil,
+                    "\(holiday) should be ambience only, not a costume")
+        }
+        // …and the three that DO dress him still do.
+        #expect(Holiday.halloween.costume == .pumpkin)
+        #expect(Holiday.winter.costume == .santa)
+        #expect(Holiday.thanksgiving.costume == .turkey)
+    }
+
+    /// Their windows land where they should, and — the part worth pinning —
+    /// the day AFTER each is quiet again. A window that never closes is the
+    /// failure nobody notices until February is over.
+    @Test func theNewWindowsOpenAndClose() {
+        for year in [2026, 2027, 2028] {
+            #expect(Holiday.current(on: day(year, 2, 14), calendar: calendar) == .valentines,
+                    "the fourteenth of February \(year) was not Valentine's")
+            #expect(Holiday.current(on: day(year, 2, 12), calendar: calendar) == .valentines,
+                    "the run-up should be in the window")
+            #expect(Holiday.current(on: day(year, 2, 15), calendar: calendar) == nil,
+                    "Valentine's ran past the fourteenth in \(year)")
+            #expect(Holiday.current(on: day(year, 2, 11), calendar: calendar) == nil,
+                    "Valentine's opened too early in \(year)")
+
+            #expect(Holiday.current(on: day(year, 7, 4), calendar: calendar) == .independenceDay,
+                    "the fourth of July \(year) was not the fourth")
+            #expect(Holiday.current(on: day(year, 7, 2), calendar: calendar) == .independenceDay)
+            #expect(Holiday.current(on: day(year, 7, 5), calendar: calendar) == nil,
+                    "the fourth ran long in \(year)")
+            #expect(Holiday.current(on: day(year, 7, 1), calendar: calendar) == nil)
+        }
+    }
+
 }

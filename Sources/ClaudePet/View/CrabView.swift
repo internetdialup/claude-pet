@@ -1207,7 +1207,11 @@ public enum CrabAnimator {
             // 🎆 New Year's fireworks are weather-class sky content: dice on
             // `97 &+ 3` (the costume-effect family's shared cycle>0 sentinel
             // via `effectWindow`), colour and column on `97 &+ 37`.
-            if holiday == .newYear,
+            // 🎆 …and the FOURTH gets the same sky. Reused rather than
+            // rebuilt: a firework is a firework, the colour already
+            // varies by cycle, and a second implementation would only
+            // be this one with different bugs.
+            if holiday == .newYear || holiday == .independenceDay,
                let flight = CrabCostume.effectWindow(at: t, SpawnRates.fireworks) {
                 pose.fireworkProgress = flight
                 pose.fireworkCycle = Int(floor(t / 13))
@@ -1422,7 +1426,11 @@ public enum CrabAnimator {
             // 🎆 New Year's fireworks light a sleeping sky too — he sleeps
             // through them, which is its own joke. Same dice as the idle
             // branch's.
-            if holiday == .newYear,
+            // 🎆 …and the FOURTH gets the same sky. Reused rather than
+            // rebuilt: a firework is a firework, the colour already
+            // varies by cycle, and a second implementation would only
+            // be this one with different bugs.
+            if holiday == .newYear || holiday == .independenceDay,
                let flight = CrabCostume.effectWindow(at: t, SpawnRates.fireworks) {
                 pose.fireworkProgress = flight
                 pose.fireworkCycle = Int(floor(t / 13))
