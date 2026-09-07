@@ -80,7 +80,7 @@ enum SizzleScript {
     /// loop seam is a mood-only cut.
     static let montageOrder: [Costume] =
         [.ninja, .retroBlack, .matrix, .tiger, .white, .gundam, .sonic, .frankenstein,
-         .arcade, .pumpkin, .turkey, .santa, .skater, .none]
+         .arcade, .pumpkin, .turkey, .santa, .easterBunny, .skater, .none]
 
     /// The glyph chapter shows every service, one eased beat each.
     static let glyphBeats: [(glyph: ServiceGlyph, bubble: String)] = [

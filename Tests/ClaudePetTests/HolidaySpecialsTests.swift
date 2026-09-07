@@ -79,10 +79,17 @@ struct HolidaySpecialsTests {
         #expect(cells(furnished).count > cells(bare).count, "no pumpkin appeared at all")
     }
 
-    /// Weather writes only empty sky: leaves and snow both.
+    /// Weather writes only empty sky — and this now sweeps `allCases` rather
+    /// than a hand-written pair.
+    ///
+    /// It listed halloween and winter. A holiday added afterwards got no
+    /// check at all and the suite stayed green, which is the one contract
+    /// `HolidayAmbience` exists to keep — its own header promises every cell
+    /// is clear-masked so ambience frames him and never paints over him. A
+    /// sweep cannot be forgotten; a literal list already had been.
     @Test("Weather only fills clear cells")
     func weatherIsPolite() {
-        for holiday in [Holiday.halloween, .winter] {
+        for holiday in Holiday.allCases {
             for step in 1..<24 {
                 let t = Double(step) * 0.7
                 var pose = CrabAnimator.pose(mood: .idle, t: t, flourishes: false)

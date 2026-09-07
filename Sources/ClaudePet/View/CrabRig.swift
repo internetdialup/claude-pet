@@ -563,6 +563,16 @@ public enum CrabRig {
             HolidayAmbience.drawSnow(&buffer, phase: pose.propPhase)
         case .valentines:
             HolidayAmbience.drawHearts(&buffer, phase: pose.propPhase)
+        case .easter:
+            // COSTUME ONLY, and said out loud rather than left to `default`.
+            // Easter dresses him — the ears are the whole event — and spring
+            // has no weather that reads at this size: petals are leaves in a
+            // different colour, and he already has leaves twice a year.
+            //
+            // Written as its own arm because falling through to `default` is
+            // indistinguishable from forgetting, and the next person adding a
+            // holiday needs to know which of those this was.
+            break
         default:
             break
         }

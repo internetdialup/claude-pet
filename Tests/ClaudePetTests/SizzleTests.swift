@@ -20,7 +20,12 @@ struct SizzleScriptTests {
         // a 45 total is the operator's call, not this pin's.
         let total = SizzleScript.Chapter.allCases
             .reduce(0.0) { $0 + (SizzleScript.masterSeconds[$1] ?? 0) }
-        #expect(total == 49.0)
+        // FIFTY since the Easter bunny joined. The montage is
+        // `montageOrder.count` seconds by construction, so every look costs
+        // the master exactly one second — the holiday round took it to 49 and
+        // this takes it to 50. Re-balancing other chapters back down is the
+        // operator's call, not this pin's.
+        #expect(total == 50.0)
         #expect(SizzleScript.masterSeconds.count == SizzleScript.Chapter.allCases.count,
                 "every chapter must have a master duration")
     }

@@ -585,6 +585,10 @@ enum SizzleRenderer {
         // closer is CALM on purpose: it is the loop seam, and the reel wraps
         // back to a resting crab.
         (.nudging, 0.6), (.done, 0.7), (.idle, 2.2),
+        // The bunny between santa and the skater, matching `montageOrder`.
+        // A calm idle: the ears are the whole joke and they read best on a
+        // still crab rather than through a pose.
+        (.idle, 1.4),
         // The skater rides his own beat before the Classic closer.
         (.working, SizzleScript.workBase + 3.0),
         (.idle, 1.0),

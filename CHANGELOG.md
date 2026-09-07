@@ -13,8 +13,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   ground rushing under him, and a flat shove-it he watches spin beneath his
   own hop — plus, rarely, a whole session: several tricks and roll-aways
   strung into one long ride. And a Skater fit in the costume menu, with a
-  kick-push of dust when the mood takes him. Sixteen idle moves,
-  twenty-five props, fourteen looks.
+  kick-push of dust when the mood takes him. Seventeen idle moves,
+  twenty-six props, fifteen looks.
 - **🦵 The steezed ollie.** About one ollie in three, his back leg kicks
   out through the float — foot slid three cells wide, knee bent — and tucks
   back before the stomp. A die on the desk; the README's ollie stays clean

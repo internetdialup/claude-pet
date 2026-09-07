@@ -546,6 +546,11 @@ public enum Vocab {
         case .arcade:       ["HIGH SCORE 🕹", "Insert coin 🪙", "Player one landed"]
         case .matrix:       ["There is no board 🕶", "git commit -m 'landed'", "Follow the rabbit 💻"]
         case .retroBlack:   ["Matte finish 🖤", "All black everything", "Stealth mode 🛹"]
+        case .easterBunny: [
+            "Hoppy Easter 🐰",
+            "Egg-cellent landing 🥚",
+            "All ears 🐰",
+        ]
         case .skater:       ["That's a make ✅", "Filmer got it 🎥", "Run it back 🛹"]
         case .santa:        ["Ho ho holy 🎅", "Sleigh it 🛷", "On the nice list 🎁"]
         case .pumpkin:      ["Spooky sponsored 🎃", "Gourd landing 🎃"]

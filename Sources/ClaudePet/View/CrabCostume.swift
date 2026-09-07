@@ -195,6 +195,22 @@ struct CostumeStyle {
                     .costumeB: rgb(0xF2_EFE4),  // trim, pom, fringe
                 ],
                 yieldsCrownToProps: true, crownRows: 4)
+        case .easterBunny:
+            // 🐰 EARS, and nothing else. Santa's rule: the shell stays his
+            // own terracotta.
+            //
+            // Keeping `.body` unset is the cheap and the safe choice at once.
+            // Cheap, because a respray must also set `.bodyShade` or the
+            // flank and the turn shade fall through to bare terracotta. Safe,
+            // because nothing but body inks may survive inside his outline on
+            // the face and chest rows when he turns edge-on — so a bunny bib
+            // would fail where ears above the crown cannot.
+            return CostumeStyle(
+                inks: [
+                    .costumeA: rgb(0xF4_F1EA),  // the ears, off-white
+                    .costumeB: rgb(0xE8_9BB0),  // the inner ear, pink
+                ],
+                yieldsCrownToProps: true, crownRows: 5)
         case .skater:
             // 🛹 Fourth pass, and a rethink rather than a retouch. The
             // operator's read of the old one was exact — "like we put pants
@@ -952,6 +968,27 @@ enum CrabCostume {
                         b.pixel(cell.0 + dx, cell.1 + dy, .paper)
                     }
                 }
+            }
+
+        case .easterBunny:
+            guard layer == .front else { break }
+            let crown = bodyY + dy + squash
+            // Two ears, standing. Six rows above the crown, which is what
+            // `crownRows` declares — a costume that paints higher than it
+            // declares gets caught by `crownRoomIsHonest`, and one that
+            // declares more than it paints wastes room every prop has to
+            // clear.
+            //
+            // Set slightly apart and each one cell wide at the base, two at
+            // the top: a straight two-wide column read as a rabbit only if
+            // you were told it was one, and the taper is what says ear.
+            for (base, lean) in [(12 + dx, -1), (19 + dx, 1)] {
+                b.rect(base, crown - 2, 2, 3, .costumeA)
+                b.rect(base + lean, crown - 5, 2, 3, .costumeA)
+                // The inner ear, one cell shorter at both ends so the
+                // off-white always frames it.
+                b.pixel(base + (lean > 0 ? 0 : 1), crown - 1, .costumeB)
+                b.pixel(base + lean + (lean > 0 ? 0 : 1), crown - 4, .costumeB)
             }
 
         case .skater:

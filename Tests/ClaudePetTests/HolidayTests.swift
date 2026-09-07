@@ -18,6 +18,26 @@ struct HolidayTests {
         calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
     }
 
+    /// Easter Sundays, WRITTEN DOWN rather than computed.
+    ///
+    /// A test that re-implements the computus proves only that two copies of
+    /// the same idea agree. These are the published dates; if the algorithm
+    /// drifts, these do not drift with it.
+    private static let easterSundays: [Int: (Int, Int)] = [
+        2024: (3, 31), 2025: (4, 20), 2026: (4, 5), 2027: (3, 28),
+        2028: (4, 16), 2029: (4, 1), 2030: (4, 21), 2031: (4, 13),
+        2032: (3, 28), 2035: (3, 25), 2038: (4, 25),
+    ]
+
+    private func easterSunday(_ year: Int) -> Date {
+        let (month, dayOfMonth) = Self.easterSundays[year]!
+        return day(year, month, dayOfMonth)
+    }
+
+    private func easterStart(_ year: Int) -> Date {
+        calendar.date(byAdding: .day, value: -6, to: easterSunday(year))!
+    }
+
     /// Day-before / first-day / last-day / day-after, per holiday, across the
     /// years — Thanksgiving from its own anchor table, computed nowhere else.
     @Test func windowBoundaries() {
@@ -31,6 +51,9 @@ struct HolidayTests {
                 (.thanksgiving, day(year, 11, anchor - 13), day(year, 11, anchor)),
                 (.winter, day(year, 12, 11), day(year, 12, 25)),
                 (.newYear, day(year, 12, 26), day(year + 1, 1, 1)),
+                (.valentines, day(year, 2, 12), day(year, 2, 14)),
+                (.independenceDay, day(year, 7, 2), day(year, 7, 4)),
+                (.easter, easterStart(year), easterSunday(year)),
             ]
             for (holiday, first, last) in table {
                 let before = calendar.date(byAdding: .day, value: -1, to: first)!
@@ -156,6 +179,42 @@ struct HolidayTests {
                     "the fourth ran long in \(year)")
             #expect(Holiday.current(on: day(year, 7, 1), calendar: calendar) == nil)
         }
+    }
+
+
+    /// 🐰 The one MOVEABLE feast, pinned against dates nobody computed.
+    ///
+    /// Every other window here is a literal month and day. Easter is
+    /// arithmetic, so it gets the arithmetic's own test: the published
+    /// Sundays, including 2038's April 25 — the latest Easter can ever fall —
+    /// and 2035's March 25 near the other end.
+    @Test func easterLandsOnItsRealSundays() {
+        for (year, expected) in Self.easterSundays.sorted(by: { $0.key < $1.key }) {
+            let computed = Holiday.easterSunday(in: year)
+            #expect(computed?.month == expected.0 && computed?.day == expected.1,
+                    "Easter \(year): computed \(computed.map { "\($0.month)/\($0.day)" } ?? "nil"), published \(expected.0)/\(expected.1)")
+        }
+        // Before the Gregorian reform the algorithm has nothing to say, and
+        // says so rather than answering confidently.
+        #expect(Holiday.easterSunday(in: 1582) == nil)
+    }
+
+    /// Holy Week runs Palm Sunday to Easter Sunday, and closes after it.
+    @Test func theEasterWindowIsHolyWeek() {
+        for year in [2026, 2027, 2028] {
+            let sunday = easterSunday(year)
+            #expect(Holiday.current(on: sunday, calendar: calendar) == .easter,
+                    "Easter Sunday \(year) was not in the window")
+            #expect(Holiday.current(on: easterStart(year), calendar: calendar) == .easter,
+                    "Palm Sunday \(year) was not in the window")
+            let after = calendar.date(byAdding: .day, value: 1, to: sunday)!
+            #expect(Holiday.current(on: after, calendar: calendar) == nil,
+                    "the Easter window ran past Sunday in \(year)")
+            let before = calendar.date(byAdding: .day, value: -7, to: sunday)!
+            #expect(Holiday.current(on: before, calendar: calendar) == nil,
+                    "the Easter window opened too early in \(year)")
+        }
+        #expect(Holiday.easter.costume == .easterBunny)
     }
 
 }

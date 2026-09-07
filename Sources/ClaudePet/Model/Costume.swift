@@ -39,6 +39,13 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
     case santa
     // Appended: the skater fit — evergreen, unlike the three above it.
     case skater
+    // Appended: the Easter bunny, seasonal again. LAST, and it must stay
+    // last: the costume-change dissolve deals its pixel order from
+    // `allCases.firstIndex(of:)`, so inserting anywhere above here silently
+    // re-deals the dissolve for every case below it — no build error, no
+    // failing test, just different pixels in every mid-change frame,
+    // committed media included.
+    case easterBunny
 
     /// The menu label.
     public var title: String {
@@ -59,6 +66,7 @@ public enum Costume: String, Sendable, CaseIterable, Codable {
         case .turkey: "🦃 Turkey"
         case .santa: "🎅 Santa"
         case .skater: "🛹 Skater"
+        case .easterBunny: "🐰 Easter Bunny"
         }
     }
 }
