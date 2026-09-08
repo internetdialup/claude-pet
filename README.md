@@ -107,7 +107,8 @@ long enough to read.</em></p>
 once per hover so it holds while you stay. He stirs even when asleep.
 
 **Click him** and he squashes down, then the roster opens. **Press and hold** to
-pet him and hearts rise. **Poke him three times quickly** for something else. 🎉🪄
+pet him and hearts rise. **Poke him three times quickly** for something else 🎉🪄 —
+and dressed as the Skater, three pokes start the combo instead.
 
 **Drag him** anywhere, including onto a second display — he remembers where.
 

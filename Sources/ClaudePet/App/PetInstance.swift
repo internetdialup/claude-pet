@@ -84,10 +84,15 @@ final class PetInstance {
     /// per the house's own doctrine: dice are for the things that happen TO
     /// you; feeding him is something you DO, and a deliberate snack attempt
     /// answered by a roster panel would punish the one interaction sought.
-    enum ClickAction: Equatable { case party, snack, pokeThenRoster }
+    /// …and dressed as the Skater, three pokes start the COMBO instead of the
+    /// party — a costume that changes what he does is a character, and his
+    /// "click on him a lot" reward is a ride, not confetti. Every other look
+    /// keeps the party.
+    enum ClickAction: Equatable { case party, combo, snack, pokeThenRoster }
     nonisolated static func clickAction(verdict: Int, mood: PetMood,
-                                        onBody: Bool, snackBusy: Bool) -> ClickAction {
-        if verdict >= 3 { return .party }
+                                        onBody: Bool, snackBusy: Bool,
+                                        costume: Costume = .none) -> ClickAction {
+        if verdict >= 3 { return costume == .skater ? .combo : .party }
         if verdict == 2, mood == .idle, onBody, !snackBusy { return .snack }
         return .pokeThenRoster
     }
@@ -366,7 +371,7 @@ final class PetInstance {
                     // Three pokes since the wake began: he is up, and the
                     // party he owes them starts on his first waking breath.
                     if self.pokeTimes.filter({ $0 >= wokenAt }).count >= 3 {
-                        self.startParty()
+                        self.throwParty()
                     }
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.rudeWakeDuration + 0.1) { [weak self] in
@@ -423,7 +428,22 @@ final class PetInstance {
                 .map { CrabHitMask.body[$0.x, $0.y] } ?? false
             switch Self.clickAction(verdict: verdict, mood: self.model.state.mood,
                                     onBody: onBody,
-                                    snackBusy: self.model.snackStartedAt != nil) {
+                                    snackBusy: self.model.snackStartedAt != nil,
+                                    costume: self.model.costume) {
+            case .combo:
+                // 🎉🛹 The Skater's party is a ride. Same squeal, same reset
+                // of the train, same click latch; the rainbow comes from the
+                // score on his shell rather than the rays.
+                SoundBank.play(.squeal(step: 3))
+                self.startCombo()
+                self.pokeTimes.removeAll()
+                let clickedAt = Date()
+                self.model.clickedAt = clickedAt
+                DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.clickDuration + 0.1) { [weak self] in
+                    guard let self, self.model.clickedAt == clickedAt else { return }
+                    self.model.clickedAt = nil
+                }
+
             case .party:
                 // 🎉🪄 The squeal tops out, the rainbow latches, and the
                 // roster stays shut — a party is not a roster request. The
@@ -769,11 +789,7 @@ final class PetInstance {
                 self.armComboLine()
                 return
             }
-            let count = CrabAnimator.skateSessionBeats.count
-            self.say(self.comboCursor.advance(Vocab.lines(for: .combo), id: "combo")
-                        .map { "×\(count) " + $0 },
-                     or: "×\(count) 🏆", for: PetInstance.skateLineSeconds,
-                     mood: .idle)
+            self.sayTally()
             self.armComboLine()          // and the next ride
         }
     }
@@ -855,6 +871,38 @@ final class PetInstance {
             guard let self, self.model.rainbowStartedAt == started else { return }
             self.model.rainbowStartedAt = nil
         }
+    }
+
+    /// Whichever three pokes earn in the current look: the ride for the
+    /// Skater, the party for everyone else. The sleeper's deferred payoff
+    /// asks here so it agrees with the awake ladder.
+    private func throwParty() {
+        if model.costume == .skater { startCombo() } else { startParty() }
+    }
+
+    /// 🎉🛹 The poked combo ride: latched like the party, for the session's
+    /// full length, with the tally booked for the settle. The scheduled ride's
+    /// own tally, if one happens to overlap, is dropped by `shouldSpeak` —
+    /// whatever is on screen finishes.
+    private func startCombo() {
+        let started = Date()
+        model.comboStartedAt = started
+        DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.skateSessionLength) { [weak self] in
+            guard let self, self.model.comboStartedAt == started else { return }
+            self.model.comboStartedAt = nil
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + CrabAnimator.skateSessionTricksLength) { [weak self] in
+            guard let self, self.model.comboStartedAt == started else { return }
+            self.sayTally()
+        }
+    }
+
+    /// The tally line, "×5 " and a `.combo` line — one door for the scheduled
+    /// ride and the poked one.
+    private func sayTally() {
+        let count = CrabAnimator.skateSessionBeats.count
+        say(comboCursor.advance(Vocab.lines(for: .combo), id: "combo").map { "×\(count) " + $0 },
+            or: "×\(count) 🏆", for: PetInstance.skateLineSeconds, mood: .idle)
     }
 
     /// Meet the next skate beat at the moment it lands.

@@ -15,10 +15,10 @@ struct BackSmithTests {
     }
     private func ledgeCells(_ buffer: PixelBuffer) -> [(x: Int, y: Int)] {
         var cells: [(Int, Int)] = []
-        // The ledge's own rows only: a steel top at 26, slate below. (The
+        // The ledge's own rows only: a steel top at 25, slate below. (The
         // landing dust is steel too, two rows above the feet.)
-        for y in 26...28 {
-            for x in 0..<PixelBuffer.side where (y == 26 && buffer[x, y] == .steel) || (y > 26 && buffer[x, y] == .slate) {
+        for y in 25...28 {
+            for x in 0..<PixelBuffer.side where (y == 25 && buffer[x, y] == .steel) || (y > 25 && buffer[x, y] == .slate) {
                 cells.append((x, y))
             }
         }
@@ -27,10 +27,15 @@ struct BackSmithTests {
 
     @Test("The ledge is off the grid at both ends of the trick")
     func theLedgeBookendsAreClean() {
-        for p in [0.0, 0.005, 0.999] {
+        for p in [0.0, 0.005] {
             let pose = frame(p)
             #expect(pose.ledge < 0.01, "ledge \(pose.ledge) at p=\(p)")
             #expect(ledgeCells(CrabRig.render(pose)).isEmpty, "ledge cells on the grid at p=\(p)")
+        }
+        // …and gone off the RIGHT before the stomp lands, so he never comes
+        // down on half a ledge.
+        for p in [0.90, 0.95, 0.999] {
+            #expect(ledgeCells(CrabRig.render(frame(p))).isEmpty, "ledge still on the grid at p=\(p)")
         }
         // The frozen sentinel, by the trick: frame 0 is a crab on a flat board.
         let zero = frame(0)
@@ -42,7 +47,9 @@ struct BackSmithTests {
         var previous = frame(0)
         var t = 0.0
         var jumps: [(Double, Int)] = []
-        while t < duration {
+        // Inside the trick only: at t == duration the flourish is over and
+        // every channel is at rest, which is a different frame, not a jump.
+        while t < duration - 1.0 / 30 - 1e-9 {
             t += 1.0 / 30
             let pose = frame(min(1, t / duration))
             let step = abs(pose.bob - previous.bob)
@@ -51,10 +58,12 @@ struct BackSmithTests {
             // exemption; everywhere else a row a frame.
             let stomp = (p > 0.13 && p < 0.17) || (p > 0.88 && p < 0.92)
             if step > 1 && !stomp { jumps.append((p, step)) }
-            // smoothstep's steepest slope is 1.5; the exit (0.20 of the trick)
-            // is the faster of the two envelopes.
-            #expect(abs(pose.ledge - previous.ledge) <= 1.5 / (0.20 * duration) / 30 + 1e-6,
-                    "the ledge jumped at p=\(p)")
+            // The travel never retreats (left to right, the operator's
+            // direction) and its fastest leg — the exit, 26 of 46 cells over
+            // 0.14 of the trick at smoothstep's 1.5 peak — is under three
+            // cells a frame.
+            #expect(pose.ledge >= previous.ledge - 1e-9, "the ledge retreated at p=\(p)")
+            #expect((pose.ledge - previous.ledge) * 46 <= 3 + 1e-6, "the ledge leapt at p=\(p)")
             previous = pose
         }
         #expect(jumps.isEmpty, "bob jumped: \(jumps)")
@@ -81,40 +90,48 @@ struct BackSmithTests {
         // The tail wheel's bottom row is the row above the ledge's top.
         let wheelBottom = (0..<PixelBuffer.side).last { buffer[11, $0] == .yellow }
         let ledgeTop = (0..<PixelBuffer.side).first { buffer[5, $0] == .steel }
-        #expect(wheelBottom == 25 && ledgeTop == 26,
+        #expect(wheelBottom == 24 && ledgeTop == 25,
                 "wheel bottom \(String(describing: wheelBottom)), ledge top \(String(describing: ledgeTop))")
-        // The ledge is fully in: its edge stands at column 13 (the spark may be
-        // sitting on that very cell), and nothing at 14.
-        let edgeCell = buffer[13, 26]
-        let fullyIn = (edgeCell == .steel || edgeCell == .flameCore) && buffer[12, 26] == .steel
-            && buffer[14, 26] != .steel && buffer[0, 27] == .slate
-        #expect(fullyIn, "the ledge is not standing at column 13")
+        // Mid-grind the ledge has slid on under him: its edge is past column
+        // 13 and short of the nose (cols 20–24), and its top row is under the
+        // tail wheel (the spark may sit on cell 12).
+        let cells = ledgeCells(buffer)
+        let edge = cells.map(\.x).max() ?? -1
+        #expect(edge > 13 && edge < 20, "mid-grind the ledge's edge is at \(edge)")
+        let underTheWheel = buffer[11, 25] == .steel || buffer[11, 25] == .flameCore
+        #expect(underTheWheel && buffer[edge, 26] == .slate, "the ledge is not under the tail wheel")
         // The steeze at both ends of the grind is zero: it eases, it does not pop.
         #expect(frame(0.40).legKick == 0 && frame(0.78).legKick == 0)
     }
 
-    @Test("The ledge never rises with him")
+    @Test("The ledge never rises with him, and travels left to right")
     func theLedgeIsGround() {
         for p in stride(from: 0.2, through: 0.85, by: 0.05) {
             var pose = frame(p)
-            guard pose.ledge > 0.5 else { continue }
+            let cellsBefore = ledgeCells(CrabRig.render(pose))
+            guard !cellsBefore.isEmpty else { continue }
             pose.bob = -8                                 // a jump the ledge must ignore
             let cells = ledgeCells(CrabRig.render(pose))
             #expect(!cells.isEmpty)
-            #expect(cells.allSatisfy { $0.y >= 26 && $0.y <= 28 }, "ledge rows moved with bob at p=\(p)")
+            #expect(cells.allSatisfy { $0.y >= 25 && $0.y <= 28 }, "ledge rows moved with bob at p=\(p)")
         }
-        // …and it arrives from the left, one cell a frame at most.
+        // It enters from the left, edge to column 13 by the pop; slides on
+        // under him through the grind; and leaves off the right — never a
+        // step backwards, never more than three cells a frame.
         var edge = -1
         var t = 0.0
-        while t < duration * 0.30 {
+        while t < duration {
             let cells = ledgeCells(CrabRig.render(frame(t / duration)))
-            let newEdge = cells.map(\.x).max() ?? -1
+            let newEdge = cells.isEmpty ? edge : (cells.map(\.x).max() ?? edge)
             #expect(newEdge >= edge, "the ledge retreated at \(t)")
-            #expect(newEdge - edge <= 2, "the ledge leapt \(newEdge - edge) cells at \(t)")
+            #expect(newEdge - edge <= 3 || edge < 0, "the ledge leapt \(newEdge - edge) cells at \(t)")
             edge = newEdge
             t += 1.0 / 30
         }
-        #expect(edge == 13, "the ledge stopped at column \(edge)")
+        let popEdge = ledgeCells(CrabRig.render(frame(0.30))).map(\.x).max()
+        #expect(popEdge == 13, "at the pop the ledge's edge is at \(String(describing: popEdge))")
+        let lateEdge = ledgeCells(CrabRig.render(frame(0.75))).map(\.x).max()
+        #expect((lateEdge ?? 0) >= 17, "the ledge did not slide under him: edge \(String(describing: lateEdge)) at p=0.75")
     }
 
     @Test("The smith board paints inside the grid at every phase, and starts as the resting deck")

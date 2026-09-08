@@ -284,6 +284,7 @@ public struct PetRootView: View {
                     helloEndedAt: model.helloEndedAt?.timeIntervalSinceReferenceDate,
                     clickedAt: model.clickedAt?.timeIntervalSinceReferenceDate,
                     rainbowSince: model.rainbowStartedAt?.timeIntervalSinceReferenceDate,
+                    comboSince: model.comboStartedAt?.timeIntervalSinceReferenceDate,
                     petSince: model.pettingStartedAt?.timeIntervalSinceReferenceDate,
                     petEndedAt: model.pettingEndedAt?.timeIntervalSinceReferenceDate,
                     pouncedAt: model.pouncedAt?.timeIntervalSinceReferenceDate,
@@ -693,6 +694,9 @@ public final class PetViewModel: ObservableObject {
     @Published public var clickedAt: Date?
     /// When the party started. 🎉🪄
     @Published public var rainbowStartedAt: Date?
+    /// When a POKED combo ride started — the Skater's party. 🎉🛹 Cleared by
+    /// `PetInstance` after the ride's length, the party's own latch shape.
+    @Published public var comboStartedAt: Date?
     /// The wardrobe, mirrored from `Preferences` so the sprite re-renders on a
     /// costume change.
     @Published public var costume: Costume = .none

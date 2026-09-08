@@ -189,6 +189,33 @@ struct ComboTests {
         #expect(hidden > 0, "the flourish schedule dealt no trick inside the ride — the guard is untestable here")
     }
 
+    /// 🎉🛹 Three pokes, dressed as Skater, start the ride; every other look
+    /// keeps the party. The poked ride is the whole combo on its own clock and
+    /// ends by itself.
+    @Test("Three pokes start the combo for the Skater, and the ride runs its length")
+    func pokesStartTheRide() {
+        #expect(PetInstance.clickAction(verdict: 3, mood: .idle, onBody: true, snackBusy: false,
+                                        costume: .skater) == .combo)
+        #expect(PetInstance.clickAction(verdict: 5, mood: .working, onBody: false, snackBusy: false,
+                                        costume: .skater) == .combo)
+        for costume in Costume.allCases where costume != .skater {
+            #expect(PetInstance.clickAction(verdict: 3, mood: .idle, onBody: true, snackBusy: false,
+                                            costume: costume) == .party, "\(costume) lost its party")
+        }
+        #expect(PetInstance.clickAction(verdict: 2, mood: .idle, onBody: true, snackBusy: false,
+                                        costume: .skater) == .snack, "two pokes still feed the Skater")
+        let first = CrabAnimator.skateSessionBeats[0].0
+        #expect(CrabAnimator.comboRide(local: 0.1, wardrobe: skater)?.prop.isBoard == true)
+        #expect(CrabAnimator.comboRide(local: 0.1, wardrobe: skater)?.prop == CrabAnimator.flourishPose(first, at: 0.1).prop)
+        #expect((CrabAnimator.comboRide(local: 16.5, wardrobe: skater)?.combo ?? 0) > 0.999, "the settle is not at full score")
+        #expect((CrabAnimator.comboRide(local: 18.05, wardrobe: skater)?.combo ?? 1) < 0.05, "the score outlived the ride")
+        #expect(CrabAnimator.comboRide(local: CrabAnimator.skateSessionLength, wardrobe: skater) == nil)
+        #expect(CrabAnimator.comboRide(local: 30, wardrobe: skater) == nil)
+        #expect(CrabAnimator.comboRide(local: -0.1, wardrobe: skater) == nil)
+        // The Skater stands on his deck at the settle — the stance is his.
+        #expect((CrabAnimator.comboRide(local: 17.0, wardrobe: skater)?.deckUnderfoot ?? 0) == 1)
+    }
+
     /// The tally's words fit the plain bubble and the 3.4 s window, prefix
     /// included, so the score is never cut off mid-line.
     @Test("Every tally line fits, count in front")

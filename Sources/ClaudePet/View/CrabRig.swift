@@ -237,9 +237,12 @@ public struct CrabPose: Sendable, Equatable {
     public var combo: Double = 0
     /// The trail's clock — the session's `t`, so the Nyan wave advances.
     public var comboPhase: Double = 0
-    /// 🧱 The ledge's arrival, 0…1: 0 is off the left edge of the grid, 1 is
-    /// fully in with its edge at column 13. Drawn by the rig behind him at
-    /// rows 26–28, ignoring `bob` — it is ground, not luggage.
+    /// 🧱 The ledge's TRAVEL, 0…1, left to right: 0 is off the left edge of
+    /// the grid, 14/46 is fully in with its edge at column 13, and 1 is off
+    /// the right edge. Monotone across the trick — it enters, slides under
+    /// his locked truck through the grind, and leaves the way it was going.
+    /// Drawn by the rig behind him at rows 25–28 (four tall), ignoring `bob`
+    /// — it is ground, not luggage.
     public var ledge: Double = 0
     /// A spark where the back truck meets the ledge's edge. A flicker on the
     /// trick's own clock; glint-class, so a one-frame change is allowed.
@@ -544,7 +547,7 @@ public enum CrabRig {
         // 🧱 The ledge and 🌈 the trail — both WORLD, both before the plate.
         // The ledge sits on the ground and ignores `dy` like the shadow and
         // the streaks; the trail comes off his body and rides it, like Nyan's.
-        if pose.ledge > 0.001 { drawLedge(&buffer, arrival: pose.ledge) }
+        if pose.ledge > 0.001, pose.ledge < 0.999 { drawLedge(&buffer, travel: pose.ledge) }
         if pose.combo > 0.001 {
             var trail = PixelBuffer()
             drawComboTrail(&trail, dy: dy, combo: pose.combo, phase: pose.comboPhase)
@@ -1572,6 +1575,21 @@ public enum CrabRig {
     /// black".
     static let bearingInk: PixelBuffer.Ink = .screenDark
 
+    /// 🛞 ONE WHEEL, drawn once: two cells wide and two tall — a rim row over a
+    /// hub row, the bearing at the cell toward the board's centre so the pair
+    /// reads symmetric. It was a 3×3 block with the bearing in the middle,
+    /// which under a standing crab the operator read as "big ass wheels";
+    /// every board draws this now, so a trick can never change the wheel it
+    /// starts from. `y` is the row the wheel hangs from (the deck's, or the
+    /// orbiting flips' virtual one); `inner` is 1 for the tail wheel and 0
+    /// for the nose wheel.
+    static func drawWheel(_ b: inout PixelBuffer, x: Int, y: Int, inner: Int,
+                          ink: PixelBuffer.Ink = .yellow) {
+        b.rect(x, y + 1, 2, 1, ink)
+        b.pixel(x + (1 - inner), y + 2, ink)
+        b.pixel(x + inner, y + 2, bearingInk)
+    }
+
     private static func drawFlatSpin(_ b: inout PixelBuffer, dx: Int, dy: Int,
                                      pose: CrabPose, yaw: Double) {
         let deckHalfLength = 8.0
@@ -1585,20 +1603,13 @@ public enum CrabRig {
         let noseInk: PixelBuffer.Ink = .paper
         b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
         if half >= 5 {
-            for hub in [cx - half + 1, cx + half - 3] {
-                // The SAME wheel the ollie, the nollie, the manual and the
-                // cruise all draw: three rows, with the bearing sitting in
-                // the middle of it. This case had only the top row and the
-                // bearing — a dark dot under a bar, with no wheel around it
-                // — which the operator picked out of a line-up of ten
-                // resting boards. The trucks still ride the shrinking deck,
-                // because on a flat spin they have to foreshorten with it;
-                // it is the wheel's SHAPE that had no business differing.
-                b.rect(hub, deckY + 1, 3, 1, wheelInk)
-                b.pixel(hub, deckY + 2, wheelInk)
-                b.pixel(hub + 1, deckY + 2, bearingInk)
-                b.pixel(hub + 2, deckY + 2, wheelInk)
-                b.rect(hub, deckY + 3, 3, 1, wheelInk)
+            // The SAME wheel every board draws, and — at full width — at the
+            // same cells (11 and 20), so the trick starts from the deck he
+            // stands on. The trucks still ride the shrinking deck, because on
+            // a flat spin they have to foreshorten with it; at half 5 they sit
+            // at 14 and 17 with a cell of daylight between.
+            for (hub, inner) in [(cx - half + 3, 1), (cx + half - 4, 0)] {
+                drawWheel(&b, x: hub, y: deckY, inner: inner, ink: wheelInk)
             }
         }
         // Two cells while there is deck enough to spare them, one when the
@@ -1684,20 +1695,11 @@ public enum CrabRig {
         let reach = Int((Double(half) * cos(yaw) * 0.62).rounded())
         let truckReach = reach < 0 ? min(reach, -3) : max(reach, 3)
         if sin(roll) >= 0 || abs(orbit) > thick / 2 {
-            for hub in [cx + truckReach - 1, cx - truckReach] {
-                // `orbit - 2`, not `orbit - 1`: the orbit's radius is 3, so
-                // at rest these sat a whole row lower than every fixed-hub
-                // board's wheel and read as hanging off the deck rather
-                // than bolted under it. The swing is unchanged; only where
-                // it starts moves.
-                // Three rows, the same wheel every other board draws. These
-                // were two, which read as a shorter wheel beside the rest of
-                // the set once the widths were finally equal.
-                b.rect(hub, deckY + orbit - 2, 3, 1, wheelInk)
-                b.pixel(hub, deckY + orbit - 1, wheelInk)
-                b.pixel(hub + 1, deckY + orbit - 1, bearingInk)
-                b.pixel(hub + 2, deckY + orbit - 1, wheelInk)
-                b.rect(hub, deckY + orbit, 3, 1, wheelInk)
+            // Hung from `orbit - 3`, so at rest (orbit 3) the rim is the row
+            // under the deck — level with every fixed-hub board. The swing is
+            // unchanged; only where it starts is pinned.
+            for (hub, inner) in [(cx + truckReach - 1, 0), (cx - truckReach, 1)] {
+                drawWheel(&b, x: hub, y: deckY + orbit - 3, inner: inner, ink: wheelInk)
             }
         }
         // One bright cell on the nose itself, so the end you are following
@@ -1767,27 +1769,26 @@ public enum CrabRig {
     static func drawRestingDeck(_ b: inout PixelBuffer, dx: Int, dy: Int) {
         let cx = 16 + dx, deckY = 25 + dy
         b.rect(cx - 8, deckY, 17, 1, .deck)
-        for hub in [cx - 5, cx + 4] {
-            b.rect(hub, deckY + 1, 3, 1, .yellow)
-            b.pixel(hub, deckY + 2, .yellow)
-            b.pixel(hub + 1, deckY + 2, bearingInk)
-            b.pixel(hub + 2, deckY + 2, .yellow)
-            b.rect(hub, deckY + 3, 3, 1, .yellow)
+        for (hub, inner) in [(cx - 5, 1), (cx + 4, 0)] {
+            drawWheel(&b, x: hub, y: deckY, inner: inner)
         }
     }
 
-    /// 🧱 The ledge he grinds: a block on the ground, 14 cells long and 3
-    /// tall (rows 26–28), sliding in from off the left edge until its edge
-    /// stands at column 13 — under the board's tail truck. Slate, with a
-    /// steel top row so the edge he locks onto reads as an edge. It ignores
-    /// `dy`: ground does not rise with a jump. Out-of-grid cells are dropped
-    /// by the buffer's own subscript, which is what lets it arrive from
-    /// nowhere and leave to nowhere without a special case.
+    /// 🧱 The ledge he grinds: a block on the ground, 14 cells long and four
+    /// tall (rows 25–28), travelling LEFT TO RIGHT — in from off the left
+    /// edge, under his locked truck through the grind, out past the right
+    /// edge — the operator's direction. `travel` 0…1 maps to a left edge of
+    /// −14…32, so both ends are off the grid. Slate, with a steel top row so
+    /// the edge he locks onto reads as an edge. It ignores `dy`: ground does
+    /// not rise with a jump. Out-of-grid cells are dropped by the buffer's
+    /// own subscript, which is what lets it arrive from nowhere and leave to
+    /// nowhere without a special case.
     nonisolated static let ledgeLength = 14
-    static func drawLedge(_ b: inout PixelBuffer, arrival: Double) {
-        let x0 = -ledgeLength + Int((Double(ledgeLength) * Ease.clamp01(arrival)).rounded())
-        b.rect(x0, 27, ledgeLength, 2, .slate)
-        b.rect(x0, 26, ledgeLength, 1, .steel)
+    nonisolated static let ledgeTravel = 46      // −14 … 32, both ends off-grid
+    static func drawLedge(_ b: inout PixelBuffer, travel: Double) {
+        let x0 = -ledgeLength + Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
+        b.rect(x0, 26, ledgeLength, 3, .slate)
+        b.rect(x0, 25, ledgeLength, 1, .steel)
     }
 
     /// 🌈 The Nyan trail: six one-row stripes off the back of the board —
@@ -2239,21 +2240,18 @@ public enum CrabRig {
 
             let orbit = Int((3 * cos(theta)).rounded())     // + is below: y grows down
             if sin(theta) >= 0 || abs(orbit) > thick / 2 {
-                for hub in [cx - 5, cx + 4] {
-                    b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
-                    b.pixel(hub, deckY + orbit, wheelInk)
-                    // The bearing is `.screenDark`, not slate. Slate is the
-                    // DECK's ink and nothing else's, which is what lets the
-                    // suite measure the deck by looking for it — a bearing in
-                    // the same ink put the wheel inside the deck's bounding box
-                    // and made every frame look diagonal to the test.
-                    b.pixel(hub + 1, deckY + orbit, bearingInk)   // the bearing
-                    b.pixel(hub + 2, deckY + orbit, wheelInk)
-                    b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
+                // Hung from `orbit - 3`: at rest (orbit 3) the rim is the row
+                // under the deck, LEVEL with every other board — this board
+                // and the varial hung a row lower for weeks, the seam the
+                // resting deck recorded. The bearing is `.screenDark`, not
+                // slate: slate is the DECK's ink and nothing else's, which is
+                // what lets the suite measure the deck by looking for it.
+                for (hub, inner) in [(cx - 5, 1), (cx + 4, 0)] {
+                    drawWheel(&b, x: hub, y: deckY + orbit - 3, inner: inner, ink: wheelInk)
                 }
                 // ✨ Weight: a one-cell flash off a wheel now and then.
                 if wheelShimmer(pose.propPhase) {
-                    b.pixel(cx - 5, deckY + orbit - 1, .flameCore)
+                    b.pixel(cx - 5, deckY + orbit - 2, .flameCore)
                 }
             }
 
@@ -2299,21 +2297,16 @@ public enum CrabRig {
 
             let orbit = Int((3 * cos(roll)).rounded())
             if sin(roll) >= 0 || abs(orbit) > thick / 2 {
-                // TWO, not one. Each hub paints a three-cell wheel: at reach 1
-                // they sit at cx-2 and cx+0, whose spans overlap outright and
-                // draw as a single five-cell slab — the "really fat wheels"
-                // the operator caught. Two is the smallest reach that leaves a
-                // cell of daylight between them.
+                // Reach 2 is the floor: at reach 1 the two wheels would touch
+                // and draw as one slab — the "really fat wheels" the operator
+                // caught once already. At rest (reach 5) they sit at 11 and
+                // 20, the same cells as every fixed-hub board.
                 let reach = max(2, half - 3)
-                for hub in [cx - reach - 1, cx + reach - 1] {
-                    b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
-                    b.pixel(hub, deckY + orbit, wheelInk)
-                    b.pixel(hub + 1, deckY + orbit, bearingInk)
-                    b.pixel(hub + 2, deckY + orbit, wheelInk)
-                    b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
+                for (hub, inner) in [(cx - reach, 1), (cx + reach - 1, 0)] {
+                    drawWheel(&b, x: hub, y: deckY + orbit - 3, inner: inner, ink: wheelInk)
                 }
                 if wheelShimmer(pose.propPhase) {
-                    b.pixel(cx + reach - 1, deckY + orbit - 1, .flameCore)
+                    b.pixel(cx + reach - 1, deckY + orbit - 2, .flameCore)
                 }
             }
 
@@ -2366,12 +2359,8 @@ public enum CrabRig {
             if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
             if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
 
-            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
-                b.rect(hub, y + 1, 3, 1, wheelInk)
-                b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk)      // the bearing
-                b.pixel(hub + 2, y + 2, wheelInk)
-                b.rect(hub, y + 3, 3, 1, wheelInk)
+            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
+                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
             }
             if wheelShimmer(pose.propPhase) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
@@ -2414,12 +2403,8 @@ public enum CrabRig {
             if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
             if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
 
-            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
-                b.rect(hub, y + 1, 3, 1, wheelInk)
-                b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk)
-                b.pixel(hub + 2, y + 2, wheelInk)
-                b.rect(hub, y + 3, 3, 1, wheelInk)
+            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
+                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
             }
             if wheelShimmer(pose.propPhase) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
@@ -2444,12 +2429,8 @@ public enum CrabRig {
             b.rect(cx + 4, yNose, 5, 1, deckInk)
             if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
             if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
-            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
-                b.rect(hub, y + 1, 3, 1, wheelInk)
-                b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk)
-                b.pixel(hub + 2, y + 2, wheelInk)
-                b.rect(hub, y + 3, 3, 1, wheelInk)
+            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
+                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
             }
             if wheelShimmer(pose.propPhase * 2.6) {
                 b.pixel(cx - 5, yTail + 1, .flameCore)
@@ -2489,12 +2470,8 @@ public enum CrabRig {
             b.rect(cx - 8, yTail, 5, 1, deckInk)
             if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
             if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
-            for (hub, y) in [(cx + 4, yNose), (cx - 6, yTail)] {
-                b.rect(hub, y + 1, 3, 1, wheelInk)
-                b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk)
-                b.pixel(hub + 2, y + 2, wheelInk)
-                b.rect(hub, y + 3, 3, 1, wheelInk)
+            for (hub, y, inner) in [(cx + 4, yNose, 0), (cx - 5, yTail, 1)] {
+                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
             }
             if wheelShimmer(pose.propPhase * 2.6) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
@@ -2580,14 +2557,12 @@ public enum CrabRig {
             let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - 8, deckY, 17, 1, deckInk)
 
+            // The bearing walks the four cells of the 2×2, rim then hub.
             let tick = Int(u * 34) % 4
-            let mark = [(0, -1), (1, 0), (0, 1), (-1, 0)][tick]
+            let mark = [(0, 0), (1, 0), (1, 1), (0, 1)][tick]
             for hub in [cx - 5, cx + 4] {
-                b.rect(hub, deckY + 1, 3, 1, wheelInk)
-                b.pixel(hub, deckY + 2, wheelInk)
-                b.pixel(hub + 2, deckY + 2, wheelInk)
-                b.rect(hub, deckY + 3, 3, 1, wheelInk)
-                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, bearingInk)
+                b.rect(hub, deckY + 1, 2, 2, wheelInk)
+                b.pixel(hub + mark.0, deckY + 1 + mark.1, bearingInk)
             }
 
             // Ground streaking past, in the floor band below him — the only
@@ -2624,16 +2599,14 @@ public enum CrabRig {
             b.rect(cx - 8, yTail, 6, 1, .deck)
             b.rect(cx - 2, yMid, 6, 1, .deck)
             b.rect(cx + 4, yNose, 5, 1, .deck)
-            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
-                b.rect(hub, y + 1, 3, 1, .yellow)
-                b.pixel(hub, y + 2, .yellow)
-                b.pixel(hub + 1, y + 2, bearingInk)
-                b.pixel(hub + 2, y + 2, .yellow)
-                b.rect(hub, y + 3, 3, 1, .yellow)
+            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
+                drawWheel(&b, x: hub, y: y, inner: inner)
             }
-            // ✨ The grind's spark, where the tail truck bites the edge — one
-            // cell of the palette's hottest yellow, on the trick's flicker.
-            if pose.grindSpark { b.pixel(cx - 3, yTail + 4, .flameCore) }
+            // ✨ The grind's spark, where the tail truck bites the ledge's top
+            // — one cell of the palette's hottest yellow, under the wheel's
+            // centre, on the trick's flicker. Wherever the ledge has slid to,
+            // that cell is on it.
+            if pose.grindSpark { b.pixel(cx - 4, yTail + 3, .flameCore) }
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)

@@ -188,10 +188,10 @@ struct DeckStanceTests {
         #expect(deckCells >= 10, "only \(deckCells) of 17 deck cells survived the surf's first frame")
     }
 
-    /// The resting form is the one the ollie, the nollie and the manual land
-    /// in, less their shimmer cell. The kickflip and the varial sit their
-    /// wheels one row lower — pinned so the seam is a recorded fact.
-    @Test("The stance is the ollie's first frame; the kickflip's wheels sit a row lower")
+    /// The resting form is the one every trick's first frame lands in, less
+    /// its shimmer cell — the kickflip's included, since the wheels went 2×2
+    /// and its orbit was re-hung level with the rest.
+    @Test("The stance is every trick's first frame")
     func theStanceIsTheOlliesFirstFrame() {
         // The board's cells in rows 25–30. A shimmer cell is a highlight ON a
         // wheel cell, so `.flameCore` reads back as the `.yellow` under it.
@@ -208,21 +208,18 @@ struct DeckStanceTests {
         // Compared IN THE SAME FRAME: the trick's first frame rides the idle
         // breath (bob 1 at t = 0), and so does the deck, so the reference is
         // that very pose with the board swapped for the deck under it.
-        for kind in [CrabAnimator.Flourish.ollie, .nollie, .manual, .backSmith] {
+        // The tre, the laser, the shove-it and the bigspin carry a nose mark
+        // on the deck row from their first frame — a legitimate difference,
+        // not a wheel one — so they are not in this list.
+        for kind in [CrabAnimator.Flourish.ollie, .nollie, .manual, .backSmith, .kickflip, .varialFlip] {
             let first = CrabAnimator.flourishPose(kind, at: 0)
             var resting = first
             resting.prop = .none
             resting.deckUnderfoot = 1
             let deck = board(CrabRig.render(resting))
-            #expect(deck.count == 17 + 2 * 9, "the resting deck has \(deck.count) cells")
+            #expect(deck.count == 17 + 2 * 4, "the resting deck has \(deck.count) cells")
             #expect(board(CrabRig.render(first)) == deck, "\(kind)'s first frame is not the resting deck")
         }
-        let kickflipPose = CrabAnimator.flourishPose(.kickflip, at: 0)
-        let kickflip = CrabRig.render(kickflipPose)
-        let wheelRow = 26 + kickflipPose.bob                 // the deck's own wheel row, in this frame
-        #expect(kickflip.count(of: .yellow, inRow: wheelRow) == 0
-                    && kickflip.count(of: .yellow, inRow: wheelRow + 1) > 0,
-                "the kickflip's wheels moved — its first frame was pinned a row below the deck")
     }
 
     @Test("The shadow stands down under the deck")

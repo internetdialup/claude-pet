@@ -475,6 +475,20 @@ public enum CrabAnimator {
         return since - 2
     }
 
+    /// 🎉🛹 THE POKED RIDE — the Skater's answer to the triple-poke party.
+    /// The whole combo on its own clock, `local` seconds in: the idle base
+    /// breathing on the ride's clock with no scheduled flourish underneath
+    /// (the deck stance still applies, so he stands on his deck at the
+    /// settle), and the session's chain on top. Nil once the ride is over,
+    /// so the view falls back to the mood. Like the party, it starts and
+    /// ends outside the mood blend — accepted, and recorded.
+    static func comboRide(local: Double, wardrobe: MotionWardrobe = .init()) -> CrabPose? {
+        guard local >= 0, local < skateSessionLength else { return nil }
+        var pose = pose(mood: .idle, t: local, flourishes: false, wardrobe: wardrobe)
+        applySkateSession(local, t: local, to: &pose)
+        return pose
+    }
+
     /// Maps a session instant onto the sub-trick that owns it. Each beat is
     /// its trick's own full duration, so every sub-trick starts and ends at
     /// its stance — the seams are the scheduler's own cuts, no worse.
@@ -2583,14 +2597,21 @@ public enum CrabAnimator {
             // landing squash's own exemption from the no-snap rule.
             //
             // He does not move sideways — nothing on this rig does — so the
-            // ledge arrives under him the way the ground rushes under the
-            // cruise: the world comes to him. The rig draws `ledge` behind
-            // him at rows 26–28, ignoring `bob`; it is ground, not luggage.
+            // ledge comes to him the way the ground rushes under the cruise,
+            // and it keeps coming: LEFT TO RIGHT, the operator's direction.
+            // It eases in over the crouch and the pop (edge to column 13),
+            // slides six cells under his locked truck through the grind —
+            // the grind IS travel — and leaves past the right edge during
+            // the pop-off, gone before the stomp lands so he never comes
+            // down on half a ledge. One monotone travel, three speeds, no
+            // seams. The rig draws it at rows 25–28, ignoring `bob`.
             pose.prop = .skateboardSmith
             pose.propVisibility = 1
             pose.propPhase = 0
-            pose.ledge = Ease.smoothstep(progress / 0.30)
-                * (1 - Ease.smoothstep((progress - 0.80) / 0.20))
+            let enter = Ease.smoothstep(progress / 0.30)
+            let drift = Ease.clamp01((progress - 0.30) / 0.48)
+            let exit = Ease.smoothstep((progress - 0.78) / 0.12)   // gone by the stomp at 0.90
+            pose.ledge = (enter * 14 + drift * 6 + exit * 26) / Double(CrabRig.ledgeTravel)
             if progress < 0.15 {
                 pose.squash = 1                       // load the pop
                 pose.bob = 1
@@ -2690,6 +2711,9 @@ public struct CrabView: View {
     public var clickedAt: Double?
     /// Reference-time instant rainbow mode began, or nil. 🎉🪄
     public var rainbowSince: Double?
+    /// Reference-time instant a POKED combo ride began, or nil — the Skater's
+    /// party. 🎉🛹
+    public var comboSince: Double?
     /// Petting: press-and-hold without moving. Same two-ended envelope as hover.
     public var petSince: Double?
     public var petEndedAt: Double?
@@ -2761,6 +2785,7 @@ public struct CrabView: View {
                 helloEndedAt: Double? = nil,
                 clickedAt: Double? = nil,
                 rainbowSince: Double? = nil,
+                comboSince: Double? = nil,
                 petSince: Double? = nil,
                 petEndedAt: Double? = nil,
                 pouncedAt: Double? = nil,
@@ -2793,6 +2818,7 @@ public struct CrabView: View {
         self.helloEndedAt = helloEndedAt
         self.clickedAt = clickedAt
         self.rainbowSince = rainbowSince
+        self.comboSince = comboSince
         self.petSince = petSince
         self.petEndedAt = petEndedAt
         self.pouncedAt = pouncedAt
@@ -3077,6 +3103,7 @@ public struct CrabView: View {
             // mood underneath a rude wake is SLEEPING, which renders at 6fps —
             // and a 0.5s arm rise at 6fps is three frames of teleporting claw.
             let reacting = hoverSince != nil || clickedAt != nil || rainbowSince != nil
+                || comboSince != nil
                 || petSince != nil || pouncedAt != nil || snackSince != nil
                 || helloSince != nil || rudeWakeSince != nil || shadesDropping
             let interval = CrabView.tickInterval(unseen: unseen, reacting: reacting,
@@ -3212,6 +3239,15 @@ public struct CrabView: View {
                     idleT: t, wardrobe: costumeClock.wardrobe(idleT: t, now: time))
             }
             return pose
+        }
+
+        // 🎉🛹 The poked ride — the Skater's party. Same bypass as the party
+        // above, for the same reason: the ride runs on its own clock, and
+        // `MoodClock` would rebase it on every mood change.
+        if let comboSince, frozenTime == nil,
+           let ride = CrabAnimator.comboRide(local: time - comboSince,
+                                             wardrobe: costumeClock.wardrobe(idleT: t, now: time)) {
+            return ride
         }
 
         // 👕 The wardrobe reaches motion only on the LIVE path, the same way

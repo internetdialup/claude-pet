@@ -15,12 +15,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   the colour is the score. A Nyan-style trail streams off the back of the
   board while he is scoring, and when the last trick lands he says how many:
   "×5 COMBO. No notes 🏆". Rarity unchanged; the Skater still rides twice as
-  often.
-- **🧱 The ledge, and the back smith.** A block slides in from the left, he
-  pops an ollie onto it, locks the back truck on the edge with the nose dipped,
-  steezes the back leg out through the grind — a spark where the truck bites —
-  and pops off as the ledge leaves. The combo's finale, and an idle move of
-  his own. Eighteen idle moves, twenty-seven props.
+  often — and dressed as the Skater, **poking him three times starts the ride**
+  where every other look throws the party.
+- **🧱 The ledge, and the back smith.** A four-cell ledge comes in from the
+  left, he pops an ollie onto it, locks the back truck on the top with the
+  nose dipped, steezes the back leg out through the grind — a spark where the
+  truck bites — while the ledge slides on under him, and pops off as it leaves
+  to the right. The combo's finale, and an idle move of his own. Eighteen idle
+  moves, twenty-seven props.
 - **🛹 The Skater stands on his deck.** Dressed in the Skater fit he now rests
   on his board between tricks — wheels down, tricks popping straight off it —
   about seven minutes in ten, stepping on and off in long stretches with the
@@ -51,6 +53,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **Lighter wheels.** Every board rides 2×2 wheels now — a rim over a hub —
+  where they were 3×3 blocks that read big under a standing crab. The kickflip
+  and varial's wheels, which hung a row lower than the rest at rest, sit level
+  with every other board.
 - **The skate session is the combo.** Its beats are ollie, kickflip, shove-it,
   nollie, back smith — the cruise left the chain, because a roll-away between
   tricks is a rest and a combo has none. The trick shout stands down inside a
