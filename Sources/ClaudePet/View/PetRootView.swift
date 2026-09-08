@@ -75,6 +75,15 @@ public struct PetRootView: View {
             + ThoughtBubble.insetY * 2 + bubbleTailHeight
     }
 
+    /// What the bubble is allowed to show: the line, or nothing. A blank
+    /// line — nil, empty, or whitespace only — is nothing; drawn, it would be
+    /// a box of padding with no words in it, which is the one thing this
+    /// view must never put on screen.
+    public nonisolated static func showable(_ text: String?) -> String? {
+        guard let text, text.contains(where: { !$0.isWhitespace }) else { return nil }
+        return text
+    }
+
     public var spriteSize: CGFloat { CGFloat(Double(PixelBuffer.side) * pixelSize) }
     private var overlap: CGFloat { CGFloat(Double(Self.crownCells) * pixelSize) }
 
@@ -132,6 +141,14 @@ public struct PetRootView: View {
             ZStack {
                 // A transient line (the pounce one-liner) outranks the state's
                 // bubble and may appear even while he sleeps.
+                //
+                // The slot clears ITSELF at its deadline (`PetViewModel.speak`
+                // books the write), so this filter is a belt, not the
+                // mechanism: it only stops a body run that happens to land
+                // after the deadline from showing a dead line for a frame.
+                // It was the mechanism once, and a `Date()` read inside a
+                // body is only re-asked when something publishes — on a quiet
+                // desk, half a minute of a bubble past its life.
                 let live = model.transientBubble.flatMap { $0.until > Date() ? $0 : nil }
                 let transient = live?.text
                 // Sleeping lines are shown, not suppressed.
@@ -146,7 +163,7 @@ public struct PetRootView: View {
                 // The occasionally is enforced where it belongs, at the draw:
                 // three windows in four he says nothing at all.
                 let stateText = model.state.bubble
-                if let text = transient ?? stateText, !text.isEmpty {
+                if let text = Self.showable(transient ?? stateText) {
                     ThoughtBubble(
                         text: text,
                         tool: transient == nil ? model.state.tool : nil,
@@ -169,20 +186,14 @@ public struct PetRootView: View {
                         style: transient.map { ActivityCoordinator.bubbleStyle(for: $0) }
                             ?? model.state.bubbleStyle,
                         service: transient == nil ? model.state.serviceGlyph : nil,
-                        // WHEN it expires, not how long it has left.
-                        //
-                        // This passed `timeIntervalSinceNow`, which is
-                        // measured from whenever `body` last ran — and body
-                        // re-runs on every `@Published` write, several of
-                        // which land inside a transient's own life. The
-                        // typewriter measures its elapsed time from a fixed
-                        // mount instant instead, so the two were counting
-                        // from different origins: substitute them and the
-                        // fade's argument is `(2x - D + 0.45)/0.45`, which
-                        // hits 1 — fully faded — the moment `x` passes half
-                        // the line's life, and never comes back. An absolute
-                        // instant shares the display link's clock and cannot
-                        // drift no matter when the parent last evaluated.
+                        // WHEN it expires, not how long it has left: an
+                        // absolute instant on the display link's clock, which
+                        // cannot drift no matter when this body last ran. (A
+                        // remaining duration did drift — it was measured from
+                        // the last body run — and faded the line at half its
+                        // life.) It drives the WHOLE bubble's exit, fill and
+                        // tail included, and that exit ends exactly when
+                        // `speak`'s deadline clears the slot underneath.
                         expiresAt: live.map { $0.until.timeIntervalSinceReferenceDate },
                         knowledge: transient == nil
                             && model.state.bubbleTone == .knowledge
@@ -717,12 +728,45 @@ public final class PetViewModel: ObservableObject {
     @Published public var shadesDropping = false
     /// A short-lived line that outranks the state's bubble — the pounce
     /// one-liner, the skate shout, the first-run hello. Cleared by its own
-    /// deadline.
+    /// deadline — by `speak`, the one writer, which books the clearing write
+    /// when it sets the line.
+    ///
+    /// That sentence was here for four weeks before it was true. Nothing
+    /// cleared the slot; the view filtered it against `Date()` in its body,
+    /// and a body only re-runs when something publishes. The line's ink
+    /// faded on the display link at its deadline and the green box stayed
+    /// until the next change on the desk — sometimes half a minute. Read-only
+    /// from outside so the compiler, not a comment, keeps it to one writer.
     ///
     /// `mood` is the styling it wears, not a claim about what he is doing:
     /// `.done` for the celebrations, `.idle` for the greeting, which is the
     /// same green without the checkmark.
-    @Published public var transientBubble: (text: String, until: Date, mood: PetMood)?
+    @Published public private(set) var transientBubble: (text: String, until: Date, mood: PetMood)?
+    /// Which `speak` the slot currently holds. A clearing write compares
+    /// against it and does nothing if a newer line has taken the slot — the
+    /// `skateSeq`/`helloSeq` latch pattern, here for the door itself.
+    /// Belt-and-braces: through `PetInstance.say` a newer line can only land
+    /// after the older deadline, because `shouldSpeak` refuses every line,
+    /// deliberate or not, while one is live.
+    private var speakSeq = 0
+
+    /// The one door onto the transient slot. Sets the line and books its own
+    /// clearing at `until`, on the WALL clock — `until` is a `Date`, and a
+    /// mach deadline would sleep through a lid-close and clear late.
+    ///
+    /// Internal, not public, on purpose: the sanctioned caller is
+    /// `PetInstance.say`, which asks `shouldSpeak` first. This is the write;
+    /// that is the rule.
+    func speak(_ text: String, until: Date, mood: PetMood) {
+        speakSeq &+= 1
+        let seq = speakSeq
+        transientBubble = (text, until, mood)
+        let wait = max(0, until.timeIntervalSinceNow)
+        DispatchQueue.main.asyncAfter(wallDeadline: .now() + wait) { [weak self] in
+            guard let self, self.speakSeq == seq else { return }
+            self.transientBubble = nil
+        }
+    }
     /// The completion badge's identity and appearance latches, managed by
     /// AppDelegate from published state changes.
     @Published public var badgeCompletionAt: Date?

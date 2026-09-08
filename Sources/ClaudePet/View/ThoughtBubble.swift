@@ -45,14 +45,19 @@ public struct ThoughtBubble: View {
 
     /// WHEN this line expires, as an absolute reference-time instant.
     ///
-    /// Only the fade-down uses it: the text eases off over its last
-    /// `TypewriterText.fadeOut` seconds so a line leaves the way it arrived
-    /// rather than being cut mid-word. An INSTANT rather than a remaining
+    /// Only the exit uses it: the WHOLE bubble — fill, tail, glyph and text
+    /// together — eases off over its last `exitSeconds` so a line leaves the
+    /// way it arrived rather than being cut mid-word. The whole bubble, not
+    /// the text: the first cut faded the ink alone, on the display link,
+    /// while the fill waited for the next published change to be removed —
+    /// and on a quiet desk that is half a minute of an empty green box over
+    /// his head. Ink and box now share one opacity by construction, so no
+    /// timing can separate them. An INSTANT rather than a remaining
     /// duration, because a duration is measured from whenever the caller
-    /// computed it while the typewriter counts from its own mount — two
-    /// origins, and the fade blanked the line at half its life. Nil — every
-    /// offline renderer, and any caller with no expiry to give — keeps the
-    /// line solid, which is also what keeps committed media byte-identical.
+    /// computed it while the view counts from its own clock — two origins,
+    /// and the fade blanked the line at half its life. Nil — every offline
+    /// renderer, and any caller with no expiry to give — keeps the line
+    /// solid, which is also what keeps committed media byte-identical.
     public var expiresAt: Double? = nil
 
     /// The knowledge card: facts and tips leave the mood palette entirely and
@@ -199,6 +204,28 @@ public struct ThoughtBubble: View {
     /// 281.2 and would not fit.
     nonisolated static let plainColumns = 38
 
+    /// How long the exit takes: the last `exitSeconds` of a line's stay, over
+    /// which the whole bubble eases to nothing. Moved here from the
+    /// typewriter, whose `fadeOut` faded the ink and left the box.
+    nonisolated static let exitSeconds: Double = 0.45
+
+    /// How far the bubble has left, 0…1.
+    ///
+    /// Takes the expiry as an INSTANT and compares it against the frame's own
+    /// instant, so both sides share the display link's clock. The first cut
+    /// took a remaining DURATION computed in the parent's body, which re-runs
+    /// on any published write — a moving origin against a fixed one, which
+    /// faded the line out at half its life and never recovered. Frozen
+    /// renders never fade: a still of a half-faded bubble is the same defect
+    /// as a still of a half-typed one.
+    nonisolated static func exitLevel(now: Double, expiresAt: Double?,
+                                      frozen: Bool) -> Double {
+        guard !frozen, let expiry = expiresAt else { return 0 }
+        let remaining = expiry - now
+        let through = (exitSeconds - remaining) / exitSeconds
+        return Ease.smoothstep(min(1, max(0, through)))
+    }
+
     /// Presentation comes from `MoodStyle`, so a new mood is one entry there
     /// rather than three switches here.
     private var fill: Color {
@@ -252,6 +279,25 @@ public struct ThoughtBubble: View {
     private var font: Font { .system(size: 11, weight: .bold, design: .monospaced) }
 
     public var body: some View {
+        if let expiresAt {
+            // A line with a deadline leaves as ONE thing. The opacity rides
+            // the display link here, above the card, so the fill and tail go
+            // with the ink — never the ink alone. Only live transients carry
+            // an expiry; state lines and every offline renderer take the
+            // plain branch below, which is why this wrap is gated rather than
+            // unconditional: it would otherwise put a display-rate timeline
+            // around the working dots, which can sit for minutes.
+            Clocked(frozenTime: frozenTime) { t in
+                card.opacity(1 - Self.exitLevel(now: t, expiresAt: expiresAt,
+                                                frozen: frozenTime != nil))
+            }
+        } else {
+            card
+        }
+    }
+
+    /// The bubble itself: the card and its stepped tail.
+    private var card: some View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
                 if let service, style != .dots {
@@ -287,8 +333,7 @@ public struct ThoughtBubble: View {
                     // reversed here rather than quietly worked around; it is
                     // a one-word change back if he misses the instant voice.
                     TypewriterText(text: text, font: font,
-                                   frozenTime: frozenTime,
-                                   expiresAt: expiresAt, ink: foreground,
+                                   frozenTime: frozenTime, ink: foreground,
                                    room: Self.textWidth - slotReserve)
                 }
                 // …and not on a knowledge card either. Same ruling as the
@@ -439,10 +484,6 @@ struct TypewriterText: View {
     let text: String
     let font: Font
     let frozenTime: Double?
-    /// When this line expires, as an absolute instant on the same clock the
-    /// view is drawn against. Drives the fade-down only; nil keeps the line
-    /// solid for its whole life.
-    var expiresAt: Double? = nil
     /// The bubble's own text colour. Passed in rather than inherited because
     /// the ramp needs a real `Color` to take an opacity from — `.primary`
     /// would quietly discard the mood's foreground and paint system ink.
@@ -472,27 +513,12 @@ struct TypewriterText: View {
     /// than seventy-six.
     nonisolated static let rampChars = 3
 
-    /// The line fades DOWN over its last stretch, so it leaves the way it
-    /// arrived instead of being cut. Only when the caller says how long the
-    /// line is being held — offline and in the renderers it stays solid.
-    nonisolated static let fadeOut: Double = 0.45
-
-    /// How far the line has faded out, 0…1.
-    ///
-    /// Takes the expiry as an INSTANT and compares it against the frame's own
-    /// instant, so both sides share the display link's clock. The first cut
-    /// took a remaining DURATION computed in the parent's body, which re-runs
-    /// on any published write — a moving origin against the typewriter's
-    /// fixed one, which faded the line out at half its life and never
-    /// recovered. Frozen renders never fade: a still of a half-faded sentence
-    /// is the same defect as a still of a half-typed one.
-    nonisolated static func fadeLevel(now: Double, expiresAt: Double?,
-                                      frozen: Bool) -> Double {
-        guard !frozen, let expiry = expiresAt else { return 0 }
-        let remaining = expiry - now
-        let through = (fadeOut - remaining) / fadeOut
-        return Ease.smoothstep(min(1, max(0, through)))
-    }
+    /// The line does not fade on its own any more. It used to — `fadeOut`
+    /// eased the INK off over the last 0.45s of the hold — and the box did
+    /// not, because the box is drawn by `ThoughtBubble.body` at full opacity
+    /// and only its removal, a published write away, ever took it down. The
+    /// exit is the bubble's now (`ThoughtBubble.exitLevel`), applied above
+    /// this view to fill, tail, glyph and ink at once.
 
     /// The ink on the character `back` places behind the cursor, 0…1.
     nonisolated static func inkLevel(_ back: Int, progress: Double) -> Double {
@@ -527,12 +553,6 @@ struct TypewriterText: View {
             let exact = frozenTime != nil
                 ? Double(text.count + Self.rampChars)
                 : max(0, elapsed) * Self.charsPerSecond
-            // …and the whole line eases off at the end of its hold, with both
-            // sides on the SAME clock: `t` is the display link's instant and
-            // `expiry` is an instant, so what is left is a real measurement
-            // rather than the difference of two origins.
-            let leaving = Self.fadeLevel(now: t, expiresAt: expiresAt,
-                                         frozen: frozenTime != nil)
             // A DEFINITE width once the line has to wrap, not a maximum.
             //
             // The card sizes itself with `.fixedSize(horizontal: true)`, which
@@ -598,7 +618,6 @@ struct TypewriterText: View {
                     // within that. Nothing moves but the ink.
                     .frame(maxWidth: .infinity, alignment: .center)
                     .frame(width: box)
-                    .opacity(1 - leaving)
             }
         }
         .onAppear { startedAt = Date.timeIntervalSinceReferenceDate }

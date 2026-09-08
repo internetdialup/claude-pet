@@ -725,6 +725,9 @@ final class PetInstance {
     /// arrives late is worse than one that never comes. Both re-arm
     /// themselves for the next one regardless, so nothing gets stuck.
     ///
+    /// The write goes through `PetViewModel.speak`, which books the slot's
+    /// own clearing at the deadline; this function decides, that one writes.
+    ///
     /// Returns whether the line was actually said, for callers that care.
     @discardableResult
     private func say(_ line: @autoclosure () -> String?, or fallback: String,
@@ -742,8 +745,8 @@ final class PetInstance {
         // before asking meant a refused line still burned its place in the
         // pool — the sentence was consumed, never shown, and never came round
         // again. Now a refusal costs nothing.
-        model.transientBubble = (line() ?? fallback,
-                                 Date().addingTimeInterval(seconds), mood)
+        model.speak(line() ?? fallback, until: Date().addingTimeInterval(seconds),
+                    mood: mood)
         return true
     }
 

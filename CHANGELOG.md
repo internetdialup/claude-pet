@@ -142,6 +142,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Fixed
 
+- **🫧 The empty bubble.** A shout that reached its deadline used to leave its
+  green box behind — words gone, box still there, sometimes for half a minute
+  until something else on the desk changed. The line's slot never cleared
+  itself, and the view only re-checked it when something published; the
+  typing effect faded the words on its own clock and left the box waiting. A
+  spoken line now leaves whole — box, tail and text together over its last
+  half second — and clears its own slot at the deadline, so whatever he had
+  to say underneath comes straight back. A blank line is never drawn at all.
 - **The task feed no longer goes deaf.** The watcher that waits for a
   session's task directory gave up after sixty seconds, and the first TodoWrite
   usually comes later than that — so for most sessions the active task, the
