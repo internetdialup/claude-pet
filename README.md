@@ -47,7 +47,7 @@ means an `ExitPlanMode` is sitting there waiting for your answer.
 **Thinking** just shows three dots. There's no honest label for that moment,
 so he doesn't pretend to have one.
 
-## ✨ Seventeen things he does when nobody asked
+## ✨ Eighteen things he does when nobody asked
 
 <table>
 <tr>
@@ -74,7 +74,7 @@ so he doesn't pretend to have one.
 <tr>
   <td align="center"><img src="docs/media/flourish-laserFlip.gif" width="110"><br><strong>Laser flip</strong></td>
   <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
-  <td align="center"></td>
+  <td align="center"><img src="docs/media/flourish-backSmith.gif" width="110"><br><strong>Back smith</strong></td>
   <td align="center"></td>
   <td align="center"></td>
 </tr>
@@ -234,7 +234,7 @@ no dependencies, no package manager.
 ---
 
 <div align="center">
-  <img src="docs/media/props.png" width="100%" alt="All twenty-six props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, eleven skateboards and a surfboard">
+  <img src="docs/media/props.png" width="100%" alt="All twenty-seven props in one strip: sparkles, terminal, check, bang, servers, mug, plan, hard hat, phone, fire, glasses, star, joystick, shades, twelve skateboards and a surfboard">
   <p><em>Every prop, from the same rig — no sprite sheet anywhere.</em></p>
   <p>Unofficial, and not affiliated with or endorsed by Anthropic.<br>
   MIT — see <a href="LICENSE">LICENSE</a>; trademark note in <a href="NOTICE.md">NOTICE.md</a>.</p>

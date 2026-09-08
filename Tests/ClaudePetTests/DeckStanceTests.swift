@@ -208,7 +208,7 @@ struct DeckStanceTests {
         // Compared IN THE SAME FRAME: the trick's first frame rides the idle
         // breath (bob 1 at t = 0), and so does the deck, so the reference is
         // that very pose with the board swapped for the deck under it.
-        for kind in [CrabAnimator.Flourish.ollie, .nollie, .manual] {
+        for kind in [CrabAnimator.Flourish.ollie, .nollie, .manual, .backSmith] {
             let first = CrabAnimator.flourishPose(kind, at: 0)
             var resting = first
             resting.prop = .none

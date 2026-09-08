@@ -220,7 +220,7 @@ struct SpawnRateTests {
 
     /// **The shout asks the deck the pose deals from.** `nextSkateTrickLanding`
     /// predicted from the BARE deck while the pose dealt from the worn one —
-    /// 43 entries against the Skater's 64 — so the same dice value named a
+    /// 47 entries against the Skater's 70 — so the same dice value named a
     /// different move landing at a different instant, and he shouted about
     /// tricks he never did whenever he was dressed for them.
     @Test("The landing predictor asks the same deck the pose deals from")

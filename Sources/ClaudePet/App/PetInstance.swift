@@ -159,6 +159,10 @@ final class PetInstance {
     private var costumeWatch: AnyCancellable?
     private var surfCursor = LineCursor()
     private var surfSeq = 0
+    /// The combo's tally — its own deck and its own generation counter, the
+    /// surf shout's shape.
+    private var comboCursor = LineCursor()
+    private var comboSeq = 0
     /// Longer than the skate window: three of the operator's surf lines are
     /// wider than the plain bubble, so they route to the marquee and have to
     /// finish SCROLLING, not merely appear. `surfLinesFitTheirWindow` pins
@@ -229,6 +233,7 @@ final class PetInstance {
                 Task { @MainActor in
                     guard let self, self.model.state.mood == .idle else { return }
                     self.armSkateLine()
+                    self.armComboLine()      // the Skater's lean re-deals the session die
                 }
             }
     }
@@ -654,6 +659,7 @@ final class PetInstance {
         }
         armSkateLine()
         armSurfLine()
+        armComboLine()
     }
 
     /// The deal-with-it latch: settled on the edges of "a flaired fact is on
@@ -725,6 +731,50 @@ final class PetInstance {
                      // something he is pleased about rather than finished with.
                      mood: .idle)
             self.armSurfLine()        // and meet the next swell
+        }
+    }
+
+    /// 🏆 Meet the combo's last landing with the tally.
+    ///
+    /// The surf shout's shape — scheduled, not detected — with the skate
+    /// shout's wardrobe, because the Skater's lean re-deals the session die.
+    /// The line is the count in front of a `.combo` line: "×5 COMBO. No notes
+    /// 🏆". It fires at the first instant of the settle beat, while the score
+    /// is still full on his shell; the skate shout stands down inside a
+    /// session, so this one always has the slot.
+    private func armComboLine() {
+        comboSeq &+= 1
+        let seq = comboSeq
+        guard model.state.mood == .idle,
+              let epoch = model.moodClock.currentEpoch(for: .idle)
+        else { return }
+        let now = Date.timeIntervalSinceReferenceDate
+        let wardrobe = model.costumeClock.wardrobe(idleT: now - epoch, now: now)
+        guard let tallied = CrabAnimator.nextSkateSessionEnd(after: now - epoch,
+                                                              wardrobe: wardrobe)
+        else { return }
+        let wait = epoch + tallied - now
+        guard wait > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self, self.comboSeq == seq else { return }
+            guard self.model.state.mood == .idle,
+                  self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
+            // The ride has to be REAL at fire time — the clock is the
+            // authority, not the timer — and under the live wardrobe.
+            let fired = Date.timeIntervalSinceReferenceDate
+            let live = self.model.costumeClock.wardrobe(idleT: fired - epoch, now: fired)
+            guard let local = CrabAnimator.skateSession(idleT: tallied - 0.02, wardrobe: live),
+                  local >= CrabAnimator.skateSessionTricksLength - 0.1
+            else {
+                self.armComboLine()
+                return
+            }
+            let count = CrabAnimator.skateSessionBeats.count
+            self.say(self.comboCursor.advance(Vocab.lines(for: .combo), id: "combo")
+                        .map { "×\(count) " + $0 },
+                     or: "×\(count) 🏆", for: PetInstance.skateLineSeconds,
+                     mood: .idle)
+            self.armComboLine()          // and the next ride
         }
     }
 
@@ -834,7 +884,7 @@ final class PetInstance {
         else { return }
         // The SAME deck the pose deals from. This asked `nextSkateTrickLanding`
         // bare, and bare is a different deck: dressed as the Skater the pose
-        // deals from 64 entries against the bare 43, so the same dice value
+        // deals from 70 entries against the bare 47, so the same dice value
         // named a different move landing at a different instant, and he
         // shouted about tricks he never did whenever he was dressed for them.
         // The wardrobe is this pet's own costume clock, rebased onto the idle
@@ -862,7 +912,14 @@ final class PetInstance {
             let fired = Date.timeIntervalSinceReferenceDate
             let live = self.model.costumeClock.wardrobe(idleT: fired - epoch, now: fired)
             guard let (kind, _) = CrabAnimator.flourish(at: landing - 0.02, wardrobe: live),
-                  CrabAnimator.Flourish.skateBeats.contains(kind)
+                  CrabAnimator.Flourish.skateBeats.contains(kind),
+                  // …and it is actually ON SCREEN: a session or a swell
+                  // outranks the flourish schedule and hides its trick, so a
+                  // landing inside either is not a landing he made. The combo
+                  // has its own line — the tally — and a shout here would
+                  // take its slot.
+                  CrabAnimator.skateSession(idleT: landing - 0.02, wardrobe: live) == nil,
+                  CrabAnimator.surfSet(idleT: landing - 0.02) == nil
             else {
                 self.armSkateLine()
                 return

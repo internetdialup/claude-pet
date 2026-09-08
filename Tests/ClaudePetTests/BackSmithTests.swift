@@ -1,0 +1,141 @@
+import Testing
+import Foundation
+@testable import ClaudePet
+
+/// **The back smith.** A ledge slides in from the left, he pops onto it,
+/// locks the back truck on the edge with the nose dipped two rows, steezes it
+/// out, and pops off as the ledge leaves. Every channel eased across every
+/// phase seam; the ledge is ground and never rises with him.
+@MainActor
+struct BackSmithTests {
+
+    private let duration = CrabAnimator.Flourish.backSmith.duration
+    private func frame(_ p: Double) -> CrabPose {
+        CrabAnimator.flourishPose(.backSmith, at: p * duration)
+    }
+    private func ledgeCells(_ buffer: PixelBuffer) -> [(x: Int, y: Int)] {
+        var cells: [(Int, Int)] = []
+        // The ledge's own rows only: a steel top at 26, slate below. (The
+        // landing dust is steel too, two rows above the feet.)
+        for y in 26...28 {
+            for x in 0..<PixelBuffer.side where (y == 26 && buffer[x, y] == .steel) || (y > 26 && buffer[x, y] == .slate) {
+                cells.append((x, y))
+            }
+        }
+        return cells
+    }
+
+    @Test("The ledge is off the grid at both ends of the trick")
+    func theLedgeBookendsAreClean() {
+        for p in [0.0, 0.005, 0.999] {
+            let pose = frame(p)
+            #expect(pose.ledge < 0.01, "ledge \(pose.ledge) at p=\(p)")
+            #expect(ledgeCells(CrabRig.render(pose)).isEmpty, "ledge cells on the grid at p=\(p)")
+        }
+        // The frozen sentinel, by the trick: frame 0 is a crab on a flat board.
+        let zero = frame(0)
+        #expect(zero.bob >= 0 && zero.combo == 0 && zero.legKick == 0)
+    }
+
+    @Test("Nothing snaps: bob moves a row a frame at most, outside the two stomps")
+    func nothingSnaps() {
+        var previous = frame(0)
+        var t = 0.0
+        var jumps: [(Double, Int)] = []
+        while t < duration {
+            t += 1.0 / 30
+            let pose = frame(min(1, t / duration))
+            let step = abs(pose.bob - previous.bob)
+            let p = t / duration
+            // The take-off (crouch → pop) and the landing squash are the
+            // exemption; everywhere else a row a frame.
+            let stomp = (p > 0.13 && p < 0.17) || (p > 0.88 && p < 0.92)
+            if step > 1 && !stomp { jumps.append((p, step)) }
+            // smoothstep's steepest slope is 1.5; the exit (0.20 of the trick)
+            // is the faster of the two envelopes.
+            #expect(abs(pose.ledge - previous.ledge) <= 1.5 / (0.20 * duration) / 30 + 1e-6,
+                    "the ledge jumped at p=\(p)")
+            previous = pose
+        }
+        #expect(jumps.isEmpty, "bob jumped: \(jumps)")
+        // …and the pop LANDS on the ledge: the grind's height, not the ground.
+        #expect(frame(0.399).bob == -3, "the pop ended at \(frame(0.399).bob), not on the ledge")
+        #expect(frame(0.40).bob == -3)
+        #expect(frame(0.78).bob == -3, "the pop-off did not start from the ledge")
+    }
+
+    @Test("Mid-grind the nose is down, the tail truck is on the edge, the leg is out")
+    func theGrind() {
+        let pose = frame(0.6)
+        #expect(pose.prop == .skateboardSmith)
+        #expect(pose.bob == -3)
+        #expect(pose.legKick > 0.99, "no steeze mid-grind")
+        #expect(pose.torsoTurn == 0, "only the bigspin may turn him")
+        #expect(pose.eyes == .determined)
+        let buffer = CrabRig.render(pose)
+        // The deck rows: tail (cols 8–13) level at 22, nose (cols 20–24) two rows lower.
+        func deckRow(_ x: Int) -> Int? { (0..<PixelBuffer.side).first { buffer[x, $0] == .deck } }
+        let tail = deckRow(9), nose = deckRow(22)
+        #expect(tail == 22, "tail row \(String(describing: tail))")
+        #expect(nose == 24, "nose row \(String(describing: nose)) — the nose is not dipped two rows")
+        // The tail wheel's bottom row is the row above the ledge's top.
+        let wheelBottom = (0..<PixelBuffer.side).last { buffer[11, $0] == .yellow }
+        let ledgeTop = (0..<PixelBuffer.side).first { buffer[5, $0] == .steel }
+        #expect(wheelBottom == 25 && ledgeTop == 26,
+                "wheel bottom \(String(describing: wheelBottom)), ledge top \(String(describing: ledgeTop))")
+        // The ledge is fully in: its edge stands at column 13 (the spark may be
+        // sitting on that very cell), and nothing at 14.
+        let edgeCell = buffer[13, 26]
+        let fullyIn = (edgeCell == .steel || edgeCell == .flameCore) && buffer[12, 26] == .steel
+            && buffer[14, 26] != .steel && buffer[0, 27] == .slate
+        #expect(fullyIn, "the ledge is not standing at column 13")
+        // The steeze at both ends of the grind is zero: it eases, it does not pop.
+        #expect(frame(0.40).legKick == 0 && frame(0.78).legKick == 0)
+    }
+
+    @Test("The ledge never rises with him")
+    func theLedgeIsGround() {
+        for p in stride(from: 0.2, through: 0.85, by: 0.05) {
+            var pose = frame(p)
+            guard pose.ledge > 0.5 else { continue }
+            pose.bob = -8                                 // a jump the ledge must ignore
+            let cells = ledgeCells(CrabRig.render(pose))
+            #expect(!cells.isEmpty)
+            #expect(cells.allSatisfy { $0.y >= 26 && $0.y <= 28 }, "ledge rows moved with bob at p=\(p)")
+        }
+        // …and it arrives from the left, one cell a frame at most.
+        var edge = -1
+        var t = 0.0
+        while t < duration * 0.30 {
+            let cells = ledgeCells(CrabRig.render(frame(t / duration)))
+            let newEdge = cells.map(\.x).max() ?? -1
+            #expect(newEdge >= edge, "the ledge retreated at \(t)")
+            #expect(newEdge - edge <= 2, "the ledge leapt \(newEdge - edge) cells at \(t)")
+            edge = newEdge
+            t += 1.0 / 30
+        }
+        #expect(edge == 13, "the ledge stopped at column \(edge)")
+    }
+
+    @Test("The smith board paints inside the grid at every phase, and starts as the resting deck")
+    func theBoardIsWellBehaved() {
+        for step in 0..<20 {
+            var pose = CrabPose()
+            pose.prop = .skateboardSmith
+            pose.propPhase = Double(step) * 0.31
+            let buffer = CrabRig.render(pose)
+            var deck = 0
+            for y in 0..<PixelBuffer.side { for x in 0..<PixelBuffer.side where buffer[x, y] == .deck { deck += 1 } }
+            #expect(deck == 17, "phase \(pose.propPhase): \(deck) deck cells")
+        }
+        // No yellow run longer than a wheel, mid-grind.
+        let buffer = CrabRig.render(frame(0.6))
+        for y in 0..<PixelBuffer.side {
+            var run = 0
+            for x in 0..<PixelBuffer.side {
+                run = buffer[x, y] == .yellow ? run + 1 : 0
+                #expect(run <= 3, "a yellow run of \(run) on row \(y)")
+            }
+        }
+    }
+}

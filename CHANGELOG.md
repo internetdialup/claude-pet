@@ -9,6 +9,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **🌈 Rainbow mode.** The skate session is a combo now: ollie, kickflip,
+  shove-it, nollie and a back smith, trick to trick with no roll-away between,
+  and his shell tints through the rainbow a little more with every landing —
+  the colour is the score. A Nyan-style trail streams off the back of the
+  board while he is scoring, and when the last trick lands he says how many:
+  "×5 COMBO. No notes 🏆". Rarity unchanged; the Skater still rides twice as
+  often.
+- **🧱 The ledge, and the back smith.** A block slides in from the left, he
+  pops an ollie onto it, locks the back truck on the edge with the nose dipped,
+  steezes the back leg out through the grind — a spark where the truck bites —
+  and pops off as the ledge leaves. The combo's finale, and an idle move of
+  his own. Eighteen idle moves, twenty-seven props.
 - **🛹 The Skater stands on his deck.** Dressed in the Skater fit he now rests
   on his board between tricks — wheels down, tricks popping straight off it —
   about seven minutes in ten, stepping on and off in long stretches with the
@@ -39,6 +51,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **The skate session is the combo.** Its beats are ollie, kickflip, shove-it,
+  nollie, back smith — the cruise left the chain, because a roll-away between
+  tricks is a rest and a combo has none. The trick shout stands down inside a
+  session or a swell, so it never talks over the tally or about a trick the
+  spell hid.
 - **🎬 The reel is cut by hand.** The sizzle masters are cut to a 120 BPM
   grid — every chapter boundary on a beat, the payoff and the wardrobe on
   bar lines — and nothing is time-stretched any more: every chapter plays at

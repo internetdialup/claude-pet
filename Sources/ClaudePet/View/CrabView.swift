@@ -128,7 +128,11 @@ public enum CrabAnimator {
              // The two 360 flips — mirrors of each other in both axes.
              treFlip, laserFlip,
              // The wheelie's mirror: nose planted, tail in the air.
-             noseManual
+             noseManual,
+             // The back smith: a ledge slides in from the left, he ollies onto
+             // it, grinds it nose-down with the steeze, and pops off. The
+             // combo's finale, and an idle move in its own right.
+             backSmith
 
         /// Everything he does on a board. Six are tricks and one is a cruise,
         /// which is why this is not called `skateTricks` — he shouts after all
@@ -136,7 +140,8 @@ public enum CrabAnimator {
         /// does over an actual kickflip.
         static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
                                                 .manual, .shoveIt, .nollie, .bigspin,
-                                                .treFlip, .laserFlip, .noseManual]
+                                                .treFlip, .laserFlip, .noseManual,
+                                                .backSmith]
 
         var duration: Double {
             switch self {
@@ -174,6 +179,9 @@ public enum CrabAnimator {
             // varial's, because twice the rotation in the same time is a
             // blur rather than a trick.
             case .treFlip, .laserFlip: 3.2
+            // The ledge has to arrive, he has to get onto it, hold the grind
+            // long enough to read as a grind, and get off before it leaves.
+            case .backSmith: 4.2
             }
         }
     }
@@ -272,6 +280,10 @@ public enum CrabAnimator {
         // balance ride, and the pair reads best when they come round about
         // as often as each other.
         .noseManual: 3,
+        // The newest trick leads, as every trick did when it was new. Deck 47
+        // bare, 70 dressed as the Skater — still under the 60 at which the
+        // README's idle clip would re-deal its pick.
+        .backSmith: 4,
     ]
 
     /// Expanded from the weights, over `allCases` rather than over the
@@ -430,18 +442,24 @@ public enum CrabAnimator {
         pose.gazeX = -1                       // down the line he is riding
     }
 
-    /// 🛹 THE SKATE SESSION: a rare long spell where he really skates —
-    /// cruise, ollie, cruise, kickflip, nollie, roll-away, strung together.
-    /// A stargaze-class idle spell, not a flourish: the 7-second flourish
-    /// scheduler cannot hold an 18-second beat. Dice `89 &+ 17` (the
+    /// 🛹 THE SKATE SESSION IS THE COMBO: a rare long spell where he really
+    /// skates — ollie, kickflip, shove-it, nollie, back smith, trick to trick
+    /// with no roll-away between, the score building on his shell as each one
+    /// lands ("like he's scoring", the operator's words) and a tally line at
+    /// the end. A stargaze-class idle spell, not a flourish: the 7-second
+    /// flourish scheduler cannot hold an 18-second beat. Dice `89 &+ 17` (the
     /// whether-a-cycle-fires family) over 180-second cycles, ~one idle
-    /// session in four and a half cycles; never cycle zero. The nollie
-    /// joined at the operator's call, and the window grew by its length.
+    /// session in four and a half cycles; never cycle zero. The cruise left
+    /// the chain on 2026-09-08 — a roll-away between tricks is a rest, and a
+    /// combo has none; the settle beat after the last landing is where the
+    /// tally lands and the rainbow eases off.
     static let skateSessionBeats: [(Flourish, Double)] = [
-        (.cruise, 2.6), (.ollie, 3.2), (.cruise, 2.6), (.kickflip, 2.8),
-        (.nollie, 3.6), (.cruise, 2.6),
+        (.ollie, 3.2), (.kickflip, 2.8), (.shoveIt, 2.2), (.nollie, 3.6),
+        (.backSmith, 4.2),
     ]
-    static let skateSessionLength = 18.1    // the beats plus a settling beat
+    static let skateSessionLength = 18.1    // the beats (16.0) plus a settling beat
+    /// Where the tricks end and the settle begins — the tally's instant.
+    static var skateSessionTricksLength: Double { skateSessionBeats.reduce(0) { $0 + $1.1 } }
 
     static func skateSession(idleT t: Double,
                              wardrobe: MotionWardrobe = .init()) -> Double? {
@@ -461,17 +479,30 @@ public enum CrabAnimator {
     /// its trick's own full duration, so every sub-trick starts and ends at
     /// its stance — the seams are the scheduler's own cuts, no worse.
     static func applySkateSession(_ local: Double, t: Double, to pose: inout CrabPose) {
+        pose.comboPhase = t
         var cursor = 0.0
-        for (kind, seconds) in skateSessionBeats {
+        let n = Double(skateSessionBeats.count)
+        for (index, beat) in skateSessionBeats.enumerated() {
+            let (kind, seconds) = beat
             if local < cursor + seconds {
-                apply(kind, progress: (local - cursor) / seconds, t: t, to: &pose)
+                let progress = (local - cursor) / seconds
+                apply(kind, progress: progress, t: t, to: &pose)
+                // 🌈 The score. Each landing lifts it one step of `1/n`, and
+                // the step RISES THROUGH THE STOMP — the beat's last 15% — so
+                // the next trick inherits a settled value and nothing jumps.
+                // The shell's rainbow and the trail both read it.
+                pose.combo = (Double(index) + Ease.smoothstep((progress - 0.85) / 0.15)) / n
                 return
             }
             cursor += seconds
         }
-        // The settling beat after the last roll-away: he just stands there,
-        // pleased with himself.
+        // The settling beat after the last landing: he just stands there,
+        // pleased with himself, the full score on his shell — then it eases
+        // off over the settle's last 0.8s, so the ride ends where it began.
         pose.mouth = .smile
+        let settle = local - cursor
+        let settleLength = skateSessionLength - cursor
+        pose.combo = 1 - Ease.smoothstep((settle - (settleLength - 0.8)) / 0.8)
     }
 
     /// 🛹 THE RESTING DECK: how much board is under the Skater's feet, 0…1.
@@ -565,8 +596,8 @@ public enum CrabAnimator {
     /// shouting about a trick he did not do.
     ///
     /// …and asks it under the SAME wardrobe the pose deals from. Dressed as
-    /// the Skater the deck has 64 entries against the bare 43 (Sonic 47,
-    /// the Gundam 55), so the same dice value names a different move landing
+    /// the Skater the deck has 70 entries against the bare 47 (Sonic 51,
+    /// the Gundam 59), so the same dice value names a different move landing
     /// at a different instant — a bare prediction had him shouting about
     /// tricks he never did whenever he was dressed for them. The default
     /// keeps every bare caller and pin exactly as it was.
@@ -600,6 +631,26 @@ public enum CrabAnimator {
             // it goes, not while he is still in it.
             let ended = start + 2 + surfLength
             if ended > t { return ended }
+        }
+        return nil
+    }
+
+    /// 🏆 When the combo's tricks are done and the tally can be said, in
+    /// mood-clock seconds — the first instant of the settle beat.
+    ///
+    /// Asks `skateSession` rather than restating its dice, for the reason the
+    /// other two predictors give: a copy of the schedule agrees with it only
+    /// until one of them changes. Under the SAME wardrobe the pose deals
+    /// under, because the Skater's lean re-deals the session die.
+    static func nextSkateSessionEnd(after t: Double, horizon: Double = 3600,
+                                    wardrobe: MotionWardrobe = .init()) -> Double? {
+        let period = SpawnRates.skateSession.period
+        let first = max(1, Int(floor(t / period)))
+        for cycle in first...(first + Int(horizon / period)) {
+            let start = Double(cycle) * period
+            guard skateSession(idleT: start + 2.01, wardrobe: wardrobe) != nil else { continue }
+            let tallied = start + 2 + skateSessionTricksLength
+            if tallied > t { return tallied }
         }
         return nil
     }
@@ -2517,6 +2568,74 @@ public enum CrabAnimator {
                 pose.propPhase = 1
             }
 
+        case .backSmith:
+            // 🛹 THE BACK SMITH — the combo's finale, and the operator's
+            // sketch almost to the letter: a ledge comes in from the left, he
+            // pops an ollie onto it, locks the back truck on the edge with the
+            // nose dipped, steezes it out, and pops off as it leaves.
+            //
+            // One board, one ledge, and every channel continuous across every
+            // phase seam: the pop ENDS at the grind's height (−3) rather than
+            // at the ground, the pitch eases in after contact and out before
+            // the pop-off, the pop-off starts from −3, and the ledge is one
+            // envelope over the whole trick rather than a value each phase
+            // sets and the next forgets. The two `bob = 1` stomps are the
+            // landing squash's own exemption from the no-snap rule.
+            //
+            // He does not move sideways — nothing on this rig does — so the
+            // ledge arrives under him the way the ground rushes under the
+            // cruise: the world comes to him. The rig draws `ledge` behind
+            // him at rows 26–28, ignoring `bob`; it is ground, not luggage.
+            pose.prop = .skateboardSmith
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            pose.ledge = Ease.smoothstep(progress / 0.30)
+                * (1 - Ease.smoothstep((progress - 0.80) / 0.20))
+            if progress < 0.15 {
+                pose.squash = 1                       // load the pop
+                pose.bob = 1
+            } else if progress < 0.40 {
+                // The pop, landing ON the ledge: 0 → a −9 apex → −3.
+                let air = (progress - 0.15) / 0.25
+                pose.bob = -Int((3 * air + 6 * sin(air * .pi)).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.mouth = .open
+                if air < 0.3 { pose.eyes = .squint }  // the snap
+            } else if progress < 0.78 {
+                // The grind: back truck on the edge, nose two rows down.
+                pose.bob = -3
+                let pitch = Ease.smoothstep((progress - 0.40) / 0.06)
+                    * (1 - Ease.smoothstep((progress - 0.72) / 0.06))
+                pose.propPhase = pitch
+                // 🦵 The steeze: out through the lock, back before release.
+                pose.legKick = Ease.smoothstep((progress - 0.42) / 0.08)
+                    * (1 - Ease.smoothstep((progress - 0.70) / 0.08))
+                pose.eyes = .determined
+                pose.mouth = .open
+                pose.gazeX = 1
+                // Bracing — the nose manual's counter-sway — weight back over
+                // the truck that is doing the work.
+                let saw = sin(t * 6)
+                pose.armLeft = pitch * (0.5 + 0.3 * saw)
+                pose.armRight = pitch * (0.5 - 0.3 * saw)
+                // A spark where the truck meets the edge, flickering.
+                pose.grindSpark = pitch > 0.5 && sin(t * 23) > 0.3
+            } else if progress < 0.90 {
+                // The pop-off: from −3, up, and down to 0.
+                let u = (progress - 0.78) / 0.12
+                pose.bob = -Int((3 * (1 - u) + 5 * sin(u * .pi)).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.mouth = .open
+            } else {
+                pose.squash = 1                       // stomp it flat
+                pose.bob = 1
+                pose.mouth = .open
+                pose.dustBurst = (progress - 0.90) / 0.10
+            }
+
         case .scuttle:
             // A couple of steps one way, then back.
             pose.legPhase = t * 6
@@ -2871,18 +2990,40 @@ public struct CrabView: View {
     /// - Parameter hourOfDay: the local hour, for the afternoon's warm.
     ///   Defaulted so every existing caller and test compiles untouched, and
     ///   so offline renderers — which pass nothing — stay cold.
+    /// 🌈 RAINBOW MODE: the combo's score on his shell. The hue makes half a
+    /// trip round the wheel a second and the amount IS the score — faint on
+    /// the first landing, full by the last — so the colour is the counter.
+    /// `towards` mixes from terracotta, so a dressed crab's tint pulls toward
+    /// Claw'd's own shell rather than the costume's; the party has always
+    /// done the same, and it reads as him under a light, not a recolour.
+    nonisolated static func comboTint(t: Double, combo: Double) -> Color? {
+        guard combo > 0.001 else { return nil }
+        let hue = (t * 0.5).truncatingRemainder(dividingBy: 1)
+        return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.72, brightness: 0.92),
+                                  amount: 0.85 * Ease.clamp01(combo))
+    }
+
     nonisolated static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
                              celebrating: Bool, epic: Bool = false,
                                          taskFraction: Double?, hourOfDay: Int? = nil,
-                                         preview: CrabAnimator.PreviewFrame? = nil) -> Color? {
-        // First, and it wins outright — the same rule `currentPose` states for
-        // the pose. A preview exists to be seen past the schedules.
+                                         preview: CrabAnimator.PreviewFrame? = nil,
+                                         combo: Double = 0) -> Color? {
+        // A preview WITH a tint of its own wins outright — the same rule
+        // `currentPose` states for the pose. A preview exists to be seen past
+        // the schedules.
         if let preview {
             let amount = CrabAnimator.previewBasking(preview)
-            guard amount > 0.001 else { return nil }
-            return SpriteTint.towards(SpriteTint.goldRGB, amount: 0.26 * amount)
+            if amount > 0.001 { return SpriteTint.towards(SpriteTint.goldRGB, amount: 0.26 * amount) }
         }
         if let rainbowElapsed, let party = rainbowTint(elapsed: rainbowElapsed) { return party }
+        // 🌈 The combo — AHEAD of the tintless-preview bail-out on purpose:
+        // the `.skateSession` preview carries the score in its pose, and a
+        // review that showed the trail without the rainbow would be lying
+        // about the ride. Only the session sets `combo`, and no offline
+        // renderer reads it, so committed bytes stay cold.
+        if let score = comboTint(t: t, combo: combo) { return score }
+        // A preview with no tint of its own hides the schedules' tints.
+        if preview != nil { return nil }
         if mood == .done, celebrating, epic, let burst = epicTint(doneT: t) { return burst }
         if mood == .cooking {
             if let disco = discoTint(cookingT: t) { return disco }
@@ -3018,7 +3159,11 @@ public struct CrabView: View {
                                          epic: epicCelebration,
                                          taskFraction: taskFraction,
                                          hourOfDay: hourOfDay,
-                                         preview: preview)
+                                         preview: preview,
+                                         // The BLENDED pose's score, so leaving
+                                         // idle mid-combo fades the rainbow with
+                                         // the 0.4s crossfade rather than cutting.
+                                         combo: pose.combo)
         let blanch = CrabView.composedBlanch(mood: mood, t: localT,
                                              celebrating: celebrating,
                                              epic: epicCelebration) * flashScale

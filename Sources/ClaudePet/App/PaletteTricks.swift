@@ -49,7 +49,7 @@ enum PaletteTricks {
 
     static let tricks: [CrabAnimator.Flourish] =
         [.ollie, .kickflip, .varialFlip, .manual, .noseManual, .shoveIt,
-         .nollie, .bigspin, .treFlip, .laserFlip, .cruise]
+         .nollie, .bigspin, .treFlip, .laserFlip, .cruise, .backSmith]
 
     /// Trick → line. All real lines off the kickflip deck — the golden
     /// board and its reserved line retired with it on 2026-09-08.
@@ -394,6 +394,7 @@ enum PaletteTricks {
         case .bigspin: .skateboardBigspin
         case .treFlip: .skateboardTre
         case .laserFlip: .skateboardLaser
+        case .backSmith: .skateboardSmith
         default: .skateboardRoll
         }
     }

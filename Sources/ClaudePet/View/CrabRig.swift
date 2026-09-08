@@ -123,13 +123,16 @@ public struct CrabPose: Sendable, Equatable {
         // Appended: the NOSE MANUAL's board — the manual's wheelie reflected,
         // front wheels planted and the tail stepping up behind him.
         case skateboardNoseManual
+        // Appended: the BACK SMITH's board — tail on the ledge, nose dipped
+        // below it; the one board he grinds rather than rolls.
+        case skateboardSmith
 
         var isWorn: Bool {
             switch self {
             case .hardHat, .phone, .fire, .glasses, .shades, .skateboard, .skateboardVarial,
              .skateboardRoll, .skateboardOllie, .skateboardManual, .skateboardShoveIt,
              .skateboardNollie, .skateboardBigspin,
-             .skateboardTre, .skateboardLaser, .surfboard: true
+             .skateboardTre, .skateboardLaser, .surfboard, .skateboardSmith: true
             default: false
             }
         }
@@ -143,7 +146,7 @@ public struct CrabPose: Sendable, Equatable {
             case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
                  .skateboardManual, .skateboardShoveIt, .skateboardNollie,
                  .skateboardBigspin, .skateboardTre, .skateboardLaser,
-                 .skateboardNoseManual, .surfboard: true
+                 .skateboardNoseManual, .skateboardSmith, .surfboard: true
             default: false
             }
         }
@@ -225,6 +228,22 @@ public struct CrabPose: Sendable, Equatable {
         max(prop.isBoard ? propVisibility : 0,
             ghostProp.isBoard ? ghostPropVisibility : 0)
     }
+
+    /// 🌈 The combo's score, 0…1 — how many of the session's tricks have
+    /// landed, stepping up through each stomp. Read by the view for his
+    /// shell's rainbow and by the rig for the trail behind the board. Set
+    /// ONLY by `applySkateSession`: no renderer scripts a session, so no
+    /// committed byte can carry either.
+    public var combo: Double = 0
+    /// The trail's clock — the session's `t`, so the Nyan wave advances.
+    public var comboPhase: Double = 0
+    /// 🧱 The ledge's arrival, 0…1: 0 is off the left edge of the grid, 1 is
+    /// fully in with its edge at column 13. Drawn by the rig behind him at
+    /// rows 26–28, ignoring `bob` — it is ground, not luggage.
+    public var ledge: Double = 0
+    /// A spark where the back truck meets the ledge's edge. A flicker on the
+    /// trick's own clock; glint-class, so a one-frame change is allowed.
+    public var grindSpark: Bool = false
 
     /// 🧢 The skate headwear, on dice for about a skate beat in three — the
     /// operator's drip, in two cuts: a black beanie pulled low, or a green
@@ -520,6 +539,16 @@ public enum CrabRig {
             drawRestingDeck(&deck, dx: dx, dy: dy)
             buffer.composite(deck, visibility: deckShown,
                              seed: CrabPose.Prop.skateboard.stableSeed)
+        }
+
+        // 🧱 The ledge and 🌈 the trail — both WORLD, both before the plate.
+        // The ledge sits on the ground and ignores `dy` like the shadow and
+        // the streaks; the trail comes off his body and rides it, like Nyan's.
+        if pose.ledge > 0.001 { drawLedge(&buffer, arrival: pose.ledge) }
+        if pose.combo > 0.001 {
+            var trail = PixelBuffer()
+            drawComboTrail(&trail, dy: dy, combo: pose.combo, phase: pose.comboPhase)
+            buffer.composite(trail, visibility: min(1, pose.combo * 2), seed: 780)
         }
 
         // Behind the body. The flame dissolves with its prop's visibility, so a
@@ -1696,7 +1725,7 @@ public enum CrabRig {
         case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
              .skateboardManual, .skateboardShoveIt, .skateboardNollie,
              .skateboardBigspin, .skateboardTre, .skateboardLaser,
-             .surfboard: return
+             .skateboardSmith, .surfboard: return
         default: break
         }
         // …and the resting deck grounds him the same way. `> 0.5`, the
@@ -1744,6 +1773,39 @@ public enum CrabRig {
             b.pixel(hub + 1, deckY + 2, bearingInk)
             b.pixel(hub + 2, deckY + 2, .yellow)
             b.rect(hub, deckY + 3, 3, 1, .yellow)
+        }
+    }
+
+    /// 🧱 The ledge he grinds: a block on the ground, 14 cells long and 3
+    /// tall (rows 26–28), sliding in from off the left edge until its edge
+    /// stands at column 13 — under the board's tail truck. Slate, with a
+    /// steel top row so the edge he locks onto reads as an edge. It ignores
+    /// `dy`: ground does not rise with a jump. Out-of-grid cells are dropped
+    /// by the buffer's own subscript, which is what lets it arrive from
+    /// nowhere and leave to nowhere without a special case.
+    nonisolated static let ledgeLength = 14
+    static func drawLedge(_ b: inout PixelBuffer, arrival: Double) {
+        let x0 = -ledgeLength + Int((Double(ledgeLength) * Ease.clamp01(arrival)).rounded())
+        b.rect(x0, 27, ledgeLength, 2, .slate)
+        b.rect(x0, 26, ledgeLength, 1, .steel)
+    }
+
+    /// 🌈 The Nyan trail: six one-row stripes off the back of the board —
+    /// red, orange, yellow, green, blue, pink (the palette's stand-in for
+    /// violet) — running left from the plank's tail, as long as the score is
+    /// high, waving in two-column blocks the way the cat's does. Behind him:
+    /// legs and body paint over it. `dy` is HIS, so the trail rises through
+    /// an ollie with him.
+    nonisolated static let trailInks: [PixelBuffer.Ink] = [.alert, .flame, .yellow, .green, .water, .pink]
+    static func drawComboTrail(_ b: inout PixelBuffer, dy: Int, combo: Double, phase: Double) {
+        let length = Int((Ease.clamp01(combo) * 8).rounded())
+        guard length > 0 else { return }
+        let flip = Int(max(0, phase) * 6) % 2
+        for x in (8 - length)..<8 {
+            let wave = ((x / 2) + flip) % 2 == 0 ? 0 : 1
+            for (row, ink) in trailInks.enumerated() {
+                b.pixel(x, 19 + dy + row + wave, ink)
+            }
         }
     }
 
@@ -2543,6 +2605,35 @@ public enum CrabRig {
                     b.rect(x, y, long, 1, .steel)
                 }
             }
+
+        case .skateboardSmith:
+            // The BACK SMITH's board: the nose manual's stepped plank run the
+            // other way — tail level, nose two rows DOWN — with the tail truck
+            // parked on the ledge's edge. `propPhase` is the pitch, 0…1, eased
+            // by the trick; at 0 this is the resting deck to the cell, so the
+            // pop is continuous with the stance he leaves. Clamped, because the
+            // prop sweep runs phase well past 1. No joiner pixels: both steps
+            // are a single row. No shimmer and no ground rush: a grind does
+            // not roll.
+            let pitch = min(1, max(0, pose.propPhase))
+            let cx = 16 + dx, deckY = 25 + dy
+            let dip = Int((2 * pitch).rounded())
+            let yTail = deckY
+            let yMid = deckY + min(1, dip)
+            let yNose = deckY + dip
+            b.rect(cx - 8, yTail, 6, 1, .deck)
+            b.rect(cx - 2, yMid, 6, 1, .deck)
+            b.rect(cx + 4, yNose, 5, 1, .deck)
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                b.rect(hub, y + 1, 3, 1, .yellow)
+                b.pixel(hub, y + 2, .yellow)
+                b.pixel(hub + 1, y + 2, bearingInk)
+                b.pixel(hub + 2, y + 2, .yellow)
+                b.rect(hub, y + 3, 3, 1, .yellow)
+            }
+            // ✨ The grind's spark, where the tail truck bites the edge — one
+            // cell of the palette's hottest yellow, on the trick's flicker.
+            if pose.grindSpark { b.pixel(cx - 3, yTail + 4, .flameCore) }
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)

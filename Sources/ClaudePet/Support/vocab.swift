@@ -66,6 +66,9 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case longPet
     /// 👋 The very first launch, ever. He introduces himself.
     case hello
+    /// 🏆 The combo landed — every trick in the session, back to back. The
+    /// tally ("×5 ") goes in front, in code; these are the words after it.
+    case combo
 }
 
 /// A line he says when the current task matches a pattern.
@@ -320,6 +323,16 @@ public enum Vocab {
             "👋 Hey, I'm Claw'd",
             "Oh! Hi — I'm Claw'd 🦀",
             "Hi — I'm your crab 🦀",
+        ]
+
+        // 🏆 The combo. The gold board's reserved lines, re-cut for the ride
+        // that replaced it. The count goes in front, in code, so a longer
+        // chain never needs a new line. Your words — edits welcome.
+        case .combo: [
+            "COMBO. No notes 🏆",
+            "Clean run ✨🛹",
+            "Midas grip tape today",
+            "Full send 🌈🛹",
         ]
         }
     }
