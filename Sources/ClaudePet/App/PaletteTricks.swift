@@ -15,9 +15,7 @@ import SwiftUI
 ///   pool in the bubble, one ground each.
 /// - `bubbles/`: basic Claw'd, a trick, and a REAL line off the skate shout
 ///   decks in his speech bubble — a sample that says marketing copy is a
-///   sample of nothing, so every line here is one he actually says. The
-///   golden-board line rides an actually-golden board: the jackpot is spent,
-///   not faked.
+///   sample of nothing, so every line here is one he actually says.
 ///
 /// Each clip is stance → trick → stance, the bookends repeating one fixed
 /// stance instant so the loop seam is zero-pixel by construction.
@@ -53,19 +51,19 @@ enum PaletteTricks {
         [.ollie, .kickflip, .varialFlip, .manual, .noseManual, .shoveIt,
          .nollie, .bigspin, .treFlip, .laserFlip, .cruise]
 
-    /// Trick → (line, golden). All real lines; the reserved gold line pays
-    /// for itself with a genuinely golden deck.
-    static let bubbleCast: [(trick: CrabAnimator.Flourish, line: String, golden: Bool)] = [
-        (.ollie, "Tony Clawd 900 🦅", false),
-        (.kickflip, "Do a Kickflip 🛹!", false),
-        (.varialFlip, "Kowbunga 🤙!", false),
-        (.manual, "Sponsor me 🛹", false),
-        (.shoveIt, "Kowbunga 🤙!", false),
-        (.nollie, "Nollie! Nose first 🛹", false),
-        (.bigspin, "Bigspin, board first 🌀", false),
-        (.treFlip, "Tre flip 🌀🛹", false),
-        (.laserFlip, "LASER FLIP ⚡🛹", false),
-        (.cruise, "GOLD BOARD. No notes 🏆", true),
+    /// Trick → line. All real lines off the kickflip deck — the golden
+    /// board and its reserved line retired with it on 2026-09-08.
+    static let bubbleCast: [(trick: CrabAnimator.Flourish, line: String)] = [
+        (.ollie, "Tony Clawd 900 🦅"),
+        (.kickflip, "Do a Kickflip 🛹!"),
+        (.varialFlip, "Kowbunga 🤙!"),
+        (.manual, "Sponsor me 🛹"),
+        (.shoveIt, "Kowbunga 🤙!"),
+        (.nollie, "Nollie! Nose first 🛹"),
+        (.bigspin, "Bigspin, board first 🌀"),
+        (.treFlip, "Tre flip 🌀🛹"),
+        (.laserFlip, "LASER FLIP ⚡🛹"),
+        (.cruise, "See you at the Hall of Meat 🍖!"),
     ]
 
     static func render(to directory: String) -> Bool {
@@ -92,11 +90,11 @@ enum PaletteTricks {
             for trick in tricks {
                 let name = "clawd-\(trick.rawValue)-\(ground.name).gif"
                 guard clip(trick: trick, ground: ground.color, costume: .none,
-                           line: nil, golden: false,
+                           line: nil,
                            to: tricksDir.appendingPathComponent(name)) else { return false }
             }
             guard clip(trick: .ollie, ground: ground.color, costume: .none,
-                       line: nil, golden: false, steeze: true,
+                       line: nil, steeze: true,
                        to: tricksDir.appendingPathComponent("clawd-ollie-steeze-\(ground.name).gif"))
             else { return false }
         }
@@ -134,12 +132,12 @@ enum PaletteTricks {
         else { return false }
         for trick in tricks {
             guard clip(trick: trick, ground: .clear, costume: .none,
-                       line: nil, golden: false, opaque: false,
+                       line: nil, opaque: false,
                        to: alphaDir.appendingPathComponent("clawd-\(trick.rawValue)-alpha.gif"))
             else { return false }
         }
         guard clip(trick: .ollie, ground: .clear, costume: .none,
-                   line: nil, golden: false, steeze: true, opaque: false,
+                   line: nil, steeze: true, opaque: false,
                    to: alphaDir.appendingPathComponent("clawd-ollie-steeze-alpha.gif"))
         else { return false }
 
@@ -183,7 +181,7 @@ enum PaletteTricks {
             for trick in tricks {
                 let name = "clawd-\(trick.rawValue)-\(pair.ground.name)-\(pair.costume.rawValue).gif"
                 guard clip(trick: trick, ground: pair.ground.color, costume: pair.costume,
-                           line: nil, golden: false,
+                           line: nil,
                            to: costumesDir.appendingPathComponent(name)) else { return false }
             }
         }
@@ -191,7 +189,7 @@ enum PaletteTricks {
             let ground = grounds[index % grounds.count]
             let name = "clawd-\(member.trick.rawValue)-fact-\(ground.name).gif"
             guard clip(trick: member.trick, ground: ground.color, costume: .none,
-                       line: member.line, golden: member.golden,
+                       line: member.line,
                        to: bubblesDir.appendingPathComponent(name)) else { return false }
         }
 
@@ -209,11 +207,11 @@ enum PaletteTricks {
             let capGround = grounds[(index + 4) % grounds.count]
             let capInk = CrabAnimator.capColours[index % CrabAnimator.capColours.count]
             guard clip(trick: trick, ground: beanieGround.color, costume: .none,
-                       line: nil, golden: false, headwear: .blackBeanie,
+                       line: nil, headwear: .blackBeanie,
                        to: hatsDir.appendingPathComponent(
                            "clawd-\(trick.rawValue)-beanie-\(beanieGround.name).gif")),
                   clip(trick: trick, ground: capGround.color, costume: .none,
-                       line: nil, golden: false, headwear: .cap(capInk),
+                       line: nil, headwear: .cap(capInk),
                        to: hatsDir.appendingPathComponent(
                            "clawd-\(trick.rawValue)-cap-\(capGround.name).gif"))
             else { return false }
@@ -351,7 +349,7 @@ enum PaletteTricks {
     }
 
     private static func clip(trick: CrabAnimator.Flourish, ground: Color, costume: Costume,
-                             line: String?, golden: Bool,
+                             line: String?,
                              headwear: CrabPose.Headwear = .none, steeze: Bool = false,
                              opaque: Bool = true,
                              to url: URL) -> Bool {
@@ -373,7 +371,6 @@ enum PaletteTricks {
             var pose = local < lead || local >= lead + trick.duration
                 ? stance
                 : CrabAnimator.flourishPose(trick, at: local - lead, base: stance, steeze: steeze)
-            if golden { pose.goldenBoard = true }
             pose.headwear = headwear
             guard let image = SpriteImage.cgImage(
                 of: scene(pose, on: ground, costume: costume, line: line, at: local),

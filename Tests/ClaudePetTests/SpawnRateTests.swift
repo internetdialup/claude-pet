@@ -17,7 +17,7 @@ struct SpawnRateTests {
          ("balloon", SpawnRates.balloon), ("sunPatch", SpawnRates.sunPatch),
          ("heatCascade", SpawnRates.heatCascade), ("discoTint", SpawnRates.discoTint),
          ("nearDoneGlow", SpawnRates.nearDoneGlow), ("fireBurnsLow", SpawnRates.fireBurnsLow),
-         ("bubbleShimmer", SpawnRates.bubbleShimmer)]
+         ("bubbleShimmer", SpawnRates.bubbleShimmer), ("deckStance", SpawnRates.deckStance)]
     }
 
     private var everyEffect: [(String, SpawnRates.Effect)] {
@@ -209,13 +209,48 @@ struct SpawnRateTests {
         #expect(skateShare(.skater) > skateShare(.none), "the skater's deck does not lean")
         #expect(skateShare(.gundam) < skateShare(.none), "the gundam's deck does not lean back")
 
-        // And the specials double for the one look dressed for them.
-        var goldBare = 0, goldSkater = 0
+        // And the special doubles for the one look dressed for it.
+        var steezeBare = 0, steezeSkater = 0
         for cycle in 1...4000 {
-            if CrabAnimator.skateBeatIsGolden(cycle: cycle) { goldBare += 1 }
-            if CrabAnimator.skateBeatIsGolden(cycle: cycle, costume: .skater) { goldSkater += 1 }
+            if CrabAnimator.ollieIsSteezed(cycle: cycle) { steezeBare += 1 }
+            if CrabAnimator.ollieIsSteezed(cycle: cycle, costume: .skater) { steezeSkater += 1 }
         }
-        #expect(goldSkater > goldBare, "the golden board did not lean for the skater")
+        #expect(steezeSkater > steezeBare, "the steeze did not lean for the skater")
+    }
+
+    /// **The shout asks the deck the pose deals from.** `nextSkateTrickLanding`
+    /// predicted from the BARE deck while the pose dealt from the worn one —
+    /// 43 entries against the Skater's 64 — so the same dice value named a
+    /// different move landing at a different instant, and he shouted about
+    /// tricks he never did whenever he was dressed for them.
+    @Test("The landing predictor asks the same deck the pose deals from")
+    func thePredictorAsksTheSameDeck() {
+        for costume in [Costume.skater, .sonic, .gundam, .none] {
+            let wardrobe = CrabAnimator.MotionWardrobe(current: costume)
+            var t = 1.0, checked = 0
+            while t < 3000, let landing = CrabAnimator.nextSkateTrickLanding(after: t, wardrobe: wardrobe) {
+                guard let (kind, progress) = CrabAnimator.flourish(at: landing - 0.02, wardrobe: wardrobe) else {
+                    Issue.record("\(costume): nothing is playing at the predicted landing \(landing)")
+                    break
+                }
+                #expect(CrabAnimator.Flourish.skateBeats.contains(kind),
+                        "\(costume): predicted a landing for \(kind), which is not a skate beat")
+                #expect(abs((landing - 0.02) + (1 - progress) * kind.duration - landing) < 0.03,
+                        "\(costume): \(kind) does not land at \(landing)")
+                checked += 1
+                t = landing + 0.1
+            }
+            #expect(checked > 100, "\(costume): only \(checked) landings in the sweep")
+        }
+        // The bare default is the bare schedule — every pin that never passed a
+        // wardrobe still means what it meant.
+        var t = 1.0, same = 0
+        while t < 500, let bare = CrabAnimator.nextSkateTrickLanding(after: t) {
+            #expect(bare == CrabAnimator.nextSkateTrickLanding(after: t, wardrobe: .init()))
+            same += 1
+            t = bare + 0.1
+        }
+        #expect(same > 20)
     }
 
     /// **The table is the only place the numbers live.**

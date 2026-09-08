@@ -66,7 +66,7 @@ struct PokeLadderTests {
     }
 }
 
-/// The night sky's rare streak, the golden deck, and the weighted rotation.
+/// The night sky's rare streak, the shout's die, and the weighted rotation.
 @Suite("Sky and deck")
 @MainActor
 struct SkyAndDeckTests {
@@ -126,59 +126,29 @@ struct SkyAndDeckTests {
         #expect(!sawTrackedThirds.isEmpty, "his eyes never engaged the star")
     }
 
-    // MARK: - The golden board
+    // MARK: - The shout's die
 
-    /// A dice at the stated odds, agreeing with itself between the deck that
-    /// paints and the landing that shouts.
-    @Test("One skate beat in about twenty is golden, everywhere at once")
-    func goldenRateAndAgreement() {
-        var golden = 0
-        let n = 20_000
-        for cycle in 1...n where CrabAnimator.skateBeatIsGolden(cycle: cycle) { golden += 1 }
-        let rate = Double(golden) / Double(n)
-        let wanted = SpawnRates.goldenBoard
-        #expect(abs(rate - wanted) < wanted * 0.25,
-                "golden rate \(rate), table says \(wanted)")
-
-        // Every landing the scheduler yields answers the same as its cycle.
+    /// The die that decides whether a landing is worth a line is keyed on the
+    /// landing's own cycle, so every asker agrees for the whole trick — the
+    /// agreement the golden board's die used to be pinned for, kept for the
+    /// die that survived it.
+    @Test("The shout's die is fixed per landing, everywhere at once")
+    func shoutDieAgreesWithItself() {
         var t = 1.0
-        var checked = 0
-        while t < 3_000, checked < 60 {
+        var checked = 0, spoke = 0
+        while t < 6_000, checked < 300 {
             guard let landing = CrabAnimator.nextSkateTrickLanding(after: t) else { break }
-            let cycle = Int(floor((landing - 0.01) / 7.0))
-            #expect(CrabAnimator.skateLandingIsGolden(at: landing)
-                    == CrabAnimator.skateBeatIsGolden(cycle: cycle),
-                    "the shout and the deck disagreed at \(landing)s")
+            let early = CrabAnimator.skateLandingSpeaks(at: landing - 1.0)   // still inside the trick
+            #expect(CrabAnimator.skateLandingSpeaks(at: landing) == early,
+                    "the die changed its mind inside one trick at \(landing)s")
+            if early { spoke += 1 }
             checked += 1
             t = landing + 0.1
         }
-        #expect(checked > 30, "the sweep found too few landings to mean anything")
-    }
-
-    /// The golden render inverts the board inks — gold deck, slate wheels —
-    /// and the flourishPose door (every renderer's, every sampler's) can
-    /// never produce it.
-    @Test("Gold cannot leak into a committed byte")
-    func goldNeverLeaks() {
-        for t in stride(from: 0.0, through: 3.2, by: 0.2) {
-            #expect(CrabAnimator.flourishPose(.kickflip, at: t).goldenBoard == false)
-            #expect(CrabAnimator.flourishPose(.ollie, at: t).goldenBoard == false)
-        }
-
-        var pose = CrabAnimator.flourishPose(.kickflip, at: 1.4)   // mid-air, board fat
-        let stock = CrabRig.render(pose)
-        pose.goldenBoard = true
-        let golden = CrabRig.render(pose)
-        var stockSlate = 0, goldenYellowGain = 0
-        for y in 0..<PixelBuffer.side {
-            for x in 0..<PixelBuffer.side {
-                if stock[x, y] == .deck { stockSlate += 1 }
-                if golden[x, y] == .yellow && stock[x, y] == .deck { goldenYellowGain += 1 }
-            }
-        }
-        #expect(stockSlate > 10, "the probe frame has no deck to measure")
-        #expect(goldenYellowGain == stockSlate,
-                "every slate deck cell must turn gold — got \(goldenYellowGain) of \(stockSlate)")
+        #expect(checked > 100, "the sweep found too few landings to mean anything")
+        let rate = Double(spoke) / Double(checked)
+        #expect(abs(rate - SpawnRates.skateShout) < 0.08,
+                "he spoke after \(rate) of landings; the table says \(SpawnRates.skateShout)")
     }
 
     /// The beanie: the golden board's contract on its own dice — the stated

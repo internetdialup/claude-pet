@@ -1035,8 +1035,11 @@ enum CrabCostume {
             b.pixel(16 + dx, crown - 2, .costumeB)
             b.rect(8 + dx, crown - 1, 4, 1, .costumeB)
             // 💨 The kick-push: two short dashes behind his feet now and
-            // then, like he just pushed off. Salt 43 on the 97 family.
-            if Self.effectWindow(at: pose.propPhase, SpawnRates.kickPush) != nil {
+            // then, like he just pushed off. Salt 43 on the 97 family. Only
+            // with the deck under him — a push-off needs a board, and for
+            // its first weeks this fired over bare feet.
+            if pose.deckUnderfoot > 0.5,
+               Self.effectWindow(at: pose.propPhase, SpawnRates.kickPush) != nil {
                 b.rect(3 + dx, 22 + dy, 2, 1, .shadow)
                 b.rect(2 + dx, 24 + dy, 2, 1, .shadow)
             }
@@ -1355,6 +1358,14 @@ public final class CostumeClock {
         note(costume, at: now)
         return CrabAnimator.MotionWardrobe(current: current, previous: previous,
                                            changedAt: changedAt - (now - t))
+    }
+
+    /// The same wardrobe, READ without noting. For callers that are not the
+    /// view — the shout scheduler, which must predict from the deck the pose
+    /// deals under but must not be the one that records a change.
+    func wardrobe(idleT t: Double, now: Double) -> CrabAnimator.MotionWardrobe {
+        CrabAnimator.MotionWardrobe(current: current, previous: previous,
+                                    changedAt: changedAt - (now - t))
     }
 
     /// Eased progress of the swap at `time`: 1 means the incoming costume is

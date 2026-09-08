@@ -35,7 +35,7 @@ import Foundation
 /// of what he does.** A skate beat lands every fifteen seconds of idle, and
 /// everything else in the list put together is under a tenth of that. When
 /// the next request is "more skating", the honest answer is usually to raise
-/// the RARE skate things — the golden board, the session, the steeze — and
+/// the RARE skate things — the session, the steeze — and
 /// not the base rate, which has very little room left to give.
 ///
 /// ## The rule this table exists to keep
@@ -88,7 +88,7 @@ enum SpawnRates {
     struct Lean: Sendable {
         /// × the skate session's rate.
         var session: Double = 1
-        /// × the rare skate specials — the golden board and the steeze.
+        /// × the rare skate special — the steeze.
         var specials: Double = 1
         /// + on every skate trick's weight in the flourish deck.
         var trick: Int = 0
@@ -108,8 +108,10 @@ enum SpawnRates {
     static func lean(for costume: Costume) -> Lean {
         switch costume {
         // 🛹 Dressed to skate: the long ride comes round twice as often,
-        // the jackpot and the steeze double, and the deck leans as far as a
-        // deck this skate-heavy can.
+        // the steeze doubles, the deck leans as far as a deck this
+        // skate-heavy can — and he stands on his board between tricks
+        // (`deckStance`, below), which no lean expresses because it is his
+        // alone.
         case .skater: Lean(session: 2.2, specials: 2, trick: 2, cruise: 1)
         // 💨 Speed, which in this rig is the CRUISE — the beat where he
         // holds still and the world streaks past him. Not the tricks: going
@@ -141,6 +143,16 @@ enum SpawnRates {
     /// starts feeling busy rather than alive, this is the number, and it is
     /// a one-line revert.
     static let flourish = Spawn(chance: 0.80, period: 7)             // 411/hr
+    /// 🛹 Whether a stretch is spent standing on the deck — the Skater's
+    /// resting stance, dressed only. Seven stretches in ten, the operator's
+    /// number ("on his skate deck 70% of the time"). The period is nine
+    /// flourish cycles so a stance boundary is always a flourish boundary:
+    /// no trick (3.6s at most) can straddle it, and the deck never has to
+    /// change under a board mid-air. Cycle 0 is on rather than diced — the
+    /// idle clock rebases on every idle entry, and a sentinel here would keep
+    /// him off his board for the first minute after every working spell; the
+    /// frozen lock is the wardrobe, which offline renders never pass.
+    static let deckStance = Spawn(chance: 0.70, period: 63)          // the Skater only
     /// 🛹 The long ride — several tricks strung together. The rarest thing
     /// he does on a board, and the one most worth catching.
     static let skateSession = Spawn(chance: 0.35, period: 180)       // 7/hr
@@ -179,10 +191,6 @@ enum SpawnRates {
     // gets its texture. Raising these is what "more skating" almost always
     // means, because the base rate is already saturated.
 
-    /// 🛹✨ One skate beat in twenty rides the golden board. Raised from
-    /// one in fifty at the operator's call: the jackpot was so rare that
-    /// most people running him had never once seen it, which makes it a
-    /// feature nobody has.
     /// 🛹💬 How often a landed trick is worth SAYING something about.
     ///
     /// Fifteen per cent, the operator's number. He shouted on every landing,
@@ -191,8 +199,6 @@ enum SpawnRates {
     /// one in seven the line lands as a reaction to a trick rather than as
     /// commentary on all of them.
     static let skateShout = 0.15
-
-    static let goldenBoard = 0.05
     /// 🧢 Nearly a beat in two comes out in headwear — the low half of the
     /// band is the beanie, the upper half the cap.
     /// ZERO — the hats are off, at the operator's call. "I don't like them,

@@ -9,6 +9,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **🛹 The Skater stands on his deck.** Dressed in the Skater fit he now rests
+  on his board between tricks — wheels down, tricks popping straight off it —
+  about seven minutes in ten, stepping on and off in long stretches with the
+  same dissolve every prop uses. The kick-push dust finally has a board to
+  push against. Live only: nothing in the README or the reel changes.
 - **🗓 The calendar fills in.** Hearts rise through the air February 12–14,
   fireworks light the sky July 2–4, and for Holy Week he wears a bunny suit
   — off-white, his own face showing through the hood, pink-lined ears — with
@@ -140,8 +145,22 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
   with the forehead V. The five vertical bars read as a pattern on a box.
 
+### Removed
+
+- **The golden board.** The rare gold deck with dark wheels — one skate beat
+  in twenty, one in ten dressed as Skater — is gone at the operator's call:
+  the board is always black now. Its three reserved lines went with it.
+
 ### Fixed
 
+- **🛹💬 He shouts about the trick he actually landed.** Dressed in a costume
+  that leans the rotation — Skater, Sonic, Gundam — the shout was predicted
+  from the bare crab's deck, so it could fire for a trick he never did or miss
+  one he did. It now asks the deck he is dressed for, re-checks the trick at
+  the landing, speaks in the character he wore for it, and re-arms when the
+  costume changes.
+- **🎈 A balloon waits for an empty hand.** One that floated in mid-kickflip
+  used to swap the airborne board for a mug.
 - **🫧 The empty bubble.** A shout that reached its deadline used to leave its
   green box behind — words gone, box still there, sometimes for half a minute
   until something else on the desk changed. The line's slot never cleared

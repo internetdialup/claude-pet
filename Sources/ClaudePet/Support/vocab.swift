@@ -60,9 +60,6 @@ public enum ShoutoutOccasion: String, Sendable, CaseIterable {
     case bugCaught
     /// 🛹 He just landed a kickflip.
     case kickflip
-    /// 🛹✨ The 1-in-20 golden board just landed. Reserved lines — these are
-    /// the jackpot, and the jackpot must not sound like an ordinary Tuesday.
-    case goldenSkate
     /// 🌊 He rode a swell all the way through.
     case surf
     /// 💛 Ten seconds of petting, held — the crescendo thank-you.
@@ -154,14 +151,6 @@ public enum Vocab {
             "Bigspin, board first 🌀",
             "Tre flip 🌀🛹",
             "LASER FLIP ⚡🛹",
-        ]
-
-        // 🛹✨ The golden board — one skate beat in twenty. The lines are
-        // reserved: dealing them on an ordinary trick would spend the jackpot.
-        case .goldenSkate: [
-            "GOLD BOARD. No notes 🏆",
-            "The 1-in-20 ride ✨🛹",
-            "Midas grip tape today",
         ]
 
 

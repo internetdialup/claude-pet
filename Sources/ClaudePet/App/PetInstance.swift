@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// One pet on the desktop: his model, his window, his input wiring, his
@@ -151,6 +152,11 @@ final class PetInstance {
     /// counter rather than a `Timer` handle, matching `fadeSeq`: the timer
     /// still fires, it just finds itself stale and does nothing.
     private var skateSeq = 0
+    /// Re-arms the skate shout when the wardrobe changes: a costume change
+    /// re-deals every flourish cycle after it, so a shout already scheduled is
+    /// aimed at a landing that may no longer happen. `skateSeq` retires the
+    /// old timer; this books the new one.
+    private var costumeWatch: AnyCancellable?
     private var surfCursor = LineCursor()
     private var surfSeq = 0
     /// Longer than the skate window: three of the operator's surf lines are
@@ -215,6 +221,16 @@ final class PetInstance {
 
     init(slot: Int) {
         self.slot = slot
+        // `dropFirst` skips the initial value; the hop keeps the sink's
+        // nonisolated closure off the main-actor method, the way every feed
+        // callback in `ActivityCoordinator` hops.
+        costumeWatch = model.$costume.dropFirst().removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.model.state.mood == .idle else { return }
+                    self.armSkateLine()
+                }
+            }
     }
 
     /// Stops the watch and releases the window — a dismissed second pet must
@@ -814,12 +830,22 @@ final class PetInstance {
         skateSeq &+= 1
         let seq = skateSeq
         guard model.state.mood == .idle,
-              let epoch = model.moodClock.currentEpoch(for: .idle),
-              let landing = CrabAnimator.nextSkateTrickLanding(
-                after: Date.timeIntervalSinceReferenceDate - epoch)
+              let epoch = model.moodClock.currentEpoch(for: .idle)
+        else { return }
+        // The SAME deck the pose deals from. This asked `nextSkateTrickLanding`
+        // bare, and bare is a different deck: dressed as the Skater the pose
+        // deals from 64 entries against the bare 43, so the same dice value
+        // named a different move landing at a different instant, and he
+        // shouted about tricks he never did whenever he was dressed for them.
+        // The wardrobe is this pet's own costume clock, rebased onto the idle
+        // clock the schedule runs on — READ, not noted; the view notes.
+        let now = Date.timeIntervalSinceReferenceDate
+        let wardrobe = model.costumeClock.wardrobe(idleT: now - epoch, now: now)
+        guard let landing = CrabAnimator.nextSkateTrickLanding(after: now - epoch,
+                                                               wardrobe: wardrobe)
         else { return }
 
-        let wait = epoch + landing - Date.timeIntervalSinceReferenceDate
+        let wait = epoch + landing - now
         guard wait > 0 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
             guard let self, self.skateSeq == seq else { return }
@@ -828,36 +854,39 @@ final class PetInstance {
             // whether the trick actually happened, not the timer.
             guard self.model.state.mood == .idle,
                   self.model.moodClock.currentEpoch(for: .idle) == epoch else { return }
-            // 🛹✨ Golden landings get the reserved deck. `skateLandingIsGolden`
-            // is the SAME derivation the pose used to paint the board, asked
-            // at the same landing instant — so the shout can never call an
-            // ordinary trick golden, or stay quiet about the jackpot.
-            // 🎭 …and IN CHARACTER, when he is wearing one. A costume that
-            // only recolours him is a paint job; one that changes what he
-            // says is a character, which is what the operator asked for.
-            // The golden deck still outranks it: the jackpot is the rarer
-            // thing to have landed, and it should sound like it whatever he
-            // has on. A costume with no voice of its own falls back to his,
-            // rather than being handed a forced catchphrase.
+            // Re-asked at the landing with the LIVE wardrobe. A costume change
+            // since the arm re-deals every later cycle (the change itself
+            // re-arms, but a timer already in flight still fires), and a shout
+            // about a move that is not on screen is worse than silence. Wrong
+            // or quiet, he meets the next one either way.
+            let fired = Date.timeIntervalSinceReferenceDate
+            let live = self.model.costumeClock.wardrobe(idleT: fired - epoch, now: fired)
+            guard let (kind, _) = CrabAnimator.flourish(at: landing - 0.02, wardrobe: live),
+                  CrabAnimator.Flourish.skateBeats.contains(kind)
+            else {
+                self.armSkateLine()
+                return
+            }
             // 🛹💬 …but only about one landing in seven. Asked at the same
-            // instant, from the same die, as the golden-board question — so
-            // the answer is the trick's own and cannot drift.
+            // instant, from a die keyed on the landing's own cycle, so the
+            // answer is the trick's own and cannot drift.
             guard CrabAnimator.skateLandingSpeaks(at: landing) else {
                 self.armSkateLine()      // quiet about this one; meet the next
                 return
             }
-            let worn = self.model.costume
+            // 🎭 IN CHARACTER, when he is wearing one — and for the costume
+            // the trick was dealt UNDER (the cycle's latched wardrobe), not
+            // whatever he has on this instant. A costume that only recolours
+            // him is a paint job; one that changes what he says is a
+            // character. A costume with no voice of its own falls back to his,
+            // rather than being handed a forced catchphrase. Drawn lazily,
+            // inside `say`, so a shout that arrives while a fact is being read
+            // costs the deck nothing.
+            let worn = live.worn(at: landing - 0.02, period: SpawnRates.flourish.period)
             let inCharacter = Vocab.skateLines(for: worn)
-            // Drawn lazily, inside `say`, so a shout that arrives while a
-            // fact is being read costs the deck nothing.
-            self.say(CrabAnimator.skateLandingIsGolden(at: landing)
-                        ? self.skateCursor.advance(Vocab.lines(for: .goldenSkate),
-                                                   id: "goldenSkate")
-                        : inCharacter.isEmpty
-                            ? self.skateCursor.advance(Vocab.lines(for: .kickflip),
-                                                       id: "kickflip")
-                            : self.skateCursor.advance(inCharacter,
-                                                       id: "skate-\(worn.rawValue)"),
+            self.say(inCharacter.isEmpty
+                        ? self.skateCursor.advance(Vocab.lines(for: .kickflip), id: "kickflip")
+                        : self.skateCursor.advance(inCharacter, id: "skate-\(worn.rawValue)"),
                      or: "Kowbunga 🤙!", for: PetInstance.skateLineSeconds,
                      // `.idle`, not `.done` — the same green bubble WITHOUT
                      // the leading checkmark. `.done`'s glyph is a tick, and

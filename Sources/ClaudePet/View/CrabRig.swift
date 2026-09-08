@@ -134,6 +134,20 @@ public struct CrabPose: Sendable, Equatable {
             }
         }
 
+        /// Every board he stands on — the skate decks and the surfboard.
+        /// What the resting deck yields to: while one of these fills the
+        /// prop slot, or is still dissolving out of the ghost slot, the deck
+        /// under his feet is covered.
+        var isBoard: Bool {
+            switch self {
+            case .skateboard, .skateboardVarial, .skateboardRoll, .skateboardOllie,
+                 .skateboardManual, .skateboardShoveIt, .skateboardNollie,
+                 .skateboardBigspin, .skateboardTre, .skateboardLaser,
+                 .skateboardNoseManual, .surfboard: true
+            default: false
+            }
+        }
+
         /// The props Claw'd picks between while a tool is running.
         static let working: [Prop] = [.terminal, .hardHat, .servers, .phone,
                                       .fire, .glasses, .joystick]
@@ -192,15 +206,29 @@ public struct CrabPose: Sendable, Equatable {
     public var shadesDrop: Int = 0
     public var shadesGlint: Bool = false
 
-    /// The 1-in-50 jackpot deck. Set ONLY by the live schedule in `pose()` —
-    /// never by `flourishPose` (the renderers' and sampler's door) and never
-    /// by a preview — so a golden board cannot reach a committed byte by
-    /// construction.
-    public var goldenBoard: Bool = false
+    /// 🛹 How much of a flat board is under his feet, 0…1 — the Skater's
+    /// resting deck. Its OWN channel rather than a `prop`: the shades, the
+    /// mug and every other idle prop take the prop slot, and a board he is
+    /// merely standing on must not fight them for it. Set ONLY by the live
+    /// schedule in `pose()` under a Skater wardrobe — every offline renderer
+    /// passes the bare default and gets 0 — so the deck cannot reach a
+    /// committed byte by construction, the contract the golden board kept
+    /// before it was retired. The rig draws it under him only where no board
+    /// prop already is (`boardCover`).
+    public var deckUnderfoot: Double = 0
+
+    /// How much of the prop slot a BOARD fills right now, 0…1 — the incoming
+    /// prop or the ghost of the outgoing one, whichever shows more. The
+    /// resting deck yields to it cell for cell, which is what keeps the
+    /// handover to a surfboard fading in from zero seamless.
+    public var boardCover: Double {
+        max(prop.isBoard ? propVisibility : 0,
+            ghostProp.isBoard ? ghostPropVisibility : 0)
+    }
 
     /// 🧢 The skate headwear, on dice for about a skate beat in three — the
     /// operator's drip, in two cuts: a black beanie pulled low, or a green
-    /// cap with a brim. The golden board's exact contract: live-schedule-only
+    /// cap with a brim. The resting deck's exact contract: live-schedule-only
     /// by placement, so committed media never wears either. Drawn only on the
     /// bare crab — headwear over a costume's crown would fight every helmet
     /// in the wardrobe.
@@ -477,6 +505,22 @@ public enum CrabRig {
 
         // The ground shadow goes down before anything stands on it.
         drawShadow(&buffer, dx: dx, dy: dy, pose: pose)
+
+        // 🛹 The Skater's resting deck — ground furniture like the shadow,
+        // drawn before him and before the props, so a board prop paints over
+        // it and anything he holds sits in front of it. Scaled by how much of
+        // the slot a BOARD already fills (a trick's, or the ghost of one still
+        // dissolving) rather than gated on the prop's kind: the surfboard
+        // fades in from zero with the water, and the deck has to hand over to
+        // it cell for cell or it would vanish in one frame while the
+        // surfboard was still invisible.
+        let deckShown = pose.deckUnderfoot * (1 - pose.boardCover)
+        if deckShown > 0.001 {
+            var deck = PixelBuffer()
+            drawRestingDeck(&deck, dx: dx, dy: dy)
+            buffer.composite(deck, visibility: deckShown,
+                             seed: CrabPose.Prop.skateboard.stableSeed)
+        }
 
         // Behind the body. The flame dissolves with its prop's visibility, so a
         // prop swap away from fire cannot vanish the burst in one frame.
@@ -1493,17 +1537,11 @@ public enum CrabRig {
     /// spin the mark moves about 1.4 cells a frame.
     /// The dark mark in the middle of a wheel — the bearing, and the thing
     /// that makes three yellow cells read as a WHEEL rather than a block.
-    ///
-    /// It was always `.screenDark`, which works on the ordinary board where
-    /// the wheel is yellow: dark hub, light tyre. On the GOLDEN board the
-    /// wheel turns `.slate` and the hub stayed `.screenDark` — dark on dark,
-    /// so the hub disappeared and each wheel became a solid three-by-three
-    /// slab. That is the "orange skateboard with thick wheels": the wheels
-    /// are the same size as everyone else's, they had just lost the hole in
-    /// the middle. The fix is to invert the pair rather than resize anything.
-    static func bearingInk(golden: Bool) -> PixelBuffer.Ink {
-        golden ? .yellow : .screenDark
-    }
+    /// One ink, because there is one board: the golden deck that inverted
+    /// the pair (and needed a yellow hub to keep the hole in the wheel) was
+    /// retired on 2026-09-08 at the operator's call — "the board always
+    /// black".
+    static let bearingInk: PixelBuffer.Ink = .screenDark
 
     private static func drawFlatSpin(_ b: inout PixelBuffer, dx: Int, dy: Int,
                                      pose: CrabPose, yaw: Double) {
@@ -1512,10 +1550,10 @@ public enum CrabRig {
         let cx = 16 + dx, deckY = 25 + dy
         let half = max(2, Int((deckHalfLength * abs(cos(yaw))
                                + deckHalfWidth * abs(sin(yaw))).rounded()))
-        let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-        let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+        let deckInk: PixelBuffer.Ink = .deck
+        let wheelInk: PixelBuffer.Ink = .yellow
         // The nose reads against whichever deck it is riding on.
-        let noseInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .paper
+        let noseInk: PixelBuffer.Ink = .paper
         b.rect(cx - half, deckY, half * 2 + 1, 1, deckInk)
         if half >= 5 {
             for hub in [cx - half + 1, cx + half - 3] {
@@ -1529,7 +1567,7 @@ public enum CrabRig {
                 // it is the wheel's SHAPE that had no business differing.
                 b.rect(hub, deckY + 1, 3, 1, wheelInk)
                 b.pixel(hub, deckY + 2, wheelInk)
-                b.pixel(hub + 1, deckY + 2, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 1, deckY + 2, bearingInk)
                 b.pixel(hub + 2, deckY + 2, wheelInk)
                 b.rect(hub, deckY + 3, 3, 1, wheelInk)
             }
@@ -1576,14 +1614,14 @@ public enum CrabRig {
         let acrossView: Double = deckHalfWidth * abs(cos(roll)) * abs(sin(yaw))
         let half = max(1, Int((alongView + acrossView).rounded()))
         let thick = max(1, Int((5.0 * abs(sin(roll))).rounded()))
-        let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-        let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+        let deckInk: PixelBuffer.Ink = .deck
+        let wheelInk: PixelBuffer.Ink = .yellow
         b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
 
         // Grip tape on the face that is toward you, which is the opposite
         // half of the roll for each trick — the cheapest honest tell.
         if sin(roll) < 0, thick >= 4 {
-            let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+            let grit: PixelBuffer.Ink = .screenDark
             for gx in stride(from: cx - half + 1, through: cx + half - 2, by: 4) {
                 b.pixel(gx, deckY + 1, grit)
                 b.pixel(gx + 1, deckY, grit)
@@ -1628,7 +1666,7 @@ public enum CrabRig {
                 // the set once the widths were finally equal.
                 b.rect(hub, deckY + orbit - 2, 3, 1, wheelInk)
                 b.pixel(hub, deckY + orbit - 1, wheelInk)
-                b.pixel(hub + 1, deckY + orbit - 1, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 1, deckY + orbit - 1, bearingInk)
                 b.pixel(hub + 2, deckY + orbit - 1, wheelInk)
                 b.rect(hub, deckY + orbit, 3, 1, wheelInk)
             }
@@ -1661,6 +1699,10 @@ public enum CrabRig {
              .surfboard: return
         default: break
         }
+        // …and the resting deck grounds him the same way. `> 0.5`, the
+        // `crownProp` precedent: at most four grease cells change hands in
+        // the one frame the deck crosses half, glint-class.
+        if pose.deckUnderfoot > 0.5 { return }
         let rise = max(0, -dy)
         // TWO shadows, one under each pair of feet — the operator's sketch
         // was `__.    __`. One line the width of his whole body read as a
@@ -1679,6 +1721,29 @@ public enum CrabRig {
         for pairLeft in [legX[0], legX[2]] {
             let centre = pairLeft + 3          // 7…12 centres on 9.5, so 9 or 10
             b.rect(centre + dx - span / 2, 25, span, 1, .shadow)
+        }
+    }
+
+    /// 🛹 The deck he stands on between tricks — the rest form the ollie,
+    /// the nollie, the manual, the tre and the laser all land in: a 17-wide
+    /// plank on row 25, trucks at cx−5 and cx+4, three-row wheels with a
+    /// dark bearing. No shimmer cell and no nose mark, because at rest there
+    /// is nothing to follow. NOT the kickflip's first frame: that board's
+    /// wheels hang a row lower (27–29) and its phase 0 sits inside the
+    /// shimmer window, so it would pop against nine of the eleven skate
+    /// beats and carry a permanent glint. The kickflip and the varial still
+    /// drop their wheels one row when they start from here — a recorded
+    /// seam, not a surprise; aligning those two boards touches committed
+    /// GIFs and belongs to its own round.
+    static func drawRestingDeck(_ b: inout PixelBuffer, dx: Int, dy: Int) {
+        let cx = 16 + dx, deckY = 25 + dy
+        b.rect(cx - 8, deckY, 17, 1, .deck)
+        for hub in [cx - 5, cx + 4] {
+            b.rect(hub, deckY + 1, 3, 1, .yellow)
+            b.pixel(hub, deckY + 2, .yellow)
+            b.pixel(hub + 1, deckY + 2, bearingInk)
+            b.pixel(hub + 2, deckY + 2, .yellow)
+            b.rect(hub, deckY + 3, 3, 1, .yellow)
         }
     }
 
@@ -2088,26 +2153,22 @@ public enum CrabRig {
             let theta = turn * 2 * .pi
             let cx = 16 + dx, deckY = 25 + dy
             let thick = max(1, Int((7 * abs(sin(theta))).rounded()))
-            // The golden board inverts the two board inks: deck gold, wheels
-            // slate. `.yellow` because it is the palette's only gold — the
-            // wheels' own ink and the star's — and the inversion (rather than
-            // gold-on-gold) keeps the deck/wheel boundary the board tests
-            // measure. Same swap in all four board cases.
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            // One board, one pair of inks: near-black deck, yellow wheels.
+            // (A golden variant once inverted them; retired 2026-09-08.)
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - 8, deckY - thick / 2, 17, thick, deckInk)
             // Grip tape, the operator's ask: when the flip brings the TOP
             // face round (the far half of the turn — the wheels hide behind
             // the slab there) and the slab is fat enough to read as a face,
             // it carries a sparse grit of texture cells. Steel on the slate
-            // deck — grit catches light against near-black — and slate grit
-            // on the golden deck, where dark specks read as the tape itself.
+            // deck — grit catches light against near-black.
             // Deterministic in the turn, whole-pixel, gone with the face.
             if sin(theta) < 0, thick >= 5 {
                 // SLANTED and barely-there, per the operator: two-cell `/`
                 // slashes in `.screenDark` — one step off the deck's black,
-                // texture you feel more than see. Slate slashes on gold.
-                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+                // texture you feel more than see.
+                let grit: PixelBuffer.Ink = .screenDark
                 for gx in stride(from: cx - 6, through: cx + 6, by: 4) {
                     b.pixel(gx, deckY + 1, grit)
                     b.pixel(gx + 1, deckY, grit)
@@ -2124,7 +2185,7 @@ public enum CrabRig {
                     // suite measure the deck by looking for it — a bearing in
                     // the same ink put the wheel inside the deck's bounding box
                     // and made every frame look diagonal to the test.
-                    b.pixel(hub + 1, deckY + orbit, bearingInk(golden: pose.goldenBoard))   // the bearing
+                    b.pixel(hub + 1, deckY + orbit, bearingInk)   // the bearing
                     b.pixel(hub + 2, deckY + orbit, wheelInk)
                     b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
                 }
@@ -2161,13 +2222,13 @@ public enum CrabRig {
             // looking straight down the nose-tail axis.
             let half = max(2, Int((8 * abs(cos(yaw)) + 2.5 * abs(sin(yaw))).rounded()))
             let thick = max(1, Int((5 * abs(sin(roll))).rounded()))
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - half, deckY - thick / 2, half * 2 + 1, thick, deckInk)
             // Grip tape on the varial's top face too — same rule as the
             // kickflip's, spanning whatever width the yaw has left the deck.
             if sin(roll) < 0, thick >= 4 {
-                let grit: PixelBuffer.Ink = pose.goldenBoard ? .slate : .screenDark
+                let grit: PixelBuffer.Ink = .screenDark
                 for gx in stride(from: cx - half + 1, through: cx + half - 2, by: 4) {
                     b.pixel(gx, deckY + 1, grit)
                     b.pixel(gx + 1, deckY, grit)
@@ -2185,7 +2246,7 @@ public enum CrabRig {
                 for hub in [cx - reach - 1, cx + reach - 1] {
                     b.rect(hub, deckY + orbit - 1, 3, 1, wheelInk)
                     b.pixel(hub, deckY + orbit, wheelInk)
-                    b.pixel(hub + 1, deckY + orbit, bearingInk(golden: pose.goldenBoard))
+                    b.pixel(hub + 1, deckY + orbit, bearingInk)
                     b.pixel(hub + 2, deckY + orbit, wheelInk)
                     b.rect(hub, deckY + orbit + 1, 3, 1, wheelInk)
                 }
@@ -2233,8 +2294,8 @@ public enum CrabRig {
             let yTail = deckY + dip
             let yMid = deckY + dip - (rise + dip) / 2
             let yNose = deckY - rise
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - 8, yTail, 6, 1, deckInk)
             b.rect(cx - 2, yMid, 6, 1, deckInk)
             b.rect(cx + 4, yNose, 5, 1, deckInk)
@@ -2246,7 +2307,7 @@ public enum CrabRig {
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))      // the bearing
+                b.pixel(hub + 1, y + 2, bearingInk)      // the bearing
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2283,8 +2344,8 @@ public enum CrabRig {
             let yTail = deckY - rise
             let yMid = deckY + dip - (rise + dip) / 2
             let yNose = deckY + dip
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - 8, yTail, 6, 1, deckInk)
             b.rect(cx - 2, yMid, 6, 1, deckInk)
             b.rect(cx + 4, yNose, 5, 1, deckInk)
@@ -2294,7 +2355,7 @@ public enum CrabRig {
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 1, y + 2, bearingInk)
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2311,8 +2372,8 @@ public enum CrabRig {
             let pitch = Ease.smoothstep(min(p, 1 - p) * 5)
             let rise = Int((3 * pitch).rounded())
             let cx = 16 + dx, deckY = 25 + dy
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             let yTail = deckY
             let yMid = deckY - rise / 2
             let yNose = deckY - rise
@@ -2324,7 +2385,7 @@ public enum CrabRig {
             for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 1, y + 2, bearingInk)
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2356,8 +2417,8 @@ public enum CrabRig {
             let pitch = Ease.smoothstep(min(p, 1 - p) * 5)
             let rise = Int((3 * pitch).rounded())
             let cx = 16 + dx, deckY = 25 + dy
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             let yNose = deckY
             let yMid = deckY - rise / 2
             let yTail = deckY - rise
@@ -2369,7 +2430,7 @@ public enum CrabRig {
             for (hub, y) in [(cx + 4, yNose), (cx - 6, yTail)] {
                 b.rect(hub, y + 1, 3, 1, wheelInk)
                 b.pixel(hub, y + 2, wheelInk)
-                b.pixel(hub + 1, y + 2, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 1, y + 2, bearingInk)
                 b.pixel(hub + 2, y + 2, wheelInk)
                 b.rect(hub, y + 3, 3, 1, wheelInk)
             }
@@ -2453,8 +2514,8 @@ public enum CrabRig {
             let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
             let deckY = 25 + dy
             let cx = 16 + dx
-            let deckInk: PixelBuffer.Ink = pose.goldenBoard ? .yellow : .deck
-            let wheelInk: PixelBuffer.Ink = pose.goldenBoard ? .slate : .yellow
+            let deckInk: PixelBuffer.Ink = .deck
+            let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - 8, deckY, 17, 1, deckInk)
 
             let tick = Int(u * 34) % 4
@@ -2464,7 +2525,7 @@ public enum CrabRig {
                 b.pixel(hub, deckY + 2, wheelInk)
                 b.pixel(hub + 2, deckY + 2, wheelInk)
                 b.rect(hub, deckY + 3, 3, 1, wheelInk)
-                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, bearingInk(golden: pose.goldenBoard))
+                b.pixel(hub + 1 + mark.0, deckY + 2 + mark.1, bearingInk)
             }
 
             // Ground streaking past, in the floor band below him — the only

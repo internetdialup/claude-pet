@@ -938,6 +938,9 @@ struct FrozenSentinelTests {
             // a service glyph a live latch never handed it.
             #expect(pose.serviceGlyph == nil, "mood \(mood)")
             #expect(pose.serviceGlyphVisibility == 0, "mood \(mood)")
+            // The Skater's resting deck is live-only through the wardrobe;
+            // bare, no mood ever stands on one.
+            #expect(pose.deckUnderfoot == 0, "mood \(mood)")
         }
     }
 

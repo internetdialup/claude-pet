@@ -145,6 +145,7 @@ extension CrabPose {
         out.heat = lerp(from.heat, to.heat)
         out.stargaze = lerp(from.stargaze, to.stargaze)
         out.sunPatch = lerp(from.sunPatch, to.sunPatch)
+        out.deckUnderfoot = lerp(from.deckUnderfoot, to.deckUnderfoot)
 
         // `torsoTurn` is an angle too, and it IS lerped: the trick that owns
         // it dies the moment a mood changes, and a six-wide pillar snapping

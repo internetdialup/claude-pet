@@ -31,7 +31,7 @@ public enum CrabAnimator {
     /// | salt | who |
     /// | --- | --- |
     /// | `7 &+ 3` | which idle flourish |
-    /// | `7 &+ 11` | whether a skate beat rides the golden board — 7 shared by addend |
+    /// | `7 &+ 11` | RETIRED — was the golden board (removed 2026-09-08, "the board always black"); never reuse |
     /// | `7 &+ 13` | whether a skate beat wears headwear — same family |
     /// | `7 &+ 19` | which colour the cap comes in — same family |
     /// | `7 &+ 23` | whether an ollie is steezed (the leg kicks out) — same family |
@@ -59,6 +59,7 @@ public enum CrabAnimator {
     /// | `89 &+ 17` | the skate session — 89 shared by addend |
     /// | `89 &+ 19` | the surf set — same family, same question |
     /// | `89 &+ 23` | whether a landed trick is worth SAYING something about |
+    /// | `89 &+ 29` | whether a 63s stretch is spent standing on the deck — the Skater's resting stance, same family |
     ///
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
@@ -308,14 +309,6 @@ public enum CrabAnimator {
         return decks
     }()
 
-    /// One skate beat in fifty rides the golden board. Salt 7 &+ 11 — the
-    /// flourish family's multiplier, new addend, same cycle domain.
-    nonisolated static let goldenSkateChance = SpawnRates.goldenBoard
-    static func skateBeatIsGolden(cycle: Int, costume: Costume = .none) -> Bool {
-        let chance = min(1, goldenSkateChance * SpawnRates.lean(for: costume).specials)
-        return cycle > 0 && noise(cycle &* 7 &+ 11) < chance
-    }
-
     /// 🧢 About a skate beat in three comes out in headwear — the operator's
     /// drip, split into two cuts on ONE dice: the low band is the black
     /// beanie, the upper the green cap. Salt 7 &+ 13: the flourish family's
@@ -334,13 +327,6 @@ public enum CrabAnimator {
             return .cap(capColours[min(pick, capColours.count - 1)])
         }
         return .none
-    }
-
-    /// The same question asked at a LANDING instant — the one derivation
-    /// `armSkateLine` and the pose share, so the reserved shout can never
-    /// disagree with the deck it is shouting about.
-    static func skateLandingIsGolden(at landing: Double) -> Bool {
-        skateBeatIsGolden(cycle: Int(floor((landing - 0.01) / flourishPeriod)))
     }
 
     /// 🛹💬 Whether he says anything at all about the trick he just landed.
@@ -488,6 +474,72 @@ public enum CrabAnimator {
         pose.mouth = .smile
     }
 
+    /// 🛹 THE RESTING DECK: how much board is under the Skater's feet, 0…1.
+    ///
+    /// Dressed as the Skater he stands on his deck between tricks, in long
+    /// stretches — `SpawnRates.deckStance`, seven in ten, dealt per 63s
+    /// coarse cycle on `89 &+ 29` — and steps off it for the others. The
+    /// value is an ENVELOPE, never a switch: it eases between the stance
+    /// before `start` and the stance after it over `deckStanceFade`, where
+    /// `start` is the later of the coarse boundary and the costume change,
+    /// pushed later still to the RELEASE of any board spell in progress then
+    /// — the surf, the session, or a skate trick that begins on the boundary,
+    /// the precedence `pose()` gives them. Without that last term the fade
+    /// would finish invisibly under a board and the deck would appear or
+    /// vanish in the frame the board left.
+    ///
+    /// Cycle 0 is ON. The idle clock rebases on every idle entry, so a
+    /// `cycle > 0` sentinel would keep him off his board for the first minute
+    /// after every working spell; the frozen lock is the wardrobe instead —
+    /// every offline renderer passes the bare default and gets 0 here.
+    ///
+    /// The costume is read CURRENT, not latched to the cycle: the stance is
+    /// not a move in flight, and choosing the Skater should put him on the
+    /// deck within a fade rather than at the next minute. (A change inside
+    /// the last `deckStanceFade` before a boundary hands over to the
+    /// boundary's own fade a little early — the one edge this shape has.)
+    nonisolated static let deckStanceFade = 0.6
+
+    static func deckStance(idleT t: Double, wardrobe: MotionWardrobe) -> Double {
+        let period = SpawnRates.deckStance.period
+        func stance(_ cycle: Int, _ costume: Costume) -> Double {
+            guard costume == .skater else { return 0 }
+            return cycle <= 0 || noise(cycle &* 89 &+ 29) < SpawnRates.deckStance.chance ? 1 : 0
+        }
+        let cycle = Int(floor(t / period))
+        let boundary = Double(cycle) * period
+        let target = stance(cycle, wardrobe.current)
+        let changed = wardrobe.changedAt > boundary
+        let before = changed ? stance(cycle, wardrobe.previous)
+                             : stance(cycle - 1, wardrobe.current)
+        guard before != target else { return target }
+        let start = boardRelease(after: changed ? wardrobe.changedAt : boundary,
+                                 wardrobe: wardrobe)
+        let u = Ease.smoothstep((t - start) / deckStanceFade)
+        return before + (target - before) * u
+    }
+
+    /// When the prop slot is next free of a board, asked at `t`: `t` itself if
+    /// nothing is riding, otherwise the end of the swell, the session or the
+    /// skate trick under way — surf first, then session, then flourish, the
+    /// order `pose()` composes them in. (Asked without the hour, so a session
+    /// the telescope or the sun stood down still counts — the fade waits a
+    /// little longer than it had to, which is the harmless direction.)
+    static func boardRelease(after t: Double, wardrobe: MotionWardrobe) -> Double {
+        if surfSet(idleT: t) != nil {
+            let period = SpawnRates.surfSet.period
+            return floor(t / period) * period + 2 + surfLength
+        }
+        if let local = skateSession(idleT: t, wardrobe: wardrobe) {
+            return t - local + skateSessionLength
+        }
+        if let (kind, progress) = flourish(at: t, wardrobe: wardrobe),
+           Flourish.skateBeats.contains(kind) {
+            return t + (1 - progress) * kind.duration
+        }
+        return t
+    }
+
     static func flourish(at t: Double,
                          wardrobe: MotionWardrobe = .init()) -> (Flourish, Double)? {
         let cycle = Int(floor(t / flourishPeriod))
@@ -511,11 +563,19 @@ public enum CrabAnimator {
     /// already written down once; a second copy here would agree with it right
     /// up until somebody changed one of them, and the symptom would be him
     /// shouting about a trick he did not do.
-    static func nextSkateTrickLanding(after t: Double, horizon: Double = 900) -> Double? {
+    ///
+    /// …and asks it under the SAME wardrobe the pose deals from. Dressed as
+    /// the Skater the deck has 64 entries against the bare 43 (Sonic 47,
+    /// the Gundam 55), so the same dice value names a different move landing
+    /// at a different instant — a bare prediction had him shouting about
+    /// tricks he never did whenever he was dressed for them. The default
+    /// keeps every bare caller and pin exactly as it was.
+    static func nextSkateTrickLanding(after t: Double, horizon: Double = 900,
+                                      wardrobe: MotionWardrobe = .init()) -> Double? {
         let first = max(1, Int(floor(t / flourishPeriod)))
         for cycle in first...(first + Int(horizon / flourishPeriod)) {
             let start = Double(cycle) * flourishPeriod
-            guard let (kind, _) = flourish(at: start + 0.01),
+            guard let (kind, _) = flourish(at: start + 0.01, wardrobe: wardrobe),
                   Flourish.skateBeats.contains(kind)
             else { continue }
             let landed = start + kind.duration
@@ -1112,16 +1172,12 @@ public enum CrabAnimator {
             } else if flourishes, let (kind, progress) = flourish(at: t, wardrobe: wardrobe) {
                 apply(kind, progress: progress, t: t, to: &pose)
                 if Flourish.skateBeats.contains(kind) {
-                    // 🛹✨ The jackpot ride. LIVE-only by placement: this
-                    // branch is the schedule's, and `flourishPose` — every
-                    // renderer's and the sampler's door — never runs it, so
-                    // the golden deck cannot leak into a committed byte.
+                    // LIVE-only by placement: this branch is the schedule's,
+                    // and `flourishPose` — every renderer's and the sampler's
+                    // door — never runs it, so nothing dealt here can leak
+                    // into a committed byte.
                     let worn = wardrobe.worn(at: t, period: flourishPeriod)
-                    if skateBeatIsGolden(cycle: Int(floor(t / flourishPeriod)), costume: worn) {
-                        pose.goldenBoard = true
-                    }
-                    // 🧢 …and sometimes the headwear comes out. Same
-                    // contract, its own dice.
+                    // 🧢 Sometimes the headwear comes out, on its own dice.
                     pose.headwear = skateHeadwear(cycle: Int(floor(t / flourishPeriod)))
                     // 🦵 …and about one ollie in three is STEEZED — the
                     // back leg boned out through the float. Same contract
@@ -1133,6 +1189,12 @@ public enum CrabAnimator {
                     }
                 }
             }
+
+            // 🛹 The Skater's resting deck — under whatever is playing. The
+            // rig covers it wherever a board prop already is, so it is set
+            // unconditionally and the trick, the session and the swell simply
+            // paint over it. Live-only through the wardrobe: bare, always 0.
+            pose.deckUnderfoot = deckStance(idleT: t, wardrobe: wardrobe)
 
             // A second and a half of light across the shell. Not suppressed by
             // the sun or the telescope the way the bug and the balloon are —
@@ -1163,7 +1225,11 @@ public enum CrabAnimator {
             let sun = sunPatch(idleT: t, hourOfDay: hourOfDay)
 
             if gazing == nil, sun == nil {
-                if let float = idleBalloon(idleT: t) {
+                // Only into an EMPTY hand. This wrote the mug unconditionally
+                // after the flourish branch, so a balloon whose window opened
+                // mid-kickflip swapped the airborne board for a mug — the
+                // same courtesy the shades below have always paid.
+                if pose.prop == .none, let float = idleBalloon(idleT: t) {
                     pose.prop = .mug
                     pose.propVisibility = float
                 }
@@ -2993,6 +3059,13 @@ public struct CrabView: View {
             var pose = CrabAnimator.pose(mood: partyMood, t: time - rainbowSince)
             pose.mouth = .open
             pose.confettiElapsed = time - rainbowSince
+            // 🛹 The deck stays under a Skater for the party — this path
+            // builds its pose bare and returns before the blend, so without
+            // this the board would vanish for the party and reappear after.
+            if mood == .idle {
+                pose.deckUnderfoot = CrabAnimator.deckStance(
+                    idleT: t, wardrobe: costumeClock.wardrobe(idleT: t, now: time))
+            }
             return pose
         }
 
