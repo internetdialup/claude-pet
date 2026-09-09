@@ -13,16 +13,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   shove-it, nollie and a back smith, trick to trick with no roll-away between,
   and his shell tints through the rainbow a little more with every landing —
   the colour is the score. A Nyan-style trail streams off the back of the
-  board while he is scoring, and when the last trick lands he says how many:
-  "×5 COMBO. No notes 🏆". Rarity unchanged; the Skater still rides twice as
+  board while he is scoring — two ribbons deep, the far one a step behind and
+  slower — and when the last trick lands the board catches fire and stays
+  alight through the settle while he says how many: "×5 COMBO. No notes 🏆". Rarity unchanged; the Skater still rides twice as
   often — and dressed as the Skater, **poking him three times starts the ride**
   where every other look throws the party.
-- **🧱 The ledge, and the back smith.** A four-cell ledge comes in from the
-  left, he pops an ollie onto it, locks the back truck on the top with the
-  nose dipped, steezes the back leg out through the grind — a spark where the
-  truck bites — while the ledge slides on under him, and pops off as it leaves
-  to the right. The combo's finale, and an idle move of his own. Eighteen idle
-  moves, twenty-seven props.
+- **🧱 The ledge, and the back smith.** A long, five-cell ledge comes in from
+  his right with three little bushes drifting behind it at half its speed, he
+  pops an ollie onto it, locks the back truck on the top with the nose dipped,
+  and steezes the back leg out through a two-and-a-half-second grind with
+  sparks flying off the truck while the ledge slides on under him — then
+  kickflips out and stomps it as the ledge leaves to the left. The combo's
+  finale, and an idle move of his own. Eighteen idle moves, twenty-seven props.
 - **🛹 The Skater stands on his deck.** Dressed in the Skater fit he now rests
   on his board between tricks — wheels down, tricks popping straight off it —
   about seven minutes in ten, stepping on and off in long stretches with the
@@ -53,6 +55,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **💗 Hearts twice as often.** The idle heart comes round about every minute
+  of idling now instead of every two and a half, on every look.
 - **Lighter wheels.** Every board rides 2×2 wheels now — a rim over a hub —
   where they were 3×3 blocks that read big under a standing crab. The kickflip
   and varial's wheels, which hung a row lower than the rest at rest, sit level

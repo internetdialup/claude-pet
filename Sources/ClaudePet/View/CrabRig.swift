@@ -237,16 +237,27 @@ public struct CrabPose: Sendable, Equatable {
     public var combo: Double = 0
     /// The trail's clock — the session's `t`, so the Nyan wave advances.
     public var comboPhase: Double = 0
-    /// 🧱 The ledge's TRAVEL, 0…1, left to right: 0 is off the left edge of
-    /// the grid, 14/46 is fully in with its edge at column 13, and 1 is off
-    /// the right edge. Monotone across the trick — it enters, slides under
-    /// his locked truck through the grind, and leaves the way it was going.
-    /// Drawn by the rig behind him at rows 25–28 (four tall), ignoring `bob`
-    /// — it is ground, not luggage.
+    /// 🧱 The ledge's TRAVEL, 0…1, RIGHT TO LEFT (the operator's direction):
+    /// 0 is off the right edge of the grid, 40/60 has its right end at
+    /// column 19 under his landing, 46/60 at column 13 as the grind ends,
+    /// and 1 is off the left edge. Monotone across the trick — it enters,
+    /// slides under his locked truck through the grind, and leaves the way
+    /// it was going. Drawn by the rig behind him at rows 24–28 (five tall),
+    /// ignoring `bob` — it is ground, not luggage.
     public var ledge: Double = 0
-    /// A spark where the back truck meets the ledge's edge. A flicker on the
-    /// trick's own clock; glint-class, so a one-frame change is allowed.
-    public var grindSpark: Bool = false
+    /// 🌳 The bushes behind the ledge, 0…1 visibility. Their POSITION comes
+    /// from `ledge` at half its speed — parallax, the far layer lagging the
+    /// near one — so this is only whether they are there.
+    public var bushes: Double = 0
+    /// ✨ Sparks off the back truck on the ledge, 0…1 — how many fly. Their
+    /// flicker rides `sparkPhase`, the trick's own clock; glint-class, so a
+    /// one-frame change is allowed.
+    public var grindSparks: Double = 0
+    public var sparkPhase: Double = 0
+    /// 🔥 The board alight, 0…1 — the combo's special at full score. Flames
+    /// off the deck through the settle, on `comboPhase`. Set ONLY by
+    /// `applySkateSession`, so nothing offline burns.
+    public var boardFire: Double = 0
 
     /// 🧢 The skate headwear, on dice for about a skate beat in three — the
     /// operator's drip, in two cuts: a black beanie pulled low, or a green
@@ -544,11 +555,24 @@ public enum CrabRig {
                              seed: CrabPose.Prop.skateboard.stableSeed)
         }
 
-        // 🧱 The ledge and 🌈 the trail — both WORLD, both before the plate.
-        // The ledge sits on the ground and ignores `dy` like the shadow and
-        // the streaks; the trail comes off his body and rides it, like Nyan's.
+        // 🌳 The bushes, 🧱 the ledge and 🌈 the trail — all WORLD, all before
+        // the plate, far to near. The bushes and the ledge sit on the ground
+        // and ignore `dy` like the shadow and the streaks; the trail comes
+        // off his body and rides it, like Nyan's.
+        if pose.bushes > 0.001 {
+            var bushes = PixelBuffer()
+            drawBushes(&bushes, travel: pose.ledge)
+            buffer.composite(bushes, visibility: pose.bushes, seed: 781)
+        }
         if pose.ledge > 0.001, pose.ledge < 0.999 { drawLedge(&buffer, travel: pose.ledge) }
         if pose.combo > 0.001 {
+            // The far ribbons first — a step behind, a row lower, on a slower
+            // wave, fainter — then the near ones over them. Two layers is
+            // what "a little more depth" costs.
+            var far = PixelBuffer()
+            drawComboTrail(&far, dy: dy, combo: pose.combo, phase: pose.comboPhase * 0.6,
+                           shift: (x: -1, y: 1))
+            buffer.composite(far, visibility: 0.45 * min(1, pose.combo * 2), seed: 783)
             var trail = PixelBuffer()
             drawComboTrail(&trail, dy: dy, combo: pose.combo, phase: pose.comboPhase)
             buffer.composite(trail, visibility: min(1, pose.combo * 2), seed: 780)
@@ -671,6 +695,13 @@ public enum CrabRig {
         propPass(&buffer, pose: pose, prop: pose.prop,
                  phase: pose.propPhase, visibility: pose.propVisibility,
                  dx: dx, dy: dy)
+        // 🔥 The board alight — after the props, so the flames sit ON the
+        // deck he stands on, in the gaps between his legs. Full score only.
+        if pose.boardFire > 0.001 {
+            var fire = PixelBuffer()
+            drawBoardFire(&fire, dx: dx, dy: dy, phase: pose.comboPhase)
+            buffer.composite(fire, visibility: pose.boardFire, seed: 782)
+        }
         // After the prop, so the sparkle sits on the landed shades rather
         // than under them; before the service glyph, which wins its own cells.
         if pose.shadesGlint {
@@ -1774,38 +1805,86 @@ public enum CrabRig {
         }
     }
 
-    /// 🧱 The ledge he grinds: a block on the ground, 14 cells long and four
-    /// tall (rows 25–28), travelling LEFT TO RIGHT — in from off the left
-    /// edge, under his locked truck through the grind, out past the right
-    /// edge — the operator's direction. `travel` 0…1 maps to a left edge of
-    /// −14…32, so both ends are off the grid. Slate, with a steel top row so
-    /// the edge he locks onto reads as an edge. It ignores `dy`: ground does
-    /// not rise with a jump. Out-of-grid cells are dropped by the buffer's
-    /// own subscript, which is what lets it arrive from nowhere and leave to
-    /// nowhere without a special case.
-    nonisolated static let ledgeLength = 14
-    nonisolated static let ledgeTravel = 46      // −14 … 32, both ends off-grid
+    /// 🧱 The ledge he grinds: a block on the ground, 28 cells long and five
+    /// tall (rows 24–28), travelling RIGHT TO LEFT — in from off his right,
+    /// under his locked truck through the grind, out past the left edge —
+    /// the operator's direction ("bring it from his right, then go right to
+    /// left"). `travel` 0…1 maps its RIGHT END from 59 to −1, so both ends
+    /// are off the grid. Slate, with a steel top row so the edge he locks
+    /// onto reads as an edge. It ignores `dy`: ground does not rise with a
+    /// jump. Out-of-grid cells are dropped by the buffer's own subscript,
+    /// which is what lets it arrive from nowhere and leave to nowhere
+    /// without a special case.
+    nonisolated static let ledgeLength = 28
+    nonisolated static let ledgeTravel = 60      // right end 59 … −1, both off-grid
+    /// The ledge's right end for a travel, in cells.
+    static func ledgeRightEnd(travel: Double) -> Int {
+        59 - Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
+    }
     static func drawLedge(_ b: inout PixelBuffer, travel: Double) {
-        let x0 = -ledgeLength + Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
-        b.rect(x0, 26, ledgeLength, 3, .slate)
-        b.rect(x0, 25, ledgeLength, 1, .steel)
+        let x0 = ledgeRightEnd(travel: travel) - (ledgeLength - 1)
+        b.rect(x0, 25, ledgeLength, 4, .slate)
+        b.rect(x0, 24, ledgeLength, 1, .steel)
+    }
+
+    /// 🌳 Three little bushes behind the ledge, drifting at HALF its speed —
+    /// the far layer of a two-layer ground, which is where the depth comes
+    /// from. Domes five wide and four tall, rows 21–24: far things sit HIGHER
+    /// in a side view, so their base is the ledge's top line — they peek over
+    /// the steel where the ledge passes and stand on the far ground where it
+    /// does not. (A first cut gave them bodies down to the near ground, and
+    /// wherever the ledge left them uncovered they read as green pillars.)
+    /// Their position is derived from the ledge's own travel (zero offset
+    /// where he lands), so the two layers cannot drift apart from each
+    /// other's clock.
+    nonisolated static let bushColumns = [2, 14, 26]
+    static func bushOffset(travel: Double) -> Int {
+        Int((Double(ledgeRightEnd(travel: travel) - 19) * 0.5).rounded())
+    }
+    static func drawBushes(_ b: inout PixelBuffer, travel: Double) {
+        let bx = bushOffset(travel: travel)
+        for column in bushColumns {
+            let x = column + bx
+            b.rect(x + 1, 21, 3, 1, .green)
+            b.rect(x, 22, 5, 2, .green)
+            b.rect(x + 1, 24, 3, 1, .green)
+        }
     }
 
     /// 🌈 The Nyan trail: six one-row stripes off the back of the board —
     /// red, orange, yellow, green, blue, pink (the palette's stand-in for
-    /// violet) — running left from the plank's tail, as long as the score is
-    /// high, waving in two-column blocks the way the cat's does. Behind him:
-    /// legs and body paint over it. `dy` is HIS, so the trail rises through
-    /// an ollie with him.
+    /// violet) — running left from the plank's tail to the frame's edge by
+    /// the third landing, waving in two-column blocks the way the cat's
+    /// does. Behind him: legs and body paint over it. `dy` is HIS, so the
+    /// trail rises through an ollie with him. `shift` places the far layer:
+    /// a step behind, a row lower.
     nonisolated static let trailInks: [PixelBuffer.Ink] = [.alert, .flame, .yellow, .green, .water, .pink]
-    static func drawComboTrail(_ b: inout PixelBuffer, dy: Int, combo: Double, phase: Double) {
-        let length = Int((Ease.clamp01(combo) * 8).rounded())
+    static func drawComboTrail(_ b: inout PixelBuffer, dy: Int, combo: Double, phase: Double,
+                               shift: (x: Int, y: Int) = (0, 0)) {
+        let length = min(8, Int((Ease.clamp01(combo) * 12).rounded()))
         guard length > 0 else { return }
         let flip = Int(max(0, phase) * 6) % 2
         for x in (8 - length)..<8 {
             let wave = ((x / 2) + flip) % 2 == 0 ? 0 : 1
             for (row, ink) in trailInks.enumerated() {
-                b.pixel(x, 19 + dy + row + wave, ink)
+                b.pixel(x + shift.x, 19 + dy + row + wave + shift.y, ink)
+            }
+        }
+    }
+
+    /// 🔥 The board alight — the combo's special. Tongues rise off the deck
+    /// in the gaps between his legs, one to three cells tall, flickering on
+    /// the session's clock: `.flame` at the base, `.flameCore` above, the
+    /// cooking blaze's own inks. Drawn after the props so the fire sits ON
+    /// the board rather than behind it.
+    nonisolated static let fireColumns = [9, 10, 13, 14, 18, 19, 22, 23]
+    static func drawBoardFire(_ b: inout PixelBuffer, dx: Int, dy: Int, phase: Double) {
+        let deckY = 25 + dy
+        for column in fireColumns {
+            let lick = 0.5 + 0.5 * sin(phase * 7 + Double(column) * 1.3)
+            let height = 1 + Int((2 * lick).rounded())
+            for step in 0..<height {
+                b.pixel(column + dx, deckY - 1 - step, step == 0 ? .flame : .flameCore)
             }
         }
     }
@@ -2602,11 +2681,18 @@ public enum CrabRig {
             for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
                 drawWheel(&b, x: hub, y: y, inner: inner)
             }
-            // ✨ The grind's spark, where the tail truck bites the ledge's top
-            // — one cell of the palette's hottest yellow, under the wheel's
-            // centre, on the trick's flicker. Wherever the ledge has slid to,
-            // that cell is on it.
-            if pose.grindSpark { b.pixel(cx - 4, yTail + 3, .flameCore) }
+            // ✨ Sparks off the tail truck where it bites the ledge's top —
+            // five cells flying up and back, each on its own flicker, as many
+            // alight as the lock is deep. The blaze's sparks' own rule: hot
+            // core when bright, flame when not.
+            if pose.grindSparks > 0.001 {
+                let flecks = [(-5, 2), (-6, 1), (-4, 1), (-3, 0), (-7, 2)]
+                for (index, fleck) in flecks.enumerated() {
+                    let life = sin(pose.sparkPhase * 23 + Double(index) * 1.7)
+                    guard life * pose.grindSparks > 0.2 else { continue }
+                    b.pixel(cx + fleck.0, yTail + fleck.1, life > 0.75 ? .flameCore : .flame)
+                }
+            }
 
         case .glasses:
             drawGlasses(&b, dx: dx, dy: dy, pose: pose)

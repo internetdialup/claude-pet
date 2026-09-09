@@ -181,7 +181,7 @@ public enum CrabAnimator {
             case .treFlip, .laserFlip: 3.2
             // The ledge has to arrive, he has to get onto it, hold the grind
             // long enough to read as a grind, and get off before it leaves.
-            case .backSmith: 4.2
+            case .backSmith: 5.4
             }
         }
     }
@@ -455,9 +455,9 @@ public enum CrabAnimator {
     /// tally lands and the rainbow eases off.
     static let skateSessionBeats: [(Flourish, Double)] = [
         (.ollie, 3.2), (.kickflip, 2.8), (.shoveIt, 2.2), (.nollie, 3.6),
-        (.backSmith, 4.2),
+        (.backSmith, 5.4),
     ]
-    static let skateSessionLength = 18.1    // the beats (16.0) plus a settling beat
+    static let skateSessionLength = 19.3    // the beats (17.2) plus a 2.1s settling beat
     /// Where the tricks end and the settle begins — the tally's instant.
     static var skateSessionTricksLength: Double { skateSessionBeats.reduce(0) { $0 + $1.1 } }
 
@@ -506,6 +506,9 @@ public enum CrabAnimator {
                 // the next trick inherits a settled value and nothing jumps.
                 // The shell's rainbow and the trail both read it.
                 pose.combo = (Double(index) + Ease.smoothstep((progress - 0.85) / 0.15)) / n
+                // 🔥 The board catches fire as the LAST trick lands — full
+                // score is the special, and the special burns.
+                pose.boardFire = Ease.clamp01((pose.combo - 0.8) / 0.2)
                 return
             }
             cursor += seconds
@@ -517,6 +520,7 @@ public enum CrabAnimator {
         let settle = local - cursor
         let settleLength = skateSessionLength - cursor
         pose.combo = 1 - Ease.smoothstep((settle - (settleLength - 0.8)) / 0.8)
+        pose.boardFire = Ease.clamp01((pose.combo - 0.8) / 0.2)   // the fire dies first
     }
 
     /// 🛹 THE RESTING DECK: how much board is under the Skater's feet, 0…1.
@@ -1129,7 +1133,8 @@ public enum CrabAnimator {
     }
 
     /// 💗 The idle heart's flight, 0…1, or nil. Idle only, on dice — about
-    /// one 45-second cycle in three-and-a-bit carries one — never in cycle
+    /// three 45-second cycles in five carry one (doubled at the operator's
+    /// call: "I want the heart bubbles more often") — never in cycle
     /// zero, so a frozen render is heartless by construction. Salt `43 &+
     /// 17`: 43 already carries the idle mug, and a shared multiplier takes a
     /// distinct addend.
@@ -2583,56 +2588,59 @@ public enum CrabAnimator {
             }
 
         case .backSmith:
-            // 🛹 THE BACK SMITH — the combo's finale, and the operator's
-            // sketch almost to the letter: a ledge comes in from the left, he
-            // pops an ollie onto it, locks the back truck on the edge with the
-            // nose dipped, steezes it out, and pops off as it leaves.
+            // 🛹 THE BACK SMITH — the combo's finale, second cut, to the
+            // operator's notes: the ledge comes FROM HIS RIGHT and slides
+            // right to left, twice as long and a cell taller, with three
+            // little bushes drifting behind it at half its speed for depth;
+            // he pops an ollie onto it, locks the back truck on the top with
+            // the nose dipped, steezes it out through a grind two and a half
+            // seconds long with sparks flying off the truck, KICKFLIPS out,
+            // and stomps it — boom.
             //
-            // One board, one ledge, and every channel continuous across every
-            // phase seam: the pop ENDS at the grind's height (−3) rather than
-            // at the ground, the pitch eases in after contact and out before
-            // the pop-off, the pop-off starts from −3, and the ledge is one
-            // envelope over the whole trick rather than a value each phase
-            // sets and the next forgets. The two `bob = 1` stomps are the
+            // Every channel continuous across every phase seam: the pop ENDS
+            // at the grind's height (−4, the ledge is taller now), the pitch
+            // and the steeze ease in after contact and out before release,
+            // the kickflip out starts from −4, and the ledge is one monotone
+            // travel over the whole trick. The two `bob = 1` stomps are the
             // landing squash's own exemption from the no-snap rule.
             //
             // He does not move sideways — nothing on this rig does — so the
-            // ledge comes to him the way the ground rushes under the cruise,
-            // and it keeps coming: LEFT TO RIGHT, the operator's direction.
-            // It eases in over the crouch and the pop (edge to column 13),
-            // slides six cells under his locked truck through the grind —
-            // the grind IS travel — and leaves past the right edge during
-            // the pop-off, gone before the stomp lands so he never comes
-            // down on half a ledge. One monotone travel, three speeds, no
-            // seams. The rig draws it at rows 25–28, ignoring `bob`.
+            // world comes to him: the ledge slides in from the right the way
+            // the ground rushes under the cruise, the grind IS travel, and it
+            // leaves off the left during the kickflip, gone before the stomp
+            // lands so he never comes down on half a ledge. The bushes ride
+            // the same travel at half speed — near and far.
             pose.prop = .skateboardSmith
             pose.propVisibility = 1
             pose.propPhase = 0
-            let enter = Ease.smoothstep(progress / 0.30)
-            let drift = Ease.clamp01((progress - 0.30) / 0.48)
-            let exit = Ease.smoothstep((progress - 0.78) / 0.12)   // gone by the stomp at 0.90
-            pose.ledge = (enter * 14 + drift * 6 + exit * 26) / Double(CrabRig.ledgeTravel)
-            if progress < 0.15 {
+            let enter = Ease.smoothstep(progress / 0.32)
+            let drift = Ease.clamp01((progress - 0.32) / 0.46)
+            let exit = Ease.smoothstep((progress - 0.78) / 0.12)
+            pose.ledge = (enter * 40 + drift * 6 + exit * 14) / Double(CrabRig.ledgeTravel)
+            pose.bushes = Ease.smoothstep(progress / 0.15)
+                * (1 - Ease.smoothstep((progress - 0.82) / 0.12))
+            if progress < 0.12 {
                 pose.squash = 1                       // load the pop
                 pose.bob = 1
-            } else if progress < 0.40 {
-                // The pop, landing ON the ledge: 0 → a −9 apex → −3.
-                let air = (progress - 0.15) / 0.25
-                pose.bob = -Int((3 * air + 6 * sin(air * .pi)).rounded())
+            } else if progress < 0.32 {
+                // The pop, landing ON the ledge: 0 → a −9 apex → −4.
+                let air = (progress - 0.12) / 0.20
+                pose.bob = -Int((4 * air + 6 * sin(air * .pi)).rounded())
                 pose.legAmplitude = 1.6
                 pose.legPhase = .pi / 2
                 pose.blink = 0
                 pose.mouth = .open
                 if air < 0.3 { pose.eyes = .squint }  // the snap
             } else if progress < 0.78 {
-                // The grind: back truck on the edge, nose two rows down.
-                pose.bob = -3
-                let pitch = Ease.smoothstep((progress - 0.40) / 0.06)
-                    * (1 - Ease.smoothstep((progress - 0.72) / 0.06))
+                // The grind, two and a half seconds: back truck on the top,
+                // nose two rows down, the ledge sliding on beneath him.
+                pose.bob = -4
+                let pitch = Ease.smoothstep((progress - 0.32) / 0.05)
+                    * (1 - Ease.smoothstep((progress - 0.73) / 0.05))
                 pose.propPhase = pitch
                 // 🦵 The steeze: out through the lock, back before release.
-                pose.legKick = Ease.smoothstep((progress - 0.42) / 0.08)
-                    * (1 - Ease.smoothstep((progress - 0.70) / 0.08))
+                pose.legKick = Ease.smoothstep((progress - 0.34) / 0.06)
+                    * (1 - Ease.smoothstep((progress - 0.70) / 0.06))
                 pose.eyes = .determined
                 pose.mouth = .open
                 pose.gazeX = 1
@@ -2641,16 +2649,26 @@ public enum CrabAnimator {
                 let saw = sin(t * 6)
                 pose.armLeft = pitch * (0.5 + 0.3 * saw)
                 pose.armRight = pitch * (0.5 - 0.3 * saw)
-                // A spark where the truck meets the edge, flickering.
-                pose.grindSpark = pitch > 0.5 && sin(t * 23) > 0.3
+                // ✨ Sparks off the truck, as many as the lock is deep.
+                pose.grindSparks = pitch
+                pose.sparkPhase = t
             } else if progress < 0.90 {
-                // The pop-off: from −3, up, and down to 0.
-                let u = (progress - 0.78) / 0.12
-                pose.bob = -Int((3 * (1 - u) + 5 * sin(u * .pi)).rounded())
+                // 🛹 KICKFLIP OUT: from −4, up, one full turn of the board,
+                // down to 0 — the kickflip's own board, so its geometry and
+                // its landing are the ones every other flip already has.
+                let air = (progress - 0.78) / 0.12
+                pose.prop = .skateboard
+                pose.propPhase = air
+                pose.bob = -Int((4 * (1 - air) + 5 * sin(air * .pi)).rounded())
                 pose.legAmplitude = 1.6
                 pose.legPhase = .pi / 2
+                pose.blink = 0
+                if air < 0.25 { pose.eyes = .squint }
                 pose.mouth = .open
             } else {
+                // Boom.
+                pose.prop = .skateboard
+                pose.propPhase = 0
                 pose.squash = 1                       // stomp it flat
                 pose.bob = 1
                 pose.mouth = .open

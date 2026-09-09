@@ -23,7 +23,7 @@ import Foundation
 /// | --- | ---: |
 /// | flourishes, all | 360 |
 /// | — skate beats, of those | 246 |
-/// | idle heart | 24 |
+/// | idle heart | 24 (48 since 2026-09-08) |
 /// | shell glint | 24 |
 /// | floor bug | 12 |
 /// | stargaze (23:00–04:00 only) | 10.5 |
@@ -157,7 +157,10 @@ enum SpawnRates {
     /// he does on a board, and the one most worth catching.
     static let skateSession = Spawn(chance: 0.35, period: 180)       // 7/hr
     /// 💗 The idle heart.
-    static let idleHeart = Spawn(chance: 0.30, period: 45)           // 24/hr
+    /// Doubled at the operator's call — "love the heart bubbles, I want them
+    /// more often on all costumes" (they were never costume-gated; the rate
+    /// was the whole ask).
+    static let idleHeart = Spawn(chance: 0.60, period: 45)           // 48/hr
     /// ✨ A second and a half of light across the shell.
     static let shellGlint = Spawn(chance: 0.40, period: 60)          // 24/hr
     /// 🐛 The floor bug's crossing.

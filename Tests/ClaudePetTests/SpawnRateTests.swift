@@ -218,6 +218,15 @@ struct SpawnRateTests {
         #expect(steezeSkater > steezeBare, "the steeze did not lean for the skater")
     }
 
+    /// 💗 The idle heart comes round about twice as often as it first did —
+    /// the operator's call, and a rate the table has to carry: "I want the
+    /// heart bubbles more often on all costumes" (it was never costume-gated).
+    @Test("The idle heart comes round about twice as often as it did")
+    func theHeartDoubled() {
+        #expect(SpawnRates.idleHeart.perHour > 40 && SpawnRates.idleHeart.perHour < 60,
+                "the heart is at \(SpawnRates.idleHeart.perHour)/hr; the ask was about 48")
+    }
+
     /// **The shout asks the deck the pose deals from.** `nextSkateTrickLanding`
     /// predicted from the BARE deck while the pose dealt from the worn one —
     /// 47 entries against the Skater's 70 — so the same dice value named a

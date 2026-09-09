@@ -129,13 +129,30 @@ struct ComboTests {
         var quiet = CrabPose()
         quiet.combo = 0
         #expect(trailCells(quiet) == 0, "a trail with no score")
-        // Rows: rainbow only in the trail's band, shifted by bob.
+        // Rows: rainbow only in the trail's band (two layers: the far one a
+        // row lower), shifted by bob.
         scoring.bob = -4
         let lifted = CrabRig.render(scoring)
         for y in 0..<PixelBuffer.side {
             let hasRainbow = (0..<8).contains { rainbow.contains(lifted[$0, y]) }
-            #expect(!hasRainbow || (y >= 19 - 4 && y <= 24 - 4 + 1), "trail ink on row \(y) with bob −4")
+            #expect(!hasRainbow || (y >= 19 - 4 && y <= 24 - 4 + 2), "trail ink on row \(y) with bob −4")
         }
+        // Two layers: the far one moves slower than the near one — between two
+        // phases the near wave has flipped and the far one has not.
+        var p0 = CrabPose(); p0.combo = 1; p0.comboPhase = 0.0
+        var p1 = CrabPose(); p1.combo = 1; p1.comboPhase = 1.0 / 6
+        let r0 = CrabRig.render(p0), r1 = CrabRig.render(p1)
+        var nearChanged = 0, farRowChanged = 0
+        for x in 0..<8 {
+            for y in 19...24 where r0[x, y] != r1[x, y] { nearChanged += 1 }
+            if r0[x, 26] != r1[x, 26] { farRowChanged += 1 }
+        }
+        #expect(nearChanged > 0, "the near ribbons did not wave")
+        #expect(farRowChanged < nearChanged, "the far layer is not slower than the near one")
+        // …and the far layer EXISTS: its lowest stripe reaches row 26 on the
+        // frames its wave is up, a row the near layer never touches.
+        let farPresent = (0..<8).contains { rainbow.contains(r0[$0, 26]) || rainbow.contains(r1[$0, 26]) }
+        #expect(farPresent, "no far layer behind the ribbons")
         // The wave moves with the clock.
         var later = scoring
         later.comboPhase = 0.3 + 1.0 / 6
@@ -189,6 +206,37 @@ struct ComboTests {
         #expect(hidden > 0, "the flourish schedule dealt no trick inside the ride — the guard is untestable here")
     }
 
+    /// 🔥 The board catches fire at full score: nothing before the last
+    /// landing, alight through the settle, out with the score — and never
+    /// offline.
+    @Test("The board burns at full score and nowhere else")
+    func theBoardBurnsAtFullScore() {
+        let start = aSession()
+        let tricks = CrabAnimator.skateSessionTricksLength
+        let lastBeat = CrabAnimator.skateSessionBeats.last!.1
+        #expect(CrabAnimator.pose(mood: .idle, t: start + tricks - lastBeat + 0.5).combo < 0.81)
+        #expect(CrabAnimator.pose(mood: .idle, t: start + tricks - lastBeat + 0.5).boardFire == 0, "alight before the last landing")
+        let settle = CrabAnimator.pose(mood: .idle, t: start + tricks + 0.6)
+        #expect(settle.boardFire > 0.999, "not alight in the settle")
+        #expect(CrabAnimator.pose(mood: .idle, t: start + CrabAnimator.skateSessionLength + 0.05).boardFire == 0)
+        // Flames in the gaps between his legs, on the deck — counted in the
+        // board's own columns, clear of the ribbons' orange stripe at the left.
+        func flameCells(_ buffer: PixelBuffer) -> Int {
+            var n = 0
+            for y in 21...24 { for x in 9...23 where buffer[x, y] == .flame || buffer[x, y] == .flameCore { n += 1 } }
+            return n
+        }
+        let flames = flameCells(CrabRig.render(settle))
+        #expect(flames >= 8, "only \(flames) flame cells on the burning board")
+        var cold = settle
+        cold.boardFire = 0
+        let coldFlames = flameCells(CrabRig.render(cold))
+        #expect(coldFlames == 0, "flames with the fire out")
+        for kind in CrabAnimator.Flourish.allCases {
+            #expect(CrabAnimator.flourishPose(kind, at: 0.4).boardFire == 0, "\(kind) burned offline")
+        }
+    }
+
     /// 🎉🛹 Three pokes, dressed as Skater, start the ride; every other look
     /// keeps the party. The poked ride is the whole combo on its own clock and
     /// ends by itself.
@@ -207,13 +255,14 @@ struct ComboTests {
         let first = CrabAnimator.skateSessionBeats[0].0
         #expect(CrabAnimator.comboRide(local: 0.1, wardrobe: skater)?.prop.isBoard == true)
         #expect(CrabAnimator.comboRide(local: 0.1, wardrobe: skater)?.prop == CrabAnimator.flourishPose(first, at: 0.1).prop)
-        #expect((CrabAnimator.comboRide(local: 16.5, wardrobe: skater)?.combo ?? 0) > 0.999, "the settle is not at full score")
-        #expect((CrabAnimator.comboRide(local: 18.05, wardrobe: skater)?.combo ?? 1) < 0.05, "the score outlived the ride")
+        let tricks = CrabAnimator.skateSessionTricksLength, length = CrabAnimator.skateSessionLength
+        #expect((CrabAnimator.comboRide(local: tricks + 0.5, wardrobe: skater)?.combo ?? 0) > 0.999, "the settle is not at full score")
+        #expect((CrabAnimator.comboRide(local: length - 0.05, wardrobe: skater)?.combo ?? 1) < 0.05, "the score outlived the ride")
         #expect(CrabAnimator.comboRide(local: CrabAnimator.skateSessionLength, wardrobe: skater) == nil)
         #expect(CrabAnimator.comboRide(local: 30, wardrobe: skater) == nil)
         #expect(CrabAnimator.comboRide(local: -0.1, wardrobe: skater) == nil)
         // The Skater stands on his deck at the settle — the stance is his.
-        #expect((CrabAnimator.comboRide(local: 17.0, wardrobe: skater)?.deckUnderfoot ?? 0) == 1)
+        #expect((CrabAnimator.comboRide(local: tricks + 0.8, wardrobe: skater)?.deckUnderfoot ?? 0) == 1)
     }
 
     /// The tally's words fit the plain bubble and the 3.4 s window, prefix
