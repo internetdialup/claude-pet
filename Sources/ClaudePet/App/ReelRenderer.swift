@@ -131,7 +131,8 @@ enum ReelRenderer {
                 .zIndex(1)
             }
             PixelCanvasView(buffer: CrabRig.render(pose),
-                            bodyTint: party ? CrabView.rainbowTint(elapsed: t) : nil,
+                            bodyTint: party ? CrabView.rainbowTint(elapsed: t)?.body : nil,
+                            bodyShadeTint: party ? CrabView.rainbowTint(elapsed: t)?.shade : nil,
                             seamBleed: 0)
                 .frame(width: spriteSide, height: spriteSide)
         }
@@ -331,7 +332,8 @@ enum ReelRenderer {
                               style: cue.beat.style,
                               frozenTime: t)
                 PixelCanvasView(buffer: CrabRig.render(pose),
-                                bodyTint: party ? CrabView.rainbowTint(elapsed: t) : nil,
+                                bodyTint: party ? CrabView.rainbowTint(elapsed: t)?.body : nil,
+                                bodyShadeTint: party ? CrabView.rainbowTint(elapsed: t)?.shade : nil,
                                 seamBleed: 0)
                     .frame(width: spriteSide, height: spriteSide)
             }

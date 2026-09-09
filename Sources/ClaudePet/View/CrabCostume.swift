@@ -27,6 +27,21 @@ struct CostumeStyle {
     /// declared measurement that nobody re-measures is a comment.
     let crownRows: Int
 
+    /// The shell colour a worn look actually paints, as components — Claw'd's
+    /// own terracotta when the look has no opinion. This is what a tint has to
+    /// start from if it is not to snap; see `SpriteTint.towards`.
+    static func bodyRGB(for costume: Costume) -> SpriteTint.RGB {
+        of(costume).inks[.body] ?? SpriteTint.bodyRGB
+    }
+
+    /// …and the shade under it. The fallback is the PALETTE's shade rather
+    /// than a darkened costume colour, because that is exactly what an
+    /// untinted render of the same look draws — so a tint at amount zero
+    /// reproduces it cell for cell.
+    static func shadeRGB(for costume: Costume) -> SpriteTint.RGB {
+        of(costume).inks[.bodyShade] ?? SpriteTint.bodyShadeRGB
+    }
+
     static func of(_ costume: Costume) -> CostumeStyle {
         switch costume {
         case .none:

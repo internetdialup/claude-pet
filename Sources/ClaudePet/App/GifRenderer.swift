@@ -184,7 +184,7 @@ enum GifRenderer {
     private static func write(_ frames: [PixelBuffer],
                               to url: URL,
                               pixelsPerCell: Int = pixelsPerCell,
-                              tint: ((Int) -> Color?)? = nil) -> Bool {
+                              tint: ((Int) -> SpriteTint.Tint?)? = nil) -> Bool {
         guard !frames.isEmpty else { return false }
         let images = frames.enumerated().compactMap {
             SpriteImage.cgImage($0.element, pixelsPerCell: pixelsPerCell, tint: tint?($0.offset))

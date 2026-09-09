@@ -738,7 +738,7 @@ enum SizzleRenderer {
     /// the reel withholds it so the payoff is the first colour change in the
     /// reel rather than the second. Pure, so a test can sweep it.
     static func bodyTint(for chapter: SizzleScript.Chapter, t: Double) -> Color? {
-        chapter == .finale ? CrabView.epicTint(doneT: t) : nil
+        chapter == .finale ? CrabView.epicTint(doneT: t)?.body : nil
     }
 
     /// The mood the sprite wears at chapter-local `t` — the boundary test's

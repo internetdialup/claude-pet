@@ -665,7 +665,7 @@ private struct RainbowTrails: View {
            let tint = CrabView.rainbowTint(elapsed: shifted) {
             PixelCanvasView(buffer: CrabRig.render(
                                 CrabAnimator.pose(mood: mood, t: shifted)).silhouette(),
-                            bodyTint: tint, seamBleed: 0)
+                            bodyTint: tint.body, seamBleed: 0)
                 .frame(width: side, height: side)
         }
     }

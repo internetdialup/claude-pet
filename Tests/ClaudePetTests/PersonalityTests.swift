@@ -899,7 +899,7 @@ struct RainbowTests {
     @Test("The hue actually travels")
     func hueMoves() {
         let samples = stride(from: 0.0, to: CrabView.rainbowDuration, by: 0.2)
-            .compactMap { CrabView.rainbowTint(elapsed: $0)?.description }
+            .compactMap { CrabView.rainbowTint(elapsed: $0).map { "\($0.body)|\($0.shade)" } }
         #expect(Set(samples).count > 8, "the body should cycle, not sit on one colour")
     }
 

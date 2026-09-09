@@ -84,6 +84,12 @@ public struct PixelBuffer: Sendable {
         /// Water is bright. Two steps only, no ramp: a lit face and the
         /// body under it, the same flat-step rule the shell keeps.
         case water, waterDeep
+        /// 🌈 Teal, for the combo's ribbon. `.green`'s own sibling — same red
+        /// channel, same build — so it sits inside the palette rather than
+        /// beside it. It replaced pink in the trail at the operator's call:
+        /// six stripes ending in teal and sky read as a spectrum, and the
+        /// violet end read as a flag they did not intend to fly.
+        case teal
     }
 
     private(set) var cells: [UInt8]
@@ -244,6 +250,13 @@ public struct PixelCanvasView: View {
     /// tinting everything would just look like a hue-rotated screenshot.
     var bodyTint: Color?
 
+    /// …and its twin for the hero shade — the belly row and the right flank,
+    /// which the rig paints on every frame. Optional and defaulted so a
+    /// silhouette (every cell `.body`) can keep passing a body colour alone;
+    /// anything drawing the dressed figure should pass both, or the shade
+    /// stays at the palette's dark ink while the shell goes bright.
+    var bodyShadeTint: Color?
+
     /// Costume colours by ink slot. Resolution order for the body is
     /// `bodyTint ?? inkOverrides[.body] ?? Palette.body` — status tints always
     /// beat wardrobe, wardrobe beats the default shell.
@@ -319,7 +332,8 @@ public struct PixelCanvasView: View {
     }
 
     private func color(for ink: PixelBuffer.Ink) -> Color {
-        Self.color(for: ink, bodyTint: bodyTint, inkOverrides: inkOverrides)
+        Self.color(for: ink, bodyTint: bodyTint, bodyShadeTint: bodyShadeTint,
+                   inkOverrides: inkOverrides)
     }
 
     /// The ink table itself, free of the view that usually asks for it.
@@ -330,6 +344,7 @@ public struct PixelCanvasView: View {
     /// up as a wrong colour in someone else's file.
     static func color(for ink: PixelBuffer.Ink,
                       bodyTint: Color?,
+                      bodyShadeTint: Color? = nil,
                       inkOverrides: [PixelBuffer.Ink: Color]) -> Color {
         switch ink {
         case .clear: .clear
@@ -364,11 +379,12 @@ public struct PixelCanvasView: View {
         // relation, not a colour, and three of the four solo costumes recolour
         // the shell itself — a fixed darker terracotta would sit LIGHTER than
         // the ninja and Retro Black shells and stain the Gundam's white.
-        case .bodyShade: inkOverrides[.bodyShade] ?? Palette.bodyShade
+        case .bodyShade: bodyShadeTint ?? inkOverrides[.bodyShade] ?? Palette.bodyShade
         // Deliberately NOT override-consulting — see the case's own comment.
         case .memeBlack: Palette.ink
         case .shadow: Palette.slate.opacity(0.45)
         case .deck: Color(red: 0.012, green: 0.012, blue: 0.016)
+        case .teal: Palette.teal
         case .water: Palette.water
         case .waterDeep: Palette.waterDeep
         }

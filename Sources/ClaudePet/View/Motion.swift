@@ -77,17 +77,45 @@ enum Ease {
 /// Colour arithmetic for the body tint. The palette itself stays flat; the only
 /// smooth values in the system are time-domain tint amounts, which is the
 /// precedent `rainbowTint` set.
-enum SpriteTint {
+public enum SpriteTint {
+    public typealias RGB = (r: Double, g: Double, b: Double)
+
     /// Claw'd terracotta, `Palette.body`'s 0xCE7B5C, as components.
-    static let bodyRGB = (r: 206.0 / 255, g: 123.0 / 255, b: 92.0 / 255)
+    public static let bodyRGB: RGB = (r: 206.0 / 255, g: 123.0 / 255, b: 92.0 / 255)
+
+    /// …and the hero shade that cuts through it, `Palette.bodyShade`'s
+    /// 0xB8674B. The belly row and the right flank wear it on EVERY frame —
+    /// it is a permanent look, not an event — which is why a tint that never
+    /// reached it left a dark stripe through every colour the shell took.
+    public static let bodyShadeRGB: RGB = (r: 184.0 / 255, g: 103.0 / 255, b: 75.0 / 255)
+
+    /// How much darker that shade is than the shell it cuts through, per
+    /// channel — read off the palette's own pair rather than chosen, so a
+    /// tinted shade keeps exactly the relationship the flat palette has.
+    public static let shadeRatio: RGB = (r: 184.0 / 206, g: 103.0 / 123, b: 75.0 / 92)
+
+    /// A body colour and the shade that goes with it.
+    ///
+    /// They travel together because they are one decision. `bodyTint` reaches
+    /// `.body` and nothing else, so for as long as a tint was a lone `Color`
+    /// the shade stayed whatever the palette said — and at full rainbow that
+    /// is roughly twenty-six cells of unchanged dark ink cut through a bright
+    /// shell. The operator found it; this is the shape that makes it
+    /// unrepresentable.
+    public struct Tint: Equatable, Sendable {
+        public var r, g, b: Double
+        public var shadeR, shadeG, shadeB: Double
+        public var body: Color { Color(red: r, green: g, blue: b) }
+        public var shade: Color { Color(red: shadeR, green: shadeG, blue: shadeB) }
+    }
 
     /// Hot gold, `Palette.flameCore`'s 0xF7D046, as components — the warm the
     /// afternoon puts on his shell while he stands in it.
-    static let goldRGB = (r: 247.0 / 255, g: 208.0 / 255, b: 70.0 / 255)
+    public static let goldRGB: RGB = (r: 247.0 / 255, g: 208.0 / 255, b: 70.0 / 255)
 
     /// Plain HSB→RGB, so a generated hue can be mixed without asking AppKit to
     /// introspect a SwiftUI `Color`.
-    static func rgb(hue: Double, saturation: Double, brightness: Double) -> (r: Double, g: Double, b: Double) {
+    public static func rgb(hue: Double, saturation: Double, brightness: Double) -> RGB {
         let h = (hue - floor(hue)) * 6
         let i = Int(h) % 6
         let f = h - floor(h)
@@ -104,14 +132,28 @@ enum SpriteTint {
         }
     }
 
-    /// The body colour pushed toward a target by `amount`. At 0 it *is* the
-    /// body colour, which is what lets a tint ease in from nothing and out to
-    /// nothing with no seam at either end.
-    static func towards(_ target: (r: Double, g: Double, b: Double), amount: Double) -> Color {
+    /// The body colour pushed toward a target by `amount`, and the shade
+    /// pushed the same distance toward that target darkened.
+    ///
+    /// At 0 it *is* the base, which is what lets a tint ease in from nothing
+    /// and out to nothing with no seam at either end. That claim used to be
+    /// true only for the bare crab: the base was hard-wired to terracotta, so
+    /// the instant a tint touched a COSTUMED crab his shell stepped from the
+    /// costume's colour to Claw'd's own in a single frame — grape to
+    /// terracotta, before any colour was visible, in a codebase whose first
+    /// law bans one-frame changes. Passing the worn costume's own inks as
+    /// `from`/`shadeFrom` is what makes the doc comment true for everyone.
+    public static func towards(_ target: RGB, amount: Double,
+                        from base: RGB = bodyRGB,
+                        shadeFrom: RGB = bodyShadeRGB) -> Tint {
         let a = Ease.clamp01(amount)
-        return Color(red: bodyRGB.r + (target.r - bodyRGB.r) * a,
-                     green: bodyRGB.g + (target.g - bodyRGB.g) * a,
-                     blue: bodyRGB.b + (target.b - bodyRGB.b) * a)
+        func mix(_ from: Double, _ to: Double) -> Double { from + (to - from) * a }
+        return Tint(r: mix(base.r, target.r),
+                    g: mix(base.g, target.g),
+                    b: mix(base.b, target.b),
+                    shadeR: mix(shadeFrom.r, target.r * shadeRatio.r),
+                    shadeG: mix(shadeFrom.g, target.g * shadeRatio.g),
+                    shadeB: mix(shadeFrom.b, target.b * shadeRatio.b))
     }
 }
 

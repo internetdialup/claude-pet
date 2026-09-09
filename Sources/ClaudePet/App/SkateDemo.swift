@@ -24,8 +24,7 @@ import UniformTypeIdentifiers
 /// The shot lists are not improvised. They were designed by a fourteen-agent
 /// pass — four grounded surveys, three independent shot lists per reel, a
 /// director per reel, and a hostile reviewer who re-derived every number
-/// against this source. Three of its findings are load-bearing here and are
-/// marked 🔎 where they land.
+/// against this source — then re-cut against the operator's own notes.
 @MainActor
 enum SkateDemo {
 
@@ -56,7 +55,6 @@ enum SkateDemo {
     }
 
     /// 512², sprite 320 / 384 / 448 → 10 / 12 / 14 points a cell.
-    /// Ledge line 356 / 352 / 354.
     static let square = Format(
         name: "square", canvas: CGSize(width: 512, height: 512),
         sides: [.small: 320, .mid: 384, .large: 448],
@@ -64,7 +62,6 @@ enum SkateDemo {
 
     /// 640×360, sprite 224 / 256 / 320 → 7 / 8 / 10 points a cell. The large
     /// stop is capped by the 360pt height, not by taste.
-    /// Ledge line 250 / 252 / 250.
     static let wide = Format(
         name: "wide", canvas: CGSize(width: 640, height: 360),
         sides: [.small: 224, .mid: 256, .large: 320],
@@ -81,11 +78,11 @@ enum SkateDemo {
     /// centiseconds and plays 4.2% fast, 1/15 rounds to 7 and plays 4.8% slow.
     nonisolated static let gifFps = 20
     nonisolated static let gifDelay = 0.05
-    /// The MP4's rate. 🔎 The review rate: the ledge's entry peaks near 35
-    /// cells a second, which is 1.16 cells a frame at 30 and 1.74 at 20 — and
-    /// a scrolling pixel element only reads as travel below about one cell a
-    /// frame. The arrival is honest in the video and impressionistic in the
-    /// GIF, and the hand-off says so.
+    /// The MP4's rate. 🔎 The review rate: the ledge's entry runs at about 23
+    /// cells a second, which is a shade over one cell a frame at 30 and nearly
+    /// two at 20 — and a scrolling pixel element only reads as travel below
+    /// about one cell a frame. The arrival is honest in the video and
+    /// impressionistic in the GIF, and the hand-off says so.
     nonisolated static let videoFps: Int32 = 30
 
     // MARK: - A shot
@@ -111,14 +108,12 @@ enum SkateDemo {
         }
     }
 
-    /// A whole reel: its shots, its pose source, and the events worth indexing.
+    /// A whole reel: its shots and its pose source.
     struct Reel {
         let name: String
         let shots: [Shot]
-        /// Reel time → the pose to draw and the body tint to draw it with.
-        let pose: @MainActor (Double) -> (CrabPose, Color?)
-        /// Reel-time events for the sidecar, beyond the shot boundaries.
-        let events: [(Double, String)]
+        /// Reel time → the pose to draw and the tint to draw it with.
+        let pose: @MainActor (Double) -> (CrabPose, SpriteTint.Tint?)
 
         var seconds: Double { shots.last.map(\.end) ?? 0 }
         func shot(at t: Double) -> Shot {
@@ -133,9 +128,8 @@ enum SkateDemo {
     /// 🔎 **`gazeX`/`gazeY` are zeroed, and that is not cosmetic.**
     /// `pose(mood:.idle, t: 0.4)` runs `gaze(at: 0.4)`, whose die
     /// `noise(0) = 0.8833` lands in the `>= 0.68` arm and returns `(0, +1)` —
-    /// a held one-pixel downward dart. Frozen into a base and held for two
-    /// seconds, that is a poster frame of a crab staring at his feet. The drip
-    /// renderer inherits the same instant but hides it behind a 0.6s lead.
+    /// a held one-pixel downward dart. Frozen into a base and held for a
+    /// second, that is a poster frame of a crab staring at his feet.
     ///
     /// The wardrobe is passed EXPLICITLY. `deckStance` returns 0 for any
     /// costume but the Skater, so the bare-wardrobe convenience overload would
@@ -152,109 +146,97 @@ enum SkateDemo {
         return stance
     }
 
-    /// Pass A starts at reel 2.0, pass B at reel 8.0 — the same 5.4s trick
+    nonisolated static let skateOnsetA = 1.0
+    nonisolated static let skateOnsetB = 8.0
+
+    /// Pass A starts at reel 1.0, pass B at reel 8.0 — the same 6.5s trick
     /// twice, from the same base at the same local instants, so the two passes
     /// are **bit-identical in the 32×32 buffer**. The operator's A/B is exact,
     /// not approximate. Past the trick's duration `flourishPose` returns the
     /// base on its own, so the trailing rest costs no special case.
-    static func skatePose(reel: Double) -> (CrabPose, Color?) {
+    static func skatePose(reel: Double) -> (CrabPose, SpriteTint.Tint?) {
         let stance = skateStance
-        guard reel >= 2.0 else { return (stance, nil) }
-        let local = reel - (reel < 8.0 ? 2.0 : 8.0)
+        guard reel >= skateOnsetA else { return (stance, nil) }
+        let local = reel - (reel < skateOnsetB ? skateOnsetA : skateOnsetB)
         return (CrabAnimator.flourishPose(.backSmith, at: local, base: stance), nil)
     }
 
     static let skateReel = Reel(
         name: "skate-ledge",
         shots: [
-            Shot(0.0, 2.0, MarketingPalette.gold, "gold", .large,
+            Shot(0.0, 1.0, MarketingPalette.gold, "gold", .large,
                  "the empty stage — the poster, and the control frame for shot 3"),
-            Shot(2.0, 6.0, MarketingPalette.cream, "cream", .small,
+            Shot(1.0, 7.0, MarketingPalette.cream, "cream", .small,
                  "the reference take, uncut: both rates over their whole extent"),
             Shot(8.0, 1.5, MarketingPalette.gold, "gold", .large,
                  "the arrival magnified, into the frame shot 1 memorised"),
-            Shot(9.5, 3.0, MarketingPalette.cream, "cream", .mid,
-                 "the lock and the parallax — 14 ledge cells against 7 bush cells, 2:1"),
-            Shot(12.5, 1.5, MarketingPalette.gold, "gold", .large,
-                 "the kickflip out and the exit; sparks are dead, so gold is legal"),
+            Shot(9.5, 3.5, MarketingPalette.cream, "cream", .mid,
+                 "the lock and the parallax — 24 ledge cells against 12 bush cells, 2:1"),
+            Shot(13.0, 1.5, MarketingPalette.gold, "gold", .large,
+                 "the kickflip out — a whole turn, unhurried now — and the exit"),
         ],
-        pose: skatePose,
-        events: [
-            (2.015, "pass A · bushes appear"), (2.114, "pass A · first ledge pixel"),
-            (2.648, "pass A · pop"), (3.728, "pass A · LOCK, bushes at home columns"),
-            (3.806, "pass A · sparks alight"), (3.910, "pass A · nose fully dipped"),
-            (4.160, "pass A · steeze full"), (6.104, "pass A · steeze tucked"),
-            (6.134, "pass A · sparks die"), (6.212, "pass A · grind ends"),
-            (6.483, "pass A · kickflip apex"), (6.786, "pass A · ledge gone"),
-            (6.860, "pass A · stomp"), (7.076, "pass A · bushes gone"),
-            (9.728, "pass B · LOCK"), (9.806, "pass B · sparks alight"),
-            (11.000, "pass B · ledge right end passes column 13"),
-            (12.134, "pass B · sparks die"), (12.212, "pass B · grind ends"),
-            (12.786, "pass B · ledge gone"), (12.860, "pass B · stomp"),
-            (13.076, "pass B · bushes gone"),
-        ])
+        pose: skatePose)
 
     // MARK: - Reel two: the combo
 
-    /// The ride is 19.3s and the ceiling is 15, so 4.8s comes out in three
-    /// cuts: a 0.2s head trim inside the ollie's load plateau (pose-identical),
-    /// **the nollie beat entire**, and a 1.0s tail trim.
+    /// The ride is 20.4s and the ceiling is 15, so 6.9s comes out in three
+    /// cuts: half a second of frozen stance in front of it (so the poster is a
+    /// crab standing, not a crab loading a pop), **the shove-it and the nollie
+    /// together** — one contiguous ellipsis, ride 6.0 → 11.8 — and a 1.1s tail.
     ///
-    /// The nollie is the cheapest possible whole-beat excision: across the five
-    /// landings the ribbon grows 0→2, 2→5, 5→7, **7→8**, 8→8, and the nollie's
-    /// is the only contribution that is a single capped cell.
-    nonisolated static let seam = 8.0
+    /// The seam used to take the nollie alone, because across the five landings
+    /// the ribbon grows 2, 3, 2, 1, 0 cells and the nollie's single capped cell
+    /// was the cheapest thing to lose. The back smith growing to 6.5s took
+    /// another 1.1s out of the budget, and the next cheapest whole beat is its
+    /// neighbour. One seam either way; it now costs two rungs instead of one.
+    ///
+    /// 🔎 **The tail is 1.1s, not 0.6s, and the extra 0.5s is not slack.** The
+    /// ride's own ease-out begins at ride 19.6: by 19.8 the score has fallen to
+    /// 0.84 and the fire to 0.22. A reel ending there would close on the fire
+    /// going out, which is the opposite of the shot's job. `rideEnd` is 19.3 —
+    /// inside the plateau, with the board still fully alight.
+    nonisolated static let head = 0.5
+    nonisolated static let seam = 6.5
+    nonisolated static let skip = 5.8
     nonisolated static func ride(reel: Double) -> Double {
-        reel < seam ? reel + 0.2 : reel + 3.8
+        reel < seam ? reel - head : reel - head + skip
     }
 
     /// 🔎 The decorative phases run on the REEL clock, not the ride's. The
     /// score is left alone — it is the thing being reviewed — but the ribbon's
     /// wave and the fire's flicker are put on reel time so both stay
-    /// continuous across the seam (a 3.6s skip is a whole number of neither
-    /// period). What the cut then costs, visibly, is one ribbon cell and 0.18
-    /// of tint amount: "a landing happened off-screen", which is true.
-    static func rainbowPose(reel: Double) -> (CrabPose, Color?) {
-        guard var pose = CrabAnimator.comboRide(local: ride(reel: reel),
+    /// continuous across the seam (the skip is a whole number of neither
+    /// period).
+    static func rainbowPose(reel: Double) -> (CrabPose, SpriteTint.Tint?) {
+        guard reel >= head,
+              var pose = CrabAnimator.comboRide(local: ride(reel: reel),
                                                 wardrobe: .init(current: .skater))
         else { return (skateStance, nil) }
         pose.comboPhase = reel
-        return (pose, CrabView.comboTint(t: reel, combo: pose.combo))
+        // The costume goes IN: the tint now mixes out of the Skater's own
+        // grape rather than stepping to Claw'd's terracotta on the first rung.
+        return (pose, CrabView.comboTint(t: reel, combo: pose.combo, costume: .skater))
     }
 
     static let rainbowReel = Reel(
         name: "rainbow-combo",
         shots: [
             Shot(0.0, 2.0, MarketingPalette.gold, "gold", .small,
-                 "the zero — score exactly 0, both draw gates shut, no colour anywhere"),
+                 "the zero — half a second standing, then the ollie; score 0, no colour"),
             Shot(2.0, 1.5, MarketingPalette.cream, "cream", .large,
                  "the birth of the colour, largest stop, quietest plate"),
-            Shot(3.5, 2.5, MarketingPalette.gold, "gold", .small,
-                 "the ribbon's LENGTH growing 2 → 5 through a whole bob arc"),
-            Shot(6.0, 2.0, MarketingPalette.cream, "cream", .mid,
-                 "the staircase's last rungs at counting magnification"),
-            Shot(8.0, 1.5, MarketingPalette.cream, "cream", .small, cellsRight: 2,
-                 "the seam — lands on a bare plate, then the ledge arrives"),
-            Shot(9.5, 3.5, MarketingPalette.cream, "cream", .mid, cellsRight: -2,
-                 "the climax uncut: lock, grind, kickflip out, the board catching fire"),
-            Shot(13.0, 1.5, MarketingPalette.cream, "cream", .large,
-                 "the payoff — the burning board lands and settles, nothing competing"),
+            Shot(3.5, 3.0, MarketingPalette.gold, "gold", .small,
+                 "the kickflip, and the ribbon growing through a whole bob arc"),
+            Shot(6.5, 1.5, MarketingPalette.cream, "cream", .small, cellsRight: 2,
+                 "the seam — lands on a bare plate, then the ledge arrives from his right"),
+            Shot(8.0, 2.5, MarketingPalette.cream, "cream", .mid, cellsRight: -2,
+                 "the lock and the grind, with the ledge sliding on beneath him"),
+            Shot(10.5, 2.0, MarketingPalette.cream, "cream", .small, cellsRight: 2,
+                 "the kickflip out — a whole turn, unhurried — and the board alight"),
+            Shot(12.5, 1.5, MarketingPalette.cream, "cream", .large,
+                 "the payoff — the stomp, full score, nothing else on screen"),
         ],
-        pose: rainbowPose,
-        events: [
-            (2.520, "first colour · the shell steps grape → terracotta in one frame"),
-            (2.661, "ribbon cell 1"), (2.800, "ribbon cell 2"),
-            (5.432, "ribbon cell 3"), (5.578, "ribbon cell 4"), (5.707, "ribbon cell 5"),
-            (7.788, "ribbon cell 6"), (7.882, "ribbon cell 7 · length caps here"),
-            (8.000, "THE SEAM · the nollie beat is skipped"),
-            (8.015, "bushes appear"), (8.114, "first ledge pixel"),
-            (9.728, "the lock"), (9.806, "sparks alight"),
-            (10.110, "nose two rows down"), (10.160, "steeze full"),
-            (11.780, "steeze tucks"), (12.134, "sparks die"), (12.212, "grind ends"),
-            (12.605, "THE BOARD CATCHES FIRE"), (12.786, "ledge gone"),
-            (12.860, "stomp"), (13.064, "bushes gone"),
-            (13.400, "full score"), (13.500, "the resting deck draws"),
-        ])
+        pose: rainbowPose)
 
     static let reels = [skateReel, rainbowReel]
 
@@ -264,13 +246,14 @@ enum SkateDemo {
     /// renderer's shape, because `SizzleRenderer`'s own pet-and-layout
     /// helpers are private and a demo reel needs none of what they add.
     @ViewBuilder
-    static func scene(_ pose: CrabPose, tint: Color?, shot: Shot,
+    static func scene(_ pose: CrabPose, tint: SpriteTint.Tint?, shot: Shot,
                       format: Format) -> some View {
         let side = format.side(shot.stop)
         ZStack {
             shot.ground
             PixelCanvasView(buffer: CrabRig.render(pose, costume: .skater),
-                            bodyTint: tint,
+                            bodyTint: tint?.body,
+                            bodyShadeTint: tint?.shade,
                             inkOverrides: CostumeStyle.blendedOverrides(
                                 from: .skater, to: .skater, u: 1),
                             seamBleed: 0)
@@ -351,6 +334,64 @@ enum SkateDemo {
         return true
     }
 
+    // MARK: - The sidecar
+
+    /// Whether the ledge has any cell on the grid at this instant.
+    static func ledgeOnGrid(_ pose: CrabPose) -> Bool {
+        guard pose.ledge > 0.001, pose.ledge < 0.999 else { return false }
+        let right = CrabRig.ledgeRightEnd(travel: pose.ledge)
+        return right >= 0 && right - (CrabRig.ledgeLength - 1) <= PixelBuffer.side - 1
+    }
+
+    /// Every rig event in reel time, **derived by watching the pose stream**.
+    ///
+    /// Never hand-listed. A typed table of instants is a second copy of the
+    /// choreography, and the moment a phase boundary moves it becomes a
+    /// confident lie — which is exactly what the first cut's sidecar became the
+    /// day the trick grew from 5.4s to 6.5s. This walks the reel at the video
+    /// rate and reports the frame each thing actually changes on, so it cannot
+    /// drift from what was rendered.
+    static func events(_ reel: Reel) -> [(Double, String)] {
+        var out: [(Double, String)] = []
+        let step = 1.0 / Double(videoFps)
+        func rung(_ pose: CrabPose) -> Int { Int((pose.combo * 5).rounded(.down)) }
+        var index = 1
+        while Double(index) * step <= reel.seconds + 1e-9 {
+            let t = Double(index) * step
+            let (pose, tint) = reel.pose(t)
+            let (before, beforeTint) = reel.pose(t - step)
+            if ledgeOnGrid(pose) != ledgeOnGrid(before) {
+                out.append((t, ledgeOnGrid(pose) ? "the ledge reaches the grid"
+                                                 : "the ledge leaves the grid"))
+            }
+            if (before.bushes > 0.001) != (pose.bushes > 0.001) {
+                out.append((t, pose.bushes > 0.001 ? "bushes appear" : "bushes gone"))
+            }
+            if (before.grindSparks > 0.001) != (pose.grindSparks > 0.001) {
+                out.append((t, pose.grindSparks > 0.001 ? "sparks alight" : "sparks die"))
+            }
+            if (before.boardFire > 0.001) != (pose.boardFire > 0.001) {
+                out.append((t, pose.boardFire > 0.001 ? "THE BOARD CATCHES FIRE"
+                                                      : "the fire is out"))
+            }
+            if rung(pose) != rung(before) {
+                out.append((t, "score rung \(rung(pose)) of 5"))
+            }
+            if before.prop != pose.prop {
+                out.append((t, "board → \(pose.prop.rawValue)"))
+            }
+            if (beforeTint == nil) != (tint == nil) {
+                out.append((t, tint == nil ? "the colour leaves" : "the first colour"))
+            }
+            if (before.deckUnderfoot > 0.5) != (pose.deckUnderfoot > 0.5) {
+                out.append((t, pose.deckUnderfoot > 0.5 ? "the resting deck draws"
+                                                        : "the resting deck is covered"))
+            }
+            index += 1
+        }
+        return out
+    }
+
     /// The review index: every boundary and every rig event in reel time. The
     /// reel carries no type, so this is where the operator reads what they are
     /// looking at — and it is the hand-off to Figma.
@@ -363,7 +404,7 @@ enum SkateDemo {
             rows.append((shot.start, "shot \(index + 1)",
                          "\(shot.groundName) · \(shot.stop) · \(String(format: "%.1f", shot.seconds))s · \(shot.note)"))
         }
-        for (t, what) in reel.events { rows.append((t, "event", what)) }
+        for (t, what) in events(reel) { rows.append((t, "event", what)) }
         for (t, kind, what) in rows.sorted(by: { $0.0 < $1.0 }) {
             lines.append("\(String(format: "%.3f", t))\t\(kind)\t\(what)")
         }
@@ -376,13 +417,14 @@ enum SkateDemo {
         }
     }
 
-    /// 🔎 **"Twice the length" is not reviewable from motion, so here it is as
-    /// stills.** The ledge is 28 cells in a 32-cell buffer: it is entirely on
-    /// the grid for 0.167s of its 5.4s life, and through the grind — the part
-    /// anyone actually stares at — its left end is permanently outside the
-    /// buffer, showing 20 cells falling to 14. These are the only three frames
-    /// at 30fps with all 28 cells present.
-    nonisolated static let fullExtentFrames = [1.100, 1.170, 1.240]
+    /// 🔎 **The ledge's extent, as stills.** At 44 cells it is half again as
+    /// long as the 32-cell buffer, so unlike the 28-cell first cut it is NEVER
+    /// wholly on screen — which is the point of "longer", and also the reason
+    /// motion cannot show it. The best a still can do is the moment its right
+    /// end first comes inside the grid, when it runs from the last column clear
+    /// off the left edge; the other two are the lock and the end of the drift,
+    /// so the sheet reads as one block travelling rather than three fragments.
+    nonisolated static let fullExtentFrames = [1.70, 2.50, 5.00]
 
     static func renderLedgeSheet(to url: URL) -> Bool {
         let stance = skateStance

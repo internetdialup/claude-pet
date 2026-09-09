@@ -13,18 +13,20 @@ public enum SpriteImage {
 
     /// Renders `buffer` at `pixelsPerCell` points per sprite pixel.
     ///
-    /// - Parameter tint: overrides the body colour only, for rainbow mode.
+    /// - Parameter tint: overrides the body colour AND its hero shade, for
+    ///   rainbow mode. Both, because the shade is a permanent look rather than
+    ///   an event: tinting the shell alone leaves a dark stripe through it.
     public static func cgImage(_ buffer: PixelBuffer,
                                pixelsPerCell: Int,
-                               tint: Color? = nil) -> CGImage? {
+                               tint: SpriteTint.Tint? = nil) -> CGImage? {
         renderer(buffer, pixelsPerCell: pixelsPerCell, tint: tint).cgImage
     }
 
     /// PNG data, transparent background.
     public static func png(_ buffer: PixelBuffer,
                            pixelsPerCell: Int,
-                           tint: Color? = nil) -> Data? {
-        png(of: PixelCanvasView(buffer: buffer, bodyTint: tint)
+                           tint: SpriteTint.Tint? = nil) -> Data? {
+        png(of: PixelCanvasView(buffer: buffer, bodyTint: tint?.body, bodyShadeTint: tint?.shade)
             .frame(width: side(pixelsPerCell), height: side(pixelsPerCell)))
     }
 
@@ -144,9 +146,9 @@ public enum SpriteImage {
 
     private static func renderer(_ buffer: PixelBuffer,
                                  pixelsPerCell: Int,
-                                 tint: Color?) -> ImageRenderer<some View> {
+                                 tint: SpriteTint.Tint?) -> ImageRenderer<some View> {
         let renderer = ImageRenderer(
-            content: PixelCanvasView(buffer: buffer, bodyTint: tint)
+            content: PixelCanvasView(buffer: buffer, bodyTint: tint?.body, bodyShadeTint: tint?.shade)
                 .frame(width: side(pixelsPerCell), height: side(pixelsPerCell))
         )
         renderer.scale = 1

@@ -85,23 +85,28 @@ struct SkateDemoTests {
         #expect(raw.gazeY == 1, "the hazard is gone from the rig — this guard can be retired")
     }
 
-    /// The two passes are the same 5.4s trick from the same base at the same
+    /// The two passes are the same 6.5s trick from the same base at the same
     /// local instants, so the operator's A/B is exact rather than approximate.
     @Test("The skate reel's two passes are bit-identical in the buffer")
     func thePassesMatch() {
-        for local in stride(from: 0.0, through: 5.4, by: 0.15) {
-            let (a, _) = SkateDemo.skatePose(reel: 2.0 + local)
-            let (b, _) = SkateDemo.skatePose(reel: 8.0 + local)
+        let duration = CrabAnimator.Flourish.backSmith.duration
+        #expect(duration == 6.5, "the trick is \(duration)s — the reel's onsets assume 6.5")
+        for local in stride(from: 0.0, through: duration, by: 0.15) {
+            let (a, _) = SkateDemo.skatePose(reel: SkateDemo.skateOnsetA + local)
+            let (b, _) = SkateDemo.skatePose(reel: SkateDemo.skateOnsetB + local)
             let same = CrabRig.render(a, costume: .skater)
                 .same(as: CrabRig.render(b, costume: .skater))
             #expect(same, "the passes diverge at local \(local)")
         }
     }
 
-    /// 🔎 The measurement shot 4 exists to make. Over local 1.500 → 4.500 the
-    /// ledge travels 14 cells and the bushes 7 — exactly 2:1. The design's
-    /// first cut ran to 4.000 and measured 1.75:1, which would have had the
-    /// operator grading a parallax that was not the one built.
+    /// 🔎 The measurement shot 4 exists to make. `bushOffset` halves the
+    /// ledge's own column and rounds, so a window whose ends both land on an
+    /// ODD column reads exactly 2:1 and one that does not reads 1.83 or 2.18 —
+    /// the ratio the operator grades has to be the one that was built, so the
+    /// boundary is chosen for it. Over local 1.500 → 5.000 the ledge travels 24
+    /// cells and the bushes 12. The first cut of this test ran 1.5 → 4.5 and
+    /// measured 1.75:1 against a 28-cell ledge; both ends moved this round.
     @Test("The parallax window measures exactly two to one")
     func theParallaxIsTwoToOne() {
         func world(_ local: Double) -> (ledge: Int, bush: Int) {
@@ -109,19 +114,88 @@ struct SkateDemoTests {
             let right = CrabRig.ledgeRightEnd(travel: pose.ledge)
             return (right, CrabRig.bushOffset(travel: pose.ledge))
         }
-        let opening = world(1.5), closing = world(4.5)
+        let opening = world(1.5), closing = world(5.0)
         let ledgeCells = opening.ledge - closing.ledge
         let bushCells = opening.bush - closing.bush
-        #expect(ledgeCells == 14, "the ledge moved \(ledgeCells) cells, not 14")
-        #expect(bushCells == 7, "the bushes moved \(bushCells) cells, not 7")
+        #expect(ledgeCells == 24, "the ledge moved \(ledgeCells) cells, not 24")
+        #expect(bushCells == 12, "the bushes moved \(bushCells) cells, not 12")
         #expect(ledgeCells == bushCells * 2, "the parallax is \(Double(ledgeCells) / Double(bushCells)):1")
         // …and the window is the one shot 4 actually plays.
         let shot = SkateDemo.skateReel.shots[3]
-        #expect(shot.start - 8.0 == 1.5 && shot.end - 8.0 == 4.5,
-                "shot 4 no longer covers local 1.5 → 4.5")
+        #expect(shot.start - SkateDemo.skateOnsetB == 1.5 && shot.end - SkateDemo.skateOnsetB == 5.0,
+                "shot 4 no longer covers local 1.5 → 5.0")
     }
 
-    /// The clock map removes 4.8s of a 19.3s ride and must never ask for a
+    /// 🔎 The operator's note was *"make the ledge longer but you nailed the
+    /// movement"* — so the block grew and the speed did not. The entry is a
+    /// single eased leg from off-grid right to the landing column, and its
+    /// average is what the eye reads as "how fast the ledge comes in".
+    @Test("The ledge is longer and the entry keeps its old speed")
+    func theEntryKeepsItsSpeed() {
+        #expect(CrabRig.ledgeLength == 44, "the ledge is \(CrabRig.ledgeLength) cells")
+        #expect(CrabRig.ledgeTravel == 32 + CrabRig.ledgeLength,
+                "the travel must carry both ends off the grid")
+        let duration = CrabAnimator.Flourish.backSmith.duration
+        let lock = 0.375 * duration
+        func right(_ local: Double) -> Int {
+            CrabRig.ledgeRightEnd(travel: CrabAnimator.flourishPose(.backSmith, at: local,
+                                                                   base: SkateDemo.skateStance).ledge)
+        }
+        let cells = Double(right(0) - right(lock))
+        #expect(cells == 56, "the entry covers \(cells) cells, not 56")
+        let speed = cells / lock
+        #expect(abs(speed - 23.1) / 23.1 < 0.02,
+                "the entry runs at \(speed) cells/s — the first cut ran at 23.1")
+        // Every key position the operator approved, to the cell.
+        #expect(right(lock) == 19, "he lands beside column \(right(lock)), not 19")
+        #expect(right(0.755 * duration) == 13, "the drift ended at \(right(0.755 * duration)), not 13")
+        #expect(right(0.93 * duration) < 0, "the ledge is still on the grid when he stomps")
+    }
+
+    /// 🔎 THE GLITCH THE OPERATOR SAW: *"he sometimes rides the ledge with no
+    /// skateboard"*. No frame was ever boardless. The exit used to spin a whole
+    /// rotation in 0.648s — 2.8× faster than this rig's own kickflip — so the
+    /// board's seven-cell-thick underside strobed while he was level with the
+    /// ledge, and slab and ledge read as one black box. The fix is the rate.
+    @Test("The kickflip out takes a whole second to turn")
+    func theExitDoesNotStrobe() {
+        let duration = CrabAnimator.Flourish.backSmith.duration
+        let start = 0.755 * duration, end = 0.93 * duration
+        func phase(_ local: Double) -> Double {
+            CrabAnimator.flourishPose(.backSmith, at: local, base: SkateDemo.skateStance).propPhase
+        }
+        // 🔎 Measure the ROTATION, not the phase branch. Widening the branch
+        // while leaving the sweep inside it fast is exactly the bug, so the
+        // quantity pinned is the seconds propPhase spends actually turning and
+        // the most it advances between two frames the operator will see.
+        var began: Double?, finished: Double?, biggest = 0.0
+        var previous = phase(start)
+        var local = start
+        while local <= end + 1e-9 {
+            let now = phase(local)
+            #expect(now >= previous - 1e-9, "the board unwound at local \(local)")
+            biggest = max(biggest, now - previous)
+            if began == nil, now >= 0.02 { began = local }
+            if finished == nil, now >= 0.98 { finished = local }
+            previous = now
+            local += 1.0 / Double(SkateDemo.videoFps)
+        }
+        #expect(previous > 0.95, "the exit turned \(previous) of a rotation, not one")
+        let turn = (finished ?? end) - (began ?? start)
+        #expect(turn >= 1.0, "the board turns in \(turn)s — fast enough to strobe")
+        // A whole turn in 0.648s is 1/20 of a rotation a frame; the underside
+        // slab flickers in and out and reads as a black box with no board.
+        #expect(biggest <= 0.04,
+                "the board jumps \(biggest) of a turn between frames — it will strobe")
+        // …and the board is a board the whole way out.
+        for l in stride(from: start, through: end, by: 0.02) {
+            let pose = CrabAnimator.flourishPose(.backSmith, at: l, base: SkateDemo.skateStance)
+            #expect(pose.prop == .skateboard, "the exit board is \(pose.prop) at local \(l)")
+            #expect(pose.propVisibility > 0.99, "the board faded at local \(l)")
+        }
+    }
+
+    /// The clock map removes 6.9s of a 20.4s ride and must never ask for a
     /// frame the ride cannot give.
     @Test("The rainbow clock map is monotone and always in range")
     func theClockMapHolds() {
@@ -131,12 +205,27 @@ struct SkateDemoTests {
             let ride = SkateDemo.ride(reel: t)
             #expect(ride > previous, "the ride went backwards at reel \(t)")
             previous = ride
+            guard t >= SkateDemo.head else { t += 1.0 / Double(SkateDemo.videoFps); continue }
             #expect(CrabAnimator.comboRide(local: ride, wardrobe: .init(current: .skater)) != nil,
                     "the ride is over at reel \(t) (ride \(ride))")
             t += 1.0 / Double(SkateDemo.videoFps)
         }
-        // The removed time is the head trim, the nollie beat and the tail.
-        #expect(abs((19.3 - SkateDemo.rainbowReel.seconds) - 4.8) < 1e-9)
+        // The three cuts account for the whole difference: the frozen head, the
+        // one contiguous ellipsis, and the tail.
+        let session = CrabAnimator.skateSessionLength
+        let tail = session - SkateDemo.ride(reel: SkateDemo.rainbowReel.seconds)
+        #expect(abs(SkateDemo.skip - 5.8) < 1e-9)
+        #expect(abs(tail - 1.1) < 1e-9, "the tail trim is \(tail)s")
+        #expect(abs((session - SkateDemo.rainbowReel.seconds)
+                    - (SkateDemo.skip + tail - SkateDemo.head)) < 1e-9)
+        // 🔎 The tail exists to clear the ride's OWN ease-out, which begins at
+        // 19.6: a reel ending at 19.8 would close on the fire going out.
+        let skater = CrabAnimator.MotionWardrobe(current: .skater)
+        let last = CrabAnimator.comboRide(local: SkateDemo.ride(reel: SkateDemo.rainbowReel.seconds),
+                                          wardrobe: skater)
+        #expect((last?.boardFire ?? 0) > 0.999, "the reel ends on a dying fire")
+        let late = CrabAnimator.comboRide(local: 19.8, wardrobe: skater)
+        #expect((late?.boardFire ?? 1) < 0.3, "the fade moved — this guard can be retired")
     }
 
     /// Real speed everywhere: a shot's ride window is exactly as long as its
@@ -161,7 +250,7 @@ struct SkateDemoTests {
             #expect(tint == nil, "there is a tint at reel \(t)")
             #expect(pose.boardFire == 0)
         }
-        for t in stride(from: 13.5, through: 14.4, by: 0.05) {
+        for t in stride(from: 13.0, through: SkateDemo.rainbowReel.seconds - 0.05, by: 0.05) {
             let (pose, tint) = SkateDemo.rainbowPose(reel: t)
             #expect(pose.combo > 0.999, "the score is only \(pose.combo) at reel \(t)")
             #expect(pose.boardFire > 0.999, "the board is not alight at reel \(t)")
@@ -234,16 +323,28 @@ struct SkateDemoTests {
         }
     }
 
-    /// The ledge's full 28 cells are on the grid for a sixth of a second, so
-    /// the still sheet is the only artifact that can carry "twice the length".
-    @Test("The ledge sheet catches the only frames with the whole ledge")
+    /// At 44 cells the ledge is half again as long as the buffer, so no frame
+    /// can hold all of it — the sheet's job is to show it overrunning, and its
+    /// first frame is the moment of greatest coverage: the right end at the
+    /// last column with the block running clear off the left edge.
+    @Test("The ledge sheet catches the ledge overrunning the frame")
     func theSheetCatchesTheWholeLedge() {
-        for local in SkateDemo.fullExtentFrames {
+        #expect(CrabRig.ledgeLength > PixelBuffer.side,
+                "the ledge fits the frame again — the sheet can go back to whole-ledge frames")
+        var previous = PixelBuffer.side
+        for (index, local) in SkateDemo.fullExtentFrames.enumerated() {
             let pose = CrabAnimator.flourishPose(.backSmith, at: local, base: SkateDemo.skateStance)
             let right = CrabRig.ledgeRightEnd(travel: pose.ledge)
-            let left = right - (CrabRig.ledgeLength - 1)
-            #expect(left >= 0 && right <= PixelBuffer.side - 1,
-                    "at local \(local) the ledge spans \(left)…\(right) — not wholly on the grid")
+            #expect(right >= 0 && right <= PixelBuffer.side - 1,
+                    "at local \(local) the ledge's right end is at \(right) — off the grid")
+            #expect(right - (CrabRig.ledgeLength - 1) < 0,
+                    "at local \(local) the ledge's left end is on the grid — pick a longer ledge")
+            #expect(right < previous, "the sheet's frames do not travel: \(right) after \(previous)")
+            previous = right
+            if index == 0 {
+                #expect(right == PixelBuffer.side - 1,
+                        "the first frame is not the greatest coverage: right end \(right)")
+            }
         }
     }
 }

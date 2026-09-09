@@ -1469,6 +1469,10 @@ public enum CrabRig {
         case .clear: -1
         case .eye, .mouth: 3
         case .body, .bodyShade: 0
+        // The ribbon's teal is furniture like every other world ink — it is
+        // never part of the turning figure, so it takes the same 2 the
+        // default would have given it, said out loud rather than inherited.
+        case .teal: 2
         default: 2
         }
     }
@@ -1805,7 +1809,7 @@ public enum CrabRig {
         }
     }
 
-    /// 🧱 The ledge he grinds: a block on the ground, 28 cells long and five
+    /// 🧱 The ledge he grinds: a block on the ground, 44 cells long and five
     /// tall (rows 24–28), travelling RIGHT TO LEFT — in from off his right,
     /// under his locked truck through the grind, out past the left edge —
     /// the operator's direction ("bring it from his right, then go right to
@@ -1815,11 +1819,13 @@ public enum CrabRig {
     /// jump. Out-of-grid cells are dropped by the buffer's own subscript,
     /// which is what lets it arrive from nowhere and leave to nowhere
     /// without a special case.
-    nonisolated static let ledgeLength = 28
-    nonisolated static let ledgeTravel = 60      // right end 59 … −1, both off-grid
-    /// The ledge's right end for a travel, in cells.
+    nonisolated static let ledgeLength = 44
+    /// Always `32 + ledgeLength`, so travel 0 puts the whole block off the
+    /// right edge and travel 1 puts it off the left.
+    nonisolated static let ledgeTravel = 76
+    /// The ledge's right end for a travel, in cells: 75 … −1.
     static func ledgeRightEnd(travel: Double) -> Int {
-        59 - Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
+        (31 + ledgeLength) - Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
     }
     static func drawLedge(_ b: inout PixelBuffer, travel: Double) {
         let x0 = ledgeRightEnd(travel: travel) - (ledgeLength - 1)
@@ -1852,13 +1858,15 @@ public enum CrabRig {
     }
 
     /// 🌈 The Nyan trail: six one-row stripes off the back of the board —
-    /// red, orange, yellow, green, blue, pink (the palette's stand-in for
-    /// violet) — running left from the plank's tail to the frame's edge by
+    /// red, orange, yellow, green, teal, sky — pink left the set at the
+    /// operator's call, because a red-to-violet ramp read as a flag they did
+    /// not intend to fly, and teal keeps the count at six so the far layer
+    /// still has weight — running left from the plank's tail to the frame's edge by
     /// the third landing, waving in two-column blocks the way the cat's
     /// does. Behind him: legs and body paint over it. `dy` is HIS, so the
     /// trail rises through an ollie with him. `shift` places the far layer:
     /// a step behind, a row lower.
-    nonisolated static let trailInks: [PixelBuffer.Ink] = [.alert, .flame, .yellow, .green, .water, .pink]
+    nonisolated static let trailInks: [PixelBuffer.Ink] = [.alert, .flame, .yellow, .green, .teal, .water]
     static func drawComboTrail(_ b: inout PixelBuffer, dy: Int, combo: Double, phase: Double,
                                shift: (x: Int, y: Int) = (0, 0)) {
         let length = min(8, Int((Ease.clamp01(combo) * 12).rounded()))

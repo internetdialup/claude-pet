@@ -114,7 +114,7 @@ struct ComboTests {
     /// is scoring, and never in a frame with no score.
     @Test("The trail streams behind the board only while he is scoring")
     func theTrailStreamsOnlyWhileScoring() {
-        let rainbow: Set<PixelBuffer.Ink> = [.alert, .flame, .yellow, .green, .water, .pink]
+        let rainbow = Set(CrabRig.trailInks)
         func trailCells(_ pose: CrabPose) -> Int {
             let buffer = CrabRig.render(pose)
             var n = 0
@@ -278,4 +278,114 @@ struct ComboTests {
             #expect(ActivityCoordinator.bubbleStyle(for: said) == .plain)
         }
     }
+
+    /// 🔎 THE OPERATOR'S NOTE: *"remove pink from the rainbow trail, it kind of
+    /// looks like a pride flag and we want to remain neutral."* Six stripes
+    /// still — the far layer needs the weight — but the violet end is gone and
+    /// a teal takes its place, so the ramp runs red → sky and stops.
+    @Test("The ribbon is six stripes with a teal and no pink")
+    func theRibbonIsNeutral() {
+        #expect(CrabRig.trailInks.count == 6, "the ribbon has \(CrabRig.trailInks.count) stripes")
+        #expect(CrabRig.trailInks.contains(.teal), "no teal in the ribbon")
+        #expect(!CrabRig.trailInks.contains(.pink), "the pink is back in the ribbon")
+        #expect(Set(CrabRig.trailInks).count == 6, "a stripe repeats")
+        // …and no pink reaches the drawn ribbon either, whatever the inks say.
+        var scoring = CrabPose()
+        scoring.combo = 1
+        scoring.comboPhase = 0.3
+        let buffer = CrabRig.render(scoring)
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<8 {
+                #expect(buffer[x, y] != .pink, "a pink cell at \(x),\(y)")
+            }
+        }
+        var teal = 0
+        for y in 0..<PixelBuffer.side { for x in 0..<8 where buffer[x, y] == .teal { teal += 1 } }
+        #expect(teal > 0, "the teal stripe never draws")
+    }
+
+    /// 🔎 THE GRAPE→TERRACOTTA SNAP. `SpriteTint.towards` used to blend out of
+    /// Claw'd's own shell whatever the crab was wearing, so the Skater's grape
+    /// jumped to terracotta on the first rung and walked back over the ride.
+    /// The costume's own body is the base now, so at zero score the tint IS the
+    /// costume and there is nothing to step from.
+    @Test("Every costume's tint starts as that costume, body and shade")
+    func theTintStartsWhereTheCostumeIs() {
+        for costume in Costume.allCases {
+            let body = CostumeStyle.bodyRGB(for: costume)
+            let shade = CostumeStyle.shadeRGB(for: costume)
+            let tint = SpriteTint.towards((1, 0, 0), amount: 0, from: body, shadeFrom: shade)
+            #expect(abs(tint.r - body.r) < 1e-12 && abs(tint.g - body.g) < 1e-12
+                    && abs(tint.b - body.b) < 1e-12, "\(costume)'s body steps at zero score")
+            #expect(abs(tint.shadeR - shade.r) < 1e-12 && abs(tint.shadeG - shade.g) < 1e-12
+                    && abs(tint.shadeB - shade.b) < 1e-12, "\(costume)'s shade steps at zero score")
+        }
+        // …and the live path is continuous across the first rung: the last
+        // colourless frame and the first coloured one are the same shell.
+        let grape = CostumeStyle.bodyRGB(for: .skater)
+        let first = CrabView.comboTint(t: 2.6, combo: 0.002, costume: .skater)
+        #expect(first != nil, "the first rung drew no tint")
+        #expect(abs((first?.r ?? 0) - grape.r) < 0.01 && abs((first?.g ?? 0) - grape.g) < 0.01
+                && abs((first?.b ?? 0) - grape.b) < 0.01,
+                "the shell jumps on the first rung: \(String(describing: first))")
+    }
+
+    /// 🔎 THE UNTINTED SHADE. `bodyTint` only ever reached `.body`; the belly
+    /// row and the right flank are `.bodyShade` and were repainted at the
+    /// palette's own colour every frame, so a full-score crab wore a rainbow
+    /// shell with a terracotta underside. The shade tracks the tint now,
+    /// through the palette's own body→shade ratio.
+    @Test("The shade tracks the tint, and no untinted shade cell survives full score")
+    func theShadeTracksTheTint() {
+        let tint = CrabView.comboTint(t: 3.0, combo: 1, costume: .skater)
+        #expect(tint != nil)
+        guard let tint else { return }
+        // At full score the shade is the tint darkened by the palette's ratio.
+        #expect(abs(tint.shadeR - tint.r * SpriteTint.shadeRatio.r) < 1e-9,
+                "the shade is \(tint.shadeR), not \(tint.r * SpriteTint.shadeRatio.r)")
+        #expect(abs(tint.shadeG - tint.g * SpriteTint.shadeRatio.g) < 1e-9)
+        #expect(abs(tint.shadeB - tint.b * SpriteTint.shadeRatio.b) < 1e-9)
+        // …and it is a different colour from the body, or the shading is gone.
+        #expect(abs(tint.shadeG - tint.g) > 0.05, "the shade lost its contrast")
+        // The Skater's own shade is nowhere near the full-score shade, which is
+        // exactly what made the old frames read as an untinted underside.
+        let grapeShade = CostumeStyle.shadeRGB(for: .skater)
+        let drift = abs(tint.shadeR - grapeShade.r) + abs(tint.shadeG - grapeShade.g)
+            + abs(tint.shadeB - grapeShade.b)
+        #expect(drift > 0.2, "the full-score shade is still the costume's own: drift \(drift)")
+        // …and the canvas actually ASKS for it. The shade used to be resolved
+        // from the costume override with the tint never consulted, so a
+        // full-score crab wore a rainbow shell over a grape underside.
+        let overrides = CostumeStyle.blendedOverrides(from: .skater, to: .skater, u: 1)
+        let painted = PixelCanvasView.color(for: .bodyShade, bodyTint: tint.body,
+                                            bodyShadeTint: tint.shade, inkOverrides: overrides)
+        #expect(painted == tint.shade,
+                "the canvas painted \(painted) where the tint asked for \(tint.shade)")
+        #expect(painted != (overrides[.bodyShade] ?? Palette.bodyShade),
+                "the canvas is still painting the costume's own shade at full score")
+    }
+
+    /// 🔎 *"The rainbow fade needs to be brighter, it looks kind of awkward."*
+    /// The mix used to stop at 85% of a 0.72-saturated, 0.92-bright hue — a
+    /// muddy three-quarter step. Full score is the full hue now.
+    @Test("Full score is the full hue, not a muddy three-quarters of it")
+    func theRainbowIsBright() {
+        for step in 0..<12 {
+            let tint = CrabView.comboTint(t: Double(step) * 0.37, combo: 1, costume: .skater)
+            #expect(tint != nil)
+            guard let tint else { continue }
+            let channels = [tint.r, tint.g, tint.b]
+            let high = channels.max() ?? 0, low = channels.min() ?? 0
+            #expect(high > 0.99, "the brightest channel is only \(high)")
+            #expect((high - low) / high > 0.84, "the saturation is only \((high - low) / high)")
+        }
+        // …and it is still a ramp, not a step: half score sits between the
+        // costume's own shell and the full hue.
+        let grape = CostumeStyle.bodyRGB(for: .skater)
+        let half = CrabView.comboTint(t: 3.0, combo: 0.5, costume: .skater)
+        let full = CrabView.comboTint(t: 3.0, combo: 1, costume: .skater)
+        guard let half, let full else { return }
+        #expect(half.g > grape.g && half.g < full.g, "the green channel does not ramp")
+    }
+
 }

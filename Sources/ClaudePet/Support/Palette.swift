@@ -38,6 +38,8 @@ public enum Palette {
     /// delete it; do not soften it into one. (The costumed shells carry their
     /// own step via `inkOverrides` — see `CostumeStyle`.)
     public static let bodyShade = Color(hex: 0xB8674B)
+    /// 🌈 The ribbon's teal — `green`'s sibling, one hue step cooler.
+    public static let teal = Color(hex: 0x3FA39B)
 
     /// Chrome colours for the bubble and roster. Mostly not part of the
     /// sprite — `slateSoft` is the exception, promoted to `Ink.slate` for the

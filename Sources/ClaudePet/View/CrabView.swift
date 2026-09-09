@@ -181,7 +181,7 @@ public enum CrabAnimator {
             case .treFlip, .laserFlip: 3.2
             // The ledge has to arrive, he has to get onto it, hold the grind
             // long enough to read as a grind, and get off before it leaves.
-            case .backSmith: 5.4
+            case .backSmith: 6.5
             }
         }
     }
@@ -455,9 +455,9 @@ public enum CrabAnimator {
     /// tally lands and the rainbow eases off.
     static let skateSessionBeats: [(Flourish, Double)] = [
         (.ollie, 3.2), (.kickflip, 2.8), (.shoveIt, 2.2), (.nollie, 3.6),
-        (.backSmith, 5.4),
+        (.backSmith, 6.5),
     ]
-    static let skateSessionLength = 19.3    // the beats (17.2) plus a 2.1s settling beat
+    static let skateSessionLength = 20.4    // the beats (18.3) plus a 2.1s settling beat
     /// Where the tricks end and the settle begins — the tally's instant.
     static var skateSessionTricksLength: Double { skateSessionBeats.reduce(0) { $0 + $1.1 } }
 
@@ -2613,34 +2613,41 @@ public enum CrabAnimator {
             pose.prop = .skateboardSmith
             pose.propVisibility = 1
             pose.propPhase = 0
-            let enter = Ease.smoothstep(progress / 0.32)
-            let drift = Ease.clamp01((progress - 0.32) / 0.46)
-            let exit = Ease.smoothstep((progress - 0.78) / 0.12)
-            pose.ledge = (enter * 40 + drift * 6 + exit * 14) / Double(CrabRig.ledgeTravel)
-            pose.bushes = Ease.smoothstep(progress / 0.15)
-                * (1 - Ease.smoothstep((progress - 0.82) / 0.12))
-            if progress < 0.12 {
+            // The cell budget, and why it is what it is. The block is 44 long
+            // now, so it starts 16 cells further right — and the entry window
+            // grew by exactly the same ratio, which is what keeps the arrival
+            // at 23 cells a second, the speed the operator signed off. Every
+            // key position is unchanged to the cell: the right end reaches
+            // column 19 as he lands, drifts six cells left under the lock, and
+            // is off the grid before the stomp.
+            let enter = Ease.smoothstep(progress / 0.375)
+            let drift = Ease.clamp01((progress - 0.375) / 0.38)
+            let exit = Ease.smoothstep((progress - 0.755) / 0.17)
+            pose.ledge = (enter * 56 + drift * 6 + exit * 14) / Double(CrabRig.ledgeTravel)
+            pose.bushes = Ease.smoothstep(progress / 0.13)
+                * (1 - Ease.smoothstep((progress - 0.85) / 0.10))
+            if progress < 0.10 {
                 pose.squash = 1                       // load the pop
                 pose.bob = 1
-            } else if progress < 0.32 {
+            } else if progress < 0.375 {
                 // The pop, landing ON the ledge: 0 → a −9 apex → −4.
-                let air = (progress - 0.12) / 0.20
+                let air = (progress - 0.10) / 0.275
                 pose.bob = -Int((4 * air + 6 * sin(air * .pi)).rounded())
                 pose.legAmplitude = 1.6
                 pose.legPhase = .pi / 2
                 pose.blink = 0
                 pose.mouth = .open
                 if air < 0.3 { pose.eyes = .squint }  // the snap
-            } else if progress < 0.78 {
+            } else if progress < 0.755 {
                 // The grind, two and a half seconds: back truck on the top,
                 // nose two rows down, the ledge sliding on beneath him.
                 pose.bob = -4
-                let pitch = Ease.smoothstep((progress - 0.32) / 0.05)
-                    * (1 - Ease.smoothstep((progress - 0.73) / 0.05))
+                let pitch = Ease.smoothstep((progress - 0.375) / 0.05)
+                    * (1 - Ease.smoothstep((progress - 0.705) / 0.05))
                 pose.propPhase = pitch
                 // 🦵 The steeze: out through the lock, back before release.
-                pose.legKick = Ease.smoothstep((progress - 0.34) / 0.06)
-                    * (1 - Ease.smoothstep((progress - 0.70) / 0.06))
+                pose.legKick = Ease.smoothstep((progress - 0.395) / 0.06)
+                    * (1 - Ease.smoothstep((progress - 0.68) / 0.06))
                 pose.eyes = .determined
                 pose.mouth = .open
                 pose.gazeX = 1
@@ -2652,11 +2659,19 @@ public enum CrabAnimator {
                 // ✨ Sparks off the truck, as many as the lock is deep.
                 pose.grindSparks = pitch
                 pose.sparkPhase = t
-            } else if progress < 0.90 {
+            } else if progress < 0.93 {
                 // 🛹 KICKFLIP OUT: from −4, up, one full turn of the board,
                 // down to 0 — the kickflip's own board, so its geometry and
                 // its landing are the ones every other flip already has.
-                let air = (progress - 0.78) / 0.12
+                //
+                // 🔎 It takes 1.14s, not the 0.65 the first cut gave it. The
+                // board's underside is a seven-cell slab at the quarter turns,
+                // and spinning a whole rotation in two thirds of a second — 2.8×
+                // this rig's own kickflip — strobed those slabs at the exact
+                // moment he was level with the ledge, so slab and ledge read as
+                // one black box. The operator called it "riding the ledge with
+                // no skateboard"; it was the rotation rate, not the prop.
+                let air = (progress - 0.755) / 0.175
                 pose.prop = .skateboard
                 pose.propPhase = air
                 pose.bob = -Int((4 * (1 - air) + 5 * sin(air * .pi)).rounded())
@@ -2672,7 +2687,7 @@ public enum CrabAnimator {
                 pose.squash = 1                       // stomp it flat
                 pose.bob = 1
                 pose.mouth = .open
-                pose.dustBurst = (progress - 0.90) / 0.10
+                pose.dustBurst = (progress - 0.93) / 0.07
             }
 
         case .scuttle:
@@ -2900,7 +2915,7 @@ public struct CrabView: View {
     /// at half saturation, pose untouched — he keeps working, head down, while
     /// the lights happen to him. Dice-gated to roughly one flash per few
     /// minutes of continuous cooking, never in the first cycle.
-    nonisolated static func discoTint(cookingT t: Double) -> Color? {
+    nonisolated static func discoTint(cookingT t: Double) -> SpriteTint.Tint? {
         let cycle = Int(floor(t / 45))
         guard cycle > 0,
               CrabAnimator.noise(cycle &* 41 &+ 17) < SpawnRates.discoTint.chance
@@ -2931,7 +2946,7 @@ public struct CrabView: View {
     /// adding a task dropped the fraction back under. Now that it is dark 94%
     /// of the time, almost every crossing lands on exact zero with nothing to
     /// snap, and the worst survivor is bounded by the 0.28.
-    nonisolated static func nearDoneTint(cookingT t: Double, fraction: Double?) -> Color? {
+    nonisolated static func nearDoneTint(cookingT t: Double, fraction: Double?) -> SpriteTint.Tint? {
         guard let fraction, fraction >= 0.8 else { return nil }
         let cycle = Int(floor(t / 20))
         guard cycle > 0,
@@ -2954,7 +2969,7 @@ public struct CrabView: View {
     /// Deliberately non-nil across the whole window: it is what stops
     /// `composedTint` falling through into the plain-celebration branch
     /// mid-finale.
-    nonisolated static func epicTint(doneT t: Double) -> Color? {
+    nonisolated static func epicTint(doneT t: Double) -> SpriteTint.Tint? {
         let envelope = Ease.window(t, duration: 10, edge: 0.6)
         guard envelope > 0.001 else { return nil }
         let hue = (t / 5).truncatingRemainder(dividingBy: 1)
@@ -3037,21 +3052,26 @@ public struct CrabView: View {
     /// 🌈 RAINBOW MODE: the combo's score on his shell. The hue makes half a
     /// trip round the wheel a second and the amount IS the score — faint on
     /// the first landing, full by the last — so the colour is the counter.
-    /// `towards` mixes from terracotta, so a dressed crab's tint pulls toward
-    /// Claw'd's own shell rather than the costume's; the party has always
-    /// done the same, and it reads as him under a light, not a recolour.
-    nonisolated static func comboTint(t: Double, combo: Double) -> Color? {
+    /// It mixes from the WORN costume's own inks, so the first rung eases out
+    /// of grape rather than stepping to terracotta on the way — see
+    /// `SpriteTint.towards`. Brighter and fuller at the operator's call: the
+    /// first cut topped out at 85% of a 0.72/0.92 hue and read washed out.
+    nonisolated static func comboTint(t: Double, combo: Double,
+                                      costume: Costume = .none) -> SpriteTint.Tint? {
         guard combo > 0.001 else { return nil }
         let hue = (t * 0.5).truncatingRemainder(dividingBy: 1)
-        return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.72, brightness: 0.92),
-                                  amount: 0.85 * Ease.clamp01(combo))
+        return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.85, brightness: 1.0),
+                                  amount: Ease.clamp01(combo),
+                                  from: CostumeStyle.bodyRGB(for: costume),
+                                  shadeFrom: CostumeStyle.shadeRGB(for: costume))
     }
 
     nonisolated static func composedTint(mood: PetMood, t: Double, rainbowElapsed: Double?,
                              celebrating: Bool, epic: Bool = false,
                                          taskFraction: Double?, hourOfDay: Int? = nil,
                                          preview: CrabAnimator.PreviewFrame? = nil,
-                                         combo: Double = 0) -> Color? {
+                                         combo: Double = 0,
+                                         costume: Costume = .none) -> SpriteTint.Tint? {
         // A preview WITH a tint of its own wins outright — the same rule
         // `currentPose` states for the pose. A preview exists to be seen past
         // the schedules.
@@ -3065,7 +3085,7 @@ public struct CrabView: View {
         // review that showed the trail without the rainbow would be lying
         // about the ride. Only the session sets `combo`, and no offline
         // renderer reads it, so committed bytes stay cold.
-        if let score = comboTint(t: t, combo: combo) { return score }
+        if let score = comboTint(t: t, combo: combo, costume: costume) { return score }
         // A preview with no tint of its own hides the schedules' tints.
         if preview != nil { return nil }
         if mood == .done, celebrating, epic, let burst = epicTint(doneT: t) { return burst }
@@ -3081,7 +3101,7 @@ public struct CrabView: View {
 
     /// The body colour at a moment in the cycle, or nil when not partying.
     /// `nonisolated` for the reason given above `rainbowDuration`.
-    nonisolated static func rainbowTint(elapsed: Double) -> Color? {
+    nonisolated static func rainbowTint(elapsed: Double) -> SpriteTint.Tint? {
         guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
         // Two full trips round the wheel, then out. Saturation stays under 1 so
         // he still reads as Claw'd wearing colours rather than a colour wheel.
@@ -3208,7 +3228,8 @@ public struct CrabView: View {
                                          // The BLENDED pose's score, so leaving
                                          // idle mid-combo fades the rainbow with
                                          // the 0.4s crossfade rather than cutting.
-                                         combo: pose.combo)
+                                         combo: pose.combo,
+                                         costume: costume)
         let blanch = CrabView.composedBlanch(mood: mood, t: localT,
                                              celebrating: celebrating,
                                              epic: epicCelebration) * flashScale
@@ -3229,7 +3250,8 @@ public struct CrabView: View {
                                                       costume: costume,
                                                       ghostCostume: ghostCostume,
                                                       costumeVisibility: costumeProgress),
-                               bodyTint: tint,
+                               bodyTint: tint?.body,
+                               bodyShadeTint: tint?.shade,
                                inkOverrides: CostumeStyle.blendedOverrides(from: ghostCostume,
                                                                            to: costume,
                                                                            u: costumeProgress,
