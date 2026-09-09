@@ -125,6 +125,13 @@ if let index = arguments.firstIndex(of: "--render-sizzle"), index + 1 < argument
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-linkedin"), index + 1 < arguments.count {
+    // 📣 Three 4:5 cuts for a feed, no type. Like the reels and the loop,
+    // deliberately nowhere near `docs/media`.
+    let ok = MainActor.assumeIsolated { FeedCuts.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-butt-loop"), index + 1 < arguments.count {
     // 🍑 A looping clip of the half cab's held second, no type, for Figma and
     // Instagram. Like the demo reels, deliberately nowhere near `docs/media`.
