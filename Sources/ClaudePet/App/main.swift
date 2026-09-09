@@ -125,6 +125,13 @@ if let index = arguments.firstIndex(of: "--render-sizzle"), index + 1 < argument
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-butt-loop"), index + 1 < arguments.count {
+    // 🍑 A looping clip of the half cab's held second, no type, for Figma and
+    // Instagram. Like the demo reels, deliberately nowhere near `docs/media`.
+    let ok = MainActor.assumeIsolated { ButtLoop.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-skate-demo"), index + 1 < arguments.count {
     // 🛹 The demo reels: two short, type-free review cuts the operator watches
     // to fine-tune geometry before any marketing is generated from it. Same

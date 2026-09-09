@@ -613,6 +613,18 @@ struct RainbowRays: View {
         }
     }
 
+    /// The wedges' colours, folded onto the same neutral wheel the shell wears.
+    ///
+    /// Two of the eight used to be violet and magenta, fanning out behind him in
+    /// the very frames his own colour is being kept off them. Hoisted out of the
+    /// draw so a test can read the number the backdrop ACTUALLY paints: the
+    /// first pin for this recomputed the fold in the test instead, which meant
+    /// putting the raw wheel back in this file left it passing.
+    nonisolated static let rayCount = 8
+    nonisolated static func hue(ray: Int) -> Double {
+        SpriteTint.neutralHue(Double(ray) / Double(rayCount))
+    }
+
     static func draw(in context: inout GraphicsContext, size: CGSize, t: Double) {
         let amount = Ease.window(t, duration: 4.0, edge: 0.4)
         guard amount > 0.001 else { return }
@@ -620,9 +632,9 @@ struct RainbowRays: View {
                              y: (size.height * 0.55).rounded())
         let reach = size.width * 0.9
         let spin = t * 0.15 * 2 * .pi
-        for ray in 0..<8 {
-            let base = spin + Double(ray) / 8 * 2 * .pi
-            let hue = Double(ray) / 8
+        for ray in 0..<rayCount {
+            let base = spin + Double(ray) / Double(rayCount) * 2 * .pi
+            let hue = Self.hue(ray: ray)
             var path = Path()
             path.move(to: centre)
             path.addLine(to: CGPoint(x: centre.x + cos(base) * reach,

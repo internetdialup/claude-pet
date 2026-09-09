@@ -237,4 +237,191 @@ struct HalfCabTests {
         #expect(CrabAnimator.Flourish.allCases.last == .halfCab,
                 "the half cab is no longer last — something was inserted before it")
     }
+
+    // MARK: - 🍑 The bounce
+
+    private func cheeks(_ jiggle: Double, turn: Double = 0.5) -> [(x: Int, y: Int)] {
+        var pose = CrabPose()
+        pose.torsoTurn = turn
+        pose.buttJiggle = jiggle
+        let buffer = CrabRig.render(pose)
+        // Rows 16…20 and columns 8…23, which is the backside's whole reach and
+        // nothing else's: his legs are `.body` from row 21 down, his arms are
+        // `.body` on rows 14-16 but only outside column 8, and the lit ridge is
+        // row 13. A window that took row 21 would count shins as cheeks — which
+        // is exactly what the first cut of this helper did.
+        var cells: [(Int, Int)] = []
+        for y in 16...20 {
+            for x in 8...23 where buffer[x, y] == .body { cells.append((x, y)) }
+        }
+        return cells
+    }
+
+    /// 🔎 A SQUASH-AND-STRETCH, not a sine wave — which is the whole difference
+    /// between "the Duolingo jiggle" and "a block moves up". Down is not
+    /// available: row 20 is the shell's last, row 21 is his legs, and a cheek
+    /// row on his shins is deleted by the pass's own mask, so the block would
+    /// appear to lose a row rather than move. A bounce needs a floor and he has
+    /// one, so the two halves are UP and WIDER.
+    @Test("The bounce lifts a row one way and spreads a column the other")
+    func theBounceSquashesAndStretches() {
+        let rest = cheeks(0), aloft = cheeks(1), squash = cheeks(-1)
+        #expect(rest.count == 28, "at rest the backside is \(rest.count) cells, not 28")
+        // ALOFT: same mass, one row higher.
+        #expect(aloft.count == rest.count, "the lift changed the mass: \(aloft.count) against \(rest.count)")
+        #expect((aloft.map(\.y).min() ?? 0) == (rest.map(\.y).min() ?? 0) - 1,
+                "the lift did not move a row up")
+        #expect((aloft.map(\.y).max() ?? 0) == (rest.map(\.y).max() ?? 0) - 1)
+        // SQUASH: same rows, MORE mass — a compressed soft body spreads, it
+        // does not shrink. Losing a row instead would cost 8 of 28 cells in one
+        // frame and read as the mark half-vanishing.
+        #expect(squash.map(\.y).min() == rest.map(\.y).min(), "the squash left the floor")
+        #expect(squash.map(\.y).max() == rest.map(\.y).max())
+        #expect(squash.count > rest.count,
+                "the squash lost mass: \(squash.count) against \(rest.count)")
+        #expect((squash.map(\.x).min() ?? 0) < (rest.map(\.x).min() ?? 0),
+                "the squash did not spread outward")
+        #expect((squash.map(\.x).max() ?? 0) > (rest.map(\.x).max() ?? 0))
+    }
+
+    /// 🔎 THE CRACK IS THE ENTIRE IDENTITY OF THE MARK. Both cheeks grow away
+    /// from centre, so the two dark columns between them are the same two at
+    /// every state — a squash that closed the crack would just be a wider bum.
+    @Test("The crack never moves, in any state")
+    func theCrackIsInvariant() {
+        for jiggle in [0.0, 1.0, -1.0, 0.6, -0.6, 2.0, -2.0] {
+            var pose = CrabPose()
+            pose.torsoTurn = 0.5
+            pose.buttJiggle = jiggle
+            let buffer = CrabRig.render(pose)
+            for y in 16...20 {
+                for x in crack {
+                    #expect(buffer[x, y] != .body,
+                            "at jiggle \(jiggle) the crack closed at (\(x),\(y))")
+                }
+            }
+            // …and the whole mark stays symmetric about the mirror's axis.
+            for y in 16...20 {
+                for x in 6...25 {
+                    #expect((buffer[x, y] == .body) == (buffer[31 - x, y] == .body),
+                            "at jiggle \(jiggle) the backside is lopsided at (\(x),\(y))")
+                }
+            }
+        }
+    }
+
+    /// The floor holds however hard he is pushed: an amplitude far past anything
+    /// the animator writes must never put a cheek on his legs, and must never
+    /// climb over the lit ridge at the top of the carapace.
+    @Test("Nothing ever leaves the shell, at any amplitude")
+    func theFloorAndTheRidgeHold() {
+        for jiggle in [-8.0, -2.0, -1.0, 0.0, 1.0, 2.0, 8.0] {
+            let cells = cheeks(jiggle)
+            #expect(!cells.isEmpty, "the backside vanished at jiggle \(jiggle)")
+            #expect(cells.allSatisfy { $0.y <= 20 }, "a cheek reached his legs at jiggle \(jiggle)")
+            #expect(cells.allSatisfy { $0.y >= 16 }, "a cheek climbed the ridge at jiggle \(jiggle)")
+        }
+    }
+
+    /// The bounce's own arithmetic: four cycles across the two seconds his back
+    /// is turned, at rest at both ends, and never past a cell either way.
+    @Test("Four bounces across the turned window, resting at both seams")
+    func theBounceIsOnTheGrid() {
+        // The seams: `torsoTurn` is pinned at 0.5 from the landing through the
+        // hold to the cab's crouch, and the bounce covers exactly that.
+        #expect(abs(frame(land).buttJiggle) < 1e-9, "the bounce does not start at rest")
+        #expect(abs(frame(cab).buttJiggle) < 1e-9, "the bounce does not end at rest")
+        #expect(frame(0.2).buttJiggle == 0 && frame(0.8).buttJiggle == 0,
+                "the bounce leaked outside the window his back is turned")
+        var previous = 0.0, reversals = 0, peak = 0.0
+        for step in 0...1000 {
+            let p = land + (cab - land) * Double(step) / 1000
+            let now = frame(p).buttJiggle
+            peak = max(peak, abs(now))
+            if step > 1, (now - previous) * previous < 0 { }
+            if step > 0, previous != now,
+               (now > previous) != (frame(p - (cab - land) / 1000 * 2).buttJiggle < previous) {
+                reversals += 1
+            }
+            previous = now
+        }
+        #expect(abs(peak - 1) < 0.01, "the bounce peaks at \(peak), not one cell")
+        // Four whole cycles: the value crosses zero eight times inside the window.
+        var crossings = 0
+        var last = frame(land + 1e-6).buttJiggle
+        for step in 1...2000 {
+            let now = frame(land + (cab - land) * Double(step) / 2000).buttJiggle
+            if last * now < 0 { crossings += 1 }
+            last = now
+        }
+        #expect(crossings == 7, "the bounce crossed zero \(crossings) times — that is not four cycles")
+    }
+
+    /// 🔎 It SQUASHES BEFORE IT LIFTS — anticipation first, which is what
+    /// separates a cartoon bounce from a block sliding up and down.
+    @Test("Every cycle winds up before it pops")
+    func theBounceAnticipates() {
+        let cycle = (cab - land) / 4
+        for n in 0..<4 {
+            let start = land + cycle * Double(n)
+            let early = frame(start + cycle * 0.25).buttJiggle
+            let late = frame(start + cycle * 0.75).buttJiggle
+            #expect(early < -0.9, "cycle \(n) did not squash first: \(early)")
+            #expect(late > 0.9, "cycle \(n) did not lift second: \(late)")
+        }
+    }
+
+    /// At the rate the committed GIF is written, a whole cycle is six frames and
+    /// each state change has a rest frame beside it — so no frame ever moves the
+    /// row and the width at once. One whole-pixel step at a time is the grid's
+    /// own quantum, and the only motion the no-snap rule exempts.
+    @Test("At the GIF's own rate the cycle reads as three states, never two at once")
+    func theCycleReadsAtTwelveFrames() {
+        var states: [String] = []
+        let cycle = (cab - land) / 4
+        for frameIndex in 0..<6 {
+            let p = land + cycle * Double(frameIndex) / 6
+            let v = frame(p).buttJiggle
+            states.append(v.rounded() == -1 ? "squash" : v.rounded() == 1 ? "aloft" : "rest")
+        }
+        #expect(states == ["rest", "squash", "squash", "rest", "aloft", "aloft"],
+                "the twelve-frame cycle reads \(states)")
+    }
+
+    /// The bounce belongs to this trick alone. The bigspin is the only other
+    /// flourish allowed to turn him and it passes through facing-away in a
+    /// fraction of a second, where a jiggle would flicker — and would move
+    /// `docs/media/flourish-bigspin.gif` for nothing.
+    @Test("No other flourish jiggles")
+    func nothingElseBounces() {
+        for kind in CrabAnimator.Flourish.allCases where kind != .halfCab {
+            for step in 0...120 {
+                let pose = CrabAnimator.flourishPose(kind, at: Double(step) * kind.duration / 120)
+                #expect(pose.buttJiggle == 0, "\(kind) jiggles at step \(step)")
+            }
+        }
+        // …and a bare pose, which is what every committed still is built from.
+        #expect(CrabPose().buttJiggle == 0)
+    }
+
+    /// The held second is what the marketing loop is cut from, so it has to
+    /// LOOP: the pose at its end must match the pose at its start in every
+    /// channel the backside reads.
+    @Test("The held second loops")
+    func theHoldLoops() {
+        // The window is half-open: the LAST frame of the hold, not the first
+        // frame of the crouch that follows it, which carries its own squash.
+        let open = frame(hold), close = frame(cabCrouch - 1e-9)
+        // A hair's breadth, not exactly: `close` is sampled a nanosecond inside
+        // the window, so the sine has advanced by that much and no more.
+        #expect(abs(open.buttJiggle - close.buttJiggle) < 1e-6,
+                "the bounce does not come home: \(open.buttJiggle) against \(close.buttJiggle)")
+        #expect(open.torsoTurn == close.torsoTurn && open.bob == close.bob
+                && open.propPhase == close.propPhase && open.prop == close.prop,
+                "the hold does not return to its own first frame")
+        // …and it is not loop-clean by being static: something moves inside it.
+        let middle = frame((hold + cabCrouch) / 2 - (cabCrouch - hold) / 8)
+        #expect(abs(middle.buttJiggle) > 0.9, "nothing happens inside the loop")
+    }
+
 }

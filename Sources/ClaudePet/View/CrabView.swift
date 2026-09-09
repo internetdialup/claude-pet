@@ -2444,6 +2444,28 @@ public enum CrabAnimator {
             pose.prop = .skateboardBigspin
             pose.propVisibility = 1
             pose.propPhase = 0
+            // 🍑 THE BOUNCE, written once for the whole window rather than into
+            // each of the three branches that make it up. `torsoTurn` is pinned
+            // at 0.5 from the landing, through the hold, to the cab's crouch —
+            // two solid seconds of his back to the camera — and the operator
+            // asked for the jiggle across all of it.
+            //
+            // Four cycles over two seconds is 2 Hz: one bounce a beat at 120,
+            // the grid every seam of this trick already lands on. It is also the
+            // fastest rate the committed GIF can carry — `GifRenderer.frameDelay`
+            // is a twelfth, so a cycle is six frames; three a second would be
+            // four, and a three-state cycle in four frames strobes.
+            //
+            // `-sin` rather than `sin`, so each cycle SQUASHES before it lifts:
+            // anticipation first, which is what separates a cartoon bounce from
+            // a block sliding up and down. And sin is zero at both ends of the
+            // window, so the value and its slope are continuous at the seams
+            // with no envelope, no clamp and no helper — the bounce costs
+            // nothing entering or leaving.
+            if progress >= 0.25, progress < 0.75 {
+                let facingAway = (progress - 0.25) / 0.5
+                pose.buttJiggle = -sin(2 * .pi * 4 * facingAway)
+            }
             if progress < 0.125 {                       // the crouch, one beat
                 pose.squash = 1
                 pose.bob = 1
@@ -3014,8 +3036,8 @@ public struct CrabView: View {
         return order[step]
     }
 
-    /// The occasional disco during a long cook: one slow trip round the wheel
-    /// at half saturation, pose untouched — he keeps working, head down, while
+    /// The occasional disco during a long cook: one slow trip out along the
+    /// neutral wheel at half saturation, pose untouched — he keeps working, head down, while
     /// the lights happen to him. Dice-gated to roughly one flash per few
     /// minutes of continuous cooking, never in the first cycle.
     nonisolated static func discoTint(cookingT t: Double) -> SpriteTint.Tint? {
@@ -3027,7 +3049,8 @@ public struct CrabView: View {
         guard since < 5 else { return nil }
         let amount = Ease.window(since, duration: 5, edge: 0.7)
         guard amount > 0.01 else { return nil }
-        return SpriteTint.towards(SpriteTint.rgb(hue: since / 5, saturation: 0.5, brightness: 0.92),
+        return SpriteTint.towards(SpriteTint.rgb(hue: SpriteTint.neutralHue(since / 5),
+                                                  saturation: 0.5, brightness: 0.92),
                                   amount: amount)
     }
 
@@ -3075,7 +3098,7 @@ public struct CrabView: View {
     nonisolated static func epicTint(doneT t: Double) -> SpriteTint.Tint? {
         let envelope = Ease.window(t, duration: 10, edge: 0.6)
         guard envelope > 0.001 else { return nil }
-        let hue = (t / 5).truncatingRemainder(dividingBy: 1)
+        let hue = SpriteTint.neutralHue(t / 5)
         return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.7, brightness: 0.95),
                                   amount: envelope)
     }
@@ -3153,7 +3176,7 @@ public struct CrabView: View {
     ///   Defaulted so every existing caller and test compiles untouched, and
     ///   so offline renderers — which pass nothing — stay cold.
     /// 🌈 RAINBOW MODE: the combo's score on his shell. The hue makes half a
-    /// trip round the wheel a second and the amount IS the score — faint on
+    /// trip out along the neutral wheel a second and the amount IS the score — faint on
     /// the first landing, full by the last — so the colour is the counter.
     /// It mixes from the WORN costume's own inks, so the first rung eases out
     /// of grape rather than stepping to terracotta on the way — see
@@ -3162,7 +3185,7 @@ public struct CrabView: View {
     nonisolated static func comboTint(t: Double, combo: Double,
                                       costume: Costume = .none) -> SpriteTint.Tint? {
         guard combo > 0.001 else { return nil }
-        let hue = (t * 0.5).truncatingRemainder(dividingBy: 1)
+        let hue = SpriteTint.neutralHue(t * 0.5)
         return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.85, brightness: 1.0),
                                   amount: Ease.clamp01(combo),
                                   from: CostumeStyle.bodyRGB(for: costume),
@@ -3206,11 +3229,12 @@ public struct CrabView: View {
     /// `nonisolated` for the reason given above `rainbowDuration`.
     nonisolated static func rainbowTint(elapsed: Double) -> SpriteTint.Tint? {
         guard elapsed >= 0, elapsed < rainbowDuration else { return nil }
-        // Two full trips round the wheel, then out. Saturation stays under 1 so
-        // he still reads as Claw'd wearing colours rather than a colour wheel.
+        // Two full trips out along the neutral wheel and back, then out.
+        // Saturation stays under 1 so he still reads as Claw'd wearing colours
+        // rather than a colour wheel.
         // The trapezoid mixes the party colour up from terracotta and back down
         // to it, so the tint has no seam at either end of the party.
-        let hue = (elapsed / rainbowDuration * 2).truncatingRemainder(dividingBy: 1)
+        let hue = SpriteTint.neutralHue(elapsed / rainbowDuration * 2)
         let amount = Ease.window(elapsed, duration: rainbowDuration, edge: 0.4)
         return SpriteTint.towards(SpriteTint.rgb(hue: hue, saturation: 0.72, brightness: 0.92),
                                   amount: amount)

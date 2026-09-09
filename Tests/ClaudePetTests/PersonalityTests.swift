@@ -896,11 +896,48 @@ struct RainbowTests {
         #expect(CrabView.rainbowTint(elapsed: -1) == nil)
     }
 
+    /// 🔎 This used to count DISTINCT colours and require more than eight.
+    /// That was a fair proxy for travel while the hue ran a full wheel, and it
+    /// stopped being one the moment the wheel was folded to keep the violets
+    /// off him: a fold RETRACES by construction, so half the samples land on a
+    /// colour an earlier sample already had, and a set-count measures variety
+    /// rather than motion. Lowering the threshold would have been the wrong
+    /// repair — it would have kept a brittle proxy and made it weaker. What the
+    /// test always meant is pinned directly instead, on the hue recovered from
+    /// the colour that was actually produced.
     @Test("The hue actually travels")
     func hueMoves() {
-        let samples = stride(from: 0.0, to: CrabView.rainbowDuration, by: 0.2)
-            .compactMap { CrabView.rainbowTint(elapsed: $0).map { "\($0.body)|\($0.shade)" } }
-        #expect(Set(samples).count > 8, "the body should cycle, not sit on one colour")
+        func hue(_ tint: SpriteTint.Tint) -> Double {
+            let high = max(tint.r, max(tint.g, tint.b)), low = min(tint.r, min(tint.g, tint.b))
+            guard high - low > 1e-9 else { return 0 }
+            let d = high - low
+            let h: Double
+            if high == tint.r { h = (tint.g - tint.b) / d }
+            else if high == tint.g { h = 2 + (tint.b - tint.r) / d }
+            else { h = 4 + (tint.r - tint.g) / d }
+            return (h / 6 - floor(h / 6))
+        }
+        let hues = stride(from: 0.0, to: CrabView.rainbowDuration, by: 0.2)
+            .compactMap { CrabView.rainbowTint(elapsed: $0).map(hue) }
+        #expect(hues.count > 15, "only \(hues.count) frames of party to measure")
+        // It never sits: no two frames in a row are the same colour.
+        for (a, b) in zip(hues, hues.dropFirst()) {
+            #expect(abs(a - b) > 1e-6, "the body sat on hue \(a) for two frames running")
+        }
+        // It goes somewhere: warm at one end, properly cool at the other.
+        let low = hues.min() ?? 0, high = hues.max() ?? 0
+        #expect(low < 0.10, "the party never reaches a warm colour: lowest hue \(low)")
+        #expect(high > 0.45, "the party never reaches a cool one: highest hue \(high)")
+        // …and it does not get there in one straight run: the colour turns round
+        // inside the party rather than sweeping one way and stopping. This does
+        // NOT by itself prove the range is folded rather than scaled — a scaled
+        // wheel's wrap registers here as a direction change too, which a kill
+        // test confirmed. Continuity at the wrap, the property that actually
+        // separates the two, is pinned in `NeutralHueTests.theFoldFolds`.
+        var reversals = 0
+        for (a, b) in zip(zip(hues, hues.dropFirst()), zip(hues.dropFirst(), hues.dropFirst(2)))
+        where (b.1 - b.0) * (a.1 - a.0) < 0 { reversals += 1 }
+        #expect(reversals >= 2, "the hue never turned round — only \(reversals) reversals")
     }
 
     /// The demo reel needs a rainbow beat or the recording has no party in it.

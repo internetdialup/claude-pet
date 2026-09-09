@@ -372,6 +372,21 @@ public struct CrabPose: Sendable, Equatable {
     /// Seconds into the rainbow party, for the confetti. nil = no party.
     /// Same contract as `heartsElapsed`: the blend never lerps it.
     public var confettiElapsed: Double? = nil
+
+    /// 🍑 The backside's bounce, in CELLS: positive lifts it, negative squashes
+    /// it wider against the floor. Nought is the still pose, which is what every
+    /// bare `CrabPose()` gets and what keeps every existing frame unmoved.
+    ///
+    /// An amplitude, not a phase — the trigonometry stays in the animator and
+    /// the rig only rounds, the way `combo`, `ledge` and `bushes` are all
+    /// authored amplitudes. That is also what makes a pin expressible against a
+    /// bare pose with no clock for a test to reproduce.
+    ///
+    /// Deliberately absent from `CrabPose.blend`: it opens `var out = to`, so an
+    /// unlisted channel takes the incoming pose's value whole, which is what a
+    /// bounce wants. Averaging two points of a bounce gives a third that is on
+    /// neither — the argument `legPhase` already makes.
+    public var buttJiggle: Double = 0
 }
 
 extension CrabPose.Prop {
@@ -1285,6 +1300,19 @@ public enum CrabRig {
     /// by coverage instead of switching on.
     private static let buttFacing = 0.5
     private static let buttSeed = 911
+    /// 🍑 THE FLOOR, and the reason the bounce only ever goes UP.
+    ///
+    /// Row `shellBottom` is the last row of the shell; the row under it is his
+    /// legs, painted `.body`. A downward offset would put a cheek row on his
+    /// shins, where this pass's own `.body`/`.bodyShade` mask deletes every cell
+    /// a leg does not happen to occupy — so the block would appear to LOSE a row
+    /// rather than move. A bounce needs a floor and he has one, which is why the
+    /// two halves of the squash-and-stretch are UP and WIDER rather than up and
+    /// down. The stretch lifts a row; the squash spreads a column outward from
+    /// each cheek, so the mass goes UP under compression the way a soft body's
+    /// does, and the crack between them never moves a cell.
+    private static let buttLiftMax = 1
+    private static let buttSpreadMax = 1
 
     /// Yaw the finished figure about his own vertical axis.
     ///
@@ -1469,7 +1497,8 @@ public enum CrabRig {
         // the same place. Drawn here, after the carve, so it can never be
         // painted over: every costume layer ran before this pass, and this
         // pass clears and repaints the whole figure.
-        drawBackside(&b, c: c, axis: axis, shellTop: shellTop, shellBottom: shellBottom)
+        drawBackside(&b, c: c, axis: axis, shellTop: shellTop, shellBottom: shellBottom,
+                     jiggle: pose.buttJiggle)
 
         // The catchlight is the life in a face, and priority sampling loses
         // it first — the eye out-ranks it. Put it back wherever an eye still
@@ -1499,11 +1528,19 @@ public enum CrabRig {
     /// the turn at `u` against the turn at `1 − u`, and `cos` is even, so the
     /// two frames draw this identically and the mirror holds.
     private static func drawBackside(_ b: inout PixelBuffer, c: Double, axis: Double,
-                                     shellTop: Int, shellBottom: Int) {
+                                     shellTop: Int, shellBottom: Int, jiggle: Double) {
         let visibility = Ease.clamp01((-c - buttFacing) / (1 - buttFacing))
         guard visibility > 0 else { return }
-        let top = shellBottom - (buttRows - 1)
-        // Never climb over the ridge, however squashed he is.
+        // Rounded, and clamped at one cell each way. The amplitude arrives as a
+        // Double so the animator can shape it, but the grid only has whole
+        // cells: a `smoothstep` under this `.rounded()` would produce the
+        // identical integer sequence and be decorative code. What the shaping
+        // buys is WHEN the step lands, and a whole-pixel step is the grid's own
+        // quantum — the one motion the no-snap rule exempts.
+        let lift = min(buttLiftMax, max(0, Int(jiggle.rounded())))
+        let spread = min(buttSpreadMax, max(0, Int((-jiggle).rounded())))
+        let top = shellBottom - (buttRows - 1) - lift
+        // Never climb over the ridge, however squashed or however high he is.
         guard top > shellTop + turnRidgeRow else { return }
 
         var cheeks = PixelBuffer()
@@ -1517,7 +1554,8 @@ public enum CrabRig {
             guard y >= 0, y < PixelBuffer.side else { continue }
             // The outermost column drops on the first and last row, so the
             // cheeks read as round rather than as two bricks.
-            let wide = (row == 0 || row == buttRows - 1) ? buttCheekWide - 1 : buttCheekWide
+            let wide = ((row == 0 || row == buttRows - 1) ? buttCheekWide - 1 : buttCheekWide)
+                + spread
             for step in 0..<wide {
                 let right = crackRight + 1 + step
                 let left = crackRight - 2 * buttCrackHalf - step

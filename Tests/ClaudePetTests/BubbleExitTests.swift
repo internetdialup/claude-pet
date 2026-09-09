@@ -108,7 +108,15 @@ struct BubbleExitTests {
     /// clearing write is a main-queue timer, and a fixed sleep would make
     /// this flaky by construction (the shape `FileWatcherTests` uses).
     @MainActor
-    private func cleared(_ model: PetViewModel, within timeout: TimeInterval = 3) async -> Bool {
+    /// 🔎 Ten seconds of patience for a deadline three tenths of a second away,
+    /// and the margin is not superstition. The contract under test is "the slot
+    /// clears ITSELF", not "within three seconds of wall clock" — and this
+    /// polls real time from a suite that runs six hundred tests in parallel,
+    /// where the scheduled write can be starved well past a three-second budget.
+    /// It failed exactly that way once, in a full run, and passed on its own
+    /// three times immediately after. A flake in a gate is worse than a slow
+    /// gate: it teaches everyone to re-run instead of to read.
+    private func cleared(_ model: PetViewModel, within timeout: TimeInterval = 10) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if model.transientBubble == nil { return true }

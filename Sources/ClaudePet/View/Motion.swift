@@ -113,8 +113,53 @@ public enum SpriteTint {
     /// afternoon puts on his shell while he stands in it.
     public static let goldRGB: RGB = (r: 247.0 / 255, g: 208.0 / 255, b: 70.0 / 255)
 
+    /// 🌈 THE FAR END OF THE NEUTRAL WHEEL: `Palette.water`'s own hue
+    /// (0x7FC6EC → 200.9° → 0.5581), which is exactly where `CrabRig.trailInks`
+    /// stops.
+    ///
+    /// The ribbon lost its pink at the operator's call — a red-to-violet ramp
+    /// read as a flag they did not intend to fly — and the shell now sweeps the
+    /// same extent, endpoint for endpoint. Their six stripes measure 0.0000,
+    /// 0.0595, 0.1157, 0.3567, 0.4867 and this; the ink that was dropped,
+    /// `Palette.pink`, is 0.9365 and is now unreachable by construction.
+    public static let hueCeiling = 0.558
+
+    /// A 0…1 phase mapped onto that extent, OUT AND BACK.
+    ///
+    /// **A fold, not a scale and not a clamp, and that is the whole design.**
+    /// `phase * hueCeiling` would step from sky straight back to red in a single
+    /// frame at every wrap — a full-saturation jump on a smooth channel, which
+    /// is the one-frame change banned at the top of this file. There is nowhere
+    /// to hide it either: the wrap lands mid-party for `rainbowTint`, mid-finale
+    /// for `epicTint`, and every two seconds for `comboTint`, whose amount is
+    /// the combo score and sits near 1 for a whole nineteen-second ride. A clamp
+    /// is no better — it parks him on one colour for a third of every cycle.
+    ///
+    /// The fold is continuous at the wrap by construction, `f(0) == f(1) == 0`,
+    /// and it arrives at and leaves every seam on RED — the hue nearest his own
+    /// terracotta — so the turn is also the least visible instant in the cycle.
+    /// It costs a corner in hue velocity and no discontinuity in hue, and
+    /// `Ease.pulse` already records the standard: the rule bans a one-frame
+    /// change, not a fast one.
+    ///
+    /// The pace needs no compensating. Out and back covers `2 * hueCeiling` =
+    /// 1.116 hue-units per cycle against the full wheel's 1.000, so the colour
+    /// changes fractionally faster than it did, not slower.
+    ///
+    /// `phase - floor(phase)`, never `truncatingRemainder`: that one goes
+    /// negative for a negative phase and would fold the wrong way.
+    public static func neutralHue(_ phase: Double) -> Double {
+        let u = phase - floor(phase)
+        return hueCeiling * (1 - abs(2 * u - 1))
+    }
+
     /// Plain HSB→RGB, so a generated hue can be mixed without asking AppKit to
     /// introspect a SwiftUI `Color`.
+    ///
+    /// Deliberately NOT folded in here. Narrowing inside the converter would be
+    /// one edit instead of five, and it would make a function whose name and doc
+    /// promise plain HSB quietly lie to every future caller. The fold is a named
+    /// helper beside it instead.
     public static func rgb(hue: Double, saturation: Double, brightness: Double) -> RGB {
         let h = (hue - floor(hue)) * 6
         let i = Int(h) % 6
