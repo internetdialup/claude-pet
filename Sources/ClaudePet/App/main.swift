@@ -125,6 +125,17 @@ if let index = arguments.firstIndex(of: "--render-sizzle"), index + 1 < argument
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-skate-demo"), index + 1 < arguments.count {
+    // 🛹 The demo reels: two short, type-free review cuts the operator watches
+    // to fine-tune geometry before any marketing is generated from it. Same
+    // doctrine as the sizzle and the plates — output goes only where pointed,
+    // never docs/media, and nothing here is committed.
+    let ok = MainActor.assumeIsolated {
+        SkateDemo.render(to: arguments[index + 1])
+    }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-plates"), index + 1 < arguments.count {
     // Green-screen plates: lossless PNG sequences (the keying source) plus
     // H.264 previews (sync eyeballing only). Same doctrine as the other
