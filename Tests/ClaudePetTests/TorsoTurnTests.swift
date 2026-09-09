@@ -311,7 +311,7 @@ struct TorsoTurnTests {
             for step in 1..<20 {
                 var turned = airborne()
                 turned.prop = prop; turned.propVisibility = 1; turned.propPhase = 0.4
-                var still = turned
+                let still = turned
                 turned.torsoTurn = Double(step) / 20
                 let a = CrabRig.render(still), b = CrabRig.render(turned)
                 for y in (25 + still.bob)..<PixelBuffer.side {
@@ -332,6 +332,10 @@ struct TorsoTurnTests {
     /// that rotates without its board — a sex change — and the operator
     /// recognised it on sight. So the pin is not "the varial turns" but
     /// "nothing turns alone".
+    /// The two tricks allowed to rotate his body. Everything else in the
+    /// roster must leave `torsoTurn` alone.
+    static let mayTurn: Set<CrabAnimator.Flourish> = [.bigspin, .halfCab]
+
     @Test("He never turns without the board turning with him")
     func theBoardTurnsWithHim() {
         for kind in CrabAnimator.Flourish.allCases {
@@ -347,10 +351,15 @@ struct TorsoTurnTests {
                 #expect(pose.prop == .skateboardBigspin,
                         "\(kind) turned his body over a \(pose.prop), which does not turn with him")
             }
-            if kind == .bigspin {
-                #expect(everTurned, "the bigspin never turned him")
+            // The set, not the single case. It widened once, deliberately:
+            // the half cab is the second trick allowed to turn him, and the
+            // arm that matters — a turning frame must be over a board that
+            // YAWS — is untouched by that.
+            if Self.mayTurn.contains(kind) {
+                #expect(everTurned, "\(kind) is allowed to turn him and never does")
             } else {
-                #expect(!everTurned, "\(kind) turns his body, and only the bigspin may")
+                #expect(!everTurned,
+                        "\(kind) turns his body, and only \(Self.mayTurn) may")
             }
         }
     }
@@ -474,7 +483,7 @@ struct TorsoTurnTests {
     /// MOVED without ever showing which way. The nose mark is the answer, and
     /// this is what makes it real rather than decorative.
     @Test("The nose sweeps across the deck, and never jumps",
-          arguments: [CrabAnimator.Flourish.bigspin, .shoveIt])
+          arguments: [CrabAnimator.Flourish.bigspin, .shoveIt, .halfCab])
     func theNoseShowsTheDirection(_ trick: CrabAnimator.Flourish) {
         // BOTH flat spins, not just the bigspin. Covering one of the two was
         // how the shove-it shipped with its nose teleporting sixteen cells on
@@ -522,13 +531,14 @@ struct TorsoTurnTests {
     /// tightened to one: a 360 in two seconds simply moves more cells per
     /// frame at ten a second than at thirty, and pretending otherwise would
     /// mean pinning a number nothing can meet.
-    @Test("The turning silhouette never teleports")
-    func theTurningSilhouetteNeverTeleports() {
-        let duration = CrabAnimator.Flourish.bigspin.duration
+    @Test("The turning silhouette never teleports",
+          arguments: [CrabAnimator.Flourish.bigspin, .halfCab])
+    func theTurningSilhouetteNeverTeleports(_ trick: CrabAnimator.Flourish) {
+        let duration = trick.duration
         for (rate, bound) in [(30.0, 2), (20.0, 3), (12.0, 5), (10.0, 6)] {
             var previous: (Int, Int)?
             for frame in 0...Int(duration * rate) {
-                let pose = CrabAnimator.flourishPose(.bigspin, at: Double(frame) / rate)
+                let pose = CrabAnimator.flourishPose(trick, at: Double(frame) / rate)
                 let b = CrabRig.render(pose)
                 var left = 99, right = -1
                 for y in (11 + pose.bob)...(19 + pose.bob) {
@@ -540,7 +550,7 @@ struct TorsoTurnTests {
                 guard right >= 0 else { continue }
                 if let (wasLeft, wasRight) = previous {
                     #expect(abs(left - wasLeft) <= bound && abs(right - wasRight) <= bound,
-                            "at \(Int(rate))fps an edge moved \(max(abs(left - wasLeft), abs(right - wasRight))) cells")
+                            "\(trick) at \(Int(rate))fps moved an edge \(max(abs(left - wasLeft), abs(right - wasRight))) cells")
                 }
                 previous = (left, right)
             }

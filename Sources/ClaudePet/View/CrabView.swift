@@ -132,7 +132,11 @@ public enum CrabAnimator {
              // The back smith: a ledge slides in from the left, he ollies onto
              // it, grinds it nose-down with the steeze, and pops off. The
              // combo's finale, and an idle move in its own right.
-             backSmith
+             backSmith,
+             // A frontside 180 into a second of switch with his back to you,
+             // and a half cab back to regular. The second trick ever allowed
+             // to turn his body, and the only one that HOLDS the turn.
+             halfCab
 
         /// Everything he does on a board. Six are tricks and one is a cruise,
         /// which is why this is not called `skateTricks` — he shouts after all
@@ -141,7 +145,7 @@ public enum CrabAnimator {
         static let skateBeats: Set<Flourish> = [.kickflip, .varialFlip, .cruise, .ollie,
                                                 .manual, .shoveIt, .nollie, .bigspin,
                                                 .treFlip, .laserFlip, .noseManual,
-                                                .backSmith]
+                                                .backSmith, .halfCab]
 
         var duration: Double {
             switch self {
@@ -182,6 +186,11 @@ public enum CrabAnimator {
             // The ledge has to arrive, he has to get onto it, hold the grind
             // long enough to read as a grind, and get off before it leaves.
             case .backSmith: 6.5
+            // Two tricks and a held pose between them. Eight beats at 120,
+            // and EVERY phase seam is a whole one: half a beat to crouch,
+            // half in the air, half to land, two held facing away, then the
+            // cab's own three. Nothing in it is a quarter beat.
+            case .halfCab: 4.0
             }
         }
     }
@@ -284,6 +293,10 @@ public enum CrabAnimator {
         // bare, 70 dressed as the Skater — still under the 60 at which the
         // README's idle clip would re-deal its pick.
         .backSmith: 4,
+        // …and the newest of all. Deck 51 bare, 78 as the Skater; the bare
+        // deck is the one the README's idle clip deals from, and it is still
+        // short of 60.
+        .halfCab: 4,
     ]
 
     /// Expanded from the weights, over `allCases` rather than over the
@@ -2408,6 +2421,96 @@ public enum CrabAnimator {
                 // still turns 180 over the roll-out, and the board still
                 // leads it, now at two-to-one the whole way through.
                 pose.propPhase = 1 + Self.bigspinOut(out)
+            }
+
+        case .halfCab:
+            // 🍑 THE HALF CAB — a frontside 180 that leaves him riding
+            // switch with his back to you, a held second of it, and a half
+            // cab that brings him back to regular. As skating that is exactly
+            // what those two tricks are for: a frontside 180 puts you switch,
+            // and a half cab is the trick that puts you back.
+            //
+            // The second trick ever allowed to turn his body, and it obeys
+            // the same rule the bigspin was built on — he may only rotate if
+            // the board rotates WITH him, the same way, by at least as much.
+            // Here they move one to one, which is what a 180 is; the bigspin's
+            // two-to-one is what makes a bigspin a bigspin.
+            //
+            // And like the bigspin it NEVER UNWINDS. `torsoTurn` climbs 0 →
+            // 0.5 → 1.0 and stops, because a whole turn is the identity: he
+            // arrives square without ever having reversed. Unwinding the 180
+            // would be the same one-frame snap the bigspin's own comment
+            // warns about, twice.
+            pose.prop = .skateboardBigspin
+            pose.propVisibility = 1
+            pose.propPhase = 0
+            if progress < 0.125 {                       // the crouch, one beat
+                pose.squash = 1
+                pose.bob = 1
+            } else if progress < 0.25 {                 // the 180, in the air
+                let air = (progress - 0.125) / 0.125
+                pose.bob = -Int((sin(air * .pi) * 8).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                if air < 0.25 { pose.eyes = .squint }
+                pose.mouth = .open
+                // `bigspinOut`, not a smoothstep, and for its own reason: it
+                // dwells through the edge-on crossing, where a degree costs
+                // the most cells of silhouette, and hurries the two flat
+                // faces where nothing much changes.
+                let turned = Self.bigspinOut(air) * 0.5
+                pose.torsoTurn = turned
+                pose.propPhase = turned
+            } else if progress < 0.375 {                // he lands switch
+                let settle = (progress - 0.25) / 0.125
+                pose.squash = 1 - Int(settle.rounded())
+                pose.bob = 1
+                pose.dustBurst = settle
+                pose.torsoTurn = 0.5
+                pose.propPhase = 0.5
+            } else if progress < 0.625 {                // 🍑 two beats of switch
+                // THE POSE. His back is to you for a full second, which is
+                // long enough to see what is on it. The board holds phase
+                // 0.5 — yaw π, nose at the left tip — because that is what
+                // riding switch looks like, and because the `propPhase = 0`
+                // at the top of this case runs every frame: a branch that
+                // does not overwrite it freezes the deck broadside.
+                let hold = (progress - 0.375) / 0.25
+                pose.torsoTurn = 0.5
+                pose.propPhase = 0.5
+                pose.eyes = .determined
+                // One easy bob through the hold, so a held pose still breathes.
+                pose.bob = -Int((sin(hold * .pi) * 1).rounded())
+                pose.legAmplitude = 0.5
+            } else if progress < 0.75 {                 // the cab's crouch
+                pose.squash = 1
+                pose.bob = 1
+                pose.torsoTurn = 0.5
+                pose.propPhase = 0.5
+            } else if progress < 0.875 {                // the half cab
+                let air = (progress - 0.75) / 0.125
+                pose.bob = -Int((sin(air * .pi) * 8).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.mouth = .open
+                let turned = 0.5 + Self.bigspinOut(air) * 0.5
+                pose.torsoTurn = turned
+                pose.propPhase = turned
+            } else {                                    // the stomp
+                let out = (progress - 0.875) / 0.125
+                pose.squash = 1
+                pose.bob = 1
+                pose.mouth = .open
+                pose.dustBurst = out
+                // A whole turn, held: the rig draws `turn − floor(turn)`, so
+                // 1.0 and 0 are the same frame and the hand-off to the idle
+                // pose costs nothing. The board ends square with it, nose
+                // back on the right where the trick opened — the same
+                // sixteen-cell jump the bigspin's landing was fixed for.
+                pose.torsoTurn = 1
+                pose.propPhase = 1
             }
 
         case .nollie:

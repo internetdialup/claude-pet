@@ -114,7 +114,7 @@ struct ShadesDropTests {
     /// completes.
     @Test("The working prop steps aside and comes back")
     func theIncumbentSurvives() {
-        var pose = CrabAnimator.pose(mood: .working, t: 3, flourishes: false)
+        let pose = CrabAnimator.pose(mood: .working, t: 3, flourishes: false)
         let incumbent = pose.prop
         #expect(incumbent != .none, "the working pose should carry a prop")
 

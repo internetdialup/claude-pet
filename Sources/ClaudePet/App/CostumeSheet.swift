@@ -114,8 +114,16 @@ enum CostumeSheet {
             .map { turned($0, .none, "θ \(Int($0 * 360))°") }
         let ninja = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .ninja, "ninja \(Int($0 * 360))°") }
         let sonic = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .sonic, "sonic \(Int($0 * 360))°") }
+        // 🍑 The Skater's row is weighted round the HALF turn, because that is
+        // where the half cab parks him for two beats — long enough to read the
+        // backside, and long enough to read the backwards cap, which loses its
+        // seating row and mirrors its bill the wrong way at any turn. Every
+        // other trick flashes past this in a tenth of a second; this one holds
+        // it, so it needs somewhere to be looked at.
+        let skater = [0.0, 0.33, 0.42, 0.46, 0.5, 0.58, 0.67]
+            .map { turned($0, .skater, "skater \(Int($0 * 360))°") }
         return write("THE TURN — one revolution, bare and dressed",
-                     rows: [bare, back, ninja, sonic], to: url)
+                     rows: [bare, back, ninja, sonic, skater], to: url)
     }
 
     // MARK: The tiger, for pointing

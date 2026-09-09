@@ -1267,6 +1267,24 @@ public enum CrabRig {
     private static let turnSampleOverlap = 0.3
     /// One lit row across the carapace, so his back is not a flat slab.
     private static let turnRidgeRow = 3
+    /// 🍑 …and the other end of him. Four-cell cheeks either side of a
+    /// two-cell crack, on the four rows above his feet.
+    ///
+    /// Painted in the SAME two inks the turned back already uses — the cheeks
+    /// a step up to `.body`, the crack simply the `.bodyShade` left between
+    /// them — which is what carries it into every costume's colourway without
+    /// a line of per-costume code, and what keeps it out of the way of
+    /// `theFlankIsOneFlatStep`, which forbids a third ink on a turning shell.
+    private static let buttRows = 4
+    private static let buttCrackHalf = 1
+    private static let buttCheekWide = 4
+    /// The crack has to be dark to read, so the cheeks only appear once he is
+    /// most of the way round — a quarter turn is his FLANK, and a flank with
+    /// a backside on it is just wrong. Nothing at `c ≥ −0.5`, everything at a
+    /// half turn, and the house's own static dither in between so it fades in
+    /// by coverage instead of switching on.
+    private static let buttFacing = 0.5
+    private static let buttSeed = 911
 
     /// Yaw the finished figure about his own vertical axis.
     ///
@@ -1446,6 +1464,13 @@ public enum CrabRig {
             }
         }
 
+        // 🍑 THE BACKSIDE. The second back-only mark this rig has ever had;
+        // the ridge row above is the first, and this is the same mechanism in
+        // the same place. Drawn here, after the carve, so it can never be
+        // painted over: every costume layer ran before this pass, and this
+        // pass clears and repaints the whole figure.
+        drawBackside(&b, c: c, axis: axis, shellTop: shellTop, shellBottom: shellBottom)
+
         // The catchlight is the life in a face, and priority sampling loses
         // it first — the eye out-ranks it. Put it back wherever an eye still
         // has two cells to hold one.
@@ -1459,6 +1484,56 @@ public enum CrabRig {
             if end > x { b[x, lightRow] = .paper }
             x = end + 1
         }
+    }
+
+    /// Two cheeks and a two-cell crack, on the bottom four rows of a shell
+    /// that has come most of the way round.
+    ///
+    /// The crack is NEGATIVE SPACE. The turned back is already `.bodyShade`
+    /// everywhere but the ridge, so painting the cheeks one step up to
+    /// `.body` leaves the seam between them dark for free — no third ink, no
+    /// new palette entry, and the whole mark inherits whatever colourway the
+    /// costume put on the shell.
+    ///
+    /// Symmetric about the axis on purpose: `theSpinMirrorsInTime` compares
+    /// the turn at `u` against the turn at `1 − u`, and `cos` is even, so the
+    /// two frames draw this identically and the mirror holds.
+    private static func drawBackside(_ b: inout PixelBuffer, c: Double, axis: Double,
+                                     shellTop: Int, shellBottom: Int) {
+        let visibility = Ease.clamp01((-c - buttFacing) / (1 - buttFacing))
+        guard visibility > 0 else { return }
+        let top = shellBottom - (buttRows - 1)
+        // Never climb over the ridge, however squashed he is.
+        guard top > shellTop + turnRidgeRow else { return }
+
+        var cheeks = PixelBuffer()
+        // The MIRROR's centre, not the mapping axis: `x_src = 2·axis − 1 − x`
+        // reflects column 6 onto 25, so the figure is symmetric about
+        // `axis − 0.5` and the crack is the two cells straddling it. Taking
+        // `axis` itself puts the whole backside one cell to his left.
+        let crackRight = Int(axis.rounded(.down))      // 16 …and 15 beside it
+        for row in 0..<buttRows {
+            let y = top + row
+            guard y >= 0, y < PixelBuffer.side else { continue }
+            // The outermost column drops on the first and last row, so the
+            // cheeks read as round rather than as two bricks.
+            let wide = (row == 0 || row == buttRows - 1) ? buttCheekWide - 1 : buttCheekWide
+            for step in 0..<wide {
+                let right = crackRight + 1 + step
+                let left = crackRight - 2 * buttCrackHalf - step
+                for x in [left, right] where x >= 0 && x < PixelBuffer.side {
+                    cheeks[x, y] = .body
+                }
+            }
+        }
+        // …and only where the shell actually is: a squash narrows him, and a
+        // cheek hanging in the air beside him is not a cheek.
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where cheeks[x, y] != .clear {
+                if b[x, y] != .body && b[x, y] != .bodyShade { cheeks[x, y] = .clear }
+            }
+        }
+        b.composite(cheeks, visibility: visibility, seed: buttSeed)
     }
 
     /// What wins a cell when several source cells land on it: his face first,

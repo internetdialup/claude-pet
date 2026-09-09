@@ -47,7 +47,7 @@ means an `ExitPlanMode` is sitting there waiting for your answer.
 **Thinking** just shows three dots. There's no honest label for that moment,
 so he doesn't pretend to have one.
 
-## ✨ Eighteen things he does when nobody asked
+## ✨ Nineteen things he does when nobody asked
 
 <table>
 <tr>
@@ -75,7 +75,7 @@ so he doesn't pretend to have one.
   <td align="center"><img src="docs/media/flourish-laserFlip.gif" width="110"><br><strong>Laser flip</strong></td>
   <td align="center"><img src="docs/media/flourish-shoveIt.gif" width="110"><br><strong>Shove-it</strong></td>
   <td align="center"><img src="docs/media/flourish-backSmith.gif" width="110"><br><strong>Back smith</strong></td>
-  <td align="center"></td>
+  <td align="center"><img src="docs/media/flourish-halfCab.gif" width="110"><br><strong>Half cab</strong></td>
   <td align="center"></td>
 </tr>
 </table>
