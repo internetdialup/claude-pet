@@ -178,7 +178,9 @@ public enum CrabAnimator {
             case .shoveIt: 2.2
             // The same air as the flips: long enough for the board to come
             // round twice and for him to finish his own turn on the way out.
-            case .bigspin: 2.8
+            // A line, not a trick: the bigspin in, two beats of fakie, and a
+            // half cab home. Ten beats at 120.
+            case .bigspin: 5.0
             // A whole shove-it AND a whole flip in one air. Longer than the
             // varial's, because twice the rotation in the same time is a
             // blur rather than a trick.
@@ -2355,72 +2357,97 @@ public enum CrabAnimator {
             }
 
         case .bigspin:
-            // 🌀 THE BIGSPIN — and the trick that finally earns the body
-            // turn. The rule it exists to obey: he may only rotate if the
-            // board rotates WITH him, the same way, by at least as much.
-            // The board takes a whole flat turn while he takes half of it,
-            // both off the same `air`, which is the two-to-one the trick is
-            // named for.
+            // 🌀 THE BIGSPIN — and the trick that first earned the body turn.
+            // The rule it exists to obey: he may only rotate if the board
+            // rotates WITH him, the same way, by at least as much. The board
+            // takes a whole flat turn while he takes half of it, which is the
+            // two-to-one the trick is named for.
             //
-            // Then the landing finishes what the air started. Half a turn
-            // would leave him facing away, and the idle pose he returns to
-            // carries no turn at all — so he would snap a hundred and eighty
-            // degrees in one frame at the stomp. Carrying on round instead
-            // of unwinding is both the fix and the honest motion: he lands
-            // fakie and pivots the rest of the way to face you as he rolls
-            // out.
+            // 🔎 AND THEN HE LANDS FAKIE, which is what a bigspin does.
+            //
+            // It used to finish the rotation on the GROUND — `squash` and `bob`
+            // pinned to the landing while `torsoTurn` walked from a half to a
+            // whole over half a second. That is a ground pivot, which is a
+            // REVERT, and it was there for a defensible reason: a half turn
+            // left standing would leave him facing away while the idle pose he
+            // returns to carries no turn at all, so he would snap a hundred and
+            // eighty degrees in one frame at the stomp.
+            //
+            // The right answer to that was never to scrub round on the floor.
+            // It is to land fakie, ride it for a beat, and CAB OUT — which is
+            // the line a skater actually does, and which the half cab built the
+            // machinery for two rounds later. So the trick is a line now: the
+            // bigspin in, two beats of fakie with his back to you, and a half
+            // cab home. Both halves are in the air; nothing pivots on the
+            // ground; and `torsoTurn` still climbs 0 → 0.5 → 1.0 and stops,
+            // because a whole turn is the identity and he must arrive square
+            // without ever having reversed.
+            //
+            // Ten beats at 120, every seam a whole one, every fraction a clean
+            // tenth. Both airs give the board a turn and a half second to spend
+            // it in — comfortably under the rate at which a flat deck's
+            // underside strobes, which is what the back smith's exit was fixed
+            // for and what the half cab's own pin now measures.
             pose.prop = .skateboardBigspin
             pose.propVisibility = 1
             pose.propPhase = 0
-            if progress < 0.15 {
+            // 🍑 The backside, bouncing, across exactly the window his back is
+            // turned. Same shape as the half cab's: `-sin` so each cycle
+            // squashes before it pops, and zero at both ends so the bounce
+            // costs nothing arriving or leaving.
+            if progress >= 0.40, progress < 0.60 {
+                pose.buttJiggle = -sin(2 * .pi * 2 * ((progress - 0.40) / 0.20))
+            }
+            if progress < 0.10 {                        // the crouch
                 pose.squash = 1
                 pose.bob = 1
-            } else if progress < 0.80 {
-                let air = (progress - 0.15) / 0.65
+            } else if progress < 0.40 {                 // the bigspin, in the air
+                let air = (progress - 0.10) / 0.30
                 pose.bob = -Int((sin(air * .pi) * 9).rounded())
                 pose.legAmplitude = 1.6
                 pose.legPhase = .pi / 2
                 pose.blink = 0
                 if air < 0.25 { pose.eyes = .squint }
                 pose.mouth = .open
-                pose.propPhase = air
-                pose.torsoTurn = Ease.smoothstep(air) * 0.5
-            } else {
-                let out = (progress - 0.80) / 0.20
+                // Board a whole turn, body half of it: the two-to-one.
+                pose.propPhase = Self.bigspinOut(air)
+                pose.torsoTurn = Self.bigspinOut(air) * 0.5
+            } else if progress < 0.60 {                 // 🛹 fakie, two beats
+                // He is riding backwards, which is where the trick leaves you.
+                // The board HOLDS its whole turn — `propPhase = 0` runs at the
+                // top of this case every frame, so a branch that does not
+                // overwrite it snaps the deck back broadside for the whole beat.
+                let land = (progress - 0.40) / 0.20
+                pose.torsoTurn = 0.5
+                pose.propPhase = 1
+                pose.eyes = .determined
+                pose.dustBurst = land < 0.25 ? land / 0.25 : nil
+                pose.squash = land < 0.1 ? 1 : 0
+                pose.bob = land < 0.1 ? 1 : 0
+            } else if progress < 0.90 {                 // the half cab, in the air
+                let air = (progress - 0.60) / 0.30
+                pose.bob = -Int((sin(air * .pi) * 8).rounded())
+                pose.legAmplitude = 1.6
+                pose.legPhase = .pi / 2
+                pose.blink = 0
+                pose.mouth = .open
+                // …to a WHOLE turn each, not half of one. `bigspinOut(1)` is
+                // exactly 1, so the body arrives at 1.0 and the board at 2.0 —
+                // yaw 0, nose back on the right where the trick opened. A half
+                // turn would leave the deck at phase 1.5, nose on the LEFT, and
+                // any consumer that bookends the trick with a resting board at
+                // phase 0 — which is exactly what the marketing renderers do —
+                // would cut on a sixteen-cell jump.
+                pose.torsoTurn = 0.5 + Self.bigspinOut(air) * 0.5
+                pose.propPhase = 1 + Self.bigspinOut(air)
+            } else {                                    // the stomp
+                let out = (progress - 0.90) / 0.10
                 pose.squash = 1
                 pose.bob = 1
                 pose.mouth = .open
                 pose.dustBurst = out
-                // 0.5 → 1.0, which renders as facing front again: a whole
-                // turn is the identity, so he arrives square without ever
-                // having reversed.
-                pose.torsoTurn = 0.5 + Self.bigspinOut(out) * 0.5
-                // …and THE BOARD COMES WITH HIM. Without this line the deck
-                // sat at the `propPhase = 0` set at the top of the case
-                // while he pivoted a hundred and eighty degrees on top of
-                // it — a body varial, which skateboarding calls a sex
-                // change and nobody does on purpose. The rule the trick is
-                // built on says he may only rotate if the board rotates
-                // with him, the same way, by at least as much; the air
-                // honours it at two-to-one and the landing has to honour it
-                // too. Same `out`, same easing, same sign, so the two are
-                // one motion in two channels.
-                //
-                // `1 +` is bookkeeping, not offset: the prop takes its yaw
-                // mod 1, so this reads as the half-turn that follows the
-                // whole one the air already spent.
-                // …to a WHOLE turn, not half of one. `bigspinOut(1)` is
-                // exactly 1, so a half-turn target left the board at phase
-                // 1.5 — yaw π, nose on the left — while the trick had opened
-                // at yaw 0 with the nose on the right. Live that is hidden,
-                // because the flourish hands straight back to an idle pose
-                // carrying a different prop; but any consumer that bookends
-                // the trick with its own resting board at phase 0, which is
-                // exactly what the marketing renderer does, cuts on a
-                // sixteen-cell jump. Ending square costs nothing: the body
-                // still turns 180 over the roll-out, and the board still
-                // leads it, now at two-to-one the whole way through.
-                pose.propPhase = 1 + Self.bigspinOut(out)
+                pose.torsoTurn = 1
+                pose.propPhase = 2
             }
 
         case .halfCab:

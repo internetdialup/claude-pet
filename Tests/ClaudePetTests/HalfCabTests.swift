@@ -392,9 +392,14 @@ struct HalfCabTests {
     /// flourish allowed to turn him and it passes through facing-away in a
     /// fraction of a second, where a jiggle would flicker — and would move
     /// `docs/media/flourish-bigspin.gif` for nothing.
+    /// The set, not the single case — widened once, deliberately, when the
+    /// bigspin was given a fakie beat of its own to ride. The arm that matters
+    /// is untouched: everything outside the set leaves the channel at nought.
+    static let mayBounce: Set<CrabAnimator.Flourish> = [.halfCab, .bigspin]
+
     @Test("No other flourish jiggles")
     func nothingElseBounces() {
-        for kind in CrabAnimator.Flourish.allCases where kind != .halfCab {
+        for kind in CrabAnimator.Flourish.allCases where !Self.mayBounce.contains(kind) {
             for step in 0...120 {
                 let pose = CrabAnimator.flourishPose(kind, at: Double(step) * kind.duration / 120)
                 #expect(pose.buttJiggle == 0, "\(kind) jiggles at step \(step)")
@@ -402,6 +407,14 @@ struct HalfCabTests {
         }
         // …and a bare pose, which is what every committed still is built from.
         #expect(CrabPose().buttJiggle == 0)
+        // …and everything IN the set really does bounce, or the widening above
+        // would be a way of quietly excusing a trick that stopped.
+        for kind in Self.mayBounce {
+            let bounced = (0...200).contains {
+                CrabAnimator.flourishPose(kind, at: Double($0) * kind.duration / 200).buttJiggle != 0
+            }
+            #expect(bounced, "\(kind) is allowed to bounce and never does")
+        }
     }
 
     /// The held second is what the marketing loop is cut from, so it has to

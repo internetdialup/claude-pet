@@ -54,7 +54,12 @@ enum FeedCuts {
     /// trick's duration returns the base on its own, so the tail costs no
     /// special case, and it gives the eye somewhere to land before the loop
     /// comes round again.
-    nonisolated static let oneTail = 0.5
+    /// 🔎 Eight tenths, not a round half, and the odd number is the point: the
+    /// laser flip is 3.2s, so the two tricks together come to 8.2 — sixteen and
+    /// two fifths of a beat. The tail is what carries the CLIP onto the grid,
+    /// so it is sized to the remainder rather than to taste. Nine seconds, and
+    /// eighteen whole beats.
+    nonisolated static let oneTail = 0.8
     nonisolated static var oneTricks: Double { flipLength + spinLength }           // 6.0
     nonisolated static var oneLength: Double { oneTricks + oneTail }               // 6.5
     /// The cross-dissolve across the seam. Short — a quarter second — because
@@ -133,8 +138,14 @@ enum FeedCuts {
     nonisolated static let rideClosesAt = 18.3
     nonisolated static var threeLength: Double { rideClosesAt - rideOpensAt }     // 6.5
 
+    /// 🛹 IN THE SKATER'S FIT, because the combo ride IS the Skater's ride:
+    /// live it is the wardrobe that unlocks the session, and `deckStance`
+    /// returns nought for anything else. The first cut of this file rendered it
+    /// on a bare crab, which read fine and was quietly the wrong character.
+    nonisolated static let threeCostume = Costume.skater
     static func threePose(_ t: Double) -> CrabPose {
-        CrabAnimator.comboRide(local: rideOpensAt + t) ?? CrabPose()
+        CrabAnimator.comboRide(local: rideOpensAt + t,
+                               wardrobe: .init(current: threeCostume)) ?? CrabPose()
     }
 
     /// 🔎 THE SHELL IS TINTED, and it is not decoration.
@@ -149,18 +160,22 @@ enum FeedCuts {
     /// The clock is the ride's own, so the hue is continuous across the cut and
     /// is the hue the app would be showing at that instant of that ride.
     static func threeTint(_ t: Double) -> SpriteTint.Tint? {
-        CrabView.comboTint(t: rideOpensAt + t, combo: threePose(t).combo)
+        CrabView.comboTint(t: rideOpensAt + t, combo: threePose(t).combo,
+                           costume: threeCostume)
     }
 
     // MARK: - Composition
 
     @ViewBuilder
-    static func scene(_ pose: CrabPose, tint: SpriteTint.Tint?) -> some View {
+    static func scene(_ pose: CrabPose, tint: SpriteTint.Tint?,
+                      costume: Costume = .none) -> some View {
         ZStack {
             MarketingPalette.cream
-            PixelCanvasView(buffer: CrabRig.render(pose),
+            PixelCanvasView(buffer: CrabRig.render(pose, costume: costume),
                             bodyTint: tint?.body,
                             bodyShadeTint: tint?.shade,
+                            inkOverrides: CostumeStyle.blendedOverrides(from: costume,
+                                                                        to: costume, u: 1),
                             seamBleed: 0)
                 .frame(width: spriteSide, height: spriteSide)
                 .offset(y: offsetY)
@@ -168,10 +183,12 @@ enum FeedCuts {
         .frame(width: canvas.width, height: canvas.height)
     }
 
-    static func frame(_ pose: CrabPose, tint: SpriteTint.Tint?) -> CGImage? {
+    static func frame(_ pose: CrabPose, tint: SpriteTint.Tint?,
+                      costume: Costume) -> CGImage? {
         // Opaque: it lets ImageIO delta-code only the cells that moved, where
         // transparency forces a re-encode of the whole sprite box every frame.
-        SpriteImage.cgImage(of: scene(pose, tint: tint), scale: 1, isOpaque: true)
+        SpriteImage.cgImage(of: scene(pose, tint: tint, costume: costume),
+                            scale: 1, isOpaque: true)
     }
 
     // MARK: - Render
@@ -179,6 +196,7 @@ enum FeedCuts {
     struct Cut {
         let name: String
         let seconds: Double
+        let costume: Costume
         let pose: @MainActor (Int) -> CrabPose
         let tint: @MainActor (Int) -> SpriteTint.Tint?
 
@@ -187,12 +205,12 @@ enum FeedCuts {
 
     static var cuts: [Cut] {
         [
-            Cut(name: "1-laserflip", seconds: oneLength,
+            Cut(name: "1-laserflip", seconds: oneLength, costume: .none,
                 pose: { onePose(Double($0) / Double(fps)) },
                 tint: { oneTint(Double($0) / Double(fps)) }),
-            Cut(name: "2-jiggle", seconds: twoLength,
+            Cut(name: "2-jiggle", seconds: twoLength, costume: .none,
                 pose: { twoPose($0) }, tint: { _ in nil }),
-            Cut(name: "3-backsmith", seconds: threeLength,
+            Cut(name: "3-backsmith", seconds: threeLength, costume: threeCostume,
                 pose: { threePose(Double($0) / Double(fps)) },
                 tint: { threeTint(Double($0) / Double(fps)) }),
         ]
@@ -211,7 +229,8 @@ enum FeedCuts {
             var images: [CGImage] = []
             images.reserveCapacity(cut.frames)
             for index in 0..<cut.frames {
-                guard let image = frame(cut.pose(index), tint: cut.tint(index)) else {
+                guard let image = frame(cut.pose(index), tint: cut.tint(index),
+                                        costume: cut.costume) else {
                     FileHandle.standardError.write(Data("frame \(index) of \(cut.name) failed\n".utf8))
                     return false
                 }

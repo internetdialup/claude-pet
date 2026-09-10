@@ -365,10 +365,16 @@ struct TorsoTurnTests {
     }
 
     /// The bigspin's own contract: he takes half a turn in the air while the
-    /// board takes a whole one — the two-to-one the trick is named for — and
-    /// then finishes the rotation on the way out rather than unwinding it,
-    /// so he lands square without ever reversing.
-    @Test("The bigspin turns half in the air and finishes on the landing")
+    /// board takes a whole one — the two-to-one the trick is named for — LANDS
+    /// FAKIE, rides it for two beats, and cabs out to square without ever
+    /// reversing.
+    ///
+    /// 🔎 This test used to be called "…finishes on the landing", and that was
+    /// the defect: the second half of the rotation happened with `bob` and
+    /// `squash` pinned to the floor, which is a ground pivot — a REVERT. The
+    /// operator caught it in a clip. Both halves are in the air now, and the
+    /// no-pivot law has a pin of its own below.
+    @Test("The bigspin turns half in the air, lands fakie, and cabs out")
     func theBigspinFinishesItsTurn() {
         let duration = CrabAnimator.Flourish.bigspin.duration
         var previous = 0.0
@@ -405,10 +411,51 @@ struct TorsoTurnTests {
                     "row \(y) lands at \(a) but square is \(c) — he stomped mid-turn")
         }
 
-        // Half in the air, where the board has come round once.
-        let apex = CrabAnimator.flourishPose(.bigspin, at: 0.795 * duration)
-        #expect(abs(apex.torsoTurn - 0.5) < 0.05,
-                "he should be halfway round as the air ends, not \(apex.torsoTurn)")
+        // Half a turn by the end of the first air, and HELD across the fakie
+        // beat — which is the shape of the trick as skating rather than as
+        // arithmetic: a bigspin leaves you riding backwards.
+        for progress in [0.40, 0.45, 0.50, 0.55, 0.599] {
+            let fakie = CrabAnimator.flourishPose(.bigspin, at: progress * duration)
+            #expect(abs(fakie.torsoTurn - 0.5) < 1e-9,
+                    "at progress \(progress) he is \(fakie.torsoTurn) round, not fakie")
+            #expect(fakie.prop == .skateboardBigspin)
+        }
+        // …and the cab really is in the AIR: he leaves the ground for it.
+        let cab = CrabAnimator.flourishPose(.bigspin, at: 0.75 * duration)
+        #expect(cab.bob < 0, "the cab happens on the floor — bob \(cab.bob)")
+        #expect(cab.torsoTurn > 0.5 && cab.torsoTurn < 1,
+                "the cab is not turning him: \(cab.torsoTurn)")
+    }
+
+    /// 🔎 THE OPERATOR'S NOTE, AS A LAW: *"when he lands the big spin he does a
+    /// revert… it's just kinda weird."* He was right twice — it looked wrong,
+    /// and a bigspin lands fakie, so it was skate-wrong too.
+    ///
+    /// Stated as the defect rather than as the fix: **he never pivots while
+    /// PLANTED.** Any two consecutive frames where he is compressed onto the
+    /// ground must carry the same turn. That catches a revert coming back by
+    /// any route, including one nobody thought of.
+    ///
+    /// 🔎 "Planted" is `bob > 0 || squash > 0`, not `bob >= 0`, and the first
+    /// cut of this test used the latter and failed on four honest frames. A
+    /// jump's height is `sin(air · π)`, which is zero at BOTH ends — so the
+    /// take-off frame and the landing frame each read as height nought while
+    /// the turn is legitimately already moving. Those are transitions, not
+    /// pivots. What a revert actually is, and what the old bigspin did, is turn
+    /// while squashed onto the floor.
+    @Test("He never pivots on the floor")
+    func heNeverRevertsOnTheGround() {
+        func planted(_ pose: CrabPose) -> Bool { pose.bob > 0 || pose.squash > 0 }
+        for kind in CrabAnimator.Flourish.allCases {
+            var previous: CrabPose?
+            for step in 0..<400 {
+                let pose = CrabAnimator.flourishPose(kind, at: Double(step) * kind.duration / 400)
+                defer { previous = pose }
+                guard let was = previous, planted(was), planted(pose) else { continue }
+                #expect(abs(pose.torsoTurn - was.torsoTurn) < 1e-9,
+                        "\(kind) pivots on the ground at step \(step): \(was.torsoTurn) → \(pose.torsoTurn)")
+            }
+        }
     }
 
     /// NO SEX CHANGES — the MOTION half of the rule.

@@ -26,8 +26,11 @@ struct FeedCutsTests {
                     "\(cut.name) is \(frames) frames at \(FeedCuts.fps)fps")
             #expect(cut.frames > 0)
         }
-        // A feed clip that runs long is a feed clip nobody finishes.
-        for cut in cuts { #expect(cut.seconds <= 8, "\(cut.name) runs \(cut.seconds)s") }
+        // A feed clip that runs long is a feed clip nobody finishes. The
+        // ceiling moved from eight when the bigspin stopped reverting and grew
+        // to a five-second line — the first cut IS that trick, so shortening
+        // the clip would mean cutting the trick in half rather than showing it.
+        for cut in cuts { #expect(cut.seconds <= 10, "\(cut.name) runs \(cut.seconds)s") }
     }
 
     /// 🔎 THE FIRST CUT'S WHOLE CLAIM: *"the laser flip, him going rainbow mode,
@@ -192,6 +195,37 @@ struct FeedCutsTests {
             for x in 0..<8 where trail.contains(first[x, y]) { opening += 1 }
         }
         #expect(opening >= 6, "the cut opens on only \(opening) cells of trail")
+    }
+
+    /// 🛹 …and he is wearing the fit. The combo ride is the SKATER'S ride —
+    /// live it is the wardrobe that unlocks the session at all — so a cut of it
+    /// on a bare crab reads fine and is quietly the wrong character. The first
+    /// pass of this file did exactly that.
+    @Test("The grind cut wears the Skater's fit")
+    func theThirdCutWearsTheFit() {
+        #expect(FeedCuts.cuts[2].costume == .skater, "the grind cut is bare")
+        // The wardrobe reaches the POSE, not just the palette: `deckStance`
+        // returns nought for anything but the Skater, so this is the cheapest
+        // proof the ride was dealt under the right wardrobe.
+        let opening = FeedCuts.threePose(0)
+        #expect(opening.deckUnderfoot > 0.5,
+                "the ride was dealt bare — no deck stance under him")
+        // …and the tint mixes out of GRAPE rather than terracotta, which is
+        // what stops the first rung stepping his shell to Claw'd's own colour.
+        let faint = CrabView.comboTint(t: 3, combo: 0.002, costume: .skater)
+        let grape = CostumeStyle.bodyRGB(for: .skater)
+        #expect(faint != nil)
+        #expect(abs((faint?.r ?? 0) - grape.r) < 0.01,
+                "a faint score does not start from the Skater's own shell")
+        // …and the rendered frame really is grape, not terracotta.
+        let buffer = CrabRig.render(opening, costume: .skater)
+        var body = 0
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where buffer[x, y] == .body { body += 1 }
+        }
+        #expect(body > 40, "there is barely any shell in the opening frame")
+        #expect(CostumeStyle.blendedOverrides(from: .skater, to: .skater, u: 1)[.body] != nil,
+                "the Skater has no shell colour of its own to carry")
     }
 
     /// …and it is the BACK SMITH, which is the grind the operator corrected to.
