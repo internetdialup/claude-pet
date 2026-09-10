@@ -241,18 +241,31 @@ struct CostumeStyle {
             //
             // So the fit is now a COLOURWAY plus two accessories. The shell
             // is grape all the way through — one colour, no band across it —
-            // and the only worn things left are the backwards cap and the
-            // shoes, which sit where a crab could plausibly wear them.
-            // Everything that read as trousers is gone.
+            // and the only worn things left are the SHOES, which sit where a
+            // crab could plausibly wear them. Everything that read as trousers
+            // is gone, and so, now, is the backwards cap: it is being redrawn
+            // in Figma, the way the bare crab's hats were.
             return CostumeStyle(
                 inks: [
                     .body: rgb(0x7B_4BC4),      // grape — his own colour, not a shirt
                     .bodyShade: rgb(0x5E_3A8C), // one step under; see frankenstein's note
                     .costumeA: rgb(0x24_1B33),  // the shoes
-                    .costumeB: rgb(0x1B_1424),  // the cap, near-black against the grape
                     .costumeC: rgb(0xE8_E4DA),  // and the sole stripe that says SHOE
                 ],
-                yieldsCrownToProps: true, crownRows: 2)
+                // 🔎 `crownRows: 0`, and it is not bookkeeping. It fed
+                // `crownFloor`, which clamped his `dy` at −8 where a bare crab
+                // gets −10 — so the cap was costing every airborne Skater
+                // frame two cells of float, on the ollie, the nollie, the
+                // kickflip, the bigspin, the tre, the laser, the jump and the
+                // half cab. With no crown art to protect, he floats as high as
+                // anyone. `crownRoomIsHonest` is what forces the pair to move
+                // together, and it is the only test in this repo that
+                // reconciles a declaration against actual pixels.
+                //
+                // `yieldsCrownToProps` stays true but is now nearly vestigial:
+                // with no crown of his own it suppresses only the kick-push
+                // under a hard hat. Left for the Figma pass to inherit.
+                yieldsCrownToProps: true, crownRows: 0)
         case .sonic:
             return CostumeStyle(
                 inks: [
@@ -1024,7 +1037,6 @@ enum CrabCostume {
             }
 
         case .skater:
-            let crown = bodyY + dy + squash
             if layer == .onBody {
                 // Shoes, and nothing else on the body. They ride the gait
                 // the way every shoe in this file does, and they carry a
@@ -1042,13 +1054,13 @@ enum CrabCostume {
                 break
             }
             guard layer == .front else { break }
-            // The backwards cap: dome over the crown, the bill sticking out
-            // BEHIND him (his gaze rides right down the line, so the bill
-            // points left), button on top.
-            b.rect(12 + dx, crown, 8, 1, .costumeB)
-            b.rect(13 + dx, crown - 1, 6, 1, .costumeB)
-            b.pixel(16 + dx, crown - 2, .costumeB)
-            b.rect(8 + dx, crown - 1, 4, 1, .costumeB)
+            // 🧢 THE BACKWARDS CAP IS OUT, at the operator's call — "get rid
+            // of the hat, I have to redesign that in Figma tonight." The same
+            // shape as the bare crab's beanie-or-cap, which went to zero for
+            // the same reason: the die and the drawing stayed so the Figma
+            // pass could drop straight back in. Here there was no die to
+            // zero, so the four cells came out — and `crownRows` came down
+            // with them, because a declared crown nobody draws is a comment.
             // 💨 The kick-push: two short dashes behind his feet now and
             // then, like he just pushed off. Salt 43 on the 97 family. Only
             // with the deck under him — a push-off needs a board, and for

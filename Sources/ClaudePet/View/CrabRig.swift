@@ -580,6 +580,11 @@ public enum CrabRig {
             buffer.composite(bushes, visibility: pose.bushes, seed: 781)
         }
         if pose.ledge > 0.001, pose.ledge < 0.999 { drawLedge(&buffer, travel: pose.ledge) }
+        // 💨 …and the floor rushing past under it. Rides the ledge's own
+        // travel and the hedge's own visibility, because all three are the
+        // same fact — the ground is moving — and a rush that could outlive the
+        // ledge would be a floor scrolling under a crab standing on nothing.
+        drawGroundRush(&buffer, travel: pose.ledge, visibility: pose.bushes)
         if pose.combo > 0.001 {
             // The far ribbons first — a step behind, a row lower, on a slower
             // wave, fainter — then the near ones over them. Two layers is
@@ -1922,51 +1927,125 @@ public enum CrabRig {
         }
     }
 
-    /// 🧱 The ledge he grinds: a block on the ground, 44 cells long and five
-    /// tall (rows 24–28), travelling RIGHT TO LEFT — in from off his right,
-    /// under his locked truck through the grind, out past the left edge —
-    /// the operator's direction ("bring it from his right, then go right to
-    /// left"). `travel` 0…1 maps its RIGHT END from 59 to −1, so both ends
-    /// are off the grid. Slate, with a steel top row so the edge he locks
-    /// onto reads as an edge. It ignores `dy`: ground does not rise with a
-    /// jump. Out-of-grid cells are dropped by the buffer's own subscript,
-    /// which is what lets it arrive from nowhere and leave to nowhere
-    /// without a special case.
-    nonisolated static let ledgeLength = 44
-    /// Always `32 + ledgeLength`, so travel 0 puts the whole block off the
-    /// right edge and travel 1 puts it off the left.
-    nonisolated static let ledgeTravel = 76
-    /// The ledge's right end for a travel, in cells: 75 … −1.
-    static func ledgeRightEnd(travel: Double) -> Int {
-        (31 + ledgeLength) - Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
+    /// 🧱 The ledge he grinds: a block on the ground, NINETY-THREE cells long
+    /// and five tall (rows 24–28), travelling RIGHT TO LEFT at a constant
+    /// speed — in from off his right, under his locked truck through the
+    /// grind, out past the left edge. Slate, with a steel top row so the edge
+    /// he locks onto reads as an edge. It ignores `dy`: ground does not rise
+    /// with a jump. Out-of-grid cells are dropped by the buffer's own
+    /// subscript, which is what lets it arrive from nowhere and leave to
+    /// nowhere without a special case.
+    ///
+    /// 🔎 **IT IS NINETY-THREE BECAUSE A GRIND IS TRAVEL.** At forty-four he
+    /// locked on with the block's right end at column 19 and his tail truck at
+    /// 11 — EIGHT CELLS of ledge ahead of him. A two-and-a-half-second grind
+    /// over eight cells is 3 cells a second, against the 23 he rolled in at,
+    /// so the rig bought the length of the grind by nearly stopping the world.
+    /// The operator watched it and said grinds do not stop, that it is
+    /// physically impossible, and he was right: he is what moves, the ledge is
+    /// fixed ground, and the ground cannot decelerate under him.
+    ///
+    /// Ninety-three gives him fifty-seven cells of runway at the lock, which
+    /// is a two-and-a-half-second grind at the speed he arrived at — and it
+    /// puts the block's far end at his truck on the frame he pops, so he pops
+    /// off the END of the ledge rather than off an arbitrary moment in it.
+    nonisolated static let ledgeLength = 93
+    /// 🔎 **`>= 32 + ledgeLength`, not `==`, and the surplus is deliberate.**
+    /// The old invariant was equality: travel 0 put the whole block off the
+    /// right edge and travel 1 off the left, exactly. Equality also means the
+    /// block's speed is fixed by its length, and at ninety-three that would be
+    /// slower than he rolls. A hundred and fifty is 23.1 cells a second across
+    /// the trick's own 6.5 seconds — his speed — and the twenty-five cells of
+    /// surplus are the lead-out: the ground keeps going at his pace after he
+    /// has left it, because it would in life.
+    nonisolated static let ledgeTravel = 150
+    /// How far the block has come, in whole cells — the ONE rounding both
+    /// ground layers are built on.
+    ///
+    /// 🔎 Everything that scrolls derives from this integer, never from the
+    /// Double again. The hedge used to re-round its own half of the travel,
+    /// and a ONE-ULP difference in `pose.ledge` — the kind you get from
+    /// `onset + local` not round-tripping through `reel - onset` — landed
+    /// either side of a `.5` and moved the entire hedge a cell. It showed up
+    /// as the reel's two passes of the same trick rendering differently; live
+    /// it would have been a hedge that twitched. Halving an integer cannot do
+    /// that, and it also makes the far layer's claim true by construction:
+    /// the two layers are one number, so they cannot drift apart.
+    static func ledgeTravelled(travel: Double) -> Int {
+        Int((Double(ledgeTravel) * Ease.clamp01(travel)).rounded())
     }
+    /// The ledge's right end for a travel, in cells: 124 … −26.
+    static func ledgeRightEnd(travel: Double) -> Int {
+        (31 + ledgeLength) - ledgeTravelled(travel: travel)
+    }
+    /// Where his tail truck sits — the cell the ledge's far end reaches on the
+    /// frame he pops off it.
+    nonisolated static let ledgeTailTruck = 11
     static func drawLedge(_ b: inout PixelBuffer, travel: Double) {
         let x0 = ledgeRightEnd(travel: travel) - (ledgeLength - 1)
         b.rect(x0, 25, ledgeLength, 4, .slate)
         b.rect(x0, 24, ledgeLength, 1, .steel)
     }
 
-    /// 🌳 Three little bushes behind the ledge, drifting at HALF its speed —
-    /// the far layer of a two-layer ground, which is where the depth comes
-    /// from. Domes five wide and four tall, rows 21–24: far things sit HIGHER
-    /// in a side view, so their base is the ledge's top line — they peek over
-    /// the steel where the ledge passes and stand on the far ground where it
-    /// does not. (A first cut gave them bodies down to the near ground, and
+    /// 🌳 A hedge behind the ledge, scrolling at HALF its speed — the far
+    /// layer of a two-layer ground, which is where the depth comes from.
+    /// Domes five wide and four tall, rows 21–24: far things sit HIGHER in a
+    /// side view, so their base is the ledge's top line — they peek over the
+    /// steel where the ledge passes and stand on the far ground where it does
+    /// not. (A first cut gave them bodies down to the near ground, and
     /// wherever the ledge left them uncovered they read as green pillars.)
-    /// Their position is derived from the ledge's own travel (zero offset
-    /// where he lands), so the two layers cannot drift apart from each
-    /// other's clock.
-    nonisolated static let bushColumns = [2, 14, 26]
-    static func bushOffset(travel: Double) -> Int {
-        Int((Double(ledgeRightEnd(travel: travel) - 19) * 0.5).rounded())
+    ///
+    /// 🔎 **IT REPEATS NOW, and it has to.** It used to be exactly three
+    /// domes at fixed columns that slid off and were gone — which was fine
+    /// while the ledge drifted six cells through the whole grind, and useless
+    /// the moment it started travelling seventy-five. Three domes leave the
+    /// grid in under three seconds and then there is nothing behind him at
+    /// all. A repeating band at the same twelve-cell pitch never runs out, and
+    /// it is the thing that actually tells the eye the ground is moving: a
+    /// featureless slab sliding at 23 cells a second looks exactly like a
+    /// featureless slab standing still, so the ledge cannot show its own
+    /// speed. The hedge can.
+    nonisolated static let bushPitch = 12
+    /// How far the hedge has scrolled, in cells — half the ledge's own
+    /// travel, which is what makes it the far layer.
+    static func bushScroll(travel: Double) -> Int {
+        ledgeTravelled(travel: travel) / 2
     }
     static func drawBushes(_ b: inout PixelBuffer, travel: Double) {
-        let bx = bushOffset(travel: travel)
-        for column in bushColumns {
-            let x = column + bx
+        // Negative-safe modulo — `%` alone goes negative and would jump the
+        // whole band a pitch every time the scroll crossed a multiple. Same
+        // idiom the manual's ground rush already uses.
+        let phase = ((-bushScroll(travel: travel)) % bushPitch + bushPitch) % bushPitch
+        // Enough lanes to cover the grid with one spare either side, so a dome
+        // is always entering and one is always leaving.
+        for lane in -1...3 {
+            let x = phase + lane * bushPitch
             b.rect(x + 1, 21, 3, 1, .green)
             b.rect(x, 22, 5, 2, .green)
             b.rect(x + 1, 24, 3, 1, .green)
+        }
+    }
+
+    /// 💨 The ground rushing past beneath the ledge — three short dashes on
+    /// the floor rows, wrapping, at the ledge's own speed.
+    ///
+    /// 🔎 The smith's own comment used to say "no ground rush: a grind does
+    /// not roll." That was the bug, written down. A grind is travel; what it
+    /// does not do is spin the wheels. Rows 29–30 are chosen rather than
+    /// convenient: `ledgeCells` in the tests counts any slate in rows 25–28
+    /// and any row-24 steel with slate under it, so a rush in either would be
+    /// miscounted as ledge and would quietly break the bookend pins.
+    nonisolated static let rushRows = [29, 30]
+    static func drawGroundRush(_ b: inout PixelBuffer, travel: Double, visibility: Double) {
+        guard visibility > 0.001 else { return }
+        let scroll = ledgeTravelled(travel: travel)
+        let long = 2 + Int((visibility * 2).rounded())
+        for (index, y) in rushRows.enumerated() {
+            for lane in 0..<2 {
+                let base = index * 7 + lane * 17
+                let x = ((base - scroll) % 32 + 32) % 32
+                b.rect(x, y, long, 1, .shadow)
+            }
         }
     }
 
@@ -2803,11 +2882,20 @@ public enum CrabRig {
                 drawWheel(&b, x: hub, y: y, inner: inner)
             }
             // ✨ Sparks off the tail truck where it bites the ledge's top —
-            // five cells flying up and back, each on its own flicker, as many
-            // alight as the lock is deep. The blaze's sparks' own rule: hot
-            // core when bright, flame when not.
+            // a CONE spraying back and down from the contact point, each fleck
+            // on its own flicker. The blaze's sparks' own rule: hot core when
+            // bright, flame when not.
+            //
+            // 🔎 Nine, not five, and spread rather than clustered. The old set
+            // sat in a tight knot directly under the truck, which reads as a
+            // glow rather than as steel throwing sparks; the operator asked for
+            // them coming off the side. He travels RIGHT, so back is −x, and
+            // sparks fall, so down is +y: the cone opens toward the bottom
+            // left, densest at the truck and thinning out along the ledge's
+            // top line behind him.
             if pose.grindSparks > 0.001 {
-                let flecks = [(-5, 2), (-6, 1), (-4, 1), (-3, 0), (-7, 2)]
+                let flecks = [(-5, 2), (-6, 1), (-4, 1), (-3, 0), (-7, 2),
+                              (-8, 3), (-9, 2), (-10, 3), (-7, 0)]
                 for (index, fleck) in flecks.enumerated() {
                     let life = sin(pose.sparkPhase * 23 + Double(index) * 1.7)
                     guard life * pose.grindSparks > 0.2 else { continue }

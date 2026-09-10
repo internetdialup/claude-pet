@@ -116,10 +116,11 @@ enum CostumeSheet {
         let sonic = [0.0, 0.17, 0.25, 0.42, 0.5, 0.67, 0.83].map { turned($0, .sonic, "sonic \(Int($0 * 360))°") }
         // 🍑 The Skater's row is weighted round the HALF turn, because that is
         // where the half cab parks him for two beats — long enough to read the
-        // backside, and long enough to read the backwards cap, which loses its
-        // seating row and mirrors its bill the wrong way at any turn. Every
-        // other trick flashes past this in a tenth of a second; this one holds
-        // it, so it needs somewhere to be looked at.
+        // backside on a costume's own colourway, which is the thing this row
+        // exists to show. (It used to justify itself by the backwards cap as
+        // well, which lost its seating row and mirrored its bill the wrong way
+        // at any turn. The cap is out, being redrawn in Figma; when it comes
+        // back this row is where to check it.)
         let skater = [0.0, 0.33, 0.42, 0.46, 0.5, 0.58, 0.67]
             .map { turned($0, .skater, "skater \(Int($0 * 360))°") }
         return write("THE TURN — one revolution, bare and dressed",

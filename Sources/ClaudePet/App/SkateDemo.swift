@@ -146,99 +146,83 @@ enum SkateDemo {
         return stance
     }
 
-    nonisolated static let skateOnsetA = 1.0
-    nonisolated static let skateOnsetB = 8.0
-
-    /// Pass A starts at reel 1.0, pass B at reel 8.0 — the same 6.5s trick
-    /// twice, from the same base at the same local instants, so the two passes
-    /// are **bit-identical in the 32×32 buffer**. The operator's A/B is exact,
-    /// not approximate. Past the trick's duration `flourishPose` returns the
-    /// base on its own, so the trailing rest costs no special case.
-    static func skatePose(reel: Double) -> (CrabPose, SpriteTint.Tint?) {
-        let stance = skateStance
-        guard reel >= skateOnsetA else { return (stance, nil) }
-        let local = reel - (reel < skateOnsetB ? skateOnsetA : skateOnsetB)
-        return (CrabAnimator.flourishPose(.backSmith, at: local, base: stance), nil)
-    }
-
-    static let skateReel = Reel(
-        name: "skate-ledge",
-        shots: [
-            Shot(0.0, 1.0, MarketingPalette.gold, "gold", .large,
-                 "the empty stage — the poster, and the control frame for shot 3"),
-            Shot(1.0, 7.0, MarketingPalette.cream, "cream", .small,
-                 "the reference take, uncut: both rates over their whole extent"),
-            Shot(8.0, 1.5, MarketingPalette.gold, "gold", .large,
-                 "the arrival magnified, into the frame shot 1 memorised"),
-            Shot(9.5, 3.5, MarketingPalette.cream, "cream", .mid,
-                 "the lock and the parallax — 24 ledge cells against 12 bush cells, 2:1"),
-            Shot(13.0, 1.5, MarketingPalette.gold, "gold", .large,
-                 "the kickflip out — a whole turn, unhurried now — and the exit"),
-        ],
-        pose: skatePose)
-
-    // MARK: - Reel two: the combo
-
-    /// The ride is 20.4s and the ceiling is 15, so 6.9s comes out in three
-    /// cuts: half a second of frozen stance in front of it (so the poster is a
-    /// crab standing, not a crab loading a pop), **the shove-it and the nollie
-    /// together** — one contiguous ellipsis, ride 6.0 → 11.8 — and a 1.1s tail.
+    /// 🔎 **ONE CUT, RENDERED TWICE.** The operator asked for the same clip
+    /// with the rainbow trail and without it — a real A/B, where the only
+    /// difference between the two files is the thing being judged.
     ///
-    /// The seam used to take the nollie alone, because across the five landings
-    /// the ribbon grows 2, 3, 2, 1, 0 cells and the nollie's single capped cell
-    /// was the cheapest thing to lose. The back smith growing to 6.5s took
-    /// another 1.1s out of the budget, and the next cheapest whole beat is its
-    /// neighbour. One seam either way; it now costs two rungs instead of one.
-    ///
-    /// 🔎 **The tail is 1.1s, not 0.6s, and the extra 0.5s is not slack.** The
-    /// ride's own ease-out begins at ride 19.6: by 19.8 the score has fallen to
-    /// 0.84 and the fire to 0.22. A reel ending there would close on the fire
-    /// going out, which is the opposite of the shot's job. `rideEnd` is 19.3 —
-    /// inside the plateau, with the board still fully alight.
+    /// So both versions come from the SAME source: a window of a real scoring
+    /// ride. The plain one is that ride with the score's decorations zeroed —
+    /// no ribbon, no shell tint, no burning board — and nothing else touched.
+    /// Frame for frame, beat for beat, magnification for magnification, the
+    /// two are identical apart from the score. Building the plain one from
+    /// `flourishPose` instead would have been easier and would have made it a
+    /// different take rather than the same one.
+    nonisolated static let rideOpensAt = 11.8
+    nonisolated static let rideClosesAt = 19.3
+    /// Half a second of frozen stance in front of it, so the poster frame is a
+    /// crab standing rather than a crab mid-crouch.
     nonisolated static let head = 0.5
-    nonisolated static let seam = 6.5
-    nonisolated static let skip = 5.8
-    nonisolated static func ride(reel: Double) -> Double {
-        reel < seam ? reel - head : reel - head + skip
+    nonisolated static func ride(reel: Double) -> Double { reel - head + rideOpensAt }
+
+    /// The ride's own pose at a reel instant, or the stance before it starts.
+    static func ridePose(reel: Double) -> CrabPose? {
+        guard reel >= head else { return nil }
+        return CrabAnimator.comboRide(local: ride(reel: reel),
+                                      wardrobe: .init(current: .skater))
     }
 
-    /// 🔎 The decorative phases run on the REEL clock, not the ride's. The
-    /// score is left alone — it is the thing being reviewed — but the ribbon's
-    /// wave and the fire's flicker are put on reel time so both stay
-    /// continuous across the seam (the skip is a whole number of neither
-    /// period).
-    static func rainbowPose(reel: Double) -> (CrabPose, SpriteTint.Tint?) {
-        guard reel >= head,
-              var pose = CrabAnimator.comboRide(local: ride(reel: reel),
-                                                wardrobe: .init(current: .skater))
-        else { return (skateStance, nil) }
+    /// 🌈 With the trail: the ride exactly as the app runs it.
+    static func trailPose(reel: Double) -> (CrabPose, SpriteTint.Tint?) {
+        guard var pose = ridePose(reel: reel) else { return (skateStance, nil) }
+        // The ribbon's wave on the REEL clock, so it is continuous across a
+        // cut; the score itself is left alone, because it is what is under
+        // review.
         pose.comboPhase = reel
-        // The costume goes IN: the tint now mixes out of the Skater's own
-        // grape rather than stepping to Claw'd's terracotta on the first rung.
         return (pose, CrabView.comboTint(t: reel, combo: pose.combo, costume: .skater))
     }
 
-    static let rainbowReel = Reel(
-        name: "rainbow-combo",
-        shots: [
-            Shot(0.0, 2.0, MarketingPalette.gold, "gold", .small,
-                 "the zero — half a second standing, then the ollie; score 0, no colour"),
-            Shot(2.0, 1.5, MarketingPalette.cream, "cream", .large,
-                 "the birth of the colour, largest stop, quietest plate"),
-            Shot(3.5, 3.0, MarketingPalette.gold, "gold", .small,
-                 "the kickflip, and the ribbon growing through a whole bob arc"),
-            Shot(6.5, 1.5, MarketingPalette.cream, "cream", .small, cellsRight: 2,
-                 "the seam — lands on a bare plate, then the ledge arrives from his right"),
-            Shot(8.0, 2.5, MarketingPalette.cream, "cream", .mid, cellsRight: -2,
-                 "the lock and the grind, with the ledge sliding on beneath him"),
-            Shot(10.5, 2.0, MarketingPalette.cream, "cream", .small, cellsRight: 2,
-                 "the kickflip out — a whole turn, unhurried — and the board alight"),
-            Shot(12.5, 1.5, MarketingPalette.cream, "cream", .large,
-                 "the payoff — the stomp, full score, nothing else on screen"),
-        ],
-        pose: rainbowPose)
+    /// 🛹 Without it: the same ride with the score's decorations off. `combo`
+    /// drives the ribbon and the tint, `boardFire` the burning board — those
+    /// three are what "rainbow mode" means, and they are the only things this
+    /// version changes.
+    static func plainPose(reel: Double) -> (CrabPose, SpriteTint.Tint?) {
+        guard var pose = ridePose(reel: reel) else { return (skateStance, nil) }
+        pose.combo = 0
+        pose.comboPhase = 0
+        pose.boardFire = 0
+        return (pose, nil)
+    }
 
-    static let reels = [skateReel, rainbowReel]
+    /// The shot list, shared. Eight seconds, sixteen beats.
+    ///
+    /// Every plate is cream and every cut is carried by the magnification and
+    /// the horizontal nudge instead. That is not a shortage of ideas: the
+    /// trail version is at four rungs of score from its first frame, and the
+    /// gold plate is illegal against a shell that bright — so a ground that
+    /// changed between shots would change between the two VERSIONS too, and
+    /// the A/B would stop being one.
+    /// 🔎 Cut to the trick's own beats, and the sidecar is what caught it: a
+    /// first pass put a boundary at 5.5s and captioned the shot after it "the
+    /// far end arriving at his truck" — but that arrival IS the pop, at reel
+    /// 5.41, so the caption described something the previous shot had already
+    /// shown. A beat map that disagrees with its own reel is worse than none.
+    static let shots = [
+        Shot(0.0, 1.0, MarketingPalette.cream, "cream", .large,
+             "the stance, then the roll-in — the ledge still off to his right"),
+        Shot(1.0, 2.0, MarketingPalette.cream, "cream", .small, cellsRight: 2,
+             "the ledge arrives and he pops ONTO it, at the widest view the ground has"),
+        Shot(3.0, 1.5, MarketingPalette.cream, "cream", .mid, cellsRight: -2,
+             "the grind — the hedge and the floor carrying the speed the slab cannot show"),
+        Shot(4.5, 2.0, MarketingPalette.cream, "cream", .large, cellsRight: 2,
+             "the far end reaches his truck and he pops OFF the end of it, magnified"),
+        Shot(6.5, 1.5, MarketingPalette.cream, "cream", .small,
+             "the kickflip out, the stomp, and the settle"),
+    ]
+
+    static let plainReel = Reel(name: "backsmith-plain", shots: shots, pose: plainPose)
+    static let trailReel = Reel(name: "backsmith-trail", shots: shots, pose: trailPose)
+
+    static let reels = [plainReel, trailReel]
 
     // MARK: - Composition
 
@@ -424,7 +408,7 @@ enum SkateDemo {
     /// end first comes inside the grid, when it runs from the last column clear
     /// off the left edge; the other two are the lock and the end of the drift,
     /// so the sheet reads as one block travelling rather than three fragments.
-    nonisolated static let fullExtentFrames = [1.70, 2.50, 5.00]
+    nonisolated static let fullExtentFrames = [4.05, 4.50, 4.90]
 
     static func renderLedgeSheet(to url: URL) -> Bool {
         let stance = skateStance

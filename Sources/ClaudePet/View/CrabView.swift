@@ -2765,18 +2765,25 @@ public enum CrabAnimator {
             pose.prop = .skateboardSmith
             pose.propVisibility = 1
             pose.propPhase = 0
-            // The cell budget, and why it is what it is. The block is 44 long
-            // now, so it starts 16 cells further right — and the entry window
-            // grew by exactly the same ratio, which is what keeps the arrival
-            // at 23 cells a second, the speed the operator signed off. Every
-            // key position is unchanged to the cell: the right end reaches
-            // column 19 as he lands, drifts six cells left under the lock, and
-            // is off the grid before the stomp.
-            let enter = Ease.smoothstep(progress / 0.375)
-            let drift = Ease.clamp01((progress - 0.375) / 0.38)
-            let exit = Ease.smoothstep((progress - 0.755) / 0.17)
-            pose.ledge = (enter * 56 + drift * 6 + exit * 14) / Double(CrabRig.ledgeTravel)
-            pose.bushes = Ease.smoothstep(progress / 0.13)
+            // 🔎 ONE CONSTANT SPEED, and no phases at all.
+            //
+            // This used to be three eased segments — 56 cells in, 6 across the
+            // grind, 14 out — and those numbers are the whole defect. Six cells
+            // over two and a half seconds is 2.4 a second against the 23 he
+            // rolled in at, so the world all but stopped the moment he locked
+            // on. Worse, the seams: `drift` is linear and saturates at exactly
+            // 0.755, `exit` is a smoothstep whose slope STARTS at zero, and
+            // legKick, the pitch, the sparks and both arms all hit nought on
+            // that same frame. Nothing moved and nothing emitted on the frame
+            // he popped. The operator called it a pause and said grinds do not
+            // stop; he is what moves, and he does not decelerate.
+            //
+            // Travel is now the progress itself: 150 cells across 6.5 seconds
+            // is 23.1 a second, start to finish, with no seam to stall at.
+            pose.ledge = progress
+            // Two hundredths of lead so the opening frames are an empty stage
+            // rather than a hedge already dissolving in.
+            pose.bushes = Ease.smoothstep((progress - 0.02) / 0.13)
                 * (1 - Ease.smoothstep((progress - 0.85) / 0.10))
             if progress < 0.10 {
                 pose.squash = 1                       // load the pop
@@ -2794,12 +2801,17 @@ public enum CrabAnimator {
                 // The grind, two and a half seconds: back truck on the top,
                 // nose two rows down, the ledge sliding on beneath him.
                 pose.bob = -4
+                // 🔎 The nose holds its dip until the pop. It used to start
+                // coming up at 0.705 — a third of a second of un-dipping
+                // before he left the ledge, which is a third of a second of
+                // nothing happening.
                 let pitch = Ease.smoothstep((progress - 0.375) / 0.05)
-                    * (1 - Ease.smoothstep((progress - 0.705) / 0.05))
+                    * (1 - Ease.smoothstep((progress - 0.735) / 0.02))
                 pose.propPhase = pitch
-                // 🦵 The steeze: out through the lock, back before release.
+                // 🦵 The steeze: out through the lock, and tucked at the last
+                // possible moment rather than a tenth of a second early.
                 pose.legKick = Ease.smoothstep((progress - 0.395) / 0.06)
-                    * (1 - Ease.smoothstep((progress - 0.68) / 0.06))
+                    * (1 - Ease.smoothstep((progress - 0.72) / 0.035))
                 pose.eyes = .determined
                 pose.mouth = .open
                 pose.gazeX = 1
@@ -2808,8 +2820,14 @@ public enum CrabAnimator {
                 let saw = sin(t * 6)
                 pose.armLeft = pitch * (0.5 + 0.3 * saw)
                 pose.armRight = pitch * (0.5 - 0.3 * saw)
-                // ✨ Sparks off the truck, as many as the lock is deep.
-                pose.grindSparks = pitch
+                // ✨ Sparks off the truck. SPLIT FROM THE PITCH, and held flat
+                // at full until the pop: steel on stone does not fade out, it
+                // stops when the truck leaves the edge. The channel is
+                // documented glint-class, where a one-frame change is allowed,
+                // and this is the frame it is allowed on — he is airborne on
+                // the next one. Still exactly nought at both seams, which is
+                // what the grind's own boundary pins measure.
+                pose.grindSparks = Ease.smoothstep((progress - 0.375) / 0.05)
                 pose.sparkPhase = t
             } else if progress < 0.93 {
                 // 🛹 KICKFLIP OUT: from −4, up, one full turn of the board,
