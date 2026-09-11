@@ -13,6 +13,60 @@ import Foundation
 @Suite("Typewriter")
 struct TypewriterTests {
 
+    // MARK: - The frozen clock, now that it is optional
+
+    /// 🔎 THE GUARANTEE THIS FILE'S HEADER SAYS IS HELD "BY INSPECTION".
+    ///
+    /// It is not held by inspection any more. A frozen bubble built with
+    /// default arguments shows the whole line at *every* instant, so two
+    /// renders seconds apart are the same picture — which is what stops a
+    /// committed still from being caught two-thirds through a word. The
+    /// sketchpad's three new parameters exist precisely to bend this, so it
+    /// needs a pin rather than a comment.
+    @MainActor
+    @Test("With defaults, a frozen bubble is the finished line at any instant")
+    func theFrozenBubbleStillShowsTheWholeLine() {
+        func bytes(_ t: Double) -> Data? {
+            let bubble = ThoughtBubble(text: "Let's build something awesome!",
+                                       tool: nil, mood: .idle, frozenTime: t)
+            return (SpriteImage.cgImage(of: bubble, scale: 1)?.dataProvider?.data) as Data?
+        }
+        let early = bytes(0)
+        #expect(early != nil, "the bubble did not render")
+        #expect(bytes(0.4) == early, "a frozen bubble changed between instants")
+        #expect(bytes(5.0) == early, "a frozen bubble changed between instants")
+    }
+
+    /// …and the opposite, on request. The sketchpad's loop clock IS its typing
+    /// clock, so the same view must reveal progressively when asked.
+    @MainActor
+    @Test("Asked to, a frozen bubble types on its own clock")
+    func theTypewriterTypesOnTheFrozenClock() {
+        let line = "Let's build something awesome!"
+        func bytes(_ t: Double) -> Data? {
+            let bubble = ThoughtBubble(text: line, tool: nil, mood: .idle,
+                                       frozenTime: t, typesOnFrozenClock: true)
+            return (SpriteImage.cgImage(of: bubble, scale: 1)?.dataProvider?.data) as Data?
+        }
+        let start = bytes(0)
+        #expect(start != nil, "the bubble did not render")
+        #expect(bytes(0.4) != start, "nothing was revealed after 0.4s of typing")
+        // Past the line's own length it is finished, and stays finished.
+        let done = Double(line.count) / TypewriterText.charsPerSecond + 1
+        #expect(bytes(done + 1) == bytes(done), "the finished line kept changing")
+    }
+
+    /// The default face must still be measured by the constant it was tuned
+    /// with. If this drifts, every committed bubble's box moves with it.
+    @MainActor
+    @Test("The default face still measures through its hand-measured advance")
+    func theDefaultFaceKeepsItsAdvance() {
+        for line in ["", "x", "Let's build something awesome!", "Riding that sunset 🌈🌊"] {
+            #expect(MarqueeText.measure(line, font: nil) == MarqueeText.measure(line),
+                    "\"\(line)\" measured differently through the font overload")
+        }
+    }
+
     @Test("Nothing is typed before the line begins")
     func nothingBeforeTheStart() {
         #expect(TypewriterText.typedCount(elapsed: 0, of: 28) == 0)

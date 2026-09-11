@@ -181,6 +181,24 @@ if let index = arguments.firstIndex(of: "--probe") {
     exit(0)
 }
 
+// ✏️ The sketchpad, before anything else is built. It is an operator tool, not
+// a feature: no menu item leads to it and nothing in the DMG can reach it.
+//
+// It takes its own delegate rather than a flag inside `AppDelegate`, because
+// that one stands up the activity coordinator and the file watchers — the
+// apparatus that reads live Claude Code session data. A drawing tool should
+// never construct any of it, and branching here is how that is guaranteed
+// rather than merely intended.
+if CommandLine.arguments.contains("--sketchpad") {
+    let app = NSApplication.shared
+    let delegate = SketchpadDelegate()
+    app.delegate = delegate
+    // `.regular`, not `.accessory`: a tool window needs keyboard focus and a
+    // menu bar, where the pet needs neither and wants no dock icon.
+    app.setActivationPolicy(.regular)
+    app.run()
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

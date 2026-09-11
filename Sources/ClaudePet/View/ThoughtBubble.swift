@@ -79,6 +79,33 @@ public struct ThoughtBubble: View {
     public var fillOverride: Color? = nil
     public var textOverride: Color? = nil
 
+    /// ✏️ Sketchpad knobs. All three default to exactly what this view has
+    /// always done, so nothing that ships renders differently — the house rule
+    /// is that a product effect gets a PARAMETER rather than a fork in the
+    /// tool, and a default is how that stays honest.
+
+    /// A named face, or nil for the product's own monospaced bold.
+    ///
+    /// ⚠️ Changing this invalidates every width in this file. `MarqueeText`
+    /// measures with a hand-measured advance for the default face, and
+    /// `plainColumns` — hence the 76-character capacity — is derived from it.
+    /// That is why `measuringFont` below exists: off the default, the text is
+    /// measured for real instead of multiplied by a number that no longer
+    /// describes it.
+    public var fontName: String? = nil
+    public var fontSize: CGFloat = ThoughtBubble.defaultFontSize
+
+    /// Whether a frozen clock TYPES rather than showing the finished line.
+    ///
+    /// Off by default, and that default is load-bearing: every committed still
+    /// in this repo renders at a frozen instant and must show the whole line,
+    /// not whatever fraction the render happened to catch. The sketchpad turns
+    /// it on so its loop clock becomes the typing clock.
+    public var typesOnFrozenClock: Bool = false
+
+    /// Characters a second, when it types at all.
+    public var charsPerSecond: Double = TypewriterText.charsPerSecond
+
     /// Width of the scrolling viewport. Fixed so the bubble does not resize as
     /// the ticker's content changes.
     /// Widened from 150 with the status ticker.
@@ -276,7 +303,28 @@ public struct ThoughtBubble: View {
         }
     }
 
-    private var font: Font { .system(size: 11, weight: .bold, design: .monospaced) }
+    /// The size the whole file's geometry was measured at. `plainColumns`,
+    /// `maxWidth` and `MarqueeText.advance` are all downstream of it.
+    nonisolated public static let defaultFontSize: CGFloat = 11
+
+    private var font: Font {
+        if let fontName { return .custom(fontName, size: fontSize) }
+        return .system(size: fontSize, weight: .bold, design: .monospaced)
+    }
+
+    /// The face to MEASURE with, or nil to use the hand-measured advance.
+    ///
+    /// 🔎 Nil is not "no font" — it is "the one face whose advance is already
+    /// known to a ten-thousandth of a point". Returning nil for the default
+    /// keeps every shipped bubble on the exact arithmetic it was tuned with,
+    /// so no committed asset can move by a sub-pixel because this parameter
+    /// now exists. Anything else gets measured for real, because a proportional
+    /// face has no single advance to multiply by in the first place.
+    private var measuringFont: NSFont? {
+        if let fontName { return NSFont(name: fontName, size: fontSize) }
+        guard fontSize != Self.defaultFontSize else { return nil }
+        return .monospacedSystemFont(ofSize: fontSize, weight: .bold)
+    }
 
     public var body: some View {
         if let expiresAt {
@@ -334,7 +382,10 @@ public struct ThoughtBubble: View {
                     // a one-word change back if he misses the instant voice.
                     TypewriterText(text: text, font: font,
                                    frozenTime: frozenTime, ink: foreground,
-                                   room: Self.textWidth - slotReserve)
+                                   room: Self.textWidth - slotReserve,
+                                   measuringFont: measuringFont,
+                                   typesOnFrozenClock: typesOnFrozenClock,
+                                   speed: charsPerSecond)
                 }
                 // …and not on a knowledge card either. Same ruling as the
                 // glyph above: the tick means "a plan is waiting for your
@@ -491,6 +542,12 @@ struct TypewriterText: View {
     /// How much width the text actually gets, once whatever shares its row
     /// has been paid for.
     var room: CGFloat = ThoughtBubble.textWidth
+    /// The face to measure the reserved box with. Nil is the default's
+    /// hand-measured advance — see `MarqueeText.measure(_:font:)`.
+    var measuringFont: NSFont? = nil
+    /// Whether a frozen clock is a TYPING clock. Off for every shipped still.
+    var typesOnFrozenClock = false
+    var speed: Double = TypewriterText.charsPerSecond
     @State private var startedAt: Double?
 
     /// Brisk enough that the longest plain line (28 columns) lands in under
@@ -550,9 +607,19 @@ struct TypewriterText: View {
             // character went from two-thirds to solid in one frame, which is
             // exactly the arrival the ramp exists to prevent, committed on
             // every line he says.
-            let exact = frozenTime != nil
-                ? Double(text.count + Self.rampChars)
-                : max(0, elapsed) * Self.charsPerSecond
+            // 🔎 A frozen clock shows the finished line UNLESS asked to type.
+            //
+            // The finished-line branch is the guarantee every committed still
+            // depends on: a render catches one instant, and an instant
+            // two-thirds of the way through a word is not a picture anybody
+            // chose. The sketchpad is the one caller that wants the opposite —
+            // its frozen clock IS a running clock, one loop long — so it opts
+            // in rather than this branch being weakened for everyone.
+            let typing = frozenTime == nil || typesOnFrozenClock
+            let running = frozenTime != nil ? max(0, t) : max(0, elapsed)
+            let exact = typing
+                ? running * speed
+                : Double(text.count + Self.rampChars)
             // A DEFINITE width once the line has to wrap, not a maximum.
             //
             // The card sizes itself with `.fixedSize(horizontal: true)`, which
@@ -582,7 +649,7 @@ struct TypewriterText: View {
             // frame, so the text types into a space that never moves. It is
             // also what the invisible reservation underneath has always been
             // doing; this just makes the visible copy agree with it.
-            let box = min(MarqueeText.measure(text), room)
+            let box = min(MarqueeText.measure(text, font: measuringFont), room)
             ZStack {
                 // Reserves the FINAL block, so the card arrives at its full
                 // size and the text types into it — a bubble that grew line
@@ -813,6 +880,19 @@ struct MarqueeText: View {
         text.reduce(0) { total, character in
             total + (drawsAsEmoji(character) ? emojiAdvance : advance)
         }
+    }
+
+    /// The same question asked of an arbitrary face.
+    ///
+    /// 🔎 `font: nil` routes straight back to the measured default above, so
+    /// the shipped path is byte-for-byte what it always was and this overload
+    /// cannot have moved anything. Off the default there is no constant to
+    /// multiply — a proportional face's characters are simply different widths
+    /// — so the string is measured as it will actually be drawn.
+    @MainActor
+    static func measure(_ text: String, font: NSFont?) -> CGFloat {
+        guard let font else { return measure(text) }
+        return (text as NSString).size(withAttributes: [.font: font]).width
     }
 
     /// Whether this grapheme is drawn out of the colour-emoji face.
