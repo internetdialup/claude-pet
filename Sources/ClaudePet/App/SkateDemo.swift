@@ -221,8 +221,85 @@ enum SkateDemo {
 
     static let plainReel = Reel(name: "backsmith-plain", shots: shots, pose: plainPose)
     static let trailReel = Reel(name: "backsmith-trail", shots: shots, pose: trailPose)
+    /// 🎉 The same take again, with the room joining in. Same pose stream as the
+    /// trail version — the party is entirely a layer behind and in front of it.
+    static let partyReel = Reel(name: "backsmith-party", shots: shots, pose: trailPose)
 
-    static let reels = [plainReel, trailReel]
+    // MARK: - 🎉 The party
+
+    /// 🔎 **THE LAYERS TAKE TURNS, and this envelope is how.**
+    ///
+    /// What changes across the reel is not how much is moving — it is WHICH SIDE
+    /// OF THE SPRITE BOX it is on. Through the grind the sprite side is already
+    /// carrying seven layers (the ledge, its crest, the hedge, the floor rush,
+    /// the sparks, the ribbon and a colour-cycling shell), so the backdrop drops
+    /// to its floor and stays out of the way. By the finale the ledge has gone
+    /// (5.9), the hedge with it (6.7) and the sparks died at 5.4 — three things
+    /// left — so the backdrop takes over.
+    ///
+    /// Nothing new arrives on a landing frame: the crest ignites WITH the sparks
+    /// at the lock, which is the same physical event rather than a second one,
+    /// and nothing at all enters at the stomp — the rings have been up since 5.4,
+    /// so the cut at 6.5 reveals them rather than introducing them.
+    nonisolated static let partyFloor = 0.25
+    nonisolated static func partyLevel(reel: Double) -> Double {
+        let up = Ease.smoothstep((reel - head) / 0.6)              // in with the ride
+        let duck = Ease.smoothstep((reel - 2.6) / 0.4)             // out of the grind's way
+        let back = Ease.smoothstep((reel - 5.4) / 0.6)             // and back for the finale
+        return up * (1 - duck * (1 - partyFloor) + back * (1 - partyFloor))
+    }
+
+    /// 🔎 **THE LEDGE'S CREST — a view-side overlay, masked to the ledge's own
+    /// cells, and NOT a recolour inside the buffer.**
+    ///
+    /// `.slate` and `.steel` deliberately do not consult `inkOverrides`;
+    /// `.slate`'s own comment says a case with no override lookup CANNOT be
+    /// recoloured by a wardrobe, and that is the point of it. Appending inks for
+    /// a ramp would be new cases for one review clip — and any of them landing
+    /// in rows 25–28 empties `BackSmithTests.ledgeCells`, which classifies by
+    /// ink, taking every bookend pin with it.
+    ///
+    /// So it rides ABOVE the sprite on the ledge's steel top row only, on the
+    /// hedge's own twelve-cell world pitch so the ground keeps one unit. The
+    /// dark slab underneath is untouched: at a luminance near 25 it is the
+    /// darkest large area in frame and the thing his silhouette reads against.
+    /// The plate's hue, exposed for the pins — the complement claim is the one
+    /// thing in the party that keeps him legible, so it is measured rather than
+    /// asserted.
+    nonisolated static func plateHueForTests(_ t: Double) -> Double { PartyGround.plateHue(t) }
+
+    nonisolated static let crestRow = 24
+    nonisolated static let crestPitch = 12
+    /// Every visible column of the ledge's top row, with the hue and the
+    /// STRENGTH of the crest passing over it.
+    ///
+    /// 🔎 A gradient, not a dotted line. The first cut lit one column in twelve
+    /// and nothing else, which at a cell a column is three lit cells on a
+    /// thirty-two cell row — invisible at any size the clip is watched at. Every
+    /// column gets a strength now, on a raised cosine over the same twelve-cell
+    /// world pitch, so what travels along the edge is a band with a bright
+    /// middle and a fade either side. That is what "shimmer" means at this
+    /// scale, and it is still whole cells: only the alpha varies.
+    nonisolated static func crest(travel: Double, t: Double) -> [(x: Int, hue: Double, level: Double)] {
+        let right = CrabRig.ledgeRightEnd(travel: travel)
+        let left = right - (CrabRig.ledgeLength - 1)
+        guard right >= 0, left <= PixelBuffer.side - 1 else { return [] }
+        let scroll = t * 9
+        var out: [(Int, Double, Double)] = []
+        for x in max(0, left)...min(PixelBuffer.side - 1, right) {
+            // The WORLD column, so the crest travels with the ground rather
+            // than with the frame — it is a highlight on the ledge, not a
+            // wiper across the screen.
+            let world = Double(CrabRig.ledgeTravelled(travel: travel) + x)
+            let phase = (world + scroll) / Double(crestPitch)
+            let level = max(0, cos(2 * .pi * (phase - phase.rounded(.down)) - .pi))
+            guard level > 0.02 else { continue }
+            out.append((x, SpriteTint.neutralHue(phase.rounded(.down) * 0.17), level))
+        }
+        return out
+    }
+
+    static let reels = [plainReel, trailReel, partyReel]
 
     // MARK: - Composition
 
@@ -231,10 +308,18 @@ enum SkateDemo {
     /// helpers are private and a demo reel needs none of what they add.
     @ViewBuilder
     static func scene(_ pose: CrabPose, tint: SpriteTint.Tint?, shot: Shot,
-                      format: Format) -> some View {
+                      format: Format, party: Double = 0, reel: Double = 0) -> some View {
         let side = format.side(shot.stop)
+        let cell = format.cell(shot.stop)
         ZStack {
             shot.ground
+            if party > 0.001 {
+                Canvas { context, size in
+                    PartyGround.draw(in: &context, size: size, t: reel,
+                                     party: party, cell: cell)
+                }
+                .frame(width: format.canvas.width, height: format.canvas.height)
+            }
             PixelCanvasView(buffer: CrabRig.render(pose, costume: .skater),
                             bodyTint: tint?.body,
                             bodyShadeTint: tint?.shade,
@@ -244,6 +329,31 @@ enum SkateDemo {
                 .frame(width: side, height: side)
                 .offset(x: CGFloat(shot.cellsRight) * format.cell(shot.stop),
                         y: format.offsetY(shot.stop))
+            if party > 0.001 {
+                Canvas { context, size in
+                    let travel = ridePose(reel: reel)?.ledge ?? 0
+                    for lit in crest(travel: travel, t: reel) {
+                        let rgb = SpriteTint.rgb(hue: lit.hue, saturation: 0.75, brightness: 1.0)
+                        let box = CGRect(x: CGFloat(lit.x) * cell,
+                                         y: CGFloat(crestRow) * cell,
+                                         width: cell, height: cell)
+                        context.fill(Path(box),
+                                     with: .color(Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+                                        // 🔎 NOT ducked with the backdrop. The
+                                        // crest belongs to the LEDGE, which is
+                                        // on the sprite side of the frame — the
+                                        // turn-taking envelope exists to keep
+                                        // the ROOM out of the grind's way, and
+                                        // wiring the crest to it dimmed the
+                                        // shimmer to a fifth exactly while the
+                                        // ledge was on screen, which is the only
+                                        // time it can be seen at all.
+                                        .opacity(0.9 * lit.level)))
+                    }
+                }
+                .frame(width: side, height: side)
+                .offset(x: CGFloat(shot.cellsRight) * cell, y: format.offsetY(shot.stop))
+            }
         }
         .frame(width: format.canvas.width, height: format.canvas.height)
     }
@@ -258,7 +368,9 @@ enum SkateDemo {
                       scale: CGFloat = 1) -> CGImage? {
         let shot = reel.shot(at: t)
         let (pose, tint) = reel.pose(t)
-        return SpriteImage.cgImage(of: scene(pose, tint: tint, shot: shot, format: format),
+        let party = reel.name.hasSuffix("party") ? partyLevel(reel: t) : 0
+        return SpriteImage.cgImage(of: scene(pose, tint: tint, shot: shot, format: format,
+                                             party: party, reel: t),
                                    scale: scale, isOpaque: true)
     }
 
