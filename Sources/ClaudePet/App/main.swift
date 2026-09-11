@@ -139,6 +139,15 @@ if let index = arguments.firstIndex(of: "--render-butt-loop"), index + 1 < argum
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-trick-loop"), index + 1 < arguments.count {
+    // 🛹 The same joke with a run-up: a laser flip into the half cab's backside
+    // and a bar of him standing on it, cut to repeat forever. Three shapes, two
+    // colourways, no type. Like the loop above, deliberately nowhere near
+    // `docs/media`.
+    let ok = MainActor.assumeIsolated { TrickLoop.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-skate-demo"), index + 1 < arguments.count {
     // 🛹 The demo reels: two short, type-free review cuts the operator watches
     // to fine-tune geometry before any marketing is generated from it. Same

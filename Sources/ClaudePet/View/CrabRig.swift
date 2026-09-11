@@ -190,10 +190,13 @@ public struct CrabPose: Sendable, Equatable {
     /// camera, 0.25 shows his right flank edge-on, 0.5 his back, 0.75 his
     /// left flank, and 1 is a whole turn, which renders byte-identically to 0
     /// (the rig takes turn − floor(turn)). Positive brings his right shoulder
-    /// toward the camera first. Set only by the varial's air inside
+    /// toward the camera first. Set only by `.bigspin` and `.halfCab` inside
     /// `flourishPose` — pure in the trick's clock and exactly 0 at both
     /// bounds, so every ground frame, every other trick and every frozen
-    /// render is untouched by construction.
+    /// render is untouched by construction. (This once read "the varial's
+    /// air". The varial renounced the turn: a body that rotates while its
+    /// board flips is a sex change, and `TorsoTurnTests.mayTurn` now pins the
+    /// set to those two so that nothing turns alone.)
     ///
     /// Unlike `torsoShade`, this IS lerped by `blend`, the short way round:
     /// the envelope that owns it dies the moment a mood changes, and only the

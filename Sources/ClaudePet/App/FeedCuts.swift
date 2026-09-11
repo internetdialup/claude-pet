@@ -43,7 +43,7 @@ enum FeedCuts {
     // MARK: - Cut one: the laser flip, and the colour coming home
 
     nonisolated static let flipLength = CrabAnimator.Flourish.laserFlip.duration   // 3.2
-    nonisolated static let spinLength = CrabAnimator.Flourish.bigspin.duration     // 2.8
+    nonisolated static let spinLength = CrabAnimator.Flourish.bigspin.duration     // 5.0
     /// 🔎 A BEAT OF HIM STANDING THERE, and it is not padding.
     ///
     /// The bigspin's turn only reaches a whole one in the LIMIT: at 20fps the
@@ -60,19 +60,23 @@ enum FeedCuts {
     /// so it is sized to the remainder rather than to taste. Nine seconds, and
     /// eighteen whole beats.
     nonisolated static let oneTail = 0.8
-    nonisolated static var oneTricks: Double { flipLength + spinLength }           // 6.0
-    nonisolated static var oneLength: Double { oneTricks + oneTail }               // 6.5
+    nonisolated static var oneTricks: Double { flipLength + spinLength }           // 8.2
+    nonisolated static var oneLength: Double { oneTricks + oneTail }               // 9.0
     /// The cross-dissolve across the seam. Short — a quarter second — because
     /// what it is hiding is a board swap, not a change of subject.
     nonisolated static let seamBlend = 0.25
     /// When the party starts, chosen so its own trapezoid does the work: the
-    /// rainbow is 4.0s with a 0.4s edge, so at this offset the colour washes on
-    /// two-thirds through the flip and ramps out over the last 0.4s — which is
-    /// exactly the bigspin's roll-out. The spin and the colour arrive home
-    /// together, which is what was asked for.
-    /// Off the TRICKS' end, not the clip's: the colour is home when he lands,
+    /// rainbow is 4.0s with a 0.4s edge, and it is hung off the TRICKS' end so
+    /// it ramps out over their last 0.4s — exactly the bigspin's roll-out. The
+    /// spin and the colour arrive home together, which is what was asked for,
     /// and the tail after it is plain Claw'd standing in his own shell.
-    nonisolated static var partyOnset: Double { oneTricks - CrabView.rainbowDuration }  // 2.0
+    ///
+    /// 🔎 An earlier version of this comment claimed the colour washed on
+    /// "two-thirds through the flip". It does not, and has not since the bigspin
+    /// grew from 2.8s to 5.0: at 4.2 the wash starts a full second AFTER the
+    /// flip has landed, a fifth of the way into the bigspin. Only the arriving-
+    /// home half was ever load-bearing, and that half still holds.
+    nonisolated static var partyOnset: Double { oneTricks - CrabView.rainbowDuration }  // 4.2
 
     /// 🔎 The seam is BLENDED, not cut.
     ///
