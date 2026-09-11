@@ -55,35 +55,38 @@ enum SketchScene {
 
     /// Canvas-plane layers: everything already written as `draw(in:size:t:)`.
     enum CanvasPreset: String, CaseIterable, Codable, Sendable {
-        case party, rays, glow, forest
+        case party, rays, glow, forest, waiting
 
         var title: String {
             switch self {
-            case .party:  "Party ground"
-            case .rays:   "Rainbow rays"
-            case .glow:   "Celebration rings"
-            case .forest: "Forest parallax"
+            case .party:   "Party ground"
+            case .rays:    "Rainbow rays"
+            case .glow:    "Celebration rings"
+            case .forest:  "Forest parallax"
+            case .waiting: "Waiting light"
             }
         }
     }
 
     /// Sprite-plane layers: everything already written as `draw(_:inout PixelBuffer …)`.
     enum SpritePreset: String, CaseIterable, Codable, Sendable {
-        case snow, hearts, leaves, pumpkins, fireworks
-        case ledge, bushes, groundRush, comboTrail, boardFire
+        case snow, hearts, leaves, pumpkins, easterGround, fireworks
+        case ledge, bushes, groundRush, comboTrail, boardFire, swell
 
         var title: String {
             switch self {
-            case .snow:       "Snowfall"
-            case .hearts:     "Rising hearts"
-            case .leaves:     "Falling leaves"
-            case .pumpkins:   "Floor pumpkins"
-            case .fireworks:  "Fireworks"
-            case .ledge:      "Ledge"
-            case .bushes:     "Hedge (parallax)"
-            case .groundRush: "Ground rush"
-            case .comboTrail: "Combo trail"
-            case .boardFire:  "Board on fire"
+            case .snow:         "Snowfall"
+            case .hearts:       "Rising hearts"
+            case .leaves:       "Falling leaves"
+            case .pumpkins:     "Floor pumpkins"
+            case .easterGround: "Easter ground"
+            case .fireworks:    "Fireworks"
+            case .ledge:        "Ledge"
+            case .bushes:       "Hedge (parallax)"
+            case .groundRush:   "Ground rush"
+            case .comboTrail:   "Combo trail"
+            case .boardFire:    "Board on fire"
+            case .swell:        "Surf swell"
             }
         }
     }
@@ -289,7 +292,7 @@ enum SketchScene {
         case .sprite:
             spriteLayer(shape: shape) { b in
                 drawSpritePreset(SpritePreset(rawValue: layer.preset), into: &b,
-                                 t: t, amount: layer.amount)
+                                 t: t, amount: layer.amount, loopSeconds: loopSeconds)
             }
 
         case .pet:
@@ -366,6 +369,12 @@ enum SketchScene {
             CelebrationGlow.draw(in: &context, size: size, t: t, bloom: false)
         case .forest:
             SizzleRenderer.ForestBackdrop.draw(in: &context, size: size, t: t)
+        case .waiting:
+            // Its input is an envelope rather than a clock, so the slider sets
+            // the depth and `t` does the breathing — one breath every two
+            // seconds, which is four beats.
+            WaitingLight.draw(in: &context, size: size,
+                              breath: amount * (0.5 + 0.5 * sin(.pi * t)))
         case nil:
             break
         }
@@ -373,20 +382,26 @@ enum SketchScene {
 
     private static func drawSpritePreset(_ preset: SpritePreset?,
                                          into b: inout PixelBuffer,
-                                         t: Double, amount: Double) {
+                                         t: Double, amount: Double,
+                                         loopSeconds: Double) {
         switch preset {
-        case .snow:       HolidayAmbience.drawSnow(&b, phase: t)
-        case .hearts:     HolidayAmbience.drawHearts(&b, phase: t)
-        case .leaves:     HolidayAmbience.drawLeaves(&b, phase: t)
-        case .pumpkins:   HolidayAmbience.drawFloorPumpkins(&b)
-        case .fireworks:  HolidayAmbience.drawFireworks(&b, progress: t - floor(t),
-                                                        cycle: Int(floor(t)))
-        case .ledge:      CrabRig.drawLedge(&b, travel: t - floor(t))
-        case .bushes:     CrabRig.drawBushes(&b, travel: t - floor(t))
-        case .groundRush: CrabRig.drawGroundRush(&b, travel: t - floor(t), visibility: amount)
-        case .comboTrail: CrabRig.drawComboTrail(&b, dy: 0, combo: amount, phase: t)
-        case .boardFire:  CrabRig.drawBoardFire(&b, dx: 0, dy: 0, phase: t)
-        case nil:         break
+        case .snow:         HolidayAmbience.drawSnow(&b, phase: t)
+        case .hearts:       HolidayAmbience.drawHearts(&b, phase: t)
+        case .leaves:       HolidayAmbience.drawLeaves(&b, phase: t)
+        case .pumpkins:     HolidayAmbience.drawFloorPumpkins(&b)
+        case .easterGround: HolidayAmbience.drawEasterGround(&b)
+        case .fireworks:    HolidayAmbience.drawFireworks(&b, progress: t - floor(t),
+                                                          cycle: Int(floor(t)))
+        case .ledge:        CrabRig.drawLedge(&b, travel: t - floor(t))
+        case .bushes:       CrabRig.drawBushes(&b, travel: t - floor(t))
+        case .groundRush:   CrabRig.drawGroundRush(&b, travel: t - floor(t), visibility: amount)
+        case .comboTrail:   CrabRig.drawComboTrail(&b, dy: 0, combo: amount, phase: t)
+        case .boardFire:    CrabRig.drawBoardFire(&b, dx: 0, dy: 0, phase: t)
+        case .swell:
+            // One wave per loop, not per second — the surf set's progress is
+            // the whole ride, and cycling it at 1Hz is a flicker, not a swell.
+            SurfSet.drawSwell(&b, progress: loopSeconds > 0 ? t / loopSeconds : 0)
+        case nil:           break
         }
     }
 }

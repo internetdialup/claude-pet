@@ -3,13 +3,19 @@ import Foundation
 import SwiftUI
 @testable import ClaudePet
 
-/// ✏️ **Three pins, and only three.**
+/// ✏️ **A short suite, on purpose.**
 ///
-/// The sketchpad's whole point is that it carries no ceremony — no kill-tests,
-/// no Knob, no anonymity sweep, because nothing it draws ships. But a silently
-/// wrong *exporter* costs a real evening, so these three stay: they are the
-/// only claims whose failure would be invisible until you had already sent
-/// somebody the file.
+/// The sketchpad carries no ceremony — no Knob, no anonymity sweep, because
+/// nothing it draws ships. What is pinned here is only what would fail
+/// *silently*: an exporter that writes at the wrong rate, a scene that drifts
+/// from the window it was previewed in, and an effect that quietly never
+/// reaches the tool at all. Each of those you would discover after sending
+/// somebody the file, which is too late to be worth the saving.
+///
+/// The last two are the coms-bridge: tricks and costumes reach the sketchpad
+/// by themselves through `allCases`, so the only thing that can go missing is
+/// a new *effect*, and `noEffectIsStrandedFromTheSketchpad` is what makes that
+/// impossible to do by accident.
 @Suite(.serialized)
 @MainActor
 struct SketchTests {
@@ -134,5 +140,125 @@ struct SketchTests {
             #expect(abs(gif - gif.rounded()) < 1e-9, "\(beats) beats is \(gif) GIF frames")
             #expect(abs(mp4 - mp4.rounded()) < 1e-9, "\(beats) beats is \(mp4) MP4 frames")
         }
+    }
+
+    // MARK: - The coms-bridge
+
+    /// Every preset actually draws something. Catches one wired to nothing, or
+    /// one whose underlying function changed out from under it.
+    @Test("Every preset draws something")
+    func everyPresetRenders() {
+        func bytes(_ layers: [SketchScene.Layer]) -> Data? {
+            var stack = SketchScene.Stack(layers: layers)
+            stack.beats = 8
+            // Sampled across the loop, because several presets are born and die
+            // on their own schedule — a firework is nothing for most of a second.
+            var all = Data()
+            for t in [0.35, 1.1, 2.6, 3.9] {
+                guard let frame = (SpriteImage.cgImage(of: SketchScene.scene(stack, t: t),
+                                                       scale: 1, isOpaque: true)?
+                    .dataProvider?.data) as Data? else { return nil }
+                all.append(frame)
+            }
+            return all
+        }
+        let empty = bytes([])
+        #expect(empty != nil, "an empty sketch did not render")
+
+        for preset in SketchScene.CanvasPreset.allCases {
+            #expect(bytes([.init(kind: .canvas, preset: preset.rawValue)]) != empty,
+                    "the \(preset.rawValue) preset drew nothing at all")
+        }
+        for preset in SketchScene.SpritePreset.allCases {
+            #expect(bytes([.init(kind: .sprite, preset: preset.rawValue)]) != empty,
+                    "the \(preset.rawValue) preset drew nothing at all")
+        }
+    }
+
+    /// 🔎 THE DRIFT PIN — the reason a new effect cannot go missing.
+    ///
+    /// Tricks, costumes, moods and preview effects reach the sketchpad on their
+    /// own: every picker reads `allCases`, so a new `Flourish` appears the
+    /// moment it exists. **Effects do not.** The preset enums are hand-written,
+    /// so an effect added without a preset case is invisible to the tool
+    /// forever, and nothing says so.
+    ///
+    /// So this counts them. Every non-private draw function under `Sources` is
+    /// either claimed by a preset or named below with a reason. Adding one and
+    /// doing neither fails here with the whole inventory printed — which is the
+    /// point. It forces the decision at the moment the effect is written rather
+    /// than relying on anybody remembering months later.
+    ///
+    /// Blunt on purpose: it will fire for draw functions that should never be
+    /// presets, and the answer to those is a line in `exempt`, not a weaker
+    /// test. A list of "we looked and decided no" is worth more than a list
+    /// nobody maintains.
+    @Test("No effect is stranded from the sketchpad")
+    func noEffectIsStrandedFromTheSketchpad() {
+        // Components of drawing the crab, his board or his wardrobe — not
+        // layers anyone could stack on their own.
+        let exempt: Set<String> = [
+            "Sketch.swift:drawSprite",        // IS the custom layer
+            "Sketch.swift:drawCanvas",        // …and its other half
+            "CrabCostume.swift:draw",         // the wardrobe, drawn with him
+            "CrabRig.swift:drawWheel",        // one wheel of a board
+            "CrabRig.swift:drawRestingDeck",  // the board he stands on
+            "SurfSet.swift:drawSpray",        // needs the swell's own surface array
+        ]
+
+        // 🔎 A LIST, not a set, and that distinction is load-bearing.
+        // `PetRootView.swift` holds three different functions all called
+        // `draw` — CelebrationGlow's, WaitingLight's and RainbowRays' — so a
+        // set keyed on file-and-name silently collapses them to one and
+        // under-counts by two. The first version of this test did exactly
+        // that, and reported 21 where the truth is 23.
+        let found = Self.declaredDraws()
+        let unique = Set(found)
+        let claimed = SketchScene.CanvasPreset.allCases.count
+            + SketchScene.SpritePreset.allCases.count
+        let accounted = claimed + exempt.count
+
+        // Against the COUNT, deliberately. Matching names would mean teaching
+        // the test which function each preset wraps — a second mapping, which
+        // is a second thing to drift, solving drift.
+        let note = "\(found.count) non-private draw functions under Sources, but "
+            + "\(claimed) presets + \(exempt.count) exempt = \(accounted). "
+            + "Something was added: wire it as a preset, or add it to `exempt` "
+            + "and say why.\nfound:\n  " + found.sorted().joined(separator: "\n  ")
+        #expect(found.count == accounted, "\(note)")
+
+        // …and the exempt list has not rotted either.
+        for name in exempt {
+            #expect(unique.contains(name),
+                    "`\(name)` is exempted but no longer exists — drop the line")
+        }
+    }
+
+    /// Every non-private `draw…` taking a `GraphicsContext` or a `PixelBuffer`,
+    /// as `File.swift:functionName`.
+    private static func declaredDraws() -> [String] {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()    // ClaudePetTests
+            .deletingLastPathComponent()    // Tests
+            .deletingLastPathComponent()    // the repo
+            .appendingPathComponent("Sources/ClaudePet")
+
+        var found: [String] = []
+        let files = (FileManager.default.enumerator(at: root,
+                                                    includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL } ?? []).filter { $0.pathExtension == "swift" }
+        for file in files {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                guard !line.contains("private"),
+                      line.contains("static func draw"),
+                      line.contains("inout GraphicsContext") || line.contains("inout PixelBuffer"),
+                      let keyword = line.range(of: "static func "),
+                      let open = line[keyword.upperBound...].firstIndex(of: "(")
+                else { continue }
+                found.append("\(file.lastPathComponent):\(line[keyword.upperBound..<open])")
+            }
+        }
+        return found
     }
 }
