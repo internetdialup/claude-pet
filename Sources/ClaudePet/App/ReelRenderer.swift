@@ -448,12 +448,22 @@ enum ReelRenderer {
         //
         // Lines are drawn from the pools by TEXT, not by index, so a reordered
         // pool fails the render loudly instead of silently swapping the shot.
+        // 🔎 ALL FIVE WERE REPLACED in September 2026, and the guard below is
+        // what made that safe. The deck was re-cut so every fact carries a date,
+        // which rewrote all seventy-six lines — and this render failed loudly on
+        // the next run rather than quietly shipping a sheet of sentences the pet
+        // no longer says. That is the whole reason it matches by text.
+        //
+        // Same five categories and the same emoji as before, so the shot's
+        // composition is unchanged; what moved is that each line now names a
+        // date. The old picked[0] was one line at 28 columns, and no fact in the
+        // deck is that short any more, so every bubble wraps to two now.
         let picked: [(text: String, at: Double)] = [
-            ("A byte is usually eight bits", 0),                     // one line
-            ("Anthropic has published Claude's constitution 📜", 0),  // wraps to two
-            ("Prompt caching lets a model reuse a prefix it has already read", 0),
-            ("Deep Blue beat a reigning world chess champion in 1997 🏆", 0),
-            ("Andrej Karpathy coined 'vibe coding' in February 2025 ⚡", 0),
+            ("Two hex digits make one byte: 0x00 is 0 and 0xFF is 255", 0),  // CS-101
+            ("Anthropic published a new constitution for Claude in January 2026 📜", 0),
+            ("Prompt caching, from August 2024, lets a long prompt be read once", 0),
+            ("Deep Blue beat champion Kasparov in May 1997, 3.5-2.5 over six games 🏆", 0),
+            ("Andrej Karpathy coined 'vibe coding' in a tweet on 2 February 2025 ⚡", 0),
         ]
         // Every line must really be in the pools — the sheet shows what he
         // says, not marketing copy that resembles it.
@@ -654,8 +664,19 @@ enum ReelRenderer {
         // viewport whatever the sentence. The two-line bubble sizes to its
         // content instead, so the 47-character constitution line grew a card
         // wide enough to hang off the canvas and lose its first few letters.
+        //
+        // 🔎 This slot is a CONSTRAINT ON THE DECK, and it went unnoticed until
+        // the deck was re-cut in September 2026. Every fact was rewritten to
+        // carry a date, which took the shortest line from 18 characters to 39 —
+        // and the old pick, "Binary is base two", stopped existing. At 39 this
+        // is now the ONLY fact short enough for the slot, so re-cutting the
+        // deck again means checking here first. `CostumeStripTests` is what
+        // catches it: it asserts this line is still in the pools.
+        //
+        // It is also an Anthropic fact at last, which is what README.md has
+        // described this panel as all along while the code quoted CS-101.
         (.gundam, .wiggle,   [1.4, 9.6],
-         "Binary is base two", 0.0, 96),
+         "Anthropic was founded in January 2021 🧡", 0.0, 96),
         (.none,   .kickflip, [4.4], "Tony Clawd 900 🦅", 7.2, 128),
         // A wave, not a second wiggle: two crabs doing the same idle reads as
         // one animation stamped twice, which is the opposite of a wardrobe.
@@ -698,7 +719,7 @@ enum ReelRenderer {
     static func costumeScene(at elapsed: Double) -> some View {
         ZStack {
             Backdrop(style: .sky)
-            HStack(alignment: .bottom, spacing: 2) {
+            HStack(alignment: .bottom, spacing: costumeGap) {
                 ForEach(Array(costumeCast.enumerated()), id: \.offset) { index, member in
                     VStack(spacing: 0) {
                         // Every crab keeps a bubble SLOT even while silent, so
@@ -744,7 +765,7 @@ enum ReelRenderer {
                         // sideways — 44k crab-band pixels moved in one frame,
                         // measured. A bubble slot is chrome; chrome does not
                         // get to relayout the cast.
-                        .frame(width: 178, height: 44)
+                        .frame(width: costumeBubbleSlot, height: 44)
                         PixelCanvasView(
                             buffer: CrabRig.render(costumePose(member, at: elapsed),
                                                    costume: member.costume),
@@ -762,8 +783,38 @@ enum ReelRenderer {
         .background(Palette.Ocean.abyss)
     }
 
+    /// The bubble slot's fixed width, and the gap between the three of them.
+    /// Named rather than written into the layout twice, because
+    /// `CostumeStripTests` does the overflow arithmetic against them: a bubble
+    /// is centred over its slot and may be `ThoughtBubble.maxWidth` wide, so
+    /// the canvas has to carry the difference at both ends. A pin that
+    /// re-typed these numbers would go on passing after someone changed them.
+    static let costumeBubbleSlot: CGFloat = 178
+    static let costumeGap: CGFloat = 2
+
     /// Wider than the hero, because three crabs stand in it.
-    static let costumeCanvas = CGSize(width: 560, height: 210)
+    /// 🔎 WIDENED FROM 560 so the outer bubbles have somewhere to overflow to,
+    /// and the arithmetic is the whole reason.
+    ///
+    /// Three 178pt bubble slots plus two 2pt gaps are 538pt of cast. At 560
+    /// that left 11pt of margin each side — but a `ThoughtBubble` sizes itself
+    /// to its content up to `maxWidth` 276, so a full-width bubble overflows
+    /// its own slot by 49pt on each side. The middle and right crabs absorb
+    /// that into their neighbours' sky. The LEFTMOST one had 11pt and needed
+    /// 49, so anything long enough went 38pt off-canvas and lost its first
+    /// letters — which is exactly what happened to "Anthropic".
+    ///
+    /// That made this file a silent constraint on `FunFacts`: the Gundam's
+    /// line had to stay near 29 characters or the render quietly clipped, and
+    /// nothing said so until the deck was re-cut in September 2026 and every
+    /// short fact stopped existing. At 640 the margin is 51pt, which clears
+    /// the 49 with room, and a fact of any length the bubble will draw now
+    /// fits. The deck is not constrained by a marketing asset any more.
+    ///
+    /// 672 rather than the 640 that merely clears it: at 640 the widest
+    /// bubble lands 2pt from the edge, which is arithmetically safe and reads
+    /// as an accident. 672 leaves 18pt, which reads as a margin.
+    static let costumeCanvas = CGSize(width: 672, height: 210)
     /// Whole multiples of the 32-cell grid at `heroScale`, so no cell lands on
     /// a fractional device pixel.
     static let costumeSprite: CGFloat = 112

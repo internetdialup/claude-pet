@@ -32,11 +32,23 @@ struct CostumeStripTests {
             guard let line = member.line else { continue }
             #expect(ActivityCoordinator.bubbleStyle(for: line) == .plain,
                     "\"\(line)\" scrolls, and the strip no longer renders a ticker")
-            // A cast line has to fit the bubble it is drawn in, and the strip
-            // is narrower than the desktop: the leftmost crab's card is
-            // centred over him and runs off the canvas if it goes full width.
-            #expect(MarqueeText.measure(line) <= ThoughtBubble.textWidth,
-                    "\"\(line)\" is \(MarqueeText.measure(line))pt and wraps, which the strip has no room for")
+            // A cast line has to fit the bubble it is drawn in — the TWO-line
+            // bubble, which is the same budget every fact in the deck is held
+            // to. It does not have to fit on one line.
+            //
+            // 🔎 That distinction is the whole of this round. The ceiling here
+            // used to be `textWidth`, which is one line's worth, and the real
+            // reason was horizontal: the leftmost crab's bubble is centred
+            // over a `costumeBubbleSlot` and a full-width one overflowed a
+            // 560pt canvas by 38pt, so "Anthropic" arrived as "hropic". The
+            // canvas was widened to absorb that, and the test below asserts
+            // the clearance directly. This pin was the last thing enforcing
+            // the old width from the other side — a marketing asset quietly
+            // holding `FunFacts` to 29 characters, which is what made the
+            // short facts terse in the first place.
+            let budget = ThoughtBubble.plainCapacity
+            #expect(line.count <= budget,
+                    "\"\(line)\" is \(line.count) characters against a \(budget)-character bubble")
         }
         // …and the clip has to outlast the last gesture in it, or the strip
         // cuts someone off mid-wave.
@@ -45,6 +57,30 @@ struct CostumeStripTests {
             .max() ?? 0
         #expect(lastBeat < seconds,
                 "the last flourish ends at \(lastBeat)s in a \(seconds)s strip")
+    }
+
+    /// The clearance the widened canvas buys, asserted as arithmetic instead
+    /// of being left to a fact's length.
+    ///
+    /// A `ThoughtBubble` sizes itself to its content up to `maxWidth`, and the
+    /// strip centres it over a fixed `costumeBubbleSlot` that is narrower than
+    /// that. So the widest bubble the strip can draw hangs over its slot by
+    /// half the difference at EACH end, and the outermost crab has only the
+    /// canvas margin to hang into. When the margin was 11pt against a 49pt
+    /// overhang, the leftmost line lost its first letters — silently, in a
+    /// committed asset, for as long as no fact was long enough to show it.
+    ///
+    /// This is the pin that should have existed then. It reads the shipped
+    /// numbers rather than restating them, so narrowing the canvas or widening
+    /// the bubble fails here rather than in whichever fact happens to be long.
+    @Test("the widest bubble the strip can draw stays on the canvas")
+    func theOuterBubbleClearsTheEdge() {
+        let cast = ReelRenderer.costumeBubbleSlot * 3 + ReelRenderer.costumeGap * 2
+        let margin = (ReelRenderer.costumeCanvas.width - cast) / 2
+        let overhang = (ThoughtBubble.maxWidth - ReelRenderer.costumeBubbleSlot) / 2
+        let note = "a full-width bubble hangs \(overhang)pt past its slot "
+            + "and the outer crab has \(margin)pt of canvas to hang into"
+        #expect(margin >= overhang, "\(note)")
     }
 
     /// The seam itself, in points: a marquee given the clip as its loop puts

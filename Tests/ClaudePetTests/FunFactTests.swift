@@ -149,18 +149,28 @@ struct FunFactTests {
         #expect(Set(FunFacts.all).count == FunFacts.all.count, "a fact is duplicated")
     }
 
-    /// The CS-101 pool's whole reason for existing: it is the one that does not
-    /// scroll. A line that outgrows the plain bubble does not just look
-    /// different, it gets handed to the marquee and loops — so this is the
-    /// pool's contract, not a style note.
+    /// 🔎 **This pin was guarding a reason that expired, and it is worth
+    /// recording why rather than quietly widening the number.**
     ///
-    /// Against `ThoughtBubble.plainColumns`, never a restated 29 — the ceiling
-    /// belongs to the bubble's width and padding, and a test carrying its own
-    /// copy would keep passing after someone widened it.
-    @Test("Every CS-101 line fits the bubble without scrolling")
-    func shortPoolStaysShort() {
+    /// It used to assert `plainColumns` — 38, ONE row — and its doc said the
+    /// CS-101 pool existed because "it is the one that does not scroll". That
+    /// was true when a line longer than one row went to the marquee. The bubble
+    /// has since been widened to 38 columns over TWO rows, so **nothing in the
+    /// deck scrolls any more**: the longest fact anywhere is under the 76-column
+    /// capacity, and `noFactScrolls` below asserts exactly that for all of them.
+    ///
+    /// What one row actually bought, by the end, was terseness — the pool read
+    /// as a glossary rather than a set of facts, which is what the operator
+    /// reported. So the ceiling moves to the same `plainCapacity` every other
+    /// pool gets, and this test now guards the thing that is still true: a
+    /// CS-101 line must still land in the PLAIN bubble, never the marquee.
+    ///
+    /// Against the constant either way, never a restated number — a test
+    /// carrying its own copy would keep passing after someone moved the bubble.
+    @Test("Every CS-101 line still lands in the plain bubble")
+    func shortPoolStaysPlain() {
         for fact in FunFacts.facts(in: .compSci101) {
-            #expect(columns(fact) <= ThoughtBubble.plainColumns,
+            #expect(columns(fact) <= ThoughtBubble.plainCapacity,
                     "\"\(fact)\" is \(columns(fact)) columns and would scroll")
             #expect(ActivityCoordinator.bubbleStyle(for: fact) == .plain)
         }

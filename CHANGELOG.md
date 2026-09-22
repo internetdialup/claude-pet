@@ -55,6 +55,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Changed
 
+- **📅 The fun facts read like facts now.** All seventy-six rewritten in one
+  voice, with a date wherever a date makes the fact land — fifty-seven carry
+  one, up from twenty-seven — and the terse one-liners that read like glossary
+  entries are gone; every fact gets both lines of the bubble instead of being
+  squeezed onto one. Four had quietly gone out of date and are corrected: the
+  Model Context Protocol moved to the Linux Foundation in December 2025, the
+  constitution was rewritten in January 2026, `temperature` is retired, and
+  model cards are called system cards.
 - **💗 Hearts twice as often.** The idle heart comes round about every minute
   of idling now instead of every two and a half, on every look.
 - **Lighter wheels.** Every board rides 2×2 wheels now — a rim over a hub —
