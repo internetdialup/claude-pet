@@ -15,23 +15,54 @@ import Foundation
 @MainActor
 struct WheelRollTests {
 
-    /// The tail wheel takes `inner: 1`, the nose wheel `inner: 0` — the bearing
-    /// sits toward the board's centre on each.
-    private let tail = 1, nose = 0
-
-    /// Rest is where the bearing has always been, and that is the load-bearing
-    /// fact of the whole change rather than a nicety.
+    /// Rest is bottom-right, one cell for every wheel on every board.
     ///
-    /// Seven of the ten call sites never pass a roll, so they render through the
-    /// default; and `DeckStanceTests` holds six tricks' first frames to the
-    /// resting deck cell-for-cell. A wheel that began a trick anywhere else
-    /// would be a one-frame change at the exact instant the first law forbids
-    /// one. The tail's rest is bottom-RIGHT and the nose's bottom-LEFT, which is
-    /// why the pair runs a quarter-turn apart rather than in lockstep.
-    @Test("roll 0 is exactly where the bearing has always sat")
-    func restIsUnchanged() {
-        #expect(CrabRig.bearingCell(inner: tail, roll: 0) == (1, 1))
-        #expect(CrabRig.bearingCell(inner: nose, roll: 0) == (0, 1))
+    /// Eight of the eleven call sites never pass a roll, so they render through
+    /// the default — counted, because the last round wrote "seven of the ten"
+    /// and neither number was ever right: folding the cruise in made an
+    /// eleventh site, and three of them pass a roll.
+    ///
+    /// `DeckStanceTests` holds six tricks' first frames to the
+    /// resting deck cell-for-cell — which still passes, because rest moved for
+    /// the resting deck and for the tricks together. A wheel that began a trick
+    /// on a different cell from the deck it started on would be a one-frame
+    /// change at the instant the first law forbids one.
+    ///
+    /// Bottom-right rather than bottom-left because `BackSmithTests` reads
+    /// `.yellow` in column 11 — the tail hub's left cell — to pin the grind
+    /// wheel's bottom row.
+    @Test("every wheel rests on the same cell, bottom-right")
+    func restIsShared() {
+        #expect(CrabRig.bearingCell(roll: 0) == (1, 1))
+    }
+
+    /// 🔎 The sync itself, read off a render rather than off the signature.
+    ///
+    /// `bearingCell` takes no wheel any more, so two wheels *cannot* disagree —
+    /// but that is an argument about the code, and the operator's note was about
+    /// the picture. This draws a board's two wheels at a spread of rolls and
+    /// checks the bearing sits at the same offset inside each 2x2, which is the
+    /// thing that was actually wrong for one round.
+    @Test("both wheels of a board are always on the same cell")
+    func theyStayInSync() {
+        for step in 0..<16 {
+            let roll = Double(step) / 4.3
+            var b = PixelBuffer()
+            CrabRig.drawWheel(&b, x: 11, y: 25, roll: roll)
+            CrabRig.drawWheel(&b, x: 20, y: 25, roll: roll)
+            func offset(_ hub: Int) -> (Int, Int)? {
+                for dy in 0..<2 where true {
+                    for dx in 0..<2 where b[hub + dx, 26 + dy] == CrabRig.bearingInk {
+                        return (dx, dy)
+                    }
+                }
+                return nil
+            }
+            let tail = offset(11), nose = offset(20)
+            #expect(tail != nil && nose != nil, "a wheel lost its bearing at roll \(roll)")
+            #expect(tail! == nose!,
+                    "at roll \(roll) the tail sits at \(tail!) and the nose at \(nose!)")
+        }
     }
 
     /// Turns, not radians — `torsoTurn`'s convention, where a whole turn renders
@@ -39,29 +70,22 @@ struct WheelRollTests {
     /// bought by arithmetic rather than by frame rate.
     @Test("a whole turn comes back to rest, and never unwinds")
     func aTurnIsATurn() {
-        for inner in [0, 1] {
-            #expect(CrabRig.bearingCell(inner: inner, roll: 1.0)
-                    == CrabRig.bearingCell(inner: inner, roll: 0))
-            #expect(CrabRig.bearingCell(inner: inner, roll: 7.0)
-                    == CrabRig.bearingCell(inner: inner, roll: 0))
-            // Mid-step, not just on the boundary: three-quarters of the way
-            // through a step is still that step.
-            #expect(CrabRig.bearingCell(inner: inner, roll: 0.2)
-                    == CrabRig.bearingCell(inner: inner, roll: 0))
-        }
+        #expect(CrabRig.bearingCell(roll: 1.0) == CrabRig.bearingCell(roll: 0))
+        #expect(CrabRig.bearingCell(roll: 7.0) == CrabRig.bearingCell(roll: 0))
+        // Mid-step, not just on the boundary: three-quarters of the way through
+        // a step is still that step.
+        #expect(CrabRig.bearingCell(roll: 0.2) == CrabRig.bearingCell(roll: 0))
     }
 
     /// Four positions, all of them used. A ring that visited three would read as
     /// a rock rather than a roll.
     @Test("the bearing visits all four cells of the square")
     func theRingIsWhole() {
-        for inner in [0, 1] {
-            let seen = Set((0..<4).map { step in
-                let c = CrabRig.bearingCell(inner: inner, roll: Double(step) / 4)
-                return "\(c.0),\(c.1)"
-            })
-            #expect(seen.count == 4, "inner \(inner) visited \(seen.count) cells, not 4")
-        }
+        let seen = Set((0..<4).map { step in
+            let c = CrabRig.bearingCell(roll: Double(step) / 4)
+            return "\(c.0),\(c.1)"
+        })
+        #expect(seen.count == 4, "the ring visited \(seen.count) cells, not 4")
     }
 
     /// 🔎 Clockwise, and both wheels the same way — neither is a preference.
@@ -71,21 +95,20 @@ struct WheelRollTests {
     /// on a screen with y growing downward means the top cell moves toward `+x`.
     /// And two wheels under one board do not counter-rotate, however symmetric
     /// the static pair used to look — the `inner` mirror is a shading
-    /// convention, not a direction.
+    /// convention, not a direction — and it is gone now, since both wheels
+    /// share one ring.
     @Test("both wheels turn clockwise, the way the ground says they must")
     func theyTurnTheWayHeTravels() {
         // Clockwise on this ring is top-left → top-right → bottom-right →
         // bottom-left, which is the order the cruise has always used.
         #expect(CrabRig.wheelCells.elementsEqual([(0, 0), (1, 0), (1, 1), (0, 1)], by: ==))
-        for inner in [0, 1] {
-            for step in 0..<4 {
-                let here = CrabRig.bearingCell(inner: inner, roll: Double(step) / 4)
-                let next = CrabRig.bearingCell(inner: inner, roll: Double(step + 1) / 4)
-                let i = CrabRig.wheelCells.firstIndex { $0 == here }!
-                let j = CrabRig.wheelCells.firstIndex { $0 == next }!
-                #expect(j == (i + 1) % 4,
-                        "inner \(inner) went \(here) → \(next), which is not clockwise")
-            }
+        for step in 0..<4 {
+            let here = CrabRig.bearingCell(roll: Double(step) / 4)
+            let next = CrabRig.bearingCell(roll: Double(step + 1) / 4)
+            let i = CrabRig.wheelCells.firstIndex { $0 == here }!
+            let j = CrabRig.wheelCells.firstIndex { $0 == next }!
+            #expect(j == (i + 1) % 4,
+                    "the ring went \(here) → \(next), which is not clockwise")
         }
     }
 

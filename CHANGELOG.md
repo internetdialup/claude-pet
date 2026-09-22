@@ -58,8 +58,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - **🛞 The wheels turn when he rolls.** Cruising, in a manual and in a nose
   manual, the bearing walks round the wheel instead of sitting still — once per
   wheel's-worth of ground, so each board's wheels agree with the floor actually
-  moving underneath them. They stay still where they should: parked on the
-  deck, in the air mid-trick, and locked on the ledge through a grind.
+  moving underneath them, and both wheels of a board keep step with each other.
+  They stay still where they should: parked on the deck, in the air mid-trick,
+  and locked on the ledge through a grind.
 - **📅 The fun facts read like facts now.** All seventy-six rewritten in one
   voice, with a date wherever a date makes the fact land — fifty-seven carry
   one, up from twenty-seven — and the terse one-liners that read like glossary

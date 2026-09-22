@@ -1731,14 +1731,6 @@ public enum CrabRig {
     /// black".
     static let bearingInk: PixelBuffer.Ink = .screenDark
 
-    /// 🛞 ONE WHEEL, drawn once: two cells wide and two tall — a rim row over a
-    /// hub row, the bearing at the cell toward the board's centre so the pair
-    /// reads symmetric. It was a 3×3 block with the bearing in the middle,
-    /// which under a standing crab the operator read as "big ass wheels";
-    /// every board draws this now, so a trick can never change the wheel it
-    /// starts from. `y` is the row the wheel hangs from (the deck's, or the
-    /// orbiting flips' virtual one); `inner` is 1 for the tail wheel and 0
-    /// for the nose wheel.
     /// 🛞 The four cells of a wheel in CLOCKWISE screen order, as offsets from
     /// `(x, y + 1)`: top-left, top-right, bottom-right, bottom-left.
     ///
@@ -1791,30 +1783,54 @@ public enum CrabRig {
         (cells * wheelTurnsPerCell * 4) / (seconds / frameDelay)
     }
 
-    static func drawWheel(_ b: inout PixelBuffer, x: Int, y: Int, inner: Int,
+    /// 🛞 ONE WHEEL, drawn once: two cells wide and two tall — a rim row over a
+    /// hub row, with a single dark bearing cell that `roll` walks around the
+    /// square. It was a 3×3 block with the bearing in the middle, which under a
+    /// standing crab the operator read as "big ass wheels"; every board draws
+    /// this now, so a trick can never change the wheel it starts from. `y` is
+    /// the row the wheel hangs from — the deck's, or the orbiting flips'
+    /// virtual one.
+    ///
+    /// 🔎 This comment spent a commit describing something else. The ring and
+    /// the rate constants were inserted between it and its `func`, so the whole
+    /// block silently became `wheelCells`' documentation and `drawWheel` had
+    /// none — and the sentence it opened with went stale in the same breath,
+    /// still promising a bearing "toward the board's centre so the pair reads
+    /// symmetric" after `bearingCell` had stopped doing that. A doc comment
+    /// separated from its declaration is not a doc comment, and nothing warns.
+    static func drawWheel(_ b: inout PixelBuffer, x: Int, y: Int,
                           ink: PixelBuffer.Ink = .yellow, roll: Double = 0) {
         b.rect(x, y + 1, 2, 2, ink)
-        let bearing = bearingCell(inner: inner, roll: roll)
+        let bearing = bearingCell(roll: roll)
         b.pixel(x + bearing.0, y + 1 + bearing.1, bearingInk)
     }
 
     /// Where the bearing sits for a given roll, in TURNS — the convention
     /// `torsoTurn` uses, where 1.0 renders byte-identically to 0.
     ///
-    /// **`roll` 0 is exactly where the bearing has always sat**, the cell toward
-    /// the board's centre, and that is load-bearing rather than tidy: seven of
-    /// the ten call sites never pass a roll at all, and `DeckStanceTests` holds
-    /// six tricks' first frames to the resting deck cell-for-cell. A wheel that
-    /// started a trick somewhere else would be a one-frame change at the exact
-    /// moment the first law forbids one.
+    /// 🔎 **One ring, so both wheels of a board are always on the same cell.**
+    /// They were a quarter-turn apart for exactly one round, because each wheel
+    /// indexed from its own rest: the bearing used to sit on the cell toward the
+    /// board's CENTRE, which mirrored the pair while they were still and put
+    /// them permanently out of step the moment they turned. The operator's call
+    /// was to keep them in sync, and the mirror is what had to give.
     ///
-    /// The two wheels therefore start a quarter-turn apart — the tail's rest is
-    /// bottom-right, the nose's bottom-left — and both then run the SAME way
-    /// round. That breaks today's `inner` mirror on purpose: the mirror is a
-    /// shading convention, and two wheels under one board do not counter-rotate.
-    nonisolated static func bearingCell(inner: Int, roll: Double) -> (Int, Int) {
+    /// It gives easily, because it was only ever a static shading choice and it
+    /// stops being coherent the instant a wheel moves: two wheels rolling on one
+    /// floor at one speed are at one phase, so when they stop they stop at the
+    /// same phase too. A parked board with both notches on the same side is the
+    /// state the rolling one actually settles into.
+    ///
+    /// The shared rest is the TAIL's old cell, bottom-right, and that is chosen
+    /// rather than tidy. `BackSmithTests` pins the grind wheel's bottom row by
+    /// reading `.yellow` in column 11 — the tail hub's left cell — which only
+    /// holds while the tail's bearing stays on the right. Keeping the tail still
+    /// costs the nose wheel one cell; keeping the nose would have cost that pin.
+    nonisolated static func bearingCell(roll: Double) -> (Int, Int) {
         let step = Int(((roll - roll.rounded(.down)) * 4).rounded(.down))
-        return wheelCells[(3 - inner + step) % 4]
+        // 2 is bottom-right on the clockwise ring — where the tail wheel's
+        // bearing has sat since the wheel became 2x2.
+        return wheelCells[(2 + step) % 4]
     }
 
     private static func drawFlatSpin(_ b: inout PixelBuffer, dx: Int, dy: Int,
@@ -1835,8 +1851,8 @@ public enum CrabRig {
             // stands on. The trucks still ride the shrinking deck, because on
             // a flat spin they have to foreshorten with it; at half 5 they sit
             // at 14 and 17 with a cell of daylight between.
-            for (hub, inner) in [(cx - half + 3, 1), (cx + half - 4, 0)] {
-                drawWheel(&b, x: hub, y: deckY, inner: inner, ink: wheelInk)
+            for hub in [cx - half + 3, cx + half - 4] {
+                drawWheel(&b, x: hub, y: deckY, ink: wheelInk)
             }
         }
         // Two cells while there is deck enough to spare them, one when the
@@ -1925,8 +1941,8 @@ public enum CrabRig {
             // Hung from `orbit - 3`, so at rest (orbit 3) the rim is the row
             // under the deck — level with every fixed-hub board. The swing is
             // unchanged; only where it starts is pinned.
-            for (hub, inner) in [(cx + truckReach - 1, 0), (cx - truckReach, 1)] {
-                drawWheel(&b, x: hub, y: deckY + orbit - 3, inner: inner, ink: wheelInk)
+            for hub in [cx + truckReach - 1, cx - truckReach] {
+                drawWheel(&b, x: hub, y: deckY + orbit - 3, ink: wheelInk)
             }
         }
         // One bright cell on the nose itself, so the end you are following
@@ -1996,8 +2012,8 @@ public enum CrabRig {
     static func drawRestingDeck(_ b: inout PixelBuffer, dx: Int, dy: Int) {
         let cx = 16 + dx, deckY = 25 + dy
         b.rect(cx - 8, deckY, 17, 1, .deck)
-        for (hub, inner) in [(cx - 5, 1), (cx + 4, 0)] {
-            drawWheel(&b, x: hub, y: deckY, inner: inner)
+        for hub in [cx - 5, cx + 4] {
+            drawWheel(&b, x: hub, y: deckY)
         }
     }
 
@@ -2599,8 +2615,8 @@ public enum CrabRig {
                 // resting deck recorded. The bearing is `.screenDark`, not
                 // slate: slate is the DECK's ink and nothing else's, which is
                 // what lets the suite measure the deck by looking for it.
-                for (hub, inner) in [(cx - 5, 1), (cx + 4, 0)] {
-                    drawWheel(&b, x: hub, y: deckY + orbit - 3, inner: inner, ink: wheelInk)
+                for hub in [cx - 5, cx + 4] {
+                    drawWheel(&b, x: hub, y: deckY + orbit - 3, ink: wheelInk)
                 }
                 // ✨ Weight: a one-cell flash off a wheel now and then.
                 if wheelShimmer(pose.propPhase) {
@@ -2655,8 +2671,8 @@ public enum CrabRig {
                 // caught once already. At rest (reach 5) they sit at 11 and
                 // 20, the same cells as every fixed-hub board.
                 let reach = max(2, half - 3)
-                for (hub, inner) in [(cx - reach, 1), (cx + reach - 1, 0)] {
-                    drawWheel(&b, x: hub, y: deckY + orbit - 3, inner: inner, ink: wheelInk)
+                for hub in [cx - reach, cx + reach - 1] {
+                    drawWheel(&b, x: hub, y: deckY + orbit - 3, ink: wheelInk)
                 }
                 if wheelShimmer(pose.propPhase) {
                     b.pixel(cx + reach - 1, deckY + orbit - 2, .flameCore)
@@ -2712,8 +2728,8 @@ public enum CrabRig {
             if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
             if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
 
-            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
-                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                drawWheel(&b, x: hub, y: y, ink: wheelInk)
             }
             if wheelShimmer(pose.propPhase) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
@@ -2756,8 +2772,8 @@ public enum CrabRig {
             if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
             if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
 
-            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
-                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                drawWheel(&b, x: hub, y: y, ink: wheelInk)
             }
             if wheelShimmer(pose.propPhase) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
@@ -2787,19 +2803,28 @@ public enum CrabRig {
             // different things. Both wheels take the same roll: the front one
             // rides the raised nose and is off the floor, but a wheel does not
             // stop turning because you lifted it.
-            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
-                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk,
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                drawWheel(&b, x: hub, y: y, ink: wheelInk,
                           roll: p * manualGroundCells * wheelTurnsPerCell)
             }
             // 🔎 The shimmer sits on the wheel's TOP-LEFT cell, which is one of
             // the four the bearing now visits — and `flameCore` against the rim
             // is near enough the same yellow that a frame landing both on one
-            // cell rendered the wheel as a solid block, which is the exact
-            // thing `bearingInk` exists to stop. It happened once in the nose
-            // manual's thirty-two frames. The glint yields: a wheel with no
+            // cell renders the wheel as a solid block, the exact thing
+            // `bearingInk` exists to stop. The glint yields: a wheel with no
             // hole stops reading as a wheel, and a missed sparkle costs nothing.
+            //
+            // **This guard currently never fires, and it is kept anyway.**
+            // Measured by deleting it and re-rendering: zero collisions across
+            // the manual's and the nose manual's 39 frames each. It caught one
+            // when the two wheels ran a quarter-turn apart; syncing them moved
+            // the ring a step and the alignment stopped landing. Which is the
+            // reason to keep it — whether a collision lands is a coincidence
+            // between two unrelated clocks, and any change to a ground constant
+            // reshuffles it. An inert guard costs one comparison; finding this
+            // again cost a frame-by-frame colour count.
             if wheelShimmer(pose.propPhase * 2.6),
-               bearingCell(inner: 1, roll: p * manualGroundCells * wheelTurnsPerCell) != (0, 0) {
+               bearingCell(roll: p * manualGroundCells * wheelTurnsPerCell) != (0, 0) {
                 b.pixel(cx - 5, yTail + 1, .flameCore)
             }
             // Ground rush: three dashes streaming left under the wheels,
@@ -2840,13 +2865,13 @@ public enum CrabRig {
             // 🛞 Turning, for the manual's reason — the branch below already
             // says a nose manual ROLLS, and until now the wheels were the one
             // part of it that did not agree.
-            for (hub, y, inner) in [(cx + 4, yNose, 0), (cx - 5, yTail, 1)] {
-                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk,
+            for (hub, y) in [(cx + 4, yNose), (cx - 5, yTail)] {
+                drawWheel(&b, x: hub, y: y, ink: wheelInk,
                           roll: p * manualGroundCells * wheelTurnsPerCell)
             }
             // The same yield as the manual's, for the same reason.
             if wheelShimmer(pose.propPhase * 2.6),
-               bearingCell(inner: 0, roll: p * manualGroundCells * wheelTurnsPerCell) != (0, 0) {
+               bearingCell(roll: p * manualGroundCells * wheelTurnsPerCell) != (0, 0) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
             }
             // The same ground rush the manual rides, for the same reason: a
@@ -2942,8 +2967,8 @@ public enum CrabRig {
             // cells' worth while the streaks below it travelled 62, so the
             // wheel had always been slipping against its own ground by a
             // third. Reading `cruiseGroundCells` is what stops it.
-            for (hub, inner) in [(cx - 5, 1), (cx + 4, 0)] {
-                drawWheel(&b, x: hub, y: deckY, inner: inner, ink: wheelInk,
+            for hub in [cx - 5, cx + 4] {
+                drawWheel(&b, x: hub, y: deckY, ink: wheelInk,
                           roll: u * cruiseGroundCells * wheelTurnsPerCell)
             }
 
@@ -2981,8 +3006,8 @@ public enum CrabRig {
             b.rect(cx - 8, yTail, 6, 1, .deck)
             b.rect(cx - 2, yMid, 6, 1, .deck)
             b.rect(cx + 4, yNose, 5, 1, .deck)
-            for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
-                drawWheel(&b, x: hub, y: y, inner: inner)
+            for (hub, y) in [(cx - 5, yTail), (cx + 4, yNose)] {
+                drawWheel(&b, x: hub, y: y)
             }
             // ✨ Sparks off the tail truck where it bites the ledge's top —
             // a CONE spraying back and down from the contact point, each fleck
