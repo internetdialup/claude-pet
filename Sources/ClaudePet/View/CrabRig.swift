@@ -1739,11 +1739,82 @@ public enum CrabRig {
     /// starts from. `y` is the row the wheel hangs from (the deck's, or the
     /// orbiting flips' virtual one); `inner` is 1 for the tail wheel and 0
     /// for the nose wheel.
+    /// 🛞 The four cells of a wheel in CLOCKWISE screen order, as offsets from
+    /// `(x, y + 1)`: top-left, top-right, bottom-right, bottom-left.
+    ///
+    /// Clockwise is not a preference. The ledge scrolls RIGHT TO LEFT
+    /// (`drawLedge`, and `drawGroundRush`'s `x = base - scroll`), so the world
+    /// goes left and he goes right — and a wheel rolling right turns clockwise,
+    /// which on this ring means the cell at the top moves toward `+x`.
+    ///
+    /// The cruise board has walked this exact ring, with this exact order, since
+    /// it was written; lifting it here is what lets every board share one wheel.
+    nonisolated static let wheelCells = [(0, 0), (1, 0), (1, 1), (0, 1)]
+
+    /// One revolution per circumference of ground. A wheel is two cells across,
+    /// so it covers `2π` = 6.28 cells per turn, and this is the only conversion
+    /// any rolling board needs.
+    nonisolated static let wheelDiameter = 2.0
+    nonisolated static let wheelTurnsPerCell = 1 / (.pi * wheelDiameter)
+
+    /// 🔎 How far each rolling board's OWN ground moves across its beat, in
+    /// cells — and the reason there is a constant per board rather than one for
+    /// all of them.
+    ///
+    /// The rig has three ground speeds, not one. The ledge does 150 cells over
+    /// the smith's 6.5s (23.1/s, the figure `ledgeTravel` calls his speed), the
+    /// cruise's streaks do 62 over 2.6s (23.8/s), and the manual's rush does 34
+    /// over the same 2.6s (13.1/s) — the manual is a balance trick and travels
+    /// at little more than half a cruise. A single constant taken off the ledge
+    /// would have spun the manual's wheels 1.8× faster than the floor visibly
+    /// moving underneath them, which is exactly the disagreement the grind round
+    /// went to one constant speed to remove.
+    ///
+    /// So the wheel reads the SAME number its own ground reads. They cannot
+    /// drift apart, because there is nothing to drift: `manualGroundCells` is
+    /// the rush's own multiplier, lifted out of the expression it was buried in.
+    nonisolated static let manualGroundCells = 34.0
+    nonisolated static let cruiseGroundCells = 62.0
+
+    /// The bearing's step rate, in steps per frame, for a board whose ground
+    /// covers `cells` across `seconds` — the number that decides whether a wheel
+    /// reads as turning or as noise.
+    ///
+    /// **Measured against the GIF, not the live window.** `GifRenderer` is a
+    /// twelfth of a second, and every committed clip is rendered there, so the
+    /// 20fps house clock is the generous case and the 12fps GIF is the binding
+    /// one. The half cab's own note already fixed the limit in this codebase —
+    /// "a three-state cycle in four frames strobes" — and a four-state ring is
+    /// tighter still. `WheelRollTests` holds this under one step a frame.
+    nonisolated static func wheelStepsPerFrame(cells: Double, seconds: Double,
+                                               frameDelay: Double) -> Double {
+        (cells * wheelTurnsPerCell * 4) / (seconds / frameDelay)
+    }
+
     static func drawWheel(_ b: inout PixelBuffer, x: Int, y: Int, inner: Int,
-                          ink: PixelBuffer.Ink = .yellow) {
-        b.rect(x, y + 1, 2, 1, ink)
-        b.pixel(x + (1 - inner), y + 2, ink)
-        b.pixel(x + inner, y + 2, bearingInk)
+                          ink: PixelBuffer.Ink = .yellow, roll: Double = 0) {
+        b.rect(x, y + 1, 2, 2, ink)
+        let bearing = bearingCell(inner: inner, roll: roll)
+        b.pixel(x + bearing.0, y + 1 + bearing.1, bearingInk)
+    }
+
+    /// Where the bearing sits for a given roll, in TURNS — the convention
+    /// `torsoTurn` uses, where 1.0 renders byte-identically to 0.
+    ///
+    /// **`roll` 0 is exactly where the bearing has always sat**, the cell toward
+    /// the board's centre, and that is load-bearing rather than tidy: seven of
+    /// the ten call sites never pass a roll at all, and `DeckStanceTests` holds
+    /// six tricks' first frames to the resting deck cell-for-cell. A wheel that
+    /// started a trick somewhere else would be a one-frame change at the exact
+    /// moment the first law forbids one.
+    ///
+    /// The two wheels therefore start a quarter-turn apart — the tail's rest is
+    /// bottom-right, the nose's bottom-left — and both then run the SAME way
+    /// round. That breaks today's `inner` mirror on purpose: the mirror is a
+    /// shading convention, and two wheels under one board do not counter-rotate.
+    nonisolated static func bearingCell(inner: Int, roll: Double) -> (Int, Int) {
+        let step = Int(((roll - roll.rounded(.down)) * 4).rounded(.down))
+        return wheelCells[(3 - inner + step) % 4]
     }
 
     private static func drawFlatSpin(_ b: inout PixelBuffer, dx: Int, dy: Int,
@@ -2711,10 +2782,24 @@ public enum CrabRig {
             b.rect(cx + 4, yNose, 5, 1, deckInk)
             if yTail - yMid > 1 { b.pixel(cx - 2, yMid + 1, deckInk) }
             if yMid - yNose > 1 { b.pixel(cx + 4, yNose + 1, deckInk) }
+            // 🛞 He ROLLS, so the wheels turn — the ground streaking underneath
+            // and a wheel frozen mid-stream were telling the viewer two
+            // different things. Both wheels take the same roll: the front one
+            // rides the raised nose and is off the floor, but a wheel does not
+            // stop turning because you lifted it.
             for (hub, y, inner) in [(cx - 5, yTail, 1), (cx + 4, yNose, 0)] {
-                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
+                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk,
+                          roll: p * manualGroundCells * wheelTurnsPerCell)
             }
-            if wheelShimmer(pose.propPhase * 2.6) {
+            // 🔎 The shimmer sits on the wheel's TOP-LEFT cell, which is one of
+            // the four the bearing now visits — and `flameCore` against the rim
+            // is near enough the same yellow that a frame landing both on one
+            // cell rendered the wheel as a solid block, which is the exact
+            // thing `bearingInk` exists to stop. It happened once in the nose
+            // manual's thirty-two frames. The glint yields: a wheel with no
+            // hole stops reading as a wheel, and a missed sparkle costs nothing.
+            if wheelShimmer(pose.propPhase * 2.6),
+               bearingCell(inner: 1, roll: p * manualGroundCells * wheelTurnsPerCell) != (0, 0) {
                 b.pixel(cx - 5, yTail + 1, .flameCore)
             }
             // Ground rush: three dashes streaming left under the wheels,
@@ -2723,7 +2808,7 @@ public enum CrabRig {
             // a cell at a time as the wheelie comes up and is gone before
             // the board levels — it used to stream at full strength until
             // the prop vanished, which is the other half of the abrupt end.
-            let rush = Int((p * 34).rounded())
+            let rush = Int((p * manualGroundCells).rounded())
             let dash = Int((3 * pitch).rounded())
             if dash > 0 {
                 for lane in 0..<3 {
@@ -2752,17 +2837,23 @@ public enum CrabRig {
             b.rect(cx - 8, yTail, 5, 1, deckInk)
             if yNose - yMid > 1 { b.pixel(cx + 3, yMid + 1, deckInk) }
             if yMid - yTail > 1 { b.pixel(cx - 3, yTail + 1, deckInk) }
+            // 🛞 Turning, for the manual's reason — the branch below already
+            // says a nose manual ROLLS, and until now the wheels were the one
+            // part of it that did not agree.
             for (hub, y, inner) in [(cx + 4, yNose, 0), (cx - 5, yTail, 1)] {
-                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk)
+                drawWheel(&b, x: hub, y: y, inner: inner, ink: wheelInk,
+                          roll: p * manualGroundCells * wheelTurnsPerCell)
             }
-            if wheelShimmer(pose.propPhase * 2.6) {
+            // The same yield as the manual's, for the same reason.
+            if wheelShimmer(pose.propPhase * 2.6),
+               bearingCell(inner: 0, roll: p * manualGroundCells * wheelTurnsPerCell) != (0, 0) {
                 b.pixel(cx + 4, yNose + 1, .flameCore)
             }
             // The same ground rush the manual rides, for the same reason: a
             // nose manual ROLLS, and on a fixed camera the world moves rather
             // than the rider. Without it the two halves of the pair read as
             // different tricks — one travelling, one balanced on the spot.
-            let noseRush = Int((p * 34).rounded())
+            let noseRush = Int((p * manualGroundCells).rounded())
             let noseDash = Int((3 * pitch).rounded())
             if noseDash > 0 {
                 for lane in 0..<3 {
@@ -2827,11 +2918,13 @@ public enum CrabRig {
             // his board escapes reads as him losing it, not as speed. The
             // camera is on him. He holds, the world streaks.
             //
-            // The speed is carried by the ground lines, not by the wheels, and
-            // that was measured rather than assumed: a wheel is three points
-            // across, so the bearing mark walking round its hub covers about
-            // nine points in total. Against anything else moving it is
-            // invisible. It stays as a grace note for anyone who looks closely.
+            // The speed is carried mostly by the ground lines. The wheels are
+            // the grace note, and the note that used to sit here —
+            // "a wheel is three points across … about nine points in total" —
+            // was measured on the 3×3 wheel and never revisited when the wheel
+            // came down to 2×2, so it overstated the very thing it dismissed.
+            // Re-measured at the real size and kept, because a turning wheel
+            // costs nothing and the one place it shows is here.
             let u = pose.propPhase.truncatingRemainder(dividingBy: 1)
             let deckY = 25 + dy
             let cx = 16 + dx
@@ -2839,12 +2932,19 @@ public enum CrabRig {
             let wheelInk: PixelBuffer.Ink = .yellow
             b.rect(cx - 8, deckY, 17, 1, deckInk)
 
-            // The bearing walks the four cells of the 2×2, rim then hub.
-            let tick = Int(u * 34) % 4
-            let mark = [(0, 0), (1, 0), (1, 1), (0, 1)][tick]
-            for hub in [cx - 5, cx + 4] {
-                b.rect(hub, deckY + 1, 2, 2, wheelInk)
-                b.pixel(hub + mark.0, deckY + 1 + mark.1, bearingInk)
+            // 🛞 One wheel function, finally. This board walked its own ring
+            // for as long as it has existed — the same four cells, the same
+            // clockwise order — while `drawWheel` drew a wheel that could not
+            // turn, so the rig carried two wheels and only one of them rolled.
+            //
+            // The rate moves in the fold, and toward the floor rather than
+            // away from it: the hand-picked `Int(u * 34)` turned the wheel 34
+            // cells' worth while the streaks below it travelled 62, so the
+            // wheel had always been slipping against its own ground by a
+            // third. Reading `cruiseGroundCells` is what stops it.
+            for (hub, inner) in [(cx - 5, 1), (cx + 4, 0)] {
+                drawWheel(&b, x: hub, y: deckY, inner: inner, ink: wheelInk,
+                          roll: u * cruiseGroundCells * wheelTurnsPerCell)
             }
 
             // Ground streaking past, in the floor band below him — the only
@@ -2855,7 +2955,7 @@ public enum CrabRig {
             if arrive > 0.05 {
                 for lane in 0..<4 {
                     let y = 28 + lane % 3
-                    let travel = (u * 62 + Double(lane) * 7.5)
+                    let travel = (u * cruiseGroundCells + Double(lane) * 7.5)
                         .truncatingRemainder(dividingBy: 26)
                     let x = 26 - Int(travel)
                     let long = 3 + Int(arrive * 2)
