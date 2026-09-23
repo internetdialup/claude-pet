@@ -9,6 +9,10 @@ import Foundation
 public enum AppVersion {
     public static let current = "1.7.0"
 
+    /// Where a newer Claw'd lives — opened only by the menu's "Check for
+    /// updates…", on a click. The app still makes no request of its own.
+    public static let releasesURL = URL(string: "https://github.com/internetdialup/claude-pet/releases/latest")!
+
     /// What the running bundle actually declares. `nil` outside an app bundle —
     /// `swift run` and the test target have no `Info.plist`.
     public static var bundleVersion: String? {

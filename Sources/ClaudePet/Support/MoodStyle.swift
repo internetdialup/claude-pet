@@ -88,6 +88,14 @@ public extension PetMood {
                       bubbleText: Palette.white, glyph: "",
                       frameInterval: 1.0 / 6,      // one slow breath
                       clipSeconds: CrabAnimator.breathPeriod, previewBubble: nil)
+
+        case .confused:
+            // Puzzled, not alarmed: paper and steel rather than the alert pink,
+            // because nothing is on fire — he just cannot read the page.
+            MoodStyle(accent: Palette.steel, bubbleFill: Palette.kraft,
+                      bubbleText: Palette.slate, glyph: "?",
+                      frameInterval: 1.0 / 20, clipSeconds: 4.0,
+                      previewBubble: "This Claw'd doesn't understand your Claude Code yet")
         }
     }
 
@@ -106,6 +114,9 @@ public extension PetMood {
         case .done: .finished
         case .needsAttention: .needsYou
         case .sleeping: .sleeping
+        // Nominal: the confused branch of `derive` writes its own line and
+        // never draws from a pool.
+        case .confused: .thinking
         }
     }
 }

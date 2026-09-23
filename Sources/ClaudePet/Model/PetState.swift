@@ -20,6 +20,16 @@ public enum PetMood: String, Sendable, Codable, CaseIterable {
     case needsAttention
     /// No live sessions at all.
     case sleeping
+    /// Claude Code wrote something this version of Claw'd cannot read — its
+    /// format changed underneath him. The one mood about the PET rather than
+    /// about Claude, and the one that must never be a guess: it fires only on a
+    /// confirmed break (`TranscriptFold.Verdict`, the registry's own check), and
+    /// then he says so instead of pretending to be idle.
+    ///
+    /// Appended LAST, and that is load-bearing: `rainbowMood` walks indices 0–4
+    /// for the party, so a case inserted earlier would have moved `party.gif`
+    /// and `rainbow.gif`.
+    case confused
 
     /// Higher wins when several sessions compete for the crab's face.
     var urgency: Int {
@@ -33,10 +43,20 @@ public enum PetMood: String, Sendable, Codable, CaseIterable {
         // Waiting on the human, but politely — it outranks work because nothing
         // is progressing until you look, and sits under the hard block of a
         // permission prompt.
-        case .nudging: 6
-        case .needsAttention: 7
+        // A session he cannot read outranks work — it is the one thing on the
+        // desk that will not fix itself — and sits under the two states where
+        // YOU are the blocker.
+        case .confused: 6
+        case .nudging: 7
+        case .needsAttention: 8
         }
     }
+
+    /// The moods the README and the marketing renders show: every one but
+    /// `.confused`, which is a failure state rather than a feature — so adding
+    /// it moved no committed asset. The tests walk `allCases`, so its pose is
+    /// gated by every motion and art loop all the same.
+    public static var showcase: [PetMood] { allCases.filter { $0 != .confused } }
 }
 
 /// The complete render input for the pet. One value, rebuilt on every change.
@@ -139,6 +159,10 @@ public struct PetState: Sendable, Equatable {
         /// reasoning, where a label would just be noise.
         case dots
     }
+
+    /// The confused state's explanation, for the menu: what broke. Nil unless
+    /// `mood == .confused`.
+    public var unsupported: String? = nil
 
     public static let sleeping = PetState(
         mood: .sleeping, bubble: nil, tool: nil,

@@ -3,7 +3,7 @@ import Foundation
 /// Folds a Claude Code transcript tail into `ActivityEvent`s.
 ///
 /// **Bounded reads are a correctness requirement, not an optimisation**
-/// (the redline). Transcripts reach 85 MB; a full read is a hang, not a slow
+/// (the redline). Transcripts reach 287 MB (measured September 2026); a full read is a hang, not a slow
 /// path. This type keeps a byte offset and only ever reads forward from it, and
 /// on first attach it seeks to the last `initialWindow` bytes.
 public final class TranscriptFold {
@@ -46,6 +46,8 @@ public final class TranscriptFold {
             // File was truncated or replaced — restart from the new end.
             offset = size > Self.initialWindow ? size - Self.initialWindow : 0
             carry = Data()
+            // …and the window it replays is backlog again, not news.
+            judging = false
             skipLeadingFragment = offset > 0
         }
 
@@ -77,9 +79,80 @@ public final class TranscriptFold {
 
         var events: [ActivityEvent] = []
         for line in lines where !line.isEmpty {
-            events.append(contentsOf: parse(Data(line)))
+            let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any]
+            if judging { judge(object) }
+            events.append(contentsOf: parse(object))
         }
+        // Everything after the first read is news; the first read was backlog.
+        judging = true
         return events
+    }
+
+    // MARK: - Format verdict
+
+    /// 🔎 What this transcript's FORMAT looks like — nil while every rule holds.
+    /// Judged only over lines appended after the first read, never over the
+    /// backlog that read replays.
+    ///
+    /// The whole feature lives or dies on not crying wolf, so the thresholds
+    /// were CALIBRATED rather than chosen: 53,464 real lines across 60
+    /// transcripts written by nine Claude Code versions, 2.1.219 → 2.1.280. The
+    /// longest healthy run with no user or assistant record was 95 lines (84
+    /// queue operations); no line failed to parse; no assistant record lacked
+    /// `message.content`; no user or assistant record lacked `sessionId`.
+    ///
+    /// There is deliberately NO byte rule. The first draft had one — 256 KiB
+    /// with no known record — and the calibration killed it: a healthy 22-line
+    /// run weighed 226 KiB of attachments. Fifteen of the nineteen record types
+    /// on disk are unknown to the pet and entirely normal, which is why "an
+    /// unknown type" alone never fires anything.
+    public private(set) var verdict: FormatProblem?
+    private var reportedVerdict: FormatProblem?
+    private var judging = false
+    private var unparseableRun = 0
+    private var unknownRun = 0
+    private var assistantsWithoutContent = 0
+    private var recordsWithoutSession = 0
+
+    static let unreadableAfter = 50
+    /// 5.3× the longest healthy run observed.
+    static let renamedAfter = 500
+    static let reshapedAfter = 20
+    static let unroutedAfter = 20
+
+    /// The verdict, if it changed since the last call — so the coordinator hears
+    /// a change once rather than on every read.
+    public func takeVerdictChange() -> (changed: Bool, verdict: FormatProblem?) {
+        guard verdict != reportedVerdict else { return (false, verdict) }
+        reportedVerdict = verdict
+        return (true, verdict)
+    }
+
+    private func judge(_ object: [String: Any]?) {
+        guard let object, let type = object["type"] as? String else {
+            unparseableRun += 1
+            if unparseableRun >= Self.unreadableAfter { verdict = .unreadable }
+            return
+        }
+        unparseableRun = 0
+        guard type == "assistant" || type == "user" else {
+            unknownRun += 1
+            if unknownRun >= Self.renamedAfter { verdict = .renamed }
+            return
+        }
+        unknownRun = 0
+        let routed = object["sessionId"] is String
+        let shaped = type == "user" || (object["message"] as? [String: Any])?["content"] is [Any]
+        recordsWithoutSession = routed ? 0 : recordsWithoutSession + 1
+        if type == "assistant" { assistantsWithoutContent = shaped ? 0 : assistantsWithoutContent + 1 }
+        if recordsWithoutSession >= Self.unroutedAfter {
+            verdict = .unrouted
+        } else if assistantsWithoutContent >= Self.reshapedAfter {
+            verdict = .reshaped
+        } else if routed && shaped {
+            // A well-formed record: whatever broke, he can read it again.
+            verdict = nil
+        }
     }
 
     private var skipLeadingFragment = false
@@ -94,10 +167,8 @@ public final class TranscriptFold {
 
     /// Only the fields the pet needs. Anything else in the line is ignored, which
     /// keeps this resilient to Claude Code adding event types.
-    private func parse(_ line: Data) -> [ActivityEvent] {
-        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-              let type = object["type"] as? String
-        else { return [] }
+    private func parse(_ object: [String: Any]?) -> [ActivityEvent] {
+        guard let object, let type = object["type"] as? String else { return [] }
 
         let sessionID = object["sessionId"] as? String ?? ""
         let timestamp = (object["timestamp"] as? String).flatMap(isoFormatter.date(from:)) ?? Date()

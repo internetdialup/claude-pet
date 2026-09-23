@@ -95,6 +95,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let status = NSMenuItem(title: statusLine, action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
+        // The confused state explains itself here, where there is room: what
+        // broke, and the one thing that fixes it. The link is the app's only
+        // `NSWorkspace.open`, and it is a click — the app still makes no request.
+        if let unsupported = state.unsupported {
+            let detail = NSMenuItem(title: unsupported, action: nil, keyEquivalent: "")
+            detail.isEnabled = false
+            menu.addItem(detail)
+            menu.addItem(action("Check for updates…") {
+                NSWorkspace.shared.open(AppVersion.releasesURL)
+            })
+        }
         menu.addItem(.separator())
 
         menu.addItem(action("Show / hide pet") { [weak self] in self?.onToggleVisibility() })
@@ -286,6 +297,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private var statusLine: String {
+        // A broken registry can leave the roster empty, and "No Claude sessions"
+        // would be the very lie the confused state exists to replace.
+        if state.mood == .confused, state.focusedSession == nil { return "Claw'd: confused" }
         guard !state.sessions.isEmpty else { return "No Claude sessions" }
         let focused = state.focusedSession
         let name = focused?.name ?? "—"

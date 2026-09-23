@@ -23,6 +23,9 @@ public struct ActivityEvent: Sendable, Equatable {
         /// Claude Code's registry changed `status` — `busy`, `shell`, `waiting`
         /// or `idle`. Emitted only on a change, never per tick.
         case registryStatus(String)
+        /// A transcript's format verdict CHANGED — a problem found, or nil when
+        /// a readable window cleared it. Emitted only on a change.
+        case formatProblem(FormatProblem?)
         /// A permission prompt or idle notification wants the human.
         case needsAttention(reason: String)
         /// The in-progress todo changed. `activeForm`, e.g. "Refactoring the parser".
@@ -66,7 +69,7 @@ public struct ActivityEvent: Sendable, Equatable {
         // `.taskProgress` rides the same watcher as `.activeTask` but is a
         // derived tally, not a fresh observation of Claude doing something —
         // counting it would re-pin `lastActivity` on every re-read.
-        case .subagents, .taskProgress, .turnAborted: false
+        case .subagents, .taskProgress, .turnAborted, .formatProblem: false
         // Going idle is not activity; starting work, or waiting on you, is.
         case .registryStatus(let status): status != "idle"
         default: true

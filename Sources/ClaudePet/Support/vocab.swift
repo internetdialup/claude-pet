@@ -123,6 +123,16 @@ public enum Vocab {
     /// makes this stop compiling until you write its lines, which is exactly the
     /// reminder you want. A dictionary would just return nil at runtime and he
     /// would silently say nothing.
+    /// What he says when Claude Code's format has moved beyond him. A template,
+    /// not a pool line: it names the version, and there is exactly one of it.
+    /// Kept here because he says it, and everything he says lives in this file.
+    public static func unsupported(version: String?) -> String {
+        if let version, !version.isEmpty {
+            return "This Claw'd doesn't understand Claude Code \(version) yet"
+        }
+        return "This Claw'd doesn't understand your Claude Code yet"
+    }
+
     public static func lines(for occasion: ShoutoutOccasion) -> [String] {
         switch occasion {
 

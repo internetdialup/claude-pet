@@ -123,7 +123,7 @@ struct BubbleCadenceTests {
     /// switch to notice.
     @Test("Facts never speak over a mood that wants an answer")
     func factsStayOutOfTheAlerts() {
-        for mood in [PetMood.nudging, .needsAttention, .done, .thinking, .sleeping] {
+        for mood in [PetMood.nudging, .needsAttention, .done, .thinking, .sleeping, .confused] {
             #expect(!ActivityCoordinator.factMoods.contains(mood),
                     "\(mood.rawValue) would let trivia sit on top of something that needs answering")
         }

@@ -380,7 +380,7 @@ enum ReelRenderer {
     /// One bubble per mood, for the 95 lines of the vocabulary section that had
     /// no picture of the thing they are about.
     static func renderBubbles(to url: URL) -> Bool {
-        let shown = PetMood.allCases.filter { $0 != .sleeping }
+        let shown = PetMood.showcase.filter { $0 != .sleeping }
         // TWO columns, because the page is wide and this used to be a portrait
         // strip sitting in a full-width slot — which is what made the README's
         // right edge look ragged next to the tables.

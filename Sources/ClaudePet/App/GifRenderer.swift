@@ -40,7 +40,7 @@ enum GifRenderer {
         let big = 12   // 32 × 12 = 384px
 
         // One loop per state.
-        for mood in PetMood.allCases {
+        for mood in PetMood.showcase {
             let begin = start(for: mood)
             let frames = stride(from: begin, to: begin + duration(for: mood),
                                 by: frameDelay).map {
@@ -52,7 +52,7 @@ enum GifRenderer {
 
         // One loop walking every state in sequence.
         var tour: [PixelBuffer] = []
-        for mood in PetMood.allCases {
+        for mood in PetMood.showcase {
             let begin = start(for: mood)
             tour += stride(from: begin, to: begin + min(3.0, duration(for: mood)),
                            by: frameDelay).map {
@@ -76,7 +76,7 @@ enum GifRenderer {
         else { return false }
 
         // Stills: every state, and every prop.
-        for mood in PetMood.allCases {
+        for mood in PetMood.showcase {
             guard SpriteImage.write(
                 SpriteImage.png(CrabRig.render(CrabAnimator.pose(mood: mood, t: 0.4)),
                                 pixelsPerCell: 24),
@@ -105,7 +105,7 @@ enum GifRenderer {
             return false
         }
 
-        for mood in PetMood.allCases {
+        for mood in PetMood.showcase {
             let begin = start(for: mood)
             let frames = stride(from: begin, to: begin + duration(for: mood),
                                 by: frameDelay).map { t in
@@ -172,7 +172,7 @@ enum GifRenderer {
                     tint: { CrabView.rainbowTint(elapsed: Double($0) * frameDelay) })
         else { return false }
 
-        let count = PetMood.allCases.count + CrabAnimator.Greeting.allCases.count
+        let count = PetMood.showcase.count + CrabAnimator.Greeting.allCases.count
             + CrabAnimator.Flourish.allCases.count + 1
         print("wrote \(count) GIFs to \(root.path)")
         return true

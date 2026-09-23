@@ -9,6 +9,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **🤔 He tells you when he can't keep up.** If Claude Code ever changes what
+  it writes beyond what this version can read, he stops guessing: a puzzled
+  pose and a bubble naming the version — *This Claw'd doesn't understand Claude
+  Code 2.1.x yet* — and the menu says what broke, with **Check for updates…**.
+  It never fires on a version number alone, only on a format that has actually
+  changed, and it clears itself the moment things read again.
+- **⏳ Permission prompts, without installing anything.** Current Claude Code
+  publishes when a session is waiting on you, and he now shows it — no hook
+  required. He also starts thinking the moment you send a prompt, instead of
+  waiting for the first reply to land.
 - **🌈 Rainbow mode.** The skate session is a combo now: ollie, kickflip,
   shove-it, nollie and a back smith, trick to trick with no roll-away between,
   and his shell tints through the rainbow a little more with every landing —
@@ -194,6 +204,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Fixed
 
+- **A rate limit no longer leaves him "working" forever.** After a 429 or an
+  interrupted reply the turn ends quietly — no celebration for a turn that
+  failed — and the ticker no longer reads `MODEL · <Synthetic>`.
+- **`/clear` no longer strands him on the old conversation.** He follows the
+  session into its new transcript, and a worktree switch no longer loses it.
+- **Sessions in folders with accented letters, non-Latin names, emoji, or very
+  long paths are seen at all.** He was looking for a folder name Claude Code
+  never writes.
+- **Opus 5.5 is named as itself**, not as Opus 5.
 - **🛹💬 He shouts about the trick he actually landed.** Dressed in a costume
   that leans the rotation — Skater, Sonic, Gundam — the shout was predicted
   from the bare crab's deck, so it could fire for a trick he never did or miss

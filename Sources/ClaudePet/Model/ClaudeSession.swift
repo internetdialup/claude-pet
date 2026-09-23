@@ -90,6 +90,9 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// PLACE with a new sessionId, so the FILE — not the pid, which every test
     /// fixture shares — is what says "this is the same terminal".
     public var registryFile: String?
+    /// Set when this session's transcript has broken in a way the pet can
+    /// confirm — see `TranscriptFold.verdict`. Nil while every rule holds.
+    public var formatProblem: FormatProblem?
 
     /// Last path component of `cwd` — what the roster shows as the project name.
     public var projectName: String {
@@ -177,5 +180,34 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
         Self.projectDirectory(for: cwd, sessionID: id)
             .appendingPathComponent(id)
             .appendingPathComponent("subagents")
+    }
+}
+
+/// A way Claude Code's on-disk format can break under the pet. Each case is a
+/// SHAPE a rule confirmed — never "a newer version", which is not a break at
+/// all: Claude Code shipped 64 releases between the CLI on the operator's PATH
+/// and the desktop build, and the pet read every one of them.
+public enum FormatProblem: String, Sendable, Equatable {
+    /// Lines that are not JSON objects with a string `type`.
+    case unreadable
+    /// Valid JSON, but a long run with no `assistant` or `user` record — the
+    /// record types were renamed.
+    case renamed
+    /// `assistant` records without `message.content` as an array.
+    case reshaped
+    /// Records without a string `sessionId`, so none of them can be routed.
+    case unrouted
+    /// The session registry itself: a live process's file that will not decode.
+    case registry
+
+    /// What broke, in words, for the menu.
+    public var detail: String {
+        switch self {
+        case .unreadable: "The transcript isn't in a format this version can read"
+        case .renamed: "The transcript's record types changed"
+        case .reshaped: "Claude's replies are in a shape this version can't read"
+        case .unrouted: "Transcript lines no longer say which session they belong to"
+        case .registry: "The session registry is in a shape this version can't read"
+        }
     }
 }

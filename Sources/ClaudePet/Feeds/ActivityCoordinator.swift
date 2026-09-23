@@ -24,6 +24,12 @@ final class FoldStore: @unchecked Sendable {
         folds[id]?.pump(url: url) ?? []
     }
 
+    /// The fold's format verdict, as an event, if it changed since last asked.
+    func verdictEvent(_ id: String) -> ActivityEvent? {
+        guard let change = folds[id]?.takeVerdictChange(), change.changed else { return nil }
+        return ActivityEvent(sessionID: id, kind: .formatProblem(change.verdict))
+    }
+
     func remove(_ id: String) {
         folds.removeValue(forKey: id)
     }
@@ -576,12 +582,40 @@ public final class ActivityCoordinator {
             sessions.removeValue(forKey: id)
         }
 
+        watchRegistry(unreadable: unreadable)
+
         // First sight is a snapshot of a state already in progress, not news:
         // no chirp and no notification for a prompt that was waiting before
         // the pet launched — the same rule as the transcript's priming pass.
         if !firstSight.isEmpty { ingest(firstSight, suppressAlerts: true) }
         if !changes.isEmpty { ingest(changes) }
         recompute()
+    }
+
+    /// When each live process's registry file was first seen unreadable.
+    private var unreadableSince: [String: Date] = [:]
+    /// A LIVE process's registry file has refused to decode on reads at least
+    /// `registryBreakAfter` apart. One failed read is a torn write — Claude Code
+    /// truncates, then writes — and a persistent one is a format.
+    private(set) var registryProblem = false
+    nonisolated static let registryBreakAfter: TimeInterval = 4
+
+    /// Tracks unreadable files named for a live pid — Claude Code names them
+    /// `<pid>.json`, and its own reader takes the pid from the filename. A file
+    /// with no pid in its name, or a dead one, is never a format problem.
+    private func watchRegistry(unreadable: Set<String>, now: Date = Date()) {
+        let live = unreadable.filter { name in
+            guard let pid = Int32(name.dropLast(5)), pid > 0 else { return false }
+            return kill(pid, 0) == 0
+        }
+        unreadableSince = unreadableSince.filter { live.contains($0.key) }
+        for name in live where unreadableSince[name] == nil { unreadableSince[name] = now }
+        registryProblem = Self.registryBroken(unreadableSince, now: now)
+    }
+
+    /// Pure, so its edges are pinned without a coordinator.
+    nonisolated static func registryBroken(_ since: [String: Date], now: Date) -> Bool {
+        since.values.contains { now.timeIntervalSince($0) >= registryBreakAfter }
     }
 
     /// A pin names a session id, and `/clear` retires that id while the same
@@ -638,7 +672,8 @@ public final class ActivityCoordinator {
         // the serial queue is its isolation.
         transcriptWatchers[id] = FileWatcher(url: transcriptURL, queue: queue) { [weak self] in
             guard let self else { return }
-            let events = self.folds.pump(id, url: transcriptURL)
+            var events = self.folds.pump(id, url: transcriptURL)
+            if let verdict = self.folds.verdictEvent(id) { events.append(verdict) }
             guard !events.isEmpty else { return }
             Task { @MainActor in self.ingest(events) }
         }
@@ -801,6 +836,11 @@ public final class ActivityCoordinator {
                     // ends the turn quietly only if the transcript never does.
                     break
                 }
+            case .formatProblem(let problem):
+                session.formatProblem = problem
+                // Readable again: back to idle, and the next record says what
+                // he is doing. (Entering is handled below, for every event.)
+                if problem == nil, session.mood == .confused { session.mood = .idle }
             case .turnAborted:
                 // Over, not finished. Straight to idle — no `.done`, so no
                 // celebration, no completion badge and no "finished" alert for
@@ -872,6 +912,16 @@ public final class ActivityCoordinator {
             if session.mood != .done {
                 session.celebrating = false
                 session.epicCelebrating = false
+            }
+
+            // A session he cannot read stays confused whatever else arrives —
+            // a registry `busy`, a stray tool record — until a readable window
+            // clears the verdict. Showing a guess here is the one thing this
+            // state exists not to do.
+            if session.formatProblem != nil {
+                session.mood = .confused
+                session.tool = nil
+                session.activity = nil
             }
 
             sessions[session.id] = session
@@ -948,12 +998,19 @@ public final class ActivityCoordinator {
         case .needsAttention: attentionStaleAfter
         case .thinking, .cooking: staleAfter
         case .idle, .nudging, .sleeping: nil
+        // Never decays: a format he cannot read does not start reading itself
+        // after ten minutes. It clears when a readable window arrives.
+        case .confused: nil
         }
     }
 
     /// `now` is a parameter so a test can ADVANCE time rather than shrink the
     /// shared static limits — the race `forgetHeldLines` records.
     func recompute(now: Date = Date()) {
+        // Re-asked every tick, not only on a registry change: a file that stays
+        // broken never moves the fingerprint, so `apply` alone would never make
+        // the second read that confirms it.
+        registryProblem = Self.registryBroken(unreadableSince, now: now)
 
         // Decay. A mood is an assertion about what Claude is doing right now,
         // and an assertion nothing has renewed eventually stops being true.
@@ -1096,8 +1153,11 @@ public final class ActivityCoordinator {
         return down
     }
 
-    private func derive(slot: Int, excluding excludedID: String?,
-                        ordered: [ClaudeSession], now: Date) -> PetState {
+    /// Internal so a test can derive the state for exactly the sessions it
+    /// names — the shared scratch registry holds every suite's sessions, and
+    /// "whatever is focused" would make an assertion about one of them blind.
+    func derive(slot: Int, excluding excludedID: String?,
+                ordered: [ClaudeSession], now: Date) -> PetState {
         // Salted per slot so two idle pets never speak in lockstep; additive,
         // so the split-dice property of the chatter gate survives.
         let seed = Int(now.timeIntervalSince1970 / Self.chatterSeedInterval) &+ slot &* 7919
@@ -1131,13 +1191,24 @@ public final class ActivityCoordinator {
         // session running. Awake he is the same idle crab with no session
         // under him; asleep he naps — either way carrying the roster, because
         // "nothing running" would be a lie whenever there is something.
+        // A registry he cannot read means he cannot know who is working at all,
+        // so this outranks everything — before "alone" or "napping" can claim a
+        // quiet desk that may not be quiet.
+        if registryProblem {
+            return confused(slot: slot, roster: ordered,
+                            version: ordered.lazy.compactMap(\.claudeVersion).first,
+                            problem: .registry)
+        }
+
         guard let focus = focusOrNil else {
             return awake ? upAlone(slot: slot, seed: seed, roster: ordered, now: now)
                          : napping(slot: slot, seed: seed, roster: ordered)
         }
 
         var mood = focus.mood
-        if mood != .needsAttention, !awake {
+        // Neither a prompt that needs you nor a format he cannot read goes to
+        // sleep: both are true whether or not anyone is looking.
+        if mood != .needsAttention, mood != .confused, !awake {
             mood = .sleeping
         }
 
@@ -1179,6 +1250,18 @@ public final class ActivityCoordinator {
         // Point 2 is why `working` and `cooking` lines appear only in the gaps:
         // a pet that hides "Running the test suite" behind a joke is worse.
         switch mood {
+        case .confused:
+            // ⚖️ PERSISTENT, by the operator's ruling — and this is the one
+            // place the codebase's own doctrine says otherwise. `BubbleCadence`
+            // argues that a banner which never goes out stops being read. That
+            // holds for chatter. It does not hold for "I can no longer read what
+            // Claude Code is writing": that is true every second it stays on
+            // screen, and a pet that goes quiet about it goes back to looking
+            // like a quiet desk — the exact silent failure this state replaces.
+            // Do not put it on a cadence.
+            bubble = Vocab.unsupported(version: focus.claudeVersion)
+            style = .plain
+            chatterCache[slot].heldLine = nil
         case .thinking:
             // No honest label exists for "reasoning", so show pulsing dots
             // rather than repeating the last thing he did — but only while
@@ -1489,8 +1572,23 @@ public final class ActivityCoordinator {
             celebrating: mood == .done && focus.celebrating,
             epicCelebration: mood == .done && focus.epicCelebrating,
             completedAt: focus.completionBadgeAt,
-            serviceGlyph: focus.serviceGlyph
+            serviceGlyph: focus.serviceGlyph,
+            unsupported: mood == .confused ? focus.formatProblem?.detail : nil
         )
+    }
+
+    /// The whole-pet confused state — the registry case, where there is no
+    /// single session to blame.
+    private func confused(slot: Int, roster: [ClaudeSession], version: String?,
+                          problem: FormatProblem) -> PetState {
+        chatterCache[slot].heldLine = nil
+        var state = PetState.sleeping
+        state.mood = .confused
+        state.sessions = roster
+        state.bubble = Vocab.unsupported(version: version)
+        state.bubbleStyle = .plain
+        state.unsupported = problem.detail
+        return state
     }
 
     // MARK: - Idle chatter

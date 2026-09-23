@@ -197,7 +197,9 @@ does with it. Specifics, so you can check them yourself.
 
 - **No network. At all.** There is no `URLSession`, no socket, no analytics, no
   update check, and zero dependencies. Verifiable in one grep — which is most of
-  why this repo is public.
+  why this repo is public. (If Claude Code ever changes its format beyond what he
+  can read, the menu offers *Check for updates…*, which opens the releases page in
+  your browser when you click it. The app itself still makes no request.)
 - **Read-only on everything Claude Code owns.** He never writes to `sessions/`,
   `projects/` or `tasks/`. The file watcher opens with `O_EVTONLY`, a descriptor
   that *cannot* write.

@@ -33,9 +33,9 @@ enum DemoMode {
         Beat(mood: .nudging, bubble: "Plan's ready 👀", style: .plain, tool: nil, seconds: 3.0),
         Beat(mood: .done, bubble: "✅ 🥳 🎉", style: .plain, tool: nil, seconds: 2.5),
         Beat(mood: .idle, bubble: "MODEL · Opus 5", style: .marquee, tool: nil, seconds: 3.0),
-        // Illustrative only. On a real machine this line stays hidden: Claude
-        // Code no longer publishes rate limits to disk and the app refuses to
-        // invent a percentage (see StatusTicker). The reel shows what the
+        // Illustrative only. On most machines this line stays hidden: Claude
+        // Code hands rate limits to a `statusLine` command rather than to disk,
+        // and the app refuses to invent a percentage (see StatusTicker). The reel shows what the
         // feature looks like when the data is there.
         Beat(mood: .idle, bubble: "WEEKLY USAGE @ 25%", style: .marquee, tool: nil, seconds: 3.5),
         Beat(mood: .done, bubble: "🎉🪄", style: .plain, tool: nil, seconds: 4.0, rainbow: true),

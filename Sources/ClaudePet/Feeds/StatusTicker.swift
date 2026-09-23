@@ -127,8 +127,11 @@ public enum StatusTicker {
             }
         }
 
-        // These two are absent on most machines: Claude Code stopped publishing
-        // rate limits to disk, and a percentage without a measured numerator is
+        // These two are absent on most machines: Claude Code never wrote rate
+        // limits to disk — it hands them to a `statusLine` command's stdin, and
+        // this cache exists only if the user runs one that writes it (the
+        // audit checked both installed binaries: no writer). A percentage
+        // without a measured numerator is
         // a fabrication (Numerical Grounding). They light up on their own if the data
         // returns — that is the whole reason the cache is still read.
         if let fiveHour = percent(cache?.fiveHourPercent) {

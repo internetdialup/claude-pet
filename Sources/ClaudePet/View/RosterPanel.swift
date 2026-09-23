@@ -101,7 +101,10 @@ private struct SessionRow: View {
                                 .foregroundStyle(Palette.body)
                         }
                     }
-                    Text(session.activeTaskLabel ?? session.activity ?? session.title ?? "idle")
+                    // A session he cannot read says so, rather than showing its
+                    // last guessed activity as if it were current.
+                    Text(session.formatProblem != nil ? "Can't read this session"
+                         : session.activeTaskLabel ?? session.activity ?? session.title ?? "idle")
                         .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)

@@ -1509,6 +1509,26 @@ public enum CrabAnimator {
             pose.legAmplitude = Ease.gate(sin(t * 5), above: 0.4, soft: 0.25)
             pose.prop = .plan
 
+        case .confused:
+            // He cannot read what Claude Code is writing, and says so. Puzzled,
+            // not alarmed — no new art, every channel an existing one:
+            //  - eyes scanning left, centre, right, the way you read a page you
+            //    cannot parse, stepping THROUGH the middle cell (lookAround's
+            //    two-cell flip is the thing not to copy);
+            //  - one claw up, slowly scratching his head, on an ease that never
+            //    snaps to the top;
+            //  - a flat mouth and one slow breath.
+            // No prop and no tilt: `MotionTests.eyesAreNeverUneven` exempts no
+            // tilted pose, and a level face is what keeps this reading as
+            // bewildered rather than broken.
+            pose.bob = Int((sin(t * 1.1) * 0.6).rounded())
+            pose.eyes = .round
+            pose.blink = blink(at: t, period: 5.0)
+            pose.gazeX = Int((sin(t * 0.9) * 1.4).rounded())
+            pose.mouth = .flat
+            pose.armRight = 0.55 + 0.25 * sin(t * 1.6)
+            pose.armLeft = 0
+
         case .done:
             // Both arms up, holding the green check. One decaying hop.
             let hop = max(0, 1 - t / 1.2)

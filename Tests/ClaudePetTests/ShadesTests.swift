@@ -37,7 +37,7 @@ struct ShadesFlairTests {
     @Test("Only idle and working facts may wear them")
     func theMoodGateHolds() {
         for mood in [PetMood.cooking, .sleeping, .thinking, .done,
-                     .nudging, .needsAttention] {
+                     .nudging, .needsAttention, .confused] {
             for seed in stride(from: 0, to: 5_000, by: 7) {
                 #expect(ActivityCoordinator.factFlair(seed: seed, mood: mood) == .none,
                         "\(mood) flaired on seed \(seed)")
