@@ -299,6 +299,7 @@ struct EasterEggScheduleTests {
             #expect(pose.glint == nil)
             #expect(!pose.winkGlint)
             #expect(pose.heartsElapsed == nil)
+            #expect(pose.sortie == nil)
             // The tint side, which the first version of this test omitted.
             #expect(CrabView.composedTint(mood: .idle, t: t, rainbowElapsed: nil,
                                           celebrating: false, taskFraction: nil,

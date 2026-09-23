@@ -26,8 +26,9 @@ struct SimplerLooksTests {
 
     /// Fin, visor, cameras, red, his white, and blue on the flank vents only
     /// (the fitting put the vents back as his signature; the chest band that
-    /// was the other blue stays cut) — and steel only while the scan is
-    /// actually crossing him.
+    /// was the other blue stays cut) — and steel only on the saber rack
+    /// behind his shoulders (the sortie's fitting added it) or while the scan
+    /// is actually crossing him.
     ///
     /// Read as the cells a dressed render changes against the bare crab in
     /// the same pose, so the rig's own inks (shadow, face, legs) never count
@@ -35,10 +36,17 @@ struct SimplerLooksTests {
     /// fires in cycle zero (the frozen-render sentinel); cycle 3 of its
     /// 12-second period is a live window, and the test demands it saw one,
     /// or the steel allowance would be passing untested.
-    @Test("The Gundam wears the fin, the visor, the red and his flank vents — nothing else")
+    @Test("The Gundam wears the fin, the visor, the red, his flank vents and his saber rack — nothing else")
     func gundamIsFaceAndFin() {
-        let worn: Set<PixelBuffer.Ink> = [.yellow, .costumeA, .costumeB, .costumeC, .clear]
+        let worn: Set<PixelBuffer.Ink> = [.yellow, .costumeA, .costumeB, .costumeC, .clear, .steel]
         let flanks = { (x: Int) in x < CrabRig.bodyX + 2 || x >= CrabRig.bodyX + CrabRig.bodyW - 2 }
+        // The saber rack the sortie's fitting added: one hilt behind each
+        // shoulder, two cells each — and steel nowhere else outside a scan.
+        let top = CrabRig.bodyY
+        let rack: Set<Int> = [
+            (CrabRig.bodyX + 1, top - 3), (CrabRig.bodyX + 2, top - 2),
+            (CrabRig.bodyX + CrabRig.bodyW - 2, top - 3), (CrabRig.bodyX + CrabRig.bodyW - 3, top - 2),
+        ].reduce(into: Set<Int>()) { $0.insert($1.1 * PixelBuffer.side + $1.0) }
         var sawScan = false
         for t in stride(from: 0.0, through: 40.0, by: 0.25) {
             let scanning = CrabCostume.effectWindow(at: t, SpawnRates.gundamScan) != nil
@@ -53,6 +61,9 @@ struct SimplerLooksTests {
                     if dressed[x, y] == .costumeA {
                         #expect(flanks(x), "blue off the flank vents at (\(x),\(y)), t=\(t)")
                     }
+                    if dressed[x, y] == .steel, !scanning {
+                        #expect(rack.contains(y * PixelBuffer.side + x), "steel off the rack at (\(x),\(y)), t=\(t)")
+                    }
                     // The cameras are `.eye` in a yellow override, so outside
                     // a scan the only `.yellow` he paints is the fin, whose
                     // roots land on the crown row (one lower in a squash).
@@ -63,6 +74,39 @@ struct SimplerLooksTests {
             }
         }
         #expect(sawScan, "no scan window in the sample — the steel allowance went untested")
+    }
+
+    /// The sortie's sister clause: pink, paper, steel and slate belong to the
+    /// weapon, only while a beat is running — never to the resting look,
+    /// which the test above holds to fin, visor, red and flank blue. The
+    /// rifle's lock sweep is the costume's own scan, so its gold on the shell
+    /// is the scan's allowance, not a new one.
+    @Test("A sortie may add pink, paper, steel and slate — only while it runs")
+    func aSortieMayAddPinkPaperSteelOnlyWhileItRuns() {
+        let worn: Set<PixelBuffer.Ink> = [.yellow, .costumeA, .costumeB, .costumeC, .clear]
+        let beat = worn.union([.pink, .paper, .steel, .slate])
+        for kind in CrabPose.Sortie.Kind.allCases {
+            var sawBeam = false
+            let duration = CrabAnimator.sortieDuration(kind)
+            for step in 0..<60 {
+                var p = pose(0.5)                          // cycle 0: every die silent
+                CrabAnimator.applySortie(kind, seconds: duration * (Double(step) + 0.5) / 60, to: &p)
+                let dressed = CrabRig.render(p, costume: .gundam, costumeVisibility: 1)
+                let plain = CrabRig.render(p)              // same claw; only the costume differs
+                for y in 0..<PixelBuffer.side {
+                    for x in 0..<PixelBuffer.side where dressed[x, y] != plain[x, y] {
+                        #expect(beat.contains(dressed[x, y]), "\(kind) drew \(dressed[x, y]) at (\(x),\(y))")
+                        #expect(plain[x, y] != .eye, "\(kind) covered an open eye at (\(x),\(y))")
+                        if dressed[x, y] == .pink { sawBeam = true }
+                    }
+                }
+            }
+            #expect(sawBeam, "\(kind) never lit — the allowance went untested")
+        }
+        // The resting look needs no clause of its own here: `gundamIsFaceAndFin`
+        // already holds his every costume cell to fin, visor, red and flank
+        // blue, so pink or paper at rest fails there. (Paper alone proves
+        // nothing — his catchlight is a paper cell in every look.)
     }
 
     /// The forehead V and one slash a side at eye level — every stripe cell

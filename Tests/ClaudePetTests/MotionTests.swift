@@ -941,6 +941,14 @@ struct FrozenSentinelTests {
             // The Skater's resting deck is live-only through the wardrobe;
             // bare, no mood ever stands on one.
             #expect(pose.deckUnderfoot == 0, "mood \(mood)")
+            // 🤖 …and the Gundam's sortie never fires in cycle zero. Asked
+            // UNDER the Gundam — the one wardrobe that can carry one — across
+            // the whole first cycle, or this check could never fail.
+            for t in stride(from: 0.0, to: 7.0, by: 0.1) {
+                let dressed = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
+                                                wardrobe: .init(current: .gundam))
+                #expect(dressed.sortie == nil, "mood \(mood) at t=\(t)")
+            }
         }
     }
 

@@ -124,7 +124,8 @@ and dressed as the Skater, three pokes start the combo instead.
 Pick one from the menu bar. Each costume is its own drawing, with its own
 animation. Frankenstein has bolts at the temples and throws sparks. Arcade is
 lit from inside like a cabinet. Arctic White gets falling snow, Gundam a
-scanning visor, Tiger a swishing tail.
+scanning visor and, now and then, a beam saber or a rifle shot, Tiger a
+swishing tail.
 
 He also keeps a calendar. Some weeks of the year, the menu grows.
 
