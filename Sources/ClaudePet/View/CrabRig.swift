@@ -500,9 +500,18 @@ public enum CrabRig {
         Int((sin(pose.legPhase + Double(index) * .pi / 2) * pose.legAmplitude).rounded())
     }
 
-    private static let armW = 2
-    private static let armH = 3
-    private static let armY = 14
+    // Internal, like `legX`, so anything that rides a claw can seat itself
+    // on the claw it is drawn beside rather than on a copy of these numbers.
+    static let armW = 2
+    static let armH = 3
+    static let armY = 14
+
+    /// How many rows a raised arm's bar climbs above the nub: `lift` 0…1 to
+    /// 0…6 whole cells. One formula for `drawArm` and for anything that rides
+    /// the claw, and the tests that hold both to a cell.
+    static func armReach(_ lift: Double) -> Int {
+        Int((max(0, min(1, lift)) * 6).rounded())
+    }
 
     // Internal like `legSwing`, and for the same reason: a costume that
     // restyles the eyes has to agree with the face about where they are.
@@ -2280,7 +2289,7 @@ public enum CrabRig {
         // read as ears poking off the top corners.
         b.rect(x, armY + dy, armW, armH, .body)
 
-        let reach = Int((clamped * 6).rounded())
+        let reach = armReach(clamped)
         if reach > 0 {
             // Stepped one pixel further out. Flush against the body, a raised
             // arm merges into the top corner and the whole silhouette reads as

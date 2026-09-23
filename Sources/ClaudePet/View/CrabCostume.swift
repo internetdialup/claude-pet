@@ -388,6 +388,39 @@ enum CrabCostume {
         effectWindow(at: t, SpawnRates.shuriken)
     }
 
+    /// The Gundam's camera scan, at `progress` 0…1 through its crossing.
+    ///
+    /// The camera sweeping: a two-column beam easing across his shell
+    /// — camera-gold leading, steel trailing — drawn only where the
+    /// cell is still `.body`. That mask puts it BEHIND the visor and
+    /// the eyes rather than over them: a scan that blanked the eyes it
+    /// is meant to be looking through would be the wardrobe covering a
+    /// face, which is the one forbidden thing.
+    ///
+    /// The first cut painted `.paper` — kraft white on an RX-78 white
+    /// shell, a camera nobody ever saw. Ink and cadence are the
+    /// operator's picks off the contact sheet: slower (12s period,
+    /// 0.35 chance, 1.8s crossing) and gold, so when it happens it
+    /// reads as an event.
+    /// The eased sweep runs three columns PAST the shell on both
+    /// sides, so smoothstep's zero-slope ends park the beam where the
+    /// `.body` mask finds nothing — the audit caught it parking ON
+    /// the shell for a quarter second at each end, popping a handful
+    /// of gold cells in and out in one frame. Now entry and exit are
+    /// the mask running out of shell: geometric, the shuriken's
+    /// defense again.
+    private static func sweepScan(_ b: inout PixelBuffer, progress: Double, dx: Int) {
+        let sweep = Ease.smoothstep(progress)
+        let column = bodyX - 3 + dx + Int(sweep * Double(bodyW + 6))
+        for (offset, ink) in [(0, PixelBuffer.Ink.yellow), (-1, .steel)] {
+            let x = column + offset
+            guard x >= 0, x < PixelBuffer.side else { continue }
+            for row in 0..<PixelBuffer.side where b[x, row] == .body {
+                b.pixel(x, row, ink)
+            }
+        }
+    }
+
     static func draw(_ b: inout PixelBuffer, costume: Costume, layer: Layer,
                      dx: Int, dy: Int, squash: Int, pose: CrabPose) {
         switch costume {
@@ -797,34 +830,7 @@ enum CrabCostume {
             // sonic case's own note tells this exact story.
             guard let scan = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamScan)
             else { break }
-            // The camera sweeping: a two-column beam easing across his shell
-            // — camera-gold leading, steel trailing — drawn only where the
-            // cell is still `.body`. That mask puts it BEHIND the visor and
-            // the eyes rather than over them: a scan that blanked the eyes it
-            // is meant to be looking through would be the wardrobe covering a
-            // face, which is the one forbidden thing.
-            //
-            // The first cut painted `.paper` — kraft white on an RX-78 white
-            // shell, a camera nobody ever saw. Ink and cadence are the
-            // operator's picks off the contact sheet: slower (12s period,
-            // 0.35 chance, 1.8s crossing) and gold, so when it happens it
-            // reads as an event.
-            // The eased sweep runs three columns PAST the shell on both
-            // sides, so smoothstep's zero-slope ends park the beam where the
-            // `.body` mask finds nothing — the audit caught it parking ON
-            // the shell for a quarter second at each end, popping a handful
-            // of gold cells in and out in one frame. Now entry and exit are
-            // the mask running out of shell: geometric, the shuriken's
-            // defense again.
-            let sweep = Ease.smoothstep(scan)
-            let column = bodyX - 3 + dx + Int(sweep * Double(bodyW + 6))
-            for (offset, ink) in [(0, PixelBuffer.Ink.yellow), (-1, .steel)] {
-                let x = column + offset
-                guard x >= 0, x < PixelBuffer.side else { continue }
-                for row in 0..<PixelBuffer.side where b[x, row] == .body {
-                    b.pixel(x, row, ink)
-                }
-            }
+            sweepScan(&b, progress: scan, dx: dx)
 
         case .pumpkin:
             let crown = bodyY + dy + squash

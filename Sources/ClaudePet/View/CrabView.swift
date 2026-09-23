@@ -796,6 +796,13 @@ public enum CrabAnimator {
     /// the small hours only. 12s of telescope, eased 0.8s at both ends.
     static func stargaze(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
         guard let hourOfDay, hourOfDay >= 23 || hourOfDay <= 4 else { return nil }
+        return stargazeWindow(idleT: t)
+    }
+
+    /// The stargazer's dice and envelope without the hour gate — what the
+    /// telescope WOULD do at `t` if it were night. For a schedule that must
+    /// stay clear of it at any hour without restating the dice; `stargaze` is this plus the gate, so the two cannot disagree.
+    static func stargazeWindow(idleT t: Double) -> (amount: Double, phase: Double)? {
         let spawn = SpawnRates.stargaze
         let cycle = Int(floor(t / spawn.period))
         guard cycle > 0, noise(cycle &* 61 &+ 3) < spawn.chance else { return nil }
@@ -1195,6 +1202,12 @@ public enum CrabAnimator {
     /// per five idle minutes) because it is very much bigger on screen.
     static func sunPatch(idleT t: Double, hourOfDay: Int?) -> (amount: Double, phase: Double)? {
         guard let hourOfDay, hourOfDay >= 8, hourOfDay <= 17 else { return nil }
+        return sunPatchWindow(idleT: t)
+    }
+
+    /// The sun patch's dice and envelope without the daylight gate — see
+    /// `stargazeWindow`, which this mirrors for the same reason.
+    static func sunPatchWindow(idleT t: Double) -> (amount: Double, phase: Double)? {
         let spawn = SpawnRates.sunPatch
         let cycle = Int(floor(t / spawn.period))
         guard cycle > 0, noise(cycle &* 73 &+ 5) < spawn.chance else { return nil }
@@ -1906,8 +1919,13 @@ public enum CrabAnimator {
 
     /// The pounce after a bug is caught: crouch toward the floor, one hop, a
     /// check dissolving in and out. 1.4s, eased at both ends.
+    /// The pounce's presence, 0…1 — see `snackEnvelope`.
+    static func pounceEnvelope(elapsed: Double) -> Double {
+        Ease.window(elapsed, duration: 1.4, edge: 0.25)
+    }
+
     public static func applyPounce(elapsed: Double, to pose: inout CrabPose) {
-        let envelope = Ease.window(elapsed, duration: 1.4, edge: 0.25)
+        let envelope = pounceEnvelope(elapsed: elapsed)
         guard envelope > 0.001 else { return }
         pose.gazeY = 1
         pose.mouth = .open
@@ -1924,8 +1942,14 @@ public enum CrabAnimator {
 
     /// The shrimp snack, 2.8s: he stirs, munches three beats, and settles. The
     /// shrimp itself is drawn by the rig off `snackElapsed`.
+    /// The snack's presence, 0…1 — one envelope for the overlay and for
+    /// anything that must make way while it plays.
+    static func snackEnvelope(elapsed: Double) -> Double {
+        Ease.window(elapsed, duration: 2.8, edge: 0.4)
+    }
+
     public static func applySnack(elapsed: Double, to pose: inout CrabPose) {
-        let envelope = Ease.window(elapsed, duration: 2.8, edge: 0.4)
+        let envelope = snackEnvelope(elapsed: elapsed)
         guard envelope > 0.001 else { return }
         pose.asleepOverride = true
         pose.snackElapsed = elapsed
@@ -2036,9 +2060,13 @@ public enum CrabAnimator {
     /// - **It closes itself.** One `Ease.pulse` envelope, zero at t ≤ 0 (the
     ///   frozen sentinel comes free) and back under 0.001 past 1.7s, so a
     ///   stale latch can strand nothing on his face.
+    /// The rude awakening's one envelope — see `snackEnvelope`.
+    static func rudeWakeAmount(elapsed: Double) -> Double {
+        Ease.pulse(elapsed, attack: rudeWakeArmRise, hold: rudeWakeHold, decay: rudeWakeRelease)
+    }
+
     public static func applyRudeWake(elapsed: Double, to pose: inout CrabPose) {
-        let amount = Ease.pulse(elapsed, attack: rudeWakeArmRise,
-                                hold: rudeWakeHold, decay: rudeWakeRelease)
+        let amount = rudeWakeAmount(elapsed: elapsed)
         guard amount > 0.001 else { return }
         // The claw, out at the poker — eased across drawArm's six-cell
         // quantisation, one cell per frame at 30fps. `max` so a live hover
@@ -2101,10 +2129,23 @@ public enum CrabAnimator {
     /// back in as the shades leave: `applyPropDissolve`'s own contract,
     /// borrowed whole. On a dinging showing, the four-point sparkle sits at
     /// the temple for the beat after touchdown.
+    /// The fact-driven shades' fade-out, 1 while they are on.
+    static func shadesExit(endedElapsed: Double?) -> Double {
+        endedElapsed.map { Ease.clamp01(1 - $0 / shadesFade) } ?? 1
+    }
+
+    /// …and their presence, 0…1: in with the drop, out with the exit — for
+    /// anything that must make way while they are on.
+    static func shadesPresence(elapsed: Double, endedElapsed: Double?) -> Double {
+        guard elapsed >= 0 else { return 0 }
+        return min(shadesExit(endedElapsed: endedElapsed),
+                   Ease.smoothstep(Ease.clamp01(elapsed / shadesDropDuration)))
+    }
+
     static func applyShadesDrop(elapsed: Double, endedElapsed: Double?,
                                 ding: Bool, to pose: inout CrabPose) {
         guard elapsed >= 0 else { return }
-        let exit = endedElapsed.map { Ease.clamp01(1 - $0 / shadesFade) } ?? 1
+        let exit = shadesExit(endedElapsed: endedElapsed)
         guard exit > 0.001 else { return }
         let landed = Ease.clamp01(elapsed / shadesDropDuration)
         if pose.prop != .none, pose.prop != .shades {
