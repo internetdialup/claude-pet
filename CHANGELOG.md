@@ -161,9 +161,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   to a single cell — the right one a beat behind the left. The old version
   was three pale pixels you'd only notice with your nose on the screen.
 - **🦃 The turkey's tail is a fan, not a candelabra.** One half-disc of
-  radial wedges with a rim band, gold and dark alternating, in place of the
-  seven spokes with yellow tips that read as candles. It still spreads on
-  the strut.
+  five radial wedges, gold and dark alternating, in place of the seven
+  spokes with yellow tips that read as candles. Seven rows tall, so he is no
+  taller than the Gundam's fin. It still spreads on the strut.
 - **🤓 Matrix is Coder now.** Same stored preference, and he wears
   steel-rimmed glasses under the rain, which parts around the frames on its
   own. The rain itself is simpler: two greens instead of three, with no

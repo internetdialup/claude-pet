@@ -534,10 +534,12 @@ public enum CrabRig {
         // The height gives, not the costume: each look rises as far as its
         // own crown allows, so nothing is ever cropped and a bare crab keeps
         // the full float he was authored with. The floor is the one piece of
-        // engineering judgement here — a nine-row turkey fan would otherwise
-        // clamp him to a one-row hop, which reads as broken rather than as
-        // heavy, so the tallest two crop their tips instead of losing the
-        // trick.
+        // engineering judgement here. The turkey's fan was nine rows when it
+        // was written and would have clamped him to a one-row hop, which
+        // reads as broken rather than as heavy; since the 2026-09-23 cut the
+        // tallest two (the Gundam's fin, the turkey's fan) are seven rows
+        // each, whose exact fit is a three-row hop. The floor still lets them
+        // rise four and crop a tip rather than lose a row of the trick.
         let dy = max(pose.bob, crownFloor(costume: costume, ghostCostume: ghostCostume,
                                           headwear: pose.headwear))
         let squash = max(0, pose.squash)
@@ -2222,8 +2224,9 @@ public enum CrabRig {
         // `min`, not `max`: a lower number is MORE air. The exact fit is
         // `rows - bodyY`; the limit lets the two tallest crowns overshoot it
         // and crop their tips rather than clamp to a hop nobody would read
-        // as a jump — the turkey's nine-row fan would otherwise cap him at
-        // one row off the ground.
+        // as a jump. At seven rows (the Gundam's fin and, since 2026-09-23,
+        // the turkey's fan) the exact fit is three rows of air; the limit
+        // buys the fourth.
         return min(rows - bodyY, crownFloorLimit)
     }
 

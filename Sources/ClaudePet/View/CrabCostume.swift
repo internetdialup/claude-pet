@@ -198,7 +198,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xE0_A050),  // tail-fan gold
                     .mouth: rgb(0x3D_3D3A),
                 ],
-                yieldsCrownToProps: false, crownRows: 9)
+                yieldsCrownToProps: false, crownRows: 7)
         case .santa:
             // 🎅 An OUTFIT, not a respray: his own terracotta stays — the
             // one seasonal look that keeps the shell, which also varies the
@@ -925,13 +925,18 @@ enum CrabCostume {
                 // into radial wedges. So this draws exactly that. Every cell
                 // inside a half-circle over the crown is painted by its
                 // angle from the centre — five wedges, gold and dark
-                // alternating — and the outer two cells of radius flip to
-                // the wedge's contrast colour, the eyespot band real fans
-                // carry along their rim. No yellow anywhere. Drawn behind
-                // him, so the shell cuts through and the fan reads as HIS.
+                // alternating. No yellow anywhere. Drawn behind him, so the
+                // shell cuts through and the fan reads as HIS.
+                //
+                // The fourth cut (2026-09-23, the operator's "simplify"):
+                // radius 9 → 7, and the eyespot band — the outer two cells
+                // flipped to each wedge's contrast colour — gone. The band
+                // was true to a real fan and read as a second pattern on
+                // top of the first; seven rows also stops him out-topping
+                // the Gundam's fin.
                 let strut = Self.effectWindow(at: pose.propPhase, SpawnRates.turkeyStrut) != nil
                 // The strut spreads the fan a cell wider all round.
-                let radius = 9.0 + (strut ? 1.0 : 0.0)
+                let radius = 7.0 + (strut ? 1.0 : 0.0)
                 let centreX = Double(bodyX) + Double(bodyW) / 2
                 let baseline = Double(crown)
                 let reach = Int(radius.rounded(.up))
@@ -942,9 +947,7 @@ enum CrabCostume {
                         let r = (ex * ex + ey * ey).squareRoot()
                         guard r <= radius else { continue }
                         let wedge = min(4, Int(atan2(ey, ex) / (.pi / 5)))
-                        let gold = wedge % 2 == 0
-                        let band = r > radius - 2
-                        b.pixel(x + dx, y, gold != band ? .costumeC : .costumeA)
+                        b.pixel(x + dx, y, wedge % 2 == 0 ? .costumeC : .costumeA)
                     }
                 }
                 break
