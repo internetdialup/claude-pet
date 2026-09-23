@@ -238,7 +238,6 @@ enum CostumeSheet {
             // the marquee; the second bolt's spark takes the slot.
             staged(.frankenstein, 35.55, "sparks, right bolt t=35.55"),
             staged(.gundam, 36.55, "scan t=36.55"),
-            staged(.gundam, 14.3, "eye flare t=14.3"),
             staged(.sonic, 9.8, "dash t=9.8"),
         ]
         let rowThree = [
@@ -457,7 +456,7 @@ enum CostumeSheet {
                  g, "scan p=\($0)")
         }
 
-        return write("GUNDAM — idle · motion · the scan (option A, thickened)",
+        return write("GUNDAM — idle · motion · the scan (face + fin + vents)",
                      rows: [idle, motion, scan], to: url)
     }
 

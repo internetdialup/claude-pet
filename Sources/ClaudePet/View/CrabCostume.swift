@@ -124,12 +124,11 @@ struct CostumeStyle {
         case .matrix:
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the code carries
+                    .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the rain carries
                     .bodyShade: rgb(0x02_0602), // one step under — see frankenstein's note
                     .costumeA: rgb(0x7C_F08D),  // rain heads
                     .costumeB: rgb(0x2E_A845),  // the streak body
-                    .costumeC: rgb(0x1D_7431),  // tails, and the code-lines under them
-                    // Brighter than any rain stop on purpose: with code
+                    // Brighter than either rain stop on purpose: with rain
                     // crossing his whole shell, the eyes have to out-rank the
                     // field or he loses his face in his own costume.
                     .eye: rgb(0xD8_FFE2),
@@ -162,7 +161,7 @@ struct CostumeStyle {
                 inks: [
                     .body: rgb(0xE8_EAF0),      // RX-78 white
                     .bodyShade: rgb(0xC9_CDD8), // the turn shade's step — see ninja's note
-                    .costumeA: rgb(0x2C_4FA3),  // federation blue — shoulders, chest
+                    .costumeA: rgb(0x2C_4FA3),  // federation blue — the flank vents, nowhere else
                     .costumeB: rgb(0xC6_3A3A),  // the red — crest, chin, feet
                     .costumeC: rgb(0x14_161A),  // the visor recess — the black the face is built on
                     .eye: rgb(0xF2_D23C),       // camera-yellow, straight off the reference
@@ -199,7 +198,7 @@ struct CostumeStyle {
                     .costumeC: rgb(0xE0_A050),  // tail-fan gold
                     .mouth: rgb(0x3D_3D3A),
                 ],
-                yieldsCrownToProps: false, crownRows: 9)
+                yieldsCrownToProps: false, crownRows: 7)
         case .santa:
             // 🎅 An OUTFIT, not a respray: his own terracotta stays — the
             // one seasonal look that keeps the shell, which also varies the
@@ -220,7 +219,7 @@ struct CostumeStyle {
             // `.onBody`, which draws BEFORE `drawFace` — so the eyes and mouth
             // land on top of it and the open-eye rule holds — and `yawPass`
             // fades face-row paint out as he turns edge-on, which is how the
-            // Gundam's chest band has always passed the flank test.
+            // ninja's mask window and the Gundam's visor pass the flank test.
             return CostumeStyle(
                 inks: [
                     .body: rgb(0xF4_F1EA),      // the suit, off-white
@@ -547,15 +546,15 @@ enum CrabCostume {
             // shell rather than trickling down six thin columns.
             //
             // Heat outranks it: a cell mid-cascade is `.bodyHot`, not `.body`,
-            // so the fire burns through the code.
+            // so the fire burns through the rain.
             if layer == .onBody {
                 // 🤓 The glasses — what turned "Matrix" into "Coder" on the
                 // operator's call. Steel rims framing each eye window, a
                 // bridge between them. Body pass, so the face paints the
                 // eyes over the rim interiors and the eye-cover ban holds
-                // by draw order; the rain and code-lines above only write
-                // `.body` cells, so they part around the frames on their
-                // own — which is exactly the way light behaves on glasses.
+                // by draw order; the rain below only writes `.body`
+                // cells, so it parts around the frames on its own — which
+                // is exactly the way light behaves on glasses.
                 for rim in [9, 18] {
                     b.rect(rim + dx, 12 + dy, 5, 1, .steel)
                     b.rect(rim + dx, 16 + dy, 5, 1, .steel)
@@ -577,32 +576,18 @@ enum CrabCostume {
                 b.pixel(x, y, ink)
             }
 
-            // Code-lines first: varying-width bars scrolling down behind the
-            // rain, borrowed from the terminal prop's vocabulary — the way
-            // this rig already spells "source code". They read as structure;
-            // the rain reads as motion over it.
-            let lineWidths = [5, 3, 6, 2, 4, 7]
-            let scroll = Int(pose.propPhase * 1.6)
-            for row in 0..<height {
-                let index = ((row - scroll) % lineWidths.count + lineWidths.count)
-                    % lineWidths.count
-                // One row in three carries a line. Denser than this and the
-                // shell stops reading as a dark terminal with code on it and
-                // starts reading as a green crab.
-                guard (row &+ scroll) % 3 == 0 else { continue }
-                let indent = (row &+ scroll) % 4 == 0 ? 1 : 4
-                for step in 0..<lineWidths[index] {
-                    onShell(left + indent + step, top + row, .costumeC)
-                }
-            }
-
             // The rain: every column of the shell, each with its own speed and
             // streak length off the shared die, so the field never marches in
-            // step. Three stops — bright head, phosphor body, dim tail — which
-            // is what makes a streak read as falling rather than blinking.
+            // step. Two stops — bright head, phosphor body — which is what
+            // makes a streak read as falling rather than blinking.
             // The span is generously longer than the shell so each column is
             // dark most of the time: a streak has to be an event, or the
             // whole field is on at once and nothing appears to fall.
+            //
+            // It used to fall over scrolling code-lines, with a third, dimmer
+            // stop for the tails. The operator's "simplify" (2026-09-23) took
+            // both: the rain alone is the costume, and a third green on a
+            // 32-pixel shell was texture nobody could name.
             let span = height + 16
             for column in 0..<width {
                 let x = left + column
@@ -614,9 +599,7 @@ enum CrabCostume {
                 for trail in 0...length {
                     let y = top + head - trail
                     guard y >= top, y < top + height else { continue }
-                    let ink: PixelBuffer.Ink = trail == 0 ? .costumeA
-                        : (trail <= length / 2 ? .costumeB : .costumeC)
-                    onShell(x, y, ink)
+                    onShell(x, y, trail == 0 ? .costumeA : .costumeB)
                 }
             }
 
@@ -624,12 +607,15 @@ enum CrabCostume {
             if layer == .onBody {
             // Third fitting, to the operator's note: "he doesn't have like
             // stripes... more Tony the Tiger diagonal." The five vertical
-            // bars read as a pattern on a box; a tiger's stripes SLANT, and
-            // they come in numbers. So: diagonal slashes, two cells wide,
-            // three rows long, leaning outward from a centre spine — `/` on
-            // his left flank, `\` on his right, mirror-symmetric — hanging
-            // off the crown, crossing each flank at eye level, and rising
-            // off the belly, plus the forehead V that Tony actually wears.
+            // bars read as a pattern on a box; a tiger's stripes SLANT. So:
+            // diagonal slashes, two cells wide, three rows long, leaning
+            // outward from a centre spine — `/` on his left flank, `\` on
+            // his right, mirror-symmetric — plus the forehead V that Tony
+            // actually wears. The fourth cut (2026-09-23, the operator's
+            // "simplify") kept the V and ONE slash a side at eye level; the
+            // four off the crown and the two rising off the belly went, and
+            // with nine marks down to three the tail does the rest of the
+            // tiger. `SimplerLooksTests` holds that count.
             // Every cell is clipped to the shell (`.body` only), so a slash
             // running off his edge stops at the edge instead of floating in
             // the air beside him. The face draws after this pass, so the eye
@@ -647,15 +633,11 @@ enum CrabCostume {
             // (start column, start row, lean): lean −1 steps the slash left
             // as it descends (`/`), +1 steps it right (`\`).
             let slashes: [(x: Int, y: Int, lean: Int)] = [
-                (11, 0, -1), (7, 0, -1),      // crown, left
-                (19, 0, 1), (23, 0, 1),       // crown, right
                 (8, 4, -1), (22, 4, 1),       // flanks, eye level
-                (10, 11, 1), (20, 11, -1),    // belly, rising outward
             ]
             for stroke in slashes {
                 for step in 0..<3 {
-                    let y = stroke.y + (stroke.y >= 11 ? -step : step)
-                    slash(stroke.x + stroke.lean * step, base + y)
+                    slash(stroke.x + stroke.lean * step, base + stroke.y + step)
                 }
             }
             // The forehead V, converging just above the bridge of the eyes.
@@ -720,12 +702,6 @@ enum CrabCostume {
                 // helmet, and the old red pixel here read as a third eye.
                 b.rect(15 + dx, 13 + dy, 3, 1, .body)
                 b.pixel(16 + dx, 14 + dy, .body)
-                // The nose: a small steel block dropping from the brow
-                // wedge's point, splitting the visor's black between the eye
-                // recesses the way every reference mask does. Body pass, so
-                // the eyes still paint after it — the face stays his.
-                b.pixel(16 + dx, 15 + dy, .steel)
-                b.pixel(16 + dx, 16 + dy, .steel)
                 // THE CARVE — the operator's grant: "you can adjust clawd's
                 // body so it isn't a full square, angle it like the
                 // reference", deepened on the sixth fitting ("the angled
@@ -748,111 +724,61 @@ enum CrabCostume {
                 }
                 b.pixel(bodyX + dx - squash, 20 + dy, .clear)
                 b.pixel(bodyX + bodyW - 1 + dx + squash, 20 + dy, .clear)
-                // 👁 The glow — "the eyes more glowly": a warm bloom
-                // spilling off each camera into the visor's black, one
-                // column outboard of each eye. Ember at rest; during a flare
-                // window (`97 &+ 41`, next free costume-effect addend — the
-                // holiday round has 3/5/7/17/37 reserved) it steps to gold.
-                // A re-ink between adjacent warm tones on cells already lit
-                // — the arcade marquee's class of scheduled swap, not an
-                // appearance — and it lives on the body pass, so a sideways
-                // gaze draws the eye OVER the bloom, never under it.
-                let flare = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamEyeFlare) != nil
-                let bloom: PixelBuffer.Ink = flare ? .yellow : .ember
-                b.pixel(9 + dx, 14 + dy, bloom)
-                b.pixel(22 + dx, 14 + dy, bloom)
                 break
             }
             guard layer == .front else { break }
             let crown = bodyY + dy + squash
-            // The RX-78 head, fifth fitting — the operator's 16-bit
-            // reference, "almost 1:1". The stack from the top: green sensor
-            // gem in a steel housing, the red shield running from under it
-            // DOWN ONTO the white forehead, and the two-tone fin blades
-            // rooting INTO the helmet beside it.
+            // The RX-78 head, face-and-fin cut (2026-09-23). Six fittings
+            // built it up toward the operator's 16-bit reference — sensor
+            // gem, blue side armour, temple pods, vents, a chest band and
+            // collar, an ember bloom that flared gold — and the operator's
+            // ruling on the whole was "too complex". So it is cut back to
+            // what makes the read at 32 pixels: the fin, the visor with its
+            // cameras, the red, his white — and, on the fitting, the blue
+            // flank vents, which the operator put back as the signature
+            // ("hard to tell what's going on" without them). Anything added
+            // back has to beat one of those for the space.
+            // `SimplerLooksTests` holds the line.
             //
-            // The blades: orange (`.ember`) bodies with a gold highlight
-            // riding the top edge over the root half, gold tips — metal
-            // catching light, not a drawn line. The last step drops
-            // vertically INTO the shell edge, per the operator: "bring the
-            // little \ / down into the white part."
+            // The blades: one ink, camera yellow, 2px at the roots and 1px
+            // at the tips. The last step drops vertically INTO the shell
+            // edge, per the operator: "bring the little \ / down into the
+            // white part."
             for step in 0..<7 {
-                let blade: PixelBuffer.Ink = step == 0 ? .yellow : .ember
-                b.pixel(8 + step + dx, crown - 7 + step, blade)
-                b.pixel(23 - step + dx, crown - 7 + step, blade)
+                b.pixel(8 + step + dx, crown - 7 + step, .yellow)
+                b.pixel(23 - step + dx, crown - 7 + step, .yellow)
                 if step >= 4 {                          // 2px roots → 1px tips
                     b.pixel(8 + step + dx, crown - 8 + step, .yellow)
                     b.pixel(23 - step + dx, crown - 8 + step, .yellow)
                 }
             }
-            b.pixel(14 + dx, crown, .ember)             // the roots land on the shell
-            b.pixel(17 + dx, crown, .ember)
-            // The sensor gem: a green square in a steel housing above the
-            // blades' crossing — the head's brightest jewel after the eyes.
-            b.pixel(14 + dx, crown - 4, .steel)
-            b.pixel(17 + dx, crown - 4, .steel)
-            b.rect(15 + dx, crown - 4, 2, 1, .green)
-            b.pixel(14 + dx, crown - 3, .steel)
-            b.pixel(17 + dx, crown - 3, .steel)
-            b.rect(15 + dx, crown - 3, 2, 1, .green)
+            b.pixel(14 + dx, crown, .yellow)            // the roots land on the shell
+            b.pixel(17 + dx, crown, .yellow)
             // The red shield, ON the white part per the operator: a column
-            // from under the gem down the forehead, widest just above the
-            // brow, tapering into the wedge's point. Rows crown-2…crown+2 —
-            // the top two ride the helmet edge, the bottom three are on the
-            // shell itself.
+            // between the blades' roots down the forehead, widest just above
+            // the brow, tapering into the wedge's point. Rows
+            // crown-2…crown+2 — the top two ride the helmet edge, the bottom
+            // three are on the shell itself.
             b.rect(15 + dx, crown - 2, 2, 1, .costumeB)
             b.rect(15 + dx, crown - 1, 2, 1, .costumeB)
             b.rect(15 + dx, crown, 2, 1, .costumeB)
             b.rect(14 + dx, crown + 1, 4, 1, .costumeB)
             b.rect(15 + dx, crown + 2, 2, 1, .costumeB)
-            // The dome corners, sixth fitting: RED duct cells riding the
-            // carved diagonal's edge — the operator's "on each side on the
-            // top we get the red part", and nothing else up there. The
-            // first cut stacked red, blue AND a shadow down each angle,
-            // one pixel of each, and the crown read as confetti: at this
-            // scale an angle gets ONE colour.
-            b.pixel(bodyX + 3 + dx - squash, crown, .costumeB)
-            b.pixel(bodyX + 2 + dx - squash, crown + 1, .costumeB)
-            b.pixel(bodyX + bodyW - 4 + dx + squash, crown, .costumeB)
-            b.pixel(bodyX + bodyW - 3 + dx + squash, crown + 1, .costumeB)
-            b.rect(bodyX + 2 + dx, 17 + dy, 2, 1, .bodyShade)
-            b.rect(bodyX + bodyW - 4 + dx, 17 + dy, 2, 1, .bodyShade)
-            b.rect(bodyX + dx - squash, 17 + dy, 2, 3, .bodyShade)
-            b.rect(bodyX + bodyW - 2 + dx + squash, 17 + dy, 2, 3, .bodyShade)
-            // Side armor running down both flanks from the shoulders. Two
-            // columns, not three: the visor recess starts at `bodyX + 2`, and
-            // a wider flank would eat its frame.
-            b.rect(bodyX + dx - squash, crown + 2, 2, 5, .costumeA)
-            b.rect(bodyX + bodyW - 2 + dx + squash, crown + 2, 2, 5, .costumeA)
-            // Yellow temple pods on the cheeks, level with the visor — the
-            // reference heads all carry them.
-            b.pixel(bodyX + 1 + dx - squash, crown + 4, .yellow)
-            b.pixel(bodyX + bodyW - 2 + dx + squash, crown + 4, .yellow)
-            // Vent slits cut into the side armor, bracketing each temple
-            // pod — visor-black so the cuts read as depth, not decoration.
+            // The flank vents: federation-blue armour two columns wide down
+            // both sides, level with the visor, cut by two visor-black slits
+            // so the cuts read as depth. Two columns, not three: the visor
+            // recess starts at `bodyX + 2`, and a wider flank would eat its
+            // frame. The only blue on him — the chest band and the temple
+            // pods that once sat beside it stay cut.
             for flank in [bodyX + dx - squash, bodyX + bodyW - 2 + dx + squash] {
+                b.rect(flank, crown + 2, 2, 5, .costumeA)
                 b.rect(flank, crown + 3, 2, 1, .costumeC)
                 b.rect(flank, crown + 5, 2, 1, .costumeC)
             }
-            // The chest band is two rows of plate now, widening with the
-            // squash the way the shell does — anchored to the same
-            // expressions as the shoulder plates, so a kickflip crouch cannot
-            // open white gaps at its ends. Drawn FIRST so the collar, chin
-            // and vents read as fittings on the plate rather than under it.
-            b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 2, .costumeA)
-            // The COLLAR, per the reference: the band's top row re-plated
-            // orange — an armor collar directly under the head, the fin
-            // body's own ink, so head and collar rhyme.
-            b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 1, .ember)
             // The chin is a downward TRIANGLE, not a bar — five cells, then
-            // three, converging the way the whole reference face does. ONE
-            // pair of vents beside its point, nothing else: the first cut
-            // scattered four yellow dots across two rows and the bottom read
-            // as clutter instead of armor (the operator's note).
+            // three, converging the way the whole reference face does.
             b.rect(14 + dx, 19 + dy, 5, 1, .costumeB)
             b.rect(15 + dx, 20 + dy, 3, 1, .costumeB)
-            b.pixel(13 + dx, 20 + dy, .yellow)
-            b.pixel(19 + dx, 20 + dy, .yellow)
             for (index, leg) in CrabRig.legX.enumerated() {  // boots, riding the gait
                 let lift = max(0, CrabRig.legSwing(index, pose: pose))
                 // The boot is as tall as the leg has room for: a lift of two
@@ -919,10 +845,9 @@ enum CrabCostume {
             b.rect(15 + dx, crown - 2, 2, 2, .costumeA)
             b.pixel(17 + dx, crown - 1, .costumeA)
             // 🕯 The candle flicker: the carved teeth glow from inside for a
-            // beat — the arcade's "lit from within" move. Salt 97 &+ 41 is
-            // the gundam flare's; this family shares by addend, and the
-            // holiday round's reserved addends are 3/5/7/17/37 — the flicker
-            // takes 5.
+            // beat — the arcade's "lit from within" move. This family
+            // shares by addend, and the holiday round's reserved addends are
+            // 3/5/7/17/37 — the flicker takes 5.
             if Self.effectWindow(at: pose.propPhase, SpawnRates.pumpkinFlicker) != nil {
                 for (i, x) in stride(from: 12, through: 20, by: 2).enumerated() {
                     b.pixel(x + dx, 19 + dy + (i % 2), .yellow)
@@ -942,13 +867,18 @@ enum CrabCostume {
                 // into radial wedges. So this draws exactly that. Every cell
                 // inside a half-circle over the crown is painted by its
                 // angle from the centre — five wedges, gold and dark
-                // alternating — and the outer two cells of radius flip to
-                // the wedge's contrast colour, the eyespot band real fans
-                // carry along their rim. No yellow anywhere. Drawn behind
-                // him, so the shell cuts through and the fan reads as HIS.
+                // alternating. No yellow anywhere. Drawn behind him, so the
+                // shell cuts through and the fan reads as HIS.
+                //
+                // The fourth cut (2026-09-23, the operator's "simplify"):
+                // radius 9 → 7, and the eyespot band — the outer two cells
+                // flipped to each wedge's contrast colour — gone. The band
+                // was true to a real fan and read as a second pattern on
+                // top of the first; seven rows also stops him out-topping
+                // the Gundam's fin.
                 let strut = Self.effectWindow(at: pose.propPhase, SpawnRates.turkeyStrut) != nil
                 // The strut spreads the fan a cell wider all round.
-                let radius = 9.0 + (strut ? 1.0 : 0.0)
+                let radius = 7.0 + (strut ? 1.0 : 0.0)
                 let centreX = Double(bodyX) + Double(bodyW) / 2
                 let baseline = Double(crown)
                 let reach = Int(radius.rounded(.up))
@@ -959,9 +889,7 @@ enum CrabCostume {
                         let r = (ex * ex + ey * ey).squareRoot()
                         guard r <= radius else { continue }
                         let wedge = min(4, Int(atan2(ey, ex) / (.pi / 5)))
-                        let gold = wedge % 2 == 0
-                        let band = r > radius - 2
-                        b.pixel(x + dx, y, gold != band ? .costumeC : .costumeA)
+                        b.pixel(x + dx, y, wedge % 2 == 0 ? .costumeC : .costumeA)
                     }
                 }
                 break

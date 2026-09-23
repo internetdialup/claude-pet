@@ -161,12 +161,13 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   to a single cell — the right one a beat behind the left. The old version
   was three pale pixels you'd only notice with your nose on the screen.
 - **🦃 The turkey's tail is a fan, not a candelabra.** One half-disc of
-  radial wedges with a rim band, gold and dark alternating, in place of the
-  seven spokes with yellow tips that read as candles. It still spreads on
-  the strut.
-- **🤓 Matrix is Coder now.** Same green rain, same stored preference —
-  he just wears steel-rimmed glasses under it. The rain parts around the
-  frames on its own.
+  five radial wedges, gold and dark alternating, in place of the seven
+  spokes with yellow tips that read as candles. Seven rows tall, so he is no
+  taller than the Gundam's fin. It still spreads on the strut.
+- **🤓 Matrix is Coder now.** Same stored preference, and he wears
+  steel-rimmed glasses under the rain, which parts around the frames on its
+  own. The rain itself is simpler: two greens instead of three, with no
+  scrolling code under it.
 - **🕹️ The arcade marquee is gone.** The chasing stripe across his belly
   read as a glitch band at desk size. Arcade is its cabinet-black shell and
   phosphor face, nothing animated.
@@ -192,9 +193,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   costume's crown — Sonic's quills, the Gundam's fin, the beanie, Santa's
   hat — was drawn off-grid and lost. Each look now rises as far as its own
   crown allows.
-- **🐯 The tiger got real stripes.** Diagonal slashes leaning off a centre
-  spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
-  with the forehead V. The five vertical bars read as a pattern on a box.
+- **🐯 The tiger got real stripes.** Tony's forehead V and one diagonal
+  slash down each flank, in a burnt orange instead of near-black. The five
+  vertical bars read as a pattern on a box, and a shell covered in slashes
+  read as noise. The swishing tail does the rest.
+- **🤖 The Gundam is simpler.** The V-fin, the black visor with its yellow
+  cameras, the blue vents down his flanks, the red crest, chin and boots,
+  and his white. The sensor gem, chest band, temple pods and glowing eyes
+  are gone. At desk size they were detail nobody could make out. His scan
+  still sweeps across him.
 
 ### Removed
 

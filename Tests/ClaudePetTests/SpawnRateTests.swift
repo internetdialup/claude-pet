@@ -24,7 +24,7 @@ struct SpawnRateTests {
         [("pumpkinFlicker", SpawnRates.pumpkinFlicker), ("turkeyStrut", SpawnRates.turkeyStrut),
          ("shuriken", SpawnRates.shuriken), ("frankensteinSparks", SpawnRates.frankensteinSparks),
          ("santaBreath", SpawnRates.santaBreath), ("gundamScan", SpawnRates.gundamScan),
-         ("gundamEyeFlare", SpawnRates.gundamEyeFlare), ("sonicDash", SpawnRates.sonicDash),
+         ("sonicDash", SpawnRates.sonicDash),
          ("sonicRings", SpawnRates.sonicRings), ("retroSheen", SpawnRates.retroSheen),
          ("kickPush", SpawnRates.kickPush), ("fireworks", SpawnRates.fireworks)]
     }
