@@ -282,6 +282,11 @@ struct FunFactTests {
                 #expect(!lower.contains(generation),
                         "\"\(fact)\" names \(model.name) and will age")
             }
+            // 🔎 The list above only knows today's lineup, so it could never
+            // see "Claude 3" or "GPT-4" — three facts named a generation for a
+            // whole round and passed. This net catches the shape instead.
+            let named = ModelGenerationPattern.named(in: fact)
+            #expect(named == nil, "\"\(fact)\" names \(named ?? "") and will age")
         }
     }
 
@@ -298,5 +303,25 @@ struct FunFactTests {
                 #expect(!lower.contains(word), "\"\(fact)\" uses \"\(word)\", which moves")
             }
         }
+    }
+}
+
+/// Rule 2's second net, shared with the tips. `StatusTicker.knownModels` holds
+/// only the current lineup's first words — fable, opus, sonnet, haiku — so a
+/// generation from another family, or an older Claude, sailed past it: "Claude
+/// 3", "GPT-3" and "GPT-4" all shipped in the deck for a round. This catches
+/// the SHAPE, a model family followed by a version number, and was checked
+/// against the whole deck and every tip before it went in: it matched exactly
+/// those three lines and nothing else.
+enum ModelGenerationPattern {
+    static let regex = try! NSRegularExpression(
+        pattern: #"(?i)\b(claude|gpt|gemini|llama|mistral|palm|bert)[- ]?\d"#)
+
+    /// The generation a line names, or nil.
+    static func named(in line: String) -> String? {
+        let whole = NSRange(line.startIndex..., in: line)
+        guard let match = regex.firstMatch(in: line, range: whole),
+              let range = Range(match.range, in: line) else { return nil }
+        return String(line[range])
     }
 }

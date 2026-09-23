@@ -367,8 +367,11 @@ public enum FunFacts {
             // rather than the one-off event the old line implied.
             "Since 2024 Claude's app system prompts ship in public release notes",
             // Image input arrived with the Claude 3 family, 4 March 2024
-            // (Haiku on the 13th). The old line was true but timeless.
-            "Claude has read images as well as text since Claude 3, March 2024 👀",
+            // (Haiku on the 13th). The old line was true but timeless. The
+            // family is unnamed for rule 2 — the date carries the fact alone.
+            // Source: anthropic.com, "Introducing the next generation of
+            // Claude", 4 Mar 2024.
+            "Claude has read images as well as text since March 2024 👀",
             // The docs glossary supplies the number that makes this digestible:
             // "a token approximately represents 3.5 English characters, though
             // the exact number can vary depending on the language used".
@@ -508,9 +511,11 @@ public enum FunFacts {
             "'Let's think step by step' — Kojima's May 2022 one-liner",
             // Brown et al., arXiv 2005.14165, 28 May 2020. ARRIVED WITH, not
             // invented — in-context examples predate it; the abstract's own
-            // claim is "without any gradient updates or fine-tuning".
+            // claim is "without any gradient updates or fine-tuning". The
+            // model the paper introduced is unnamed for rule 2; the paper and
+            // its author are the durable half.
             // Source: arXiv:2005.14165.
-            "Few-shot prompting arrived with GPT-3, Tom Brown's May 2020 paper",
+            "Few-shot prompting arrived with Tom Brown's May 2020 paper",
             // Lewis et al., arXiv 2005.11401, 22 May 2020, FAIR/UCL/NYU. The
             // old line said a naming happened without saying what was named.
             // Source: arXiv:2005.11401.
@@ -534,8 +539,10 @@ public enum FunFacts {
             // lucky one" is a maxim — true enough, but nothing authoritative
             // says it and "a lucky one" is exactly the hanging phrase this
             // round exists to remove. The event next door is dated and real.
-            // Source: OpenAI, GPT-4 research post, 14 Mar 2023.
-            "OpenAI shipped Evals with GPT-4 in March 2023 so anyone could benchmark",
+            // It launched beside a model this line no longer names (rule 2);
+            // the open-sourcing is the part that stays true.
+            // Source: github.com/openai/evals, released 14 Mar 2023.
+            "OpenAI open-sourced Evals in March 2023 so anyone could benchmark",
             // The distinction that survives every generation of model, with
             // verbs that carry it: fine-tuning updates parameters, prompting
             // leaves the model frozen.

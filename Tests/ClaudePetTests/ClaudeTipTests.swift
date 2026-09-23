@@ -89,6 +89,8 @@ struct ClaudeTipTests {
                 #expect(!lower.contains(generation),
                         "\"\(tip)\" names \(model.name) and will age")
             }
+            let named = ModelGenerationPattern.named(in: tip)
+            #expect(named == nil, "\"\(tip)\" names \(named ?? "") and will age")
         }
     }
 

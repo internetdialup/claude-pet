@@ -26,7 +26,7 @@ enum DemoMode {
     /// fire, then the payoff. `nudging` sits before `done` because it is the
     /// state people will not have seen before.
     static let script: [Beat] = [
-        Beat(mood: .idle, bubble: "Let's build something great", style: .plain, tool: nil, seconds: 3.0),
+        Beat(mood: .idle, bubble: "Let's build something awesome!", style: .plain, tool: nil, seconds: 3.0),
         Beat(mood: .thinking, bubble: "…", style: .dots, tool: nil, seconds: 2.5),
         Beat(mood: .working, bubble: "Wiring the pipeline", style: .plain, tool: "Bash", seconds: 3.0),
         Beat(mood: .cooking, bubble: "🔥", style: .plain, tool: nil, seconds: 3.0),
@@ -51,7 +51,7 @@ enum DemoMode {
     /// size — and gives the fire and the party the room they earn. The beats
     /// sum to exactly `reelSeconds`, which the renderer asserts.
     static let reelScript: [Beat] = [
-        Beat(mood: .idle, bubble: "Let's build something great", style: .plain, tool: nil, seconds: 2.5),
+        Beat(mood: .idle, bubble: "Let's build something awesome!", style: .plain, tool: nil, seconds: 2.5),
         Beat(mood: .thinking, bubble: "…", style: .dots, tool: nil, seconds: 2.0),
         Beat(mood: .working, bubble: "Wiring the pipeline", style: .plain, tool: "Bash", seconds: 2.5),
         Beat(mood: .cooking, bubble: "Absolutely cooking 🔥", style: .plain, tool: nil, seconds: 2.5),

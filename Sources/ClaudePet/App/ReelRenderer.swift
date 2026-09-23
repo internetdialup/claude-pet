@@ -458,13 +458,7 @@ enum ReelRenderer {
         // composition is unchanged; what moved is that each line now names a
         // date. The old picked[0] was one line at 28 columns, and no fact in the
         // deck is that short any more, so every bubble wraps to two now.
-        let picked: [(text: String, at: Double)] = [
-            ("Two hex digits make one byte: 0x00 is 0 and 0xFF is 255", 0),  // CS-101
-            ("Anthropic published a new constitution for Claude in January 2026 📜", 0),
-            ("Prompt caching, from August 2024, lets a long prompt be read once", 0),
-            ("Deep Blue beat champion Kasparov in May 1997, 3.5-2.5 over six games 🏆", 0),
-            ("Andrej Karpathy coined 'vibe coding' in a tweet on 2 February 2025 ⚡", 0),
-        ]
+        let picked = factPicks
         // Every line must really be in the pools — the sheet shows what he
         // says, not marketing copy that resembles it.
         guard picked.dropFirst().allSatisfy({ FunFacts.all.contains($0.text) }),
@@ -626,6 +620,17 @@ enum ReelRenderer {
     /// and a wave runs 1.8s, so the strip needs 12.2 before anything is cut
     /// mid-gesture. Thirteen clears it, is a whole number of frames, and is
     /// still under the 25-second attention ceiling.
+    /// The five facts on `facts.png`, one per category. Hoisted out of
+    /// `renderFacts` so `SayableLinesTests` can reach them — as a local they
+    /// were guarded only when the render ran.
+    static let factPicks: [(text: String, at: Double)] = [
+        ("Two hex digits make one byte: 0x00 is 0 and 0xFF is 255", 0),  // CS-101
+        ("Anthropic published a new constitution for Claude in January 2026 📜", 0),
+        ("Prompt caching, from August 2024, lets a long prompt be read once", 0),
+        ("Deep Blue beat champion Kasparov in May 1997, 3.5-2.5 over six games 🏆", 0),
+        ("Andrej Karpathy coined 'vibe coding' in a tweet on 2 February 2025 ⚡", 0),
+    ]
+
     static let costumeSeconds = 13.0
 
     /// Who stands where, and what they do.

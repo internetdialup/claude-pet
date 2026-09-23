@@ -106,20 +106,26 @@ enum CostumeSampler {
     /// clip · what he says. Every line is a REAL one — facts from the pools,
     /// shouts from the skate deck — because a sample that says marketing copy
     /// is a sample of nothing.
+    ///
+    /// 🔎 This claim was false for a round and nothing noticed: the September
+    /// 2026 fact re-cut rewrote the deck, and eight of these nine lines went on
+    /// quoting facts he no longer says — one of them the temperature line the
+    /// same round had retired as decayed. `SayableLinesTests` pins it now, so
+    /// the next deck edit fails here instead of shipping in a sample.
     static let cast: [(costume: Costume, t0: Double,
                        flourish: CrabAnimator.Flourish, onset: Double,
                        line: String)] = [
-        (.ninja,        88.0, .wave,       3.4, "Red-teaming a model means trying hard to make it misbehave 😈"),
+        (.ninja,        88.0, .wave,       3.4, "Anthropic's 2022 red team published all 38,961 of its attacks 😈"),
         // Scan A: salt 19 first fires cycle 3 (dice .145 < .35) → t=36–37.8.
-        (.gundam,       34.0, .wiggle,     3.6, "Anthropic's AI Safety Levels are modeled on biosafety levels"),
+        (.gundam,       34.0, .wiggle,     3.6, "Anthropic's AI Safety Levels are modeled on lab biosafety levels"),
         // Rings fire cycle 3 (dice .011) → t=24–26; dash A fires cycle 3
         // (dice .319 < .4) → t=27–28.6. One t0 catches both on camera.
-        (.sonic,        23.0, .scuttle,    3.4, "Claude Code launched as a coding agent in your terminal"),
-        (.frankenstein, 33.0, .wiggle,     3.6, "Constitutional AI trains a model against written principles"),
-        (.retroBlack,   31.0, .stretch,    3.6, "Claude is reachable by API, not only a chat window"),
-        (.matrix,        4.0, .lookAround, 3.2, "A token can be a whole word or just a piece of one"),
-        (.white,         4.0, .jump,       3.4, "Anthropic was founded in 2021 🧡"),
-        (.tiger,         4.0, .stretch,    3.2, "Temperature controls how much a model's output varies"),
+        (.sonic,        23.0, .scuttle,    3.4, "Claude Code began as a February 2025 research preview in the terminal"),
+        (.frankenstein, 33.0, .wiggle,     3.6, "Constitutional AI, from 2022: the model critiques itself against rules"),
+        (.retroBlack,   31.0, .stretch,    3.6, "Claude runs behind an API, so apps can call it without a chat window"),
+        (.matrix,        4.0, .lookAround, 3.2, "A token is about 3.5 English characters — a word, or a piece of one"),
+        (.white,         4.0, .jump,       3.4, "Anthropic was founded in January 2021 🧡"),
+        (.tiger,         4.0, .stretch,    3.2, "Temperature dials a model's randomness — Claude has since retired it"),
         (.arcade,        4.0, .kickflip,   1.6, "Do a Kickflip 🛹!"),
     ]
 

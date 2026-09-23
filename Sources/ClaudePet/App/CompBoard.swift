@@ -16,7 +16,9 @@ import AppKit
 @MainActor
 enum CompBoard {
 
-    static let fact = "Anthropic has published Claude's constitution 📜"
+    /// A line he really says — pinned by `SayableLinesTests`, because the
+    /// previous one outlived the fact it quoted.
+    static let fact = "Anthropic published a new constitution for Claude in January 2026 📜"
 
     static let bubbles: [(tag: String, fill: Color?, text: Color?)] = [
         ("green", nil, nil),                                  // today's idle green
