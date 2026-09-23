@@ -291,6 +291,30 @@ public struct CrabPose: Sendable, Equatable {
     /// only by the secret-menu preview, which must bypass those dice.
     public var ringFlight: Double?
 
+    /// 🤖 The Gundam's sortie — a beam saber drawn, lit and swung, or the
+    /// rifle that scans, locks and fires — or nil. LIVE-ONLY by placement:
+    /// set only in `pose()`'s idle branch under a Gundam `MotionWardrobe`, and
+    /// by the secret-menu preview; every offline door passes the bare
+    /// wardrobe, so no committed render can ever carry one.
+    ///
+    /// `seconds` is a travel parameter — the blend never averages two points
+    /// of a beat. `visibility` is the dissolve: the blend ghosts it out when
+    /// the mood leaves idle mid-beat, and a hover, pet or poke hushes it. The
+    /// arm it rides is ordinary `armRight`, so the claw lowers as it fades.
+    public struct Sortie: Sendable, Equatable {
+        public enum Kind: Sendable, Equatable, CaseIterable { case saber, rifle }
+        public var kind: Kind
+        public var seconds: Double
+        public var visibility: Double = 1
+
+        public init(kind: Kind, seconds: Double, visibility: Double = 1) {
+            self.kind = kind
+            self.seconds = seconds
+            self.visibility = visibility
+        }
+    }
+    public var sortie: Sortie?
+
     /// 💨 Landing dust: 0…1 through a stomp's puff, or nil. Written fresh
     /// each frame by the flourish that lands (pure in its own progress), so
     /// the blend leaves it alone like every travel parameter.
@@ -500,15 +524,15 @@ public enum CrabRig {
         Int((sin(pose.legPhase + Double(index) * .pi / 2) * pose.legAmplitude).rounded())
     }
 
-    // Internal, like `legX`, so anything that rides a claw can seat itself
-    // on the claw it is drawn beside rather than on a copy of these numbers.
+    // Internal, like `legX`, so the Gundam's sortie can seat its hilt on the
+    // claw it is drawn beside rather than on a copy of these numbers.
     static let armW = 2
     static let armH = 3
     static let armY = 14
 
     /// How many rows a raised arm's bar climbs above the nub: `lift` 0…1 to
     /// 0…6 whole cells. One formula for `drawArm` and for anything that rides
-    /// the claw, and the tests that hold both to a cell.
+    /// the claw — the sortie's hilt, and the tests that hold both to a cell.
     static func armReach(_ lift: Double) -> Int {
         Int((max(0, min(1, lift)) * 6).rounded())
     }
@@ -686,6 +710,12 @@ public enum CrabRig {
         // The wardrobe's own weather goes on after the last worn layer, so
         // the figure is finished before the sky is.
         costumeLayer(.weather)
+        // 🤖 The Gundam's sortie: after the last worn layer, so it can never
+        // be under the fin or the visor, and before the season's weather and
+        // every prop, badge and heart, which all win their cells over it.
+        sortiePass(&buffer, pose: pose, costume: costume, ghostCostume: ghostCostume,
+                   costumeVisibility: costumeVisibility, crownProp: crownProp,
+                   dx: dx, dy: dy, squash: squash)
         // 🗓 The season's weather, for EVERYONE in the window — the white
         // costume's snow rule generalised: clear cells only, continuous, no
         // dice. Winter skips anyone already wearing Arctic White, or the
@@ -1639,6 +1669,177 @@ public enum CrabRig {
     /// One prop at a given visibility. Full visibility draws straight into the
     /// buffer — byte-identical to the pre-dissolve renderer; anything less
     /// renders to a scratch buffer and composites as a stable pixel dissolve.
+    /// 🤖 The Gundam's sortie — the weapon, riding the live claw.
+    ///
+    /// Three defences keep it off everything it must not touch, because a
+    /// weapon over his face is the wardrobe covering a face:
+    /// - it composites with `preservingExisting`, so any cell already painted
+    ///   — shell, arm, fin, visor, eye — wins;
+    /// - it clears every cell a FULL-STRENGTH render of the shell, both
+    ///   costumes' worn layers and the props would occupy first — because
+    ///   during a crossfade those cells may not be painted yet, and
+    ///   `preservingExisting` alone would let the blade into a fin that is
+    ///   still dissolving in;
+    /// - it dissolves at the sortie's own visibility × the Gundam's share of
+    ///   any costume crossfade, so taking the costume off takes the weapon
+    ///   with it, once.
+    private static func sortiePass(_ b: inout PixelBuffer, pose: CrabPose, costume: Costume,
+                                   ghostCostume: Costume, costumeVisibility: Double, crownProp: Bool,
+                                   dx: Int, dy: Int, squash: Int) {
+        guard let sortie = pose.sortie else { return }
+        let share = (costume == .gundam ? costumeVisibility : 0)
+            + (ghostCostume == .gundam ? 1 - costumeVisibility : 0)
+        let visibility = Ease.clamp01(sortie.visibility) * share
+            * CrabAnimator.sortieDissolve(sortie)
+        guard visibility > 0.001 else { return }
+        // Mid-turn the yaw has remapped the claw and this pass would not
+        // follow it. A sortie never plays inside a turning trick; a blend can
+        // carry one to the edge of one, and a weapon beside a claw that has
+        // left is worse than none. The yaw pass's own test.
+        let turn = pose.torsoTurn - floor(pose.torsoTurn)
+        guard turn <= 0.0005 || turn >= 0.9995 else { return }
+
+        var weapon = PixelBuffer()
+        paintSortie(&weapon, sortie: sortie, reach: armReach(pose.armRight), dx: dx, dy: dy)
+
+        var keepOut = PixelBuffer()
+        keepOut.rect(bodyX + dx - squash, bodyY + dy + squash, bodyW + squash * 2, bodyH - squash, .body)
+        for worn in [ghostCostume, costume] where worn != .none {
+            for layer in [CrabCostume.Layer.behind, .onBody, .front] {
+                if layer == .front, crownProp, CostumeStyle.of(worn).yieldsCrownToProps { continue }
+                CrabCostume.draw(&keepOut, costume: worn, layer: layer,
+                                 dx: dx, dy: dy, squash: squash, pose: pose)
+            }
+        }
+        propPass(&keepOut, pose: pose, prop: pose.ghostProp, phase: pose.ghostPropPhase,
+                 visibility: 1, dx: dx, dy: dy)
+        propPass(&keepOut, pose: pose, prop: pose.prop, phase: pose.propPhase,
+                 visibility: 1, dx: dx, dy: dy)
+        for y in 0..<PixelBuffer.side {
+            for x in 0..<PixelBuffer.side where keepOut[x, y] != .clear {
+                weapon.pixel(x, y, .clear)
+            }
+        }
+        b.composite(weapon, visibility: visibility,
+                    seed: sortie.kind == .saber ? 790 : 791, preservingExisting: true)
+    }
+
+    /// The weapon's cells for one instant of the beat: the white-hot `.paper`
+    /// core, the `.pink` glow, the `.steel` hilt and rifle edge, and the
+    /// rifle's `.slate` near-black body.
+    ///
+    /// The saber hangs off its hilt and the hilt sits on the claw's top — at
+    /// the approved reach 3 that is the hilt on rows 9–10 of column 28, the
+    /// blade on rows 3–8 and the cap on row 2 — so anything that lowers the
+    /// arm (a hush, a mood-change blend, the costume coming off) lowers the
+    /// weapon with it. The rifle is held in the resting nub, its near-black
+    /// barrel on row 14 out to the grid's edge, and fires off it.
+    private static func paintSortie(_ b: inout PixelBuffer, sortie: CrabPose.Sortie,
+                                    reach: Int, dx: Int, dy: Int) {
+        func put(_ x: Int, _ y: Int, _ ink: PixelBuffer.Ink) {
+            guard x >= 0, x < PixelBuffer.side, y >= 0, y < PixelBuffer.side else { return }
+            b.pixel(x, y, ink)
+        }
+        switch sortie.kind {
+        case .saber:
+            guard let (phase, u) = CrabAnimator.saberPhase(at: sortie.seconds) else { return }
+            let clawTop = armY + dy - reach
+            let ax = bodyX + bodyW + 2 + dx          // column 28 at rest: the bar's outer column
+            let ay = clawTop - 2                     // the hilt's top cell
+            func at(_ cells: [(Int, Int)], _ ink: PixelBuffer.Ink) {
+                for (ox, oy) in cells { put(ax + ox, ay + oy, ink) }
+            }
+            // Vertical: core and a glow either side, six rows, then the cap.
+            func blade(rows: Int, hum: Bool) {
+                for k in 0..<min(rows, 6) {
+                    at([(0, -1 - k)], .paper)
+                    at([(-1, -1 - k), (1, -1 - k)], .pink)
+                }
+                if rows >= 7 { at([(0, -7)], hum ? .paper : .pink) }
+            }
+            let hilt = [(0, 0), (0, 1)]
+            let humming = CrabAnimator.sortieHum(sortie.seconds)
+            switch phase {
+            case .raise, .lower:
+                return
+            case .hiltIn, .hiltOut:
+                at(hilt, .steel)
+            case .ignite:
+                at(hilt, .steel)
+                blade(rows: Int((u * 7).rounded(.up)), hum: false)
+            case .hold, .decision:
+                at(hilt, .steel)
+                blade(rows: 7, hum: humming)
+            case .retract:
+                at(hilt, .steel)
+                blade(rows: Int(((1 - u) * 7).rounded(.up)), hum: false)
+            case .windUp:
+                // Leaned back 22.5°, away from the slash — one clear column
+                // from the fin's tip at every breath.
+                at(hilt, .steel)
+                at([(0, -1), (-1, -2), (-1, -3), (-2, -4), (-2, -5), (-3, -6)], .paper)
+                at([(1, -1), (0, -2), (0, -3), (-1, -4), (-1, -5), (0, -6), (-3, -7)], .pink)
+            case .smear:
+                // The one smear frame: the blade already down at 45°, and the
+                // arc it swept left as a crescent — the "bent saber".
+                at(hilt, .steel)
+                at([(1, -1), (2, -2), (3, -3)], .paper)
+                at([(1, -2), (2, -3), (3, -4), (2, -1), (3, -2)], .pink)
+                at([(-1, -7), (0, -8), (1, -8), (2, -7), (3, -6)], .pink)
+            case .follow:
+                // Through and flat, out past the right edge; the hilt lies
+                // flat on the claw.
+                at([(-1, 1), (0, 1)], .steel)
+                at([(1, 1), (2, 1), (3, 1)], .paper)
+                at([(1, 0), (2, 0), (3, 0), (1, 2), (2, 2), (3, 2)], .pink)
+            case .recover:
+                at(hilt, .steel)
+                if u < 0.5 {
+                    at([(0, -1), (1, -2), (1, -3), (2, -4), (2, -5), (3, -6)], .paper)
+                    at([(-1, -1), (0, -2), (0, -3), (1, -4), (1, -5), (2, -6), (3, -7)], .pink)
+                } else {
+                    blade(rows: 7, hum: false)
+                }
+            }
+        case .rifle:
+            guard let (phase, u) = CrabAnimator.riflePhase(at: sortie.seconds) else { return }
+            let nx = bodyX + bodyW + dx              // the nub's inner column, 26 at rest
+            let ny = armY + dy                       // the nub's top row, 14 at rest
+            func at(_ cells: [(Int, Int)], _ ink: PixelBuffer.Ink) {
+                for (ox, oy) in cells { put(nx + ox, ny + oy, ink) }
+            }
+            // The fitting's second cut (the operator: the first read as "too
+            // hard to distinguish"): a barrel four cells long, out of the
+            // claw to the grid's edge, a receiver row and a scope above it —
+            // the canon near-black body, with a steel top edge so it still
+            // reads on a dark wallpaper. The nub is the stock and the hand.
+            at([(2, 0), (3, 0), (4, 0), (5, 0), (2, 1)], .slate)
+            at([(2, -1), (3, -1), (4, -1)], .steel)
+            at([(4, -2)], phase == .lock ? .paper : .steel)     // the scope, lit at the lock
+            switch phase {
+            case .rifleIn, .scan, .lock, .rifleOut:
+                break
+            case .charge:
+                // The muzzle — the barrel's last cell, on the grid's edge —
+                // warms, then brightens, then blooms.
+                switch min(3, Int(u * 4)) {
+                case 0: at([(5, 0)], .pink)
+                case 1: at([(5, 0)], .paper)
+                case 2: at([(5, 0)], .paper); at([(5, -1)], .pink)
+                default: at([(5, 0)], .paper); at([(5, -1), (5, 1)], .pink)
+                }
+            case .fire:
+                at([(5, -1), (5, 0), (5, 1), (4, 1)], .paper)
+                at([(4, -1)], .pink)
+            case .travel:
+                // The shot is already past the edge; its tail leaves with it.
+                at([(5, 0)], .paper)
+            case .cool:
+                at([(5, 0)], .pink)
+            }
+        }
+    }
+
     private static func propPass(_ b: inout PixelBuffer, pose: CrabPose, prop: CrabPose.Prop,
                                  phase: Double, visibility: Double, dx: Int, dy: Int) {
         guard prop != .none, visibility > 0.001 else { return }

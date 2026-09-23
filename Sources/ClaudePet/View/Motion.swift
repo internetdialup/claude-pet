@@ -263,6 +263,23 @@ extension CrabPose {
             out.ghostPropVisibility = max(from.ghostPropVisibility * (1 - u),
                                           1 - Ease.smoothstep(u))
         }
+
+        // 🤖 The Gundam's sortie, when the mood leaves idle mid-beat: the
+        // weapon is the outgoing pose's, frozen where it was (`seconds` is a
+        // travel parameter — averaging two points of a slash is a third one
+        // that never happened) and dissolved out the way the ghost prop is.
+        // `armRight` lerps above, so the claw lowers while the weapon riding
+        // it fades. The reverse case never arises live — a sortie only begins
+        // inside an idle cycle — but a pose that gains one mid-blend fades in.
+        switch (from.sortie, to.sortie) {
+        case (let outgoing?, nil):
+            out.sortie = outgoing
+            out.sortie?.visibility = outgoing.visibility * (1 - Ease.smoothstep(u))
+        case (nil, let incoming?):
+            out.sortie?.visibility = min(incoming.visibility, Ease.smoothstep(u))
+        default:
+            break
+        }
         return out
     }
 }

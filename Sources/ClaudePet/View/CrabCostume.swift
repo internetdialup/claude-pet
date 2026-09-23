@@ -714,6 +714,33 @@ enum CrabCostume {
             // Continuous rather than scheduled: weather does not take turns.
             HolidayAmbience.drawSnow(&b, phase: pose.propPhase)
         case .gundam:
+            if layer == .behind {
+                // ⚔️ The saber rack: a hilt behind each shoulder, angled out
+                // the way the RX-78's backpack sabers stand — the operator's
+                // pick at the sortie's fitting ("the saber hilts should be the
+                // lil X behind his body"). Behind him, so the shell cuts
+                // through them and they read as HIS; part of the resting look.
+                // On a saber sortie the right-hand hilt is the one he draws:
+                // it leaves the rack as the saber arrives in his claw and
+                // comes back as it goes, one dissolve handing over to the
+                // other so the hilt is never in two places at full strength.
+                let crown = bodyY + dy + squash
+                b.pixel(bodyX + 1 + dx, crown - 3, .steel)
+                b.pixel(bodyX + 2 + dx, crown - 2, .steel)
+                let drawn = pose.sortie.map {
+                    CrabAnimator.sortieHiltInHand($0) * Ease.clamp01($0.visibility)
+                } ?? 0
+                if drawn < 0.001 {
+                    b.pixel(bodyX + bodyW - 2 + dx, crown - 3, .steel)
+                    b.pixel(bodyX + bodyW - 3 + dx, crown - 2, .steel)
+                } else if drawn < 0.999 {
+                    var rack = PixelBuffer()
+                    rack.pixel(bodyX + bodyW - 2 + dx, crown - 3, .steel)
+                    rack.pixel(bodyX + bodyW - 3 + dx, crown - 2, .steel)
+                    b.composite(rack, visibility: 1 - drawn, seed: 793)
+                }
+                break
+            }
             if layer == .onBody {
                 // The face is built on black: a visor recess across the eye
                 // rows — the reference's whole read — with the camera eyes
@@ -826,6 +853,28 @@ enum CrabCostume {
                 b.rect(leg + shift + dx, 24 + dy - lift - height + 1, 2, height, .costumeB)
             }
 
+            // 🎯 The rifle sortie's lead-in IS the scan — "scan, lock, fire":
+            // the same sweep, driven by the beat's own progress and dissolved
+            // at the beat's visibility, so a hush, a mood blend or the
+            // costume coming off takes it away with the rifle rather than
+            // leaving a frozen gold bar to pop. Any other sortie phase, and
+            // the saber, stand the standalone scan down: the schedule keeps
+            // the two apart, and this is the belt to its braces.
+            if let sortie = pose.sortie {
+                if sortie.kind == .rifle,
+                   let (phase, u) = CrabAnimator.riflePhase(at: sortie.seconds), phase == .scan {
+                    var scratch = PixelBuffer()
+                    for y in 0..<PixelBuffer.side {
+                        for x in 0..<PixelBuffer.side where b[x, y] == .body { scratch.pixel(x, y, .body) }
+                    }
+                    sweepScan(&scratch, progress: u, dx: dx)
+                    for y in 0..<PixelBuffer.side {
+                        for x in 0..<PixelBuffer.side where scratch[x, y] == .body { scratch.pixel(x, y, .clear) }
+                    }
+                    b.composite(scratch, visibility: Ease.clamp01(sortie.visibility), seed: 792)
+                }
+                break
+            }
             // Already narrowed to the front pass by the guard above — the
             // sonic case's own note tells this exact story.
             guard let scan = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamScan)

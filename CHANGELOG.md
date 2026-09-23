@@ -9,6 +9,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Added
 
+- **🤖 The Gundam draws his saber.** He wears two saber hilts racked behind
+  his shoulders now, and now and then (about once every two minutes of quiet
+  idling) he takes one in his claw, lights a pink beam saber, lets it hum,
+  slashes once and holds the pose before he racks it again. Other times he
+  brings up his rifle, runs his camera scan across himself to lock on, and
+  fires off the edge of the window. It never
+  happens while anything else is going on, and it makes way the moment you
+  hover, pet or poke him. Both are in the secret menu too, to watch on
+  demand.
 - **🤔 He tells you when he can't keep up.** If Claude Code ever changes what
   it writes beyond what this version can read, he stops guessing: a puzzled
   pose and a bubble naming the version — *This Claw'd doesn't understand Claude
@@ -199,7 +208,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   read as noise. The swishing tail does the rest.
 - **🤖 The Gundam is simpler.** The V-fin, the black visor with its yellow
   cameras, the blue vents down his flanks, the red crest, chin and boots,
-  and his white. The sensor gem, chest band, temple pods and glowing eyes
+  his white, and a saber hilt behind each shoulder. The sensor gem, chest band, temple pods and glowing eyes
   are gone. At desk size they were detail nobody could make out. His scan
   still sweeps across him.
 

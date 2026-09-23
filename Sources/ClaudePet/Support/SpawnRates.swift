@@ -187,6 +187,17 @@ enum SpawnRates {
     /// so this is a share of those, not a rate of its own.
     static let shootingStarShare = 0.4
 
+    /// 🤖 The Gundam's sortie — a beam saber or the rifle — asked only in an
+    /// idle cycle whose flourish die already missed, and only when the whole
+    /// window is clear of every other idle spell. A share of those quiet
+    /// cycles, not a rate of its own: a `Spawn` here would report the ~250
+    /// quiet cycles an hour rather than the beats. Measured by
+    /// `SortieTests.sortieCadence` at 28.5 an hour over 194 hours of Gundam
+    /// idling — about one every two minutes, the operator's pick — which
+    /// keeps him "still most of the time". The kind is the lower or upper
+    /// half of this same share.
+    static let gundamSortieShare = 0.42
+
     // MARK: - The skate specials
     //
     // Asked at a skate beat, not on a clock of their own: these are the

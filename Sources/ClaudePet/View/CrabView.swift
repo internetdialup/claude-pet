@@ -60,6 +60,7 @@ public enum CrabAnimator {
     /// | `89 &+ 19` | the surf set — same family, same question |
     /// | `89 &+ 23` | whether a landed trick is worth SAYING something about |
     /// | `89 &+ 29` | whether a 63s stretch is spent standing on the deck — the Skater's resting stance, same family |
+    /// | `89 &+ 31` | whether a quiet Gundam idle cycle is a sortie, and which — the saber below half the share, the rifle above; same family, same 7s cycle as the flourish it stands in for |
     ///
     /// Over other domains, where a collision with the above is impossible
     /// because the input is not a cycle: `37 &+ 11`, `91 &+ 17` and `53 &+ 29`
@@ -801,7 +802,8 @@ public enum CrabAnimator {
 
     /// The stargazer's dice and envelope without the hour gate — what the
     /// telescope WOULD do at `t` if it were night. For a schedule that must
-    /// stay clear of it at any hour without restating the dice; `stargaze` is this plus the gate, so the two cannot disagree.
+    /// stay clear of it at any hour (the Gundam's sortie) without restating
+    /// the dice; `stargaze` is this plus the gate, so the two cannot disagree.
     static func stargazeWindow(idleT t: Double) -> (amount: Double, phase: Double)? {
         let spawn = SpawnRates.stargaze
         let cycle = Int(floor(t / spawn.period))
@@ -869,6 +871,9 @@ public enum CrabAnimator {
         // The session: a 180-second cycle at 22% — you could wait a quarter
         // hour, or you could pick this.
         case skateSession
+        // 🤖 The Gundam's sortie: a quiet idle cycle, a die, and a clear
+        // window, about one every two minutes — each beat on demand.
+        case beamSaber, beamRifle
 
         /// How long this effect takes to let go, so a review that ends looks
         /// like the effect ending rather than like a number changing. Zero for
@@ -886,6 +891,11 @@ public enum CrabAnimator {
             case .leaves, .snowfall, .pumpkins: 0   // weather stops falling
             case .fireworks: 0      // a burst in flight finishes
             case .skateSession: 0   // the ride in progress finishes
+            // A sortie released mid-beat finishes it: the latch outlives the
+            // rest and the whole beat, so letting go never drops a lit saber
+            // (and the arm it rides) in one frame.
+            case .beamSaber: CrabAnimator.sortiePreviewRest + CrabAnimator.sortieDuration(.saber)
+            case .beamRifle: CrabAnimator.sortiePreviewRest + CrabAnimator.sortieDuration(.rifle)
             }
         }
 
@@ -897,6 +907,7 @@ public enum CrabAnimator {
         nonisolated var wardrobe: Costume {
             switch self {
             case .rings: .sonic
+            case .beamSaber, .beamRifle: .gundam
             default: .none
             }
         }
@@ -1076,6 +1087,23 @@ public enum CrabAnimator {
             let since = frame.t - passStart
             guard since >= 0.8 else { return }
             pose.ringFlight = (since - 0.8) / 2.0
+
+        case .beamSaber, .beamRifle:
+            // A beat every rest + beat: the REST COMES FIRST — the frozen
+            // sentinel, the tricks' argument above — then the whole sortie.
+            // Released, the beat in flight finishes and no new one starts
+            // (the rings' contract). During the rest nothing is set, bar a
+            // scheduled sortie cleared so it cannot show through the review.
+            let kind: CrabPose.Sortie.Kind = frame.effect == .beamSaber ? .saber : .rifle
+            let cycle = sortiePreviewRest + sortieDuration(kind)
+            let passStart = (frame.t / cycle).rounded(.down) * cycle
+            if let endedT = frame.endedT, passStart > endedT { return }
+            let since = frame.t - passStart
+            guard since >= sortiePreviewRest else {
+                pose.sortie = nil
+                return
+            }
+            applySortie(kind, seconds: since - sortiePreviewRest, to: &pose)
 
         case .idleHeart:
             // One heart every 4.3s: rest first, then the 3.5s flight — the
@@ -1286,6 +1314,20 @@ public enum CrabAnimator {
                        ollieIsSteezed(cycle: Int(floor(t / flourishPeriod)), costume: worn) {
                         pose.legKick = steezeKick(progress: progress)
                     }
+                }
+            } else if flourishes, let sortie = gundamSortie(at: t, wardrobe: wardrobe) {
+                // 🤖 The Gundam's sortie — only in a cycle the flourish die
+                // passed over, only when nothing else is on. See the
+                // extension at the foot of this file.
+                applySortie(sortie.kind, seconds: sortie.seconds, to: &pose)
+                // Taken off mid-beat: the cycle's latch finishes the beat, but
+                // the claw is handed back over the costume's own crossfade.
+                // Only the ARM here — the weapon already fades with the
+                // Gundam's share of that crossfade in the rig, and fading it
+                // twice would square the fade.
+                if wardrobe.current != .gundam, wardrobe.changedAt.isFinite {
+                    let away = Ease.smoothstep((t - wardrobe.changedAt) / CostumeClock.fadeDuration)
+                    pose.armRight *= 1 - away
                 }
             }
 
@@ -1943,7 +1985,7 @@ public enum CrabAnimator {
     /// The shrimp snack, 2.8s: he stirs, munches three beats, and settles. The
     /// shrimp itself is drawn by the rig off `snackElapsed`.
     /// The snack's presence, 0…1 — one envelope for the overlay and for
-    /// anything that must make way while it plays.
+    /// anything that must make way while it plays (the Gundam's sortie).
     static func snackEnvelope(elapsed: Double) -> Double {
         Ease.window(elapsed, duration: 2.8, edge: 0.4)
     }
@@ -2135,7 +2177,7 @@ public enum CrabAnimator {
     }
 
     /// …and their presence, 0…1: in with the drop, out with the exit — for
-    /// anything that must make way while they are on.
+    /// anything that must make way while they are on (the Gundam's sortie).
     static func shadesPresence(elapsed: Double, endedElapsed: Double?) -> Double {
         guard elapsed >= 0 else { return 0 }
         return min(shadesExit(endedElapsed: endedElapsed),
@@ -3538,6 +3580,35 @@ public struct CrabView: View {
         var pose = CrabAnimator.pose(mood: mood, t: t, flourishes: true,
                                      hourOfDay: hourOfDay, holiday: holiday,
                                      wardrobe: wardrobe)
+        // 🤖 A sortie makes way the moment he is handled. Computed BEFORE the
+        // overlays, and only while one is on: the overlays compose their arms
+        // with `max`, so hushing afterwards would pull a wave down with it,
+        // and hushing unconditionally would change every hover he has ever
+        // done. A poke hushes too — which is what keeps the three-poke party,
+        // whose bare pose skips all of this, from ever catching a lit saber.
+        if pose.sortie != nil, frozenTime == nil {
+            var hush = 0.0
+            if let hoverSince {
+                hush = max(hush, Ease.amount(now: time, since: hoverSince, endedAt: hoverEndedAt))
+            }
+            if let helloSince {
+                hush = max(hush, Ease.amount(now: time, since: helloSince, endedAt: helloEndedAt))
+            }
+            if let petSince {
+                hush = max(hush, Ease.amount(now: time, since: petSince, endedAt: petEndedAt))
+            }
+            if let clickedAt { hush = max(hush, CrabAnimator.clickHush(elapsed: time - clickedAt)) }
+            if let pouncedAt { hush = max(hush, CrabAnimator.pounceEnvelope(elapsed: time - pouncedAt)) }
+            if let snackSince { hush = max(hush, CrabAnimator.snackEnvelope(elapsed: time - snackSince)) }
+            if let rudeWakeSince {
+                hush = max(hush, CrabAnimator.rudeWakeAmount(elapsed: time - rudeWakeSince))
+            }
+            if let shadesSince {
+                hush = max(hush, CrabAnimator.shadesPresence(elapsed: time - shadesSince,
+                                                             endedElapsed: shadesEndedAt.map { time - $0 }))
+            }
+            CrabAnimator.hushSortie(hush, to: &pose)
+        }
         if mood == .done, celebrating, frozenTime == nil {
             CrabAnimator.applyCelebration(t: t, epic: epicCelebration, to: &pose)
         }
@@ -3714,5 +3785,266 @@ public final class MoodClock {
         guard progress < 1 else { self.blendFrom = nil; return nil }
         guard progress > 0 else { return (blendFrom, 0) }
         return (blendFrom, Ease.smoothstep(progress))
+    }
+}
+
+// MARK: - 🤖 The Gundam's sortie
+
+/// The Gundam's one piece of theatre: now and then, in a quiet idle cycle, he
+/// draws a beam saber — lights it, slashes, holds the decision pose, puts it
+/// away — or raises the rifle, runs his camera scan across himself as the
+/// lock, and fires into empty air off the right of the frame.
+///
+/// The operator's picks, off previews (2026-09-23): an idle sortie, never
+/// while anything else is on; scan, lock, fire; about one every two minutes;
+/// ignite, slash, pose; a rose-pink blade on a white core; silent. At the
+/// fitting: the hilts rest on a rack behind his shoulders as part of the
+/// look, and the rifle became a longer near-black barrel with a steel edge. Canon puts both weapons in his RIGHT hand, which is screen-left —
+/// where the mug, the shrimp and the service badges live — so the sortie is
+/// mirrored into the free lane on screen-right.
+///
+/// Live-only by construction: it needs the Gundam `MotionWardrobe` and
+/// `flourishes`, and every offline door passes the bare wardrobe. The pose
+/// carries only `sortie` (kind, seconds, visibility), `armRight` and a gaze
+/// lead; the rig draws the weapon, riding the live claw, in its own pass.
+extension CrabAnimator {
+    /// The saber beat, in order.
+    enum SaberPhase: String, CaseIterable, Sendable {
+        case raise, hiltIn, ignite, hold, windUp, smear, follow, recover, decision, retract, hiltOut, lower
+    }
+
+    /// The rifle beat, in order.
+    enum RiflePhase: String, CaseIterable, Sendable {
+        case rifleIn, scan, lock, charge, fire, travel, cool, rifleOut
+    }
+
+    /// Phase lengths in seconds. Twelfths wherever a phase is a count of
+    /// committed-GIF frames, so the keys land on whole frames at 12fps and a
+    /// one-frame key is never skipped. The sum IS the beat: `sortieDuration`
+    /// adds them up rather than restating it, and a test pins the order.
+    static let saberPhases: [(phase: SaberPhase, length: Double)] = [
+        (.raise, 0.5), (.hiltIn, 0.25), (.ignite, 0.5), (.hold, 8.0 / 12),
+        (.windUp, 2.0 / 12), (.smear, 1.0 / 12), (.follow, 0.25), (.recover, 2.0 / 12),
+        (.decision, 8.0 / 12), (.retract, 5.0 / 12), (.hiltOut, 0.25), (.lower, 0.5),
+    ]
+
+    /// The rifle's scan is the costume's own scan, at its own length, so the
+    /// lead-in reads as the same camera and not a second one.
+    static let riflePhases: [(phase: RiflePhase, length: Double)] = [
+        (.rifleIn, 0.25), (.scan, SpawnRates.gundamScan.duration), (.lock, 0.2),
+        (.charge, 4.0 / 12), (.fire, 1.0 / 12), (.travel, 1.0 / 12), (.cool, 0.25), (.rifleOut, 0.25),
+    ]
+
+    static func sortieDuration(_ kind: CrabPose.Sortie.Kind) -> Double {
+        switch kind {
+        case .saber: saberPhases.reduce(0) { $0 + $1.length }
+        case .rifle: riflePhases.reduce(0) { $0 + $1.length }
+        }
+    }
+
+    /// Which phase `seconds` falls in, and how far through it (0..<1), or nil
+    /// outside the beat.
+    static func sortiePhase<P>(_ seconds: Double,
+                               in table: [(phase: P, length: Double)]) -> (phase: P, u: Double)? {
+        guard seconds >= 0 else { return nil }
+        var start = 0.0
+        for entry in table {
+            if seconds < start + entry.length {
+                return (entry.phase, (seconds - start) / entry.length)
+            }
+            start += entry.length
+        }
+        return nil
+    }
+
+    static func saberPhase(at seconds: Double) -> (phase: SaberPhase, u: Double)? {
+        sortiePhase(seconds, in: saberPhases)
+    }
+
+    static func riflePhase(at seconds: Double) -> (phase: RiflePhase, u: Double)? {
+        sortiePhase(seconds, in: riflePhases)
+    }
+
+    /// The saber arm's lift at the top: reach 3 of 6, so the bar ends at row
+    /// 11 and the blade's tip lands on row 2, the approved preview. Eased over
+    /// half a second, which is under one cell a frame even at 12fps.
+    static let sortieArmLift = 0.5
+
+    /// The secret-menu preview's beat of rest before each sortie it plays.
+    static let sortiePreviewRest = 0.8
+
+    /// How far into its idle cycle a sortie begins — a breath after whatever
+    /// the last cycle did, and early enough that the longer beat (4.42s)
+    /// still ends inside its own 7s cycle, so no neighbour can collide.
+    static let sortieOffset = 1.0
+
+    /// The scheduled sortie at mood-clock `t`, and how far into it, or nil.
+    ///
+    /// Asks every schedule it must stay clear of rather than restating their
+    /// dice — the `nextSkateTrickLanding` rule. One die on the flourish
+    /// clock's own family (`89 &+ 31`) decides both whether and which: the
+    /// lower half of the share is the saber, the upper the rifle, the way
+    /// `skateHeadwear` cuts one roll into two. The verdict depends only on the
+    /// cycle, so every frame of a beat gets the same answer.
+    /// - Parameter share: the die's share of quiet cycles — the table's, always,
+    ///   outside a test. A test passes 1 to prove the cycle-zero sentinel is
+    ///   what keeps the frozen renders clean, since at the real share this
+    ///   die happens to miss cycle zero anyway and would hide a broken guard.
+    static func gundamSortie(at t: Double,
+                             wardrobe: MotionWardrobe = .init(),
+                             share: Double = SpawnRates.gundamSortieShare)
+        -> (kind: CrabPose.Sortie.Kind, seconds: Double)? {
+        let cycle = Int(floor(t / flourishPeriod))
+        // Never in cycle zero (the frozen sentinel), and only when the Gundam
+        // was on when this cycle began — the same latch every schedule uses.
+        guard cycle > 0, wardrobe.worn(at: t, period: flourishPeriod) == .gundam else { return nil }
+        let start = Double(cycle) * flourishPeriod
+        // Only a cycle the flourish die already passed over: a sortie never
+        // hides a trick, so no landing shout can ever point at one.
+        guard flourish(at: start) == nil else { return nil }
+        let roll = noise(cycle &* 89 &+ 31)
+        guard roll < share else { return nil }
+        let kind: CrabPose.Sortie.Kind = roll < share / 2 ? .saber : .rifle
+        let begin = start + sortieOffset
+        let duration = sortieDuration(kind)
+        let seconds = t - begin
+        guard seconds >= 0, seconds < duration,
+              idleIsQuiet(from: begin, to: begin + duration) else { return nil }
+        return (kind, seconds)
+    }
+
+    /// True when no other idle spell touches `[a, b]` — probed every quarter
+    /// second and at both ends, finer than the shortest window it can meet
+    /// (the glint's 1.6s). The wardrobe is the Gundam's, fixed: the live one
+    /// can change across a 180s boundary inside the window and re-lean the
+    /// session die, which would make the answer flip mid-beat. Stargaze and
+    /// the sun are asked without their hour gates, so an hour turning over
+    /// cannot make a sortie appear or vanish either — the harmless direction,
+    /// the trade `boardRelease` already makes.
+    static func idleIsQuiet(from a: Double, to b: Double) -> Bool {
+        let gundam = MotionWardrobe(current: .gundam)
+        var x = a
+        while true {
+            if surfSet(idleT: x) != nil
+                || skateSession(idleT: x, wardrobe: gundam) != nil
+                || stargazeWindow(idleT: x) != nil
+                || sunPatchWindow(idleT: x) != nil
+                || idleBalloon(idleT: x) != nil
+                || bugPosition(idleT: x) != nil
+                || idleHeart(idleT: x) != nil
+                || idleShades(idleT: x) != nil
+                || shellGlint(idleT: x) != nil
+                || CrabCostume.effectWindow(at: x, SpawnRates.gundamScan) != nil {
+                return false
+            }
+            guard x < b else { return true }
+            x = min(b, x + 0.25)
+        }
+    }
+
+    /// Stage a sortie on a pose: the channel, the arm and the gaze. Public so
+    /// the secret-menu preview and the contact sheet drive exactly this.
+    ///
+    /// The gaze LEADS toward the weapon with the stargazer's formula — never
+    /// an assignment, because the base gaze can be looking the other way and
+    /// an assigned +1 would jump both eyes two cells in one frame.
+    public static func applySortie(_ kind: CrabPose.Sortie.Kind, seconds: Double,
+                                   to pose: inout CrabPose) {
+        let lead: Double
+        switch kind {
+        case .saber:
+            guard let (phase, u) = saberPhase(at: seconds) else { return }
+            let lift: Double
+            switch phase {
+            case .raise: lift = Ease.smoothstep(u)
+            case .lower: lift = 1 - Ease.smoothstep(u)
+            default: lift = 1
+            }
+            pose.armRight = max(pose.armRight, sortieArmLift * lift)
+            switch phase {
+            case .decision: lead = Ease.smoothstep(u / 0.5)
+            case .retract: lead = 1
+            case .hiltOut: lead = 1 - Ease.smoothstep(u)
+            default: lead = 0
+            }
+        case .rifle:
+            guard let (phase, u) = riflePhase(at: seconds) else { return }
+            switch phase {
+            case .scan: lead = Ease.smoothstep(u / 0.3)
+            case .lock, .charge, .fire, .travel, .cool: lead = 1
+            case .rifleOut: lead = 1 - Ease.smoothstep(u)
+            case .rifleIn: lead = 0
+            }
+        }
+        pose.sortie = CrabPose.Sortie(kind: kind, seconds: seconds)
+        guard lead > 0 else { return }
+        pose.gazeX = Int((Double(pose.gazeX) + (1 - Double(pose.gazeX)) * lead).rounded())
+    }
+
+    /// The weapon's own dissolve inside the beat: the hilt and the rifle
+    /// arrive and leave through the rig's pixel dissolve, never in a frame.
+    /// Everything between is at full strength — the blade GROWS rather than
+    /// fades, which is how a beam saber is lit.
+    static func sortieDissolve(_ sortie: CrabPose.Sortie) -> Double {
+        switch sortie.kind {
+        case .saber:
+            guard let (phase, u) = saberPhase(at: sortie.seconds) else { return 0 }
+            switch phase {
+            case .hiltIn: return u
+            case .hiltOut: return 1 - u
+            default: return 1
+            }
+        case .rifle:
+            guard let (phase, u) = riflePhase(at: sortie.seconds) else { return 0 }
+            switch phase {
+            case .rifleIn: return u
+            case .rifleOut: return 1 - u
+            default: return 1
+            }
+        }
+    }
+
+    /// How much of the saber's hilt is in his claw rather than on the rack
+    /// behind his shoulder, 0…1 — the hand-over the costume's rack reads, so
+    /// the hilt is never at full strength in two places. Nothing in hand
+    /// while the arm rises and falls; the hilt's own dissolve on the way in
+    /// and out; all of it for everything between. Always 0 for the rifle.
+    static func sortieHiltInHand(_ sortie: CrabPose.Sortie) -> Double {
+        guard sortie.kind == .saber, let (phase, u) = saberPhase(at: sortie.seconds) else { return 0 }
+        switch phase {
+        case .raise, .lower: return 0
+        case .hiltIn: return u
+        case .hiltOut: return 1 - u
+        default: return 1
+        }
+    }
+
+    /// The blade's hum: its cap turns white for one committed-GIF frame in
+    /// six — a steady beat, never a strobe (the film's flicker came from an
+    /// occasional lighter frame, not a constant flash). Frame-quantized, so
+    /// 12fps can never skip it.
+    static func sortieHum(_ seconds: Double) -> Bool {
+        Int((seconds * 12).rounded(.down)) % 6 == 3
+    }
+
+    /// A click's hush: in over a quarter second, held through the click's own
+    /// dent, out over half a second. Its own envelope rather than the dent's
+    /// `compression`, which reaches 1 in a tenth of a second — as a hush that
+    /// would drop the claw two cells in one frame.
+    static func clickHush(elapsed: Double) -> Double {
+        Ease.amount(now: elapsed, since: 0, endedAt: clickDuration, attack: 0.25, release: 0.5)
+    }
+
+    /// Make way: a hover, a pet, a poke, a snack or the shades take him over,
+    /// and the sortie dissolves while the claw comes back down, both by the
+    /// same amount — so whatever takes over composes onto a crab that is
+    /// already putting his weapon away rather than one frozen mid-slash.
+    static func hushSortie(_ hush: Double, to pose: inout CrabPose) {
+        guard var sortie = pose.sortie, hush > 0 else { return }
+        let keep = 1 - Ease.clamp01(hush)
+        sortie.visibility *= keep
+        pose.sortie = sortie
+        pose.armRight *= keep
+        pose.lean = Int((Double(pose.lean) * keep).rounded())
     }
 }

@@ -93,6 +93,7 @@ enum CostumeSheet {
             && tigerSheet(to: root.appendingPathComponent("sheet-tiger.png"))
             && coderSheet(to: root.appendingPathComponent("sheet-coder.png"))
             && turnSheet(to: root.appendingPathComponent("sheet-turn.png"))
+            && sortieSheet(to: root.appendingPathComponent("sheet-sortie.png"))
     }
 
     // MARK: The body turn
@@ -424,6 +425,52 @@ enum CostumeSheet {
         ]
         return write("CLAW'D CANDIDATES — silhouette · face · shading · heroes",
                      rows: [silhouette, face, shade, hero], to: url)
+    }
+
+    // MARK: The Gundam's sortie
+
+    /// Every phase of both beats, staged. The sortie is live-only — no
+    /// offline door can schedule one — so each tile drives `applySortie`
+    /// directly on a cycle-0 idle pose (`propPhase` 0.5: the standalone scan
+    /// and every other costume die stay silent), exactly the path the
+    /// secret-menu preview takes. Review material, never committed.
+    private static func sortieSheet(to url: URL) -> Bool {
+        let g = Costume.gundam
+        func staged(_ kind: CrabPose.Sortie.Kind, _ seconds: Double, _ label: String) -> Tile {
+            var pose = CrabAnimator.pose(mood: .idle, t: 0.5, flourishes: false)
+            pose.propPhase = 0.5
+            pose.bob = 0
+            pose.gazeX = 0
+            pose.gazeY = 0
+            pose.blink = 0
+            CrabAnimator.applySortie(kind, seconds: seconds, to: &pose)
+            return tile(CrabRig.render(pose, costume: g), g, label)
+        }
+        let saberOne = [
+            staged(.saber, 0.30, "raise"), staged(.saber, 0.62, "hilt in"),
+            staged(.saber, 0.92, "ignite 1/3"), staged(.saber, 1.08, "ignite 2/3"),
+            staged(.saber, 1.40, "hold"),
+        ]
+        let saberTwo = [
+            staged(.saber, 1.29, "hold · hum"), staged(.saber, 1.95, "wind-up"),
+            staged(.saber, 2.10, "smear"), staged(.saber, 2.25, "follow"),
+            staged(.saber, 2.45, "recover"),
+        ]
+        let saberThree = [
+            staged(.saber, 2.80, "decision"), staged(.saber, 3.45, "retract"),
+            staged(.saber, 3.78, "hilt out"), staged(.saber, 4.15, "lower"),
+        ]
+        let rifleOne = [
+            staged(.rifle, 0.15, "rifle in"), staged(.rifle, 0.79, "scan 30%"),
+            staged(.rifle, 1.51, "scan 70%"), staged(.rifle, 2.15, "lock"),
+            staged(.rifle, 2.55, "charge"),
+        ]
+        let rifleTwo = [
+            staged(.rifle, 2.62, "fire"), staged(.rifle, 2.70, "travel"),
+            staged(.rifle, 2.85, "cool"), staged(.rifle, 3.10, "rifle out"),
+        ]
+        return write("GUNDAM SORTIE — saber: ignite · slash · pose   rifle: scan · lock · fire",
+                     rows: [saberOne, saberTwo, saberThree, rifleOne, rifleTwo], to: url)
     }
 
     // MARK: Gundam
