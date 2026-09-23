@@ -164,9 +164,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   radial wedges with a rim band, gold and dark alternating, in place of the
   seven spokes with yellow tips that read as candles. It still spreads on
   the strut.
-- **🤓 Matrix is Coder now.** Same green rain, same stored preference —
-  he just wears steel-rimmed glasses under it. The rain parts around the
-  frames on its own.
+- **🤓 Matrix is Coder now.** Same stored preference, and he wears
+  steel-rimmed glasses under the rain, which parts around the frames on its
+  own. The rain itself is simpler: two greens instead of three, with no
+  scrolling code under it.
 - **🕹️ The arcade marquee is gone.** The chasing stripe across his belly
   read as a glitch band at desk size. Arcade is its cabinet-black shell and
   phosphor face, nothing animated.

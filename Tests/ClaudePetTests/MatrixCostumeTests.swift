@@ -66,51 +66,56 @@ struct MatrixCostumeTests {
 
     /// The point of the redo: it used to light at most 24 cells of a 220-cell
     /// shell in six one-pixel columns. It has to read as a field now.
+    ///
+    /// The floor is that trickle's own peak. It was 40 while scrolling
+    /// code-lines and a third tail stop were counted with the rain; since the
+    /// operator's 2026-09-23 "simplify" took both, the rain alone peaks at 32
+    /// across 19 columns — still a field, and more than the trickle ever lit.
     @Test("The code crosses the shell instead of trickling down six columns")
     func coverageIsAField() {
         var best = 0
         var columns = Set<Int>()
+        var thirdGreen = 0
         for t in stride(from: 0.0, through: 12.0, by: 0.25) {
             let buffer = dressed(t)
             var lit = 0
             for y in 0..<PixelBuffer.side {
                 for x in 0..<PixelBuffer.side {
                     let ink = buffer[x, y]
-                    if ink == .costumeA || ink == .costumeB || ink == .costumeC {
+                    if ink == .costumeA || ink == .costumeB {
                         lit += 1
                         columns.insert(x)
                     }
+                    if ink == .costumeC { thirdGreen += 1 }
                 }
             }
             best = max(best, lit)
         }
-        #expect(best > 40, "only \(best) cells light at once — still a trickle")
+        #expect(best > 24, "only \(best) cells light at once — still a trickle")
         #expect(columns.count > 12, "the rain only ever falls in \(columns.count) columns")
+        #expect(thirdGreen == 0, "a third green is back — code-lines or a tail stop, \(thirdGreen) cells")
     }
 
     /// He must not vanish into his own costume: the shell stays dark, the
-    /// heads stay bright, and the eyes out-rank every rain stop so his face
-    /// still reads with code crossing it.
+    /// heads stay bright, and the eyes out-rank both rain stops so his face
+    /// still reads with rain crossing it. Two stops, not three: the dim tail
+    /// green went with the code-lines in the 2026-09-23 cut, and it stays
+    /// gone.
     @Test("The palette keeps the shell dark, the code bright, and the eyes on top")
     func paletteSeparates() throws {
         let style = CostumeStyle.of(.matrix)
         let shell = try #require(style.inks[.body])
         let head = try #require(style.inks[.costumeA])
-        let mid = try #require(style.inks[.costumeB])
-        let tail = try #require(style.inks[.costumeC])
+        let body = try #require(style.inks[.costumeB])
         let eye = try #require(style.inks[.eye])
+        #expect(style.inks[.costumeC] == nil, "a third rain stop is back")
 
         func luma(_ c: (r: Double, g: Double, b: Double)) -> Double {
             0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
         }
         #expect(luma(shell) < 0.06, "the terminal shell must stay dark")
-        #expect(luma(head) > luma(mid), "the streak must fade from its head")
-        #expect(luma(mid) > luma(tail), "the tail must be the dimmest stop")
-        #expect(luma(tail) > luma(shell), "the tail has to be visible on the shell")
+        #expect(luma(head) > luma(body), "the streak must fade from its head")
+        #expect(luma(body) > luma(shell), "the streak has to be visible on the shell")
         #expect(luma(eye) > luma(head), "the eyes must out-rank the rain")
-
-        // The montage tag reads the first ink over 0.3 luminance; if the heads
-        // ever dim past that the reel's Matrix caption silently changes colour.
-        #expect(luma(head) > 0.3)
     }
 }

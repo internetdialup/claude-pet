@@ -124,12 +124,11 @@ struct CostumeStyle {
         case .matrix:
             return CostumeStyle(
                 inks: [
-                    .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the code carries
+                    .body: rgb(0x05_0A05),      // terminal-dark shell, darker so the rain carries
                     .bodyShade: rgb(0x02_0602), // one step under — see frankenstein's note
                     .costumeA: rgb(0x7C_F08D),  // rain heads
                     .costumeB: rgb(0x2E_A845),  // the streak body
-                    .costumeC: rgb(0x1D_7431),  // tails, and the code-lines under them
-                    // Brighter than any rain stop on purpose: with code
+                    // Brighter than either rain stop on purpose: with rain
                     // crossing his whole shell, the eyes have to out-rank the
                     // field or he loses his face in his own costume.
                     .eye: rgb(0xD8_FFE2),
@@ -547,15 +546,15 @@ enum CrabCostume {
             // shell rather than trickling down six thin columns.
             //
             // Heat outranks it: a cell mid-cascade is `.bodyHot`, not `.body`,
-            // so the fire burns through the code.
+            // so the fire burns through the rain.
             if layer == .onBody {
                 // 🤓 The glasses — what turned "Matrix" into "Coder" on the
                 // operator's call. Steel rims framing each eye window, a
                 // bridge between them. Body pass, so the face paints the
                 // eyes over the rim interiors and the eye-cover ban holds
-                // by draw order; the rain and code-lines above only write
-                // `.body` cells, so they part around the frames on their
-                // own — which is exactly the way light behaves on glasses.
+                // by draw order; the rain below only writes `.body`
+                // cells, so it parts around the frames on its own — which
+                // is exactly the way light behaves on glasses.
                 for rim in [9, 18] {
                     b.rect(rim + dx, 12 + dy, 5, 1, .steel)
                     b.rect(rim + dx, 16 + dy, 5, 1, .steel)
@@ -577,32 +576,18 @@ enum CrabCostume {
                 b.pixel(x, y, ink)
             }
 
-            // Code-lines first: varying-width bars scrolling down behind the
-            // rain, borrowed from the terminal prop's vocabulary — the way
-            // this rig already spells "source code". They read as structure;
-            // the rain reads as motion over it.
-            let lineWidths = [5, 3, 6, 2, 4, 7]
-            let scroll = Int(pose.propPhase * 1.6)
-            for row in 0..<height {
-                let index = ((row - scroll) % lineWidths.count + lineWidths.count)
-                    % lineWidths.count
-                // One row in three carries a line. Denser than this and the
-                // shell stops reading as a dark terminal with code on it and
-                // starts reading as a green crab.
-                guard (row &+ scroll) % 3 == 0 else { continue }
-                let indent = (row &+ scroll) % 4 == 0 ? 1 : 4
-                for step in 0..<lineWidths[index] {
-                    onShell(left + indent + step, top + row, .costumeC)
-                }
-            }
-
             // The rain: every column of the shell, each with its own speed and
             // streak length off the shared die, so the field never marches in
-            // step. Three stops — bright head, phosphor body, dim tail — which
-            // is what makes a streak read as falling rather than blinking.
+            // step. Two stops — bright head, phosphor body — which is what
+            // makes a streak read as falling rather than blinking.
             // The span is generously longer than the shell so each column is
             // dark most of the time: a streak has to be an event, or the
             // whole field is on at once and nothing appears to fall.
+            //
+            // It used to fall over scrolling code-lines, with a third, dimmer
+            // stop for the tails. The operator's "simplify" (2026-09-23) took
+            // both: the rain alone is the costume, and a third green on a
+            // 32-pixel shell was texture nobody could name.
             let span = height + 16
             for column in 0..<width {
                 let x = left + column
@@ -614,9 +599,7 @@ enum CrabCostume {
                 for trail in 0...length {
                     let y = top + head - trail
                     guard y >= top, y < top + height else { continue }
-                    let ink: PixelBuffer.Ink = trail == 0 ? .costumeA
-                        : (trail <= length / 2 ? .costumeB : .costumeC)
-                    onShell(x, y, ink)
+                    onShell(x, y, trail == 0 ? .costumeA : .costumeB)
                 }
             }
 
