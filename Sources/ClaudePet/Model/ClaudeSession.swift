@@ -76,24 +76,96 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     /// Last time anything at all changed for this session.
     public var lastActivity: Date = .distantPast
 
+    /// What Claude Code's registry says it is doing — `busy`, `shell`, `waiting`
+    /// or `idle` — on builds that write it (2.1.280 does). Nil on older builds,
+    /// where the transcript inference carries on alone, as it always has.
+    public var status: String?
+    /// With `waiting`: what for — "permission prompt", "input needed".
+    public var waitingFor: String?
+    /// When the registry last changed `status`.
+    public var statusUpdatedAt: Date?
+    /// The Claude Code version that registered this session.
+    public var claudeVersion: String?
+    /// The registry file this session came from. `/clear` rewrites that file IN
+    /// PLACE with a new sessionId, so the FILE — not the pid, which every test
+    /// fixture shares — is what says "this is the same terminal".
+    public var registryFile: String?
+
     /// Last path component of `cwd` — what the roster shows as the project name.
     public var projectName: String {
         URL(fileURLWithPath: cwd).lastPathComponent
     }
 
-    /// The transcript directory Claude Code writes for this `cwd`.
+    /// The transcript directory name Claude Code writes for this `cwd` — the
+    /// rule read straight out of the 2.1.280 binary rather than inferred from
+    /// directory listings:
     ///
-    /// Claude Code encodes the path by replacing every character outside
-    /// `[A-Za-z0-9]` with `-`, so `/Users/x/My Project` becomes
-    /// `-Users-x-My-Project`. Verified against the real directories under
-    /// `~/.claude/projects/`.
+    ///     kT(e) = slug.length <= 200 ? slug : slug.slice(0,200) + "-" + Le(e)
+    ///     slug  = e.replace(/[^a-zA-Z0-9]/g, "-")      // e is NFC, UTF-16 units
+    ///     Le(e) = Math.abs(CQ(e)).toString(36)
+    ///     CQ(e) = r = (r<<5) - r + e.charCodeAt(n) | 0  // Java's String.hashCode
+    ///
+    /// 🔎 This doc always SAID "every character outside `[A-Za-z0-9]`", and the
+    /// code kept every Unicode letter (`isLetter`) — so `~/café/…` looked
+    /// for `…-café-…` while Claude Code wrote `…-caf--…`, and a
+    /// path past 200 characters looked for a name Claude Code had truncated
+    /// and hashed. Those sessions were never seen, and nothing said so. The two
+    /// agreed for every ASCII path, which is every path this was ever tested on.
+    ///
+    /// The Swift details are where it breaks again if anyone "simplifies" it:
+    /// NFC first, because Claude Code normalises the cwd once at startup;
+    /// UTF-16 units, not Characters, because `charCodeAt` sees an emoji as two
+    /// and writes two dashes; Int32 wrapping arithmetic for `| 0`; and a widen to
+    /// Int64 before `abs`, because `abs(Int32.min)` traps where JavaScript
+    /// answers 2147483648.
     public static func encodeProjectDirectory(_ cwd: String) -> String {
-        String(cwd.map { $0.isLetter || $0.isNumber ? $0 : "-" })
+        let nfc = cwd.precomposedStringWithCanonicalMapping
+        let units = Array(nfc.utf16)
+        let slug = String(units.map { isASCIIAlphanumeric($0) ? Character(UnicodeScalar($0)!) : "-" })
+        guard units.count > maxSlugLength else { return slug }
+        return String(slug.prefix(maxSlugLength)) + "-" + projectNameHash(nfc)
+    }
+
+    /// Claude Code's `slice(0, 200)`: past this, the name is truncated and a hash
+    /// of the whole cwd is appended.
+    public static let maxSlugLength = 200
+
+    /// `Math.abs(CQ(e)).toString(36)` — Java's `String.hashCode`, over UTF-16.
+    static func projectNameHash(_ nfcCwd: String) -> String {
+        var hash: Int32 = 0
+        for unit in nfcCwd.utf16 { hash = (hash &* 31) &+ Int32(unit) }
+        return String(abs(Int64(hash)), radix: 36)
+    }
+
+    private static func isASCIIAlphanumeric(_ unit: UInt16) -> Bool {
+        (0x30...0x39).contains(unit) || (0x41...0x5A).contains(unit) || (0x61...0x7A).contains(unit)
+    }
+
+    /// Where Claude Code keeps this cwd's session files, resolved the way Claude
+    /// Code resolves it: the exact name first; and for a name long enough to
+    /// carry a hash, a `projects/` entry sharing its 200-character prefix —
+    /// because the binary itself does not trust the suffix across runtimes (it
+    /// sorts candidates by `exactName`, then takes the prefix match). Among
+    /// several prefix matches, the one that holds this session's transcript wins.
+    static func projectDirectory(for cwd: String, sessionID: String,
+                                 in projects: URL = ClaudeHome.projects) -> URL {
+        let exact = encodeProjectDirectory(cwd)
+        let url = projects.appendingPathComponent(exact)
+        let fm = FileManager.default
+        guard exact.utf16.count > maxSlugLength, !fm.fileExists(atPath: url.path) else { return url }
+        let prefix = String(exact.prefix(maxSlugLength)) + "-"
+        let candidates = ((try? fm.contentsOfDirectory(atPath: projects.path)) ?? [])
+            .filter { $0.hasPrefix(prefix) }.sorted()
+        let holder = candidates.first {
+            fm.fileExists(atPath: projects.appendingPathComponent($0)
+                .appendingPathComponent("\(sessionID).jsonl").path)
+        }
+        guard let match = holder ?? candidates.first else { return url }
+        return projects.appendingPathComponent(match)
     }
 
     public var transcriptURL: URL {
-        ClaudeHome.projects
-            .appendingPathComponent(Self.encodeProjectDirectory(cwd))
+        Self.projectDirectory(for: cwd, sessionID: id)
             .appendingPathComponent("\(id).jsonl")
     }
 
@@ -102,8 +174,7 @@ public struct ClaudeSession: Sendable, Equatable, Identifiable {
     }
 
     public var subagentsDirectory: URL {
-        ClaudeHome.projects
-            .appendingPathComponent(Self.encodeProjectDirectory(cwd))
+        Self.projectDirectory(for: cwd, sessionID: id)
             .appendingPathComponent(id)
             .appendingPathComponent("subagents")
     }

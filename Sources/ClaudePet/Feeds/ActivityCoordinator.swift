@@ -5,6 +5,12 @@ import Foundation
 /// Exists so transcript reading and JSON parsing can happen off the main actor.
 /// Safety: every method is only ever called from `ActivityCoordinator.queue`,
 /// a serial queue, which is this type's isolation.
+/// The last registry fingerprint the tick acted on. Confined to the feed queue,
+/// like `FoldStore` — hence `@unchecked`.
+final class RegistryMemo: @unchecked Sendable {
+    var last: [String: String] = [:]
+}
+
 final class FoldStore: @unchecked Sendable {
     private var folds: [String: TranscriptFold] = [:]
 
@@ -90,6 +96,8 @@ public final class ActivityCoordinator {
     nonisolated let queue = DispatchQueue(label: "com.internetdialup.claude-pet.feeds")
     /// Per-session transcript readers, confined to `queue`.
     nonisolated let folds = FoldStore()
+    /// The registry fingerprint the tick last acted on. Touched only on `queue`.
+    nonisolated let registryMemo = RegistryMemo()
 
     /// How long `done` shows before decaying back to `idle`.
     ///
@@ -421,6 +429,7 @@ public final class ActivityCoordinator {
             Task { @MainActor in
                 guard let self else { return }
                 self.reapDeadSessions()
+                self.rescanRegistryIfChanged()
                 self.refreshWorkload()
                 self.recompute()
             }
@@ -470,23 +479,117 @@ public final class ActivityCoordinator {
 
     // MARK: - Session table
 
-    private func refreshSessions() {
-        let live = SessionRegistry.liveSessions()
-        let liveIDs = Set(live.map(\.id))
+    /// Internal rather than private so a test can re-read after an in-place
+    /// rewrite — the case the directory watcher cannot hear.
+    func refreshSessions() {
+        apply(SessionRegistry.scan())
+    }
 
-        for session in live where sessions[session.id] == nil {
-            var new = session
-            new.lastActivity = Date()
-            sessions[session.id] = new
-            attachFeeds(to: new)
+    /// The tick's registry read. Claude Code rewrites its registry files IN
+    /// PLACE — `/clear` swaps the sessionId inside the same file, the status
+    /// flips busy → idle in place — and the directory watcher only hears
+    /// entries added, removed or renamed. So every tick fingerprints the
+    /// directory, off the main thread, and re-reads only when a file's
+    /// modification time or size moved.
+    ///
+    /// 🔎 Verified live before this was written: the session file keeps its
+    /// inode and is modified long after it is born. After `/clear` the pet had
+    /// been following a transcript nothing would ever write to again.
+    private func rescanRegistryIfChanged() {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let print = SessionRegistry.fingerprint()
+            guard print != self.registryMemo.last else { return }
+            self.registryMemo.last = print
+            let scan = SessionRegistry.scan()
+            Task { @MainActor in self.apply(scan) }
+        }
+    }
+
+    /// The one place the registry meets the session table.
+    private func apply(_ scan: [String: SessionRegistry.Entry]) {
+        var fresh: [ClaudeSession] = []
+        var unreadable = Set<String>()
+        var seen = Set<String>()
+        for (file, entry) in scan.sorted(by: { $0.key < $1.key }) {
+            switch entry {
+            case .session(let session) where seen.insert(session.id).inserted:
+                fresh.append(session)
+            case .unreadable:
+                unreadable.insert(file)
+            default:
+                break
+            }
+        }
+        let liveIDs = Set(fresh.map(\.id))
+        var changes: [ActivityEvent] = []
+        var firstSight: [ActivityEvent] = []
+
+        for update in fresh {
+            if var known = sessions[update.id] {
+                // Merged field by field: the reducer has built up far more on
+                // `known` than the registry knows, and replacing it would lose
+                // all of it.
+                let moved = known.cwd != update.cwd
+                let statusChanged = known.status != update.status
+                known.name = update.name
+                known.cwd = update.cwd
+                known.registryFile = update.registryFile
+                known.claudeVersion = update.claudeVersion ?? known.claudeVersion
+                known.waitingFor = update.waitingFor
+                known.status = update.status
+                known.statusUpdatedAt = update.statusUpdatedAt
+                sessions[update.id] = known
+                // A session whose cwd moves — EnterWorktree, ExitWorktree — writes
+                // its transcript somewhere new, and the old feed would go silent
+                // for good.
+                if moved { detachFeeds(from: update.id); attachFeeds(to: known) }
+                if statusChanged, let status = update.status {
+                    changes.append(ActivityEvent(sessionID: update.id, kind: .registryStatus(status),
+                                                 timestamp: update.statusUpdatedAt ?? Date()))
+                }
+            } else {
+                // `/clear` (and resume): the SAME registry file now names a new
+                // session. Retire the old one and carry its pins across.
+                if let file = update.registryFile,
+                   let old = sessions.values.first(where: { $0.registryFile == file && $0.id != update.id })?.id {
+                    movePins(from: old, to: update.id)
+                    detachFeeds(from: old)
+                    sessions.removeValue(forKey: old)
+                }
+                var new = update
+                new.lastActivity = Date()
+                sessions[update.id] = new
+                attachFeeds(to: new)
+                if let status = update.status {
+                    firstSight.append(ActivityEvent(sessionID: update.id, kind: .registryStatus(status),
+                                                    timestamp: update.statusUpdatedAt ?? Date()))
+                }
+            }
         }
 
-        for id in sessions.keys where !liveIDs.contains(id) {
+        for (id, session) in sessions where !liveIDs.contains(id) {
+            // A file caught mid-rewrite is not a dead session. Claude Code
+            // truncates and then writes; a 2 s poll will sometimes land between.
+            if let file = session.registryFile, unreadable.contains(file) { continue }
             detachFeeds(from: id)
             sessions.removeValue(forKey: id)
         }
 
+        // First sight is a snapshot of a state already in progress, not news:
+        // no chirp and no notification for a prompt that was waiting before
+        // the pet launched — the same rule as the transcript's priming pass.
+        if !firstSight.isEmpty { ingest(firstSight, suppressAlerts: true) }
+        if !changes.isEmpty { ingest(changes) }
         recompute()
+    }
+
+    /// A pin names a session id, and `/clear` retires that id while the same
+    /// terminal carries on — so the pin follows the terminal. Writes only when a
+    /// pin actually names the retired id.
+    private func movePins(from old: String, to new: String) {
+        if Preferences.shared.pinnedSessionID == old { Preferences.shared.pinnedSessionID = new }
+        if Preferences.shared.pet2PinnedSessionID == old { Preferences.shared.pet2PinnedSessionID = new }
     }
 
     private func reapDeadSessions() {
@@ -633,14 +736,22 @@ public final class ActivityCoordinator {
                 // session record itself never stores it — so the edge is
                 // detected the same way the promotion is: was he working at a
                 // cooking pace when the turn ended?
-                session.celebrating = session.mood == .working
-                    && Self.isCooking(session, now: event.timestamp)
-                // The stopwatch decides the tier, then resets for the next
-                // sprint.
-                session.epicCelebrating = session.celebrating
-                    && session.cookingSince.map {
-                        event.timestamp.timeIntervalSince($0) >= Self.epicCookThreshold
-                    } ?? false
+                //
+                // 🔎 Only on the FIRST end of a turn. A turn can end twice — the
+                // transcript and the Stop hook, and now the registry's status as
+                // well — and recomputing here from a mood that is already
+                // `.done` set both flags false: the second ending cancelled the
+                // party the first one started.
+                if session.mood != .done {
+                    session.celebrating = session.mood == .working
+                        && Self.isCooking(session, now: event.timestamp)
+                    // The stopwatch decides the tier, then resets for the next
+                    // sprint.
+                    session.epicCelebrating = session.celebrating
+                        && session.cookingSince.map {
+                            event.timestamp.timeIntervalSince($0) >= Self.epicCookThreshold
+                        } ?? false
+                }
                 session.cookingSince = nil
                 session.notifiedMilestone = nil
                 // A turn end can arrive twice — the transcript fold and the
@@ -664,6 +775,37 @@ public final class ActivityCoordinator {
                 // The landing retires the service glyph with the sprint.
                 session.serviceGlyph = nil
                 session.serviceGlyphAt = nil
+            case .registryStatus(let status):
+                session.status = status
+                switch status {
+                case "busy", "shell":
+                    // Claude is working. The transcript says HOW — thinking or
+                    // which tool — and outranks this; the registry only lifts a
+                    // session the transcript has not caught up with yet, which is
+                    // the gap between a prompt and the first reply, when he used
+                    // to sit idle for as long as the model took to answer.
+                    if [.idle, .done, .needsAttention].contains(session.mood) {
+                        session.mood = .thinking
+                        session.activity = nil
+                    }
+                case "waiting":
+                    // A permission prompt or a question. Before this, only the
+                    // optional Notification hook could show one at all.
+                    session.mood = .needsAttention
+                    session.activity = Self.condense(session.waitingFor ?? "Waiting for you")
+                default:
+                    // "idle" is NOT an ending by itself. The transcript's own
+                    // ending owns the celebration and the completion badge and
+                    // usually lands first; ending the turn here would race it —
+                    // and, on a 429, celebrate a turn that failed. `recompute`
+                    // ends the turn quietly only if the transcript never does.
+                    break
+                }
+            case .turnAborted:
+                // Over, not finished. Straight to idle — no `.done`, so no
+                // celebration, no completion badge and no "finished" alert for
+                // a turn that failed.
+                Self.endQuietly(&session)
             case .needsAttention(let reason):
                 session.mood = .needsAttention
                 session.activity = Self.condense(reason)
@@ -756,6 +898,40 @@ public final class ActivityCoordinator {
         }
     }
 
+    /// Registry statuses that hold a mood against decay.
+    static let heldStatuses: Set<String> = ["busy", "shell", "waiting"]
+    /// How long the registry may say idle, with the transcript still working,
+    /// before the turn is ended quietly. Two ticks: long enough for the
+    /// transcript's own ending — which carries the celebration — to land first.
+    nonisolated static let registryIdleGrace: TimeInterval = 4
+
+    /// Whether the registry's `idle` should end a turn the transcript never
+    /// ended: the registry says idle, that idle is NEWER than the last sign of
+    /// work, he still looks busy, and the grace has run. A pure function of the
+    /// session and `now`, so its edges are pinned without a coordinator — and
+    /// without racing the decay limits other suites shrink.
+    nonisolated static func registryEndsTurn(_ session: ClaudeSession, now: Date) -> Bool {
+        guard session.status == "idle", let since = session.statusUpdatedAt,
+              since > session.lastActivity,
+              [.working, .thinking].contains(session.mood) else { return false }
+        return now.timeIntervalSince(since) >= registryIdleGrace
+    }
+
+    /// A turn that is over but did not finish: to idle, with no celebration, no
+    /// badge and no alert.
+    static func endQuietly(_ session: inout ClaudeSession) {
+        session.mood = .idle
+        session.celebrating = false
+        session.epicCelebrating = false
+        session.cookingSince = nil
+        session.notifiedMilestone = nil
+        session.awaitingApproval = false
+        session.tool = nil
+        session.activity = nil
+        session.serviceGlyph = nil
+        session.serviceGlyphAt = nil
+    }
+
     /// How long `mood` may go unrenewed before the pet stops asserting it.
     ///
     /// `nil` means the mood expires on nothing:
@@ -775,8 +951,9 @@ public final class ActivityCoordinator {
         }
     }
 
-    private func recompute() {
-        let now = Date()
+    /// `now` is a parameter so a test can ADVANCE time rather than shrink the
+    /// shared static limits — the race `forgetHeldLines` records.
+    func recompute(now: Date = Date()) {
 
         // Decay. A mood is an assertion about what Claude is doing right now,
         // and an assertion nothing has renewed eventually stops being true.
@@ -809,7 +986,27 @@ public final class ActivityCoordinator {
             sessions[id] = session
         }
 
+        // The registry says idle and the transcript never ended the turn — an
+        // interruption on an older fold, a transcript the pet cannot read. After
+        // a short grace, end it quietly: no celebration, because nothing here can
+        // tell a success from a failure.
+        //
+        // 🔎 The idle must be NEWER than the last sign of work. The first draft
+        // kept its own "idle since" flag, and a flag set before the transcript's
+        // ending was never cleared — so the next turn's first `thinking`, landing
+        // before the registry's `busy` was polled, would have been ended after
+        // four seconds. `statusUpdatedAt` and `lastActivity` are both Claude
+        // Code's own timestamps, so the comparison needs no state of its own.
+        for (id, var session) in sessions where Self.registryEndsTurn(session, now: now) {
+            Self.endQuietly(&session)
+            sessions[id] = session
+        }
+
         for (id, var session) in sessions {
+            // Nothing decays while Claude Code itself says the session is busy
+            // or waiting on you: a thirty-minute permission wait used to fall
+            // asleep at the 1800 s limit with the prompt still on screen.
+            if let status = session.status, Self.heldStatuses.contains(status) { continue }
             guard let limit = Self.quietLimit(for: session.mood, celebrating: session.celebrating),
                   now.timeIntervalSince(session.lastActivity) > limit else { continue }
             session.mood = .idle

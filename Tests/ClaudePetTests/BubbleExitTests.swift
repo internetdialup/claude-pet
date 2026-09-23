@@ -15,10 +15,14 @@ import Foundation
 /// Two rules close it, and both are pinned here: the exit belongs to the
 /// WHOLE bubble, on one clock; and the slot clears itself at its deadline.
 ///
-/// `.serialized` because the slot tests are the suite's first that depend on
-/// main-queue timers actually firing, and two of them sharing the main queue
-/// would be timing each other.
-@Suite(.serialized)
+/// 🔎 The slot tests used to wait on the real main-queue timer, polling the
+/// clock for up to ten seconds — and under a full parallel run at a load
+/// average of 20 they failed anyway, at 22.7 s, because the polling loop needed
+/// the same main thread the stalled timer did. Widening the window had been
+/// tried twice. They now take the booking through `PetViewModel.scheduleClear`
+/// and fire it: what they prove is that the clear is booked for exactly the
+/// deadline and that the right write takes the right line down, which is the
+/// contract — not that this machine happened to be fast enough.
 struct BubbleExitTests {
 
     /// **One clock, not two.** The fade once took a remaining DURATION
@@ -66,12 +70,20 @@ struct BubbleExitTests {
     /// born, and no code ever did it. This is that sentence, as a test.
     @MainActor
     @Test("A spoken line clears its own slot at the deadline")
-    func theSlotClearsItself() async {
+    func theSlotClearsItself() {
         let model = PetViewModel()
-        model.speak("Kowbunga 🤙!", until: Date().addingTimeInterval(0.3), mood: .idle)
+        var booked: [(at: Date, fire: @MainActor () -> Void)] = []
+        model.scheduleClear = { booked.append(($0, $1)) }
+        let deadline = Date().addingTimeInterval(0.3)
+        model.speak("Kowbunga 🤙!", until: deadline, mood: .idle)
         #expect(model.transientBubble?.text == "Kowbunga 🤙!")
         #expect(model.transientBubble?.mood == .idle)
-        #expect(await cleared(model),
+        // The booking IS the deadline — the write that clears the slot is
+        // scheduled for exactly `until`, and speaking books exactly one.
+        #expect(booked.map { $0.at } == [deadline],
+                "speaking must book one clearing write, at the line's own deadline")
+        booked.first?.fire()
+        #expect(model.transientBubble == nil,
                 "the slot never cleared — the box would sit until the next publish")
     }
 
@@ -80,16 +92,25 @@ struct BubbleExitTests {
     /// `shouldSpeak` refuses it, deliberate or not — so the two deadlines can
     /// never cross that way; but the door is what makes the promise, and the
     /// door must keep it on its own.
+    ///
+    /// It used to sleep 550 ms and bet the first timer had fired and the second
+    /// had not — the opposite timing bet from the test above, so a slow machine
+    /// failed it with a misleading message. Firing the bookings in order makes
+    /// the bet unnecessary.
     @MainActor
     @Test("An older deadline never clears a newer line")
-    func anOlderDeadlineNeverClearsANewerLine() async {
+    func anOlderDeadlineNeverClearsANewerLine() throws {
         let model = PetViewModel()
+        var booked: [(at: Date, fire: @MainActor () -> Void)] = []
+        model.scheduleClear = { booked.append(($0, $1)) }
         model.speak("first", until: Date().addingTimeInterval(0.3), mood: .idle)
         model.speak("second", until: Date().addingTimeInterval(0.9), mood: .done)
-        try? await Task.sleep(for: .milliseconds(550))
+        try #require(booked.count == 2)
+        booked[0].fire()                       // the first line's deadline arrives
         #expect(model.transientBubble?.text == "second",
                 "the first line's deadline took the second line down")
-        #expect(await cleared(model), "the second line never left on its own")
+        booked[1].fire()
+        #expect(model.transientBubble == nil, "the second line never left on its own")
     }
 
     /// A blank line is not a line. Drawn, it would be a box of padding with
@@ -102,26 +123,5 @@ struct BubbleExitTests {
         #expect(PetRootView.showable("  \n\t ") == nil)
         #expect(PetRootView.showable("Kowbunga 🤙!") == "Kowbunga 🤙!")
         #expect(PetRootView.showable(" a ") == " a ", "a line with words in it is shown as written")
-    }
-
-    /// Polls for the slot to empty rather than sleeping a fixed guess — the
-    /// clearing write is a main-queue timer, and a fixed sleep would make
-    /// this flaky by construction (the shape `FileWatcherTests` uses).
-    @MainActor
-    /// 🔎 Ten seconds of patience for a deadline three tenths of a second away,
-    /// and the margin is not superstition. The contract under test is "the slot
-    /// clears ITSELF", not "within three seconds of wall clock" — and this
-    /// polls real time from a suite that runs six hundred tests in parallel,
-    /// where the scheduled write can be starved well past a three-second budget.
-    /// It failed exactly that way once, in a full run, and passed on its own
-    /// three times immediately after. A flake in a gate is worse than a slow
-    /// gate: it teaches everyone to re-run instead of to read.
-    private func cleared(_ model: PetViewModel, within timeout: TimeInterval = 10) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if model.transientBubble == nil { return true }
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-        return false
     }
 }

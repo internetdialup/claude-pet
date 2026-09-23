@@ -16,6 +16,13 @@ public struct ActivityEvent: Sendable, Equatable {
         case toolFinished(name: String)
         /// Turn ended (`stop_reason == "end_turn"`, or a `Stop` hook).
         case turnEnded
+        /// A turn that ended in an API error or another synthetic record — a
+        /// 429, an interruption. Over, but not finished: no celebration, no
+        /// "finished" alert, and not activity, because an error is not work.
+        case turnAborted
+        /// Claude Code's registry changed `status` — `busy`, `shell`, `waiting`
+        /// or `idle`. Emitted only on a change, never per tick.
+        case registryStatus(String)
         /// A permission prompt or idle notification wants the human.
         case needsAttention(reason: String)
         /// The in-progress todo changed. `activeForm`, e.g. "Refactoring the parser".
@@ -59,7 +66,9 @@ public struct ActivityEvent: Sendable, Equatable {
         // `.taskProgress` rides the same watcher as `.activeTask` but is a
         // derived tally, not a fresh observation of Claude doing something —
         // counting it would re-pin `lastActivity` on every re-read.
-        case .subagents, .taskProgress: false
+        case .subagents, .taskProgress, .turnAborted: false
+        // Going idle is not activity; starting work, or waiting on you, is.
+        case .registryStatus(let status): status != "idle"
         default: true
         }
     }

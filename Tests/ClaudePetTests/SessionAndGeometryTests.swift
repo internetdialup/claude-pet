@@ -25,6 +25,56 @@ struct SessionTests {
         #expect(ClaudeSession.encodeProjectDirectory("/x/My Project!") == "-x-My-Project-")
     }
 
+    /// 🔎 Beyond ASCII the encoder used to keep every Unicode letter, so a path
+    /// with an é, a CJK name or an emoji — or one past 200 characters — pointed
+    /// at a folder Claude Code never writes, and the pet never saw the session.
+    /// Every vector below came from an independent oracle (Python replicating
+    /// JavaScript's `charCodeAt` over UTF-16 and its `| 0` wrap, itself checked
+    /// against Java's `"hello".hashCode()` = 99162322), not from the Swift port
+    /// it is checking.
+    @Test("Non-ASCII, emoji and long paths encode the way Claude Code writes them")
+    func encodingMatchesClaudeCodeBeyondASCII() {
+        #expect(ClaudeSession.encodeProjectDirectory("/Users/dev/café/p") == "-Users-dev-caf--p")
+        #expect(ClaudeSession.encodeProjectDirectory("/Users/dev/cafe\u{301}/p") == "-Users-dev-caf--p",
+                "a decomposed é must be normalised to NFC first, as Claude Code does")
+        #expect(ClaudeSession.encodeProjectDirectory("/a/🦀/b") == "-a----b",
+                "an emoji is two UTF-16 units, so two dashes")
+        #expect(ClaudeSession.encodeProjectDirectory("/x/日本/y") == "-x----y")
+        #expect(ClaudeSession.projectNameHash("hello") == String(99162322, radix: 36))
+
+        let long = "/Users/dev/"
+            + (0..<9).map { String(format: "very-long-directory-name-%02d", $0) }.joined(separator: "/")
+            + "/project"
+        #expect(ClaudeSession.encodeProjectDirectory(long)
+                == "-Users-dev-very-long-directory-name-00-very-long-directory-name-01-very-long-directory-name-02-very-long-directory-name-03-very-long-directory-name-04-very-long-directory-name-05-very-long-directory-n-19851q")
+        let negative = "/Users/dev/" + String(repeating: "z", count: 230)
+        #expect(ClaudeSession.encodeProjectDirectory(negative).hasSuffix("-ag0v9s"),
+                "a negative hash is made absolute before base 36")
+    }
+
+    /// Claude Code does not trust its own hash suffix across runtimes: for a long
+    /// name it takes the exact directory if there is one, else one sharing the
+    /// 200-character prefix. The pet has to find the same folder.
+    @Test("A long path is found by its prefix when the hash suffix differs")
+    func longPathFallsBackToPrefix() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("projects-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let long = "/Users/dev/" + String(repeating: "q", count: 230)
+        let exact = ClaudeSession.encodeProjectDirectory(long)
+        let other = String(exact.prefix(ClaudeSession.maxSlugLength)) + "-zzzzz"
+        try fm.createDirectory(at: root.appendingPathComponent(other), withIntermediateDirectories: true)
+        try Data().write(to: root.appendingPathComponent(other).appendingPathComponent("s1.jsonl"))
+
+        #expect(ClaudeSession.projectDirectory(for: long, sessionID: "s1", in: root)
+                    .lastPathComponent == other, "the prefix match must be found")
+        try fm.createDirectory(at: root.appendingPathComponent(exact), withIntermediateDirectories: true)
+        #expect(ClaudeSession.projectDirectory(for: long, sessionID: "s1", in: root)
+                    .lastPathComponent == exact, "the exact name wins when it exists")
+        #expect(ClaudeSession.projectDirectory(for: "/a/b", sessionID: "s1", in: root)
+                    .lastPathComponent == "-a-b", "a short path never scans")
+    }
+
     /// Formats this process's real start time the way Claude Code does, in a
     /// given zone.
     private func procStartString(pid: Int32, zone: TimeZone) -> String? {

@@ -113,6 +113,7 @@ public final class TranscriptFold {
             }
         case "assistant":
             var events: [ActivityEvent] = []
+            let synthetic = Self.isSynthetic(object)
             // `gitBranch` rides on every transcript line and was being discarded.
             if let branch = object["gitBranch"] as? String, !branch.isEmpty, branch != lastBranch {
                 lastBranch = branch
@@ -120,12 +121,15 @@ public final class TranscriptFold {
             }
             // Every assistant line is a moment Claude was working. Collected so
             // "coding Nh today" is measured rather than guessed.
-            if Calendar.current.isDateInToday(timestamp) {
+            // …except a synthetic one: a 429 or an interruption is a moment
+            // Claude could NOT work, and counting it inflated "coding today".
+            if !synthetic, Calendar.current.isDateInToday(timestamp) {
                 events.append(ActivityEvent(sessionID: sessionID,
                                             kind: .activityStamps([timestamp]),
                                             timestamp: timestamp))
             }
-            events.append(contentsOf: parseAssistant(object, sessionID: sessionID, timestamp: timestamp))
+            events.append(contentsOf: parseAssistant(object, sessionID: sessionID,
+                                                     timestamp: timestamp, synthetic: synthetic))
             return events
         case "user":
             return parseUser(object, sessionID: sessionID, timestamp: timestamp)
@@ -135,14 +139,40 @@ public final class TranscriptFold {
         return []
     }
 
-    private func parseAssistant(_ object: [String: Any], sessionID: String, timestamp: Date) -> [ActivityEvent] {
+    /// Stop reasons that END a turn. `tool_use`, `pause_turn` and `compaction`
+    /// do not — the turn carries on after them.
+    ///
+    /// 🔎 This was `end_turn` alone, and live transcripts showed why that was
+    /// not enough: a 429 is written as an assistant record with model
+    /// `<synthetic>` and stop reason `stop_sequence`, the turn really does stop
+    /// there (the next record is a queue operation and then a NEW user prompt,
+    /// no retry), and the pet sat in "working" until the ten-minute decay.
+    static let terminalStopReasons: Set<String> = [
+        "end_turn", "stop_sequence", "refusal", "model_context_window_exceeded",
+    ]
+
+    /// An assistant record Claude Code wrote itself rather than the model: an
+    /// API error (`isApiErrorMessage`), or anything carrying the `<synthetic>`
+    /// model — interruptions appear with that model and WITHOUT the error flag,
+    /// so the flag alone misses them.
+    static func isSynthetic(_ object: [String: Any]) -> Bool {
+        if object["isApiErrorMessage"] as? Bool == true { return true }
+        let model = (object["message"] as? [String: Any])?["model"] as? String
+        return model == "<synthetic>"
+    }
+
+    private func parseAssistant(_ object: [String: Any], sessionID: String, timestamp: Date,
+                                synthetic: Bool) -> [ActivityEvent] {
         guard let message = object["message"] as? [String: Any] else { return [] }
         let blocks = message["content"] as? [[String: Any]] ?? []
 
         var sawThinking = false
         var events: [ActivityEvent] = []
 
-        if let model = message["model"] as? String, model != lastModel {
+        // A synthetic record's `<synthetic>` is not a model; announcing it put
+        // "MODEL · <Synthetic>" on the ticker, and adopting it made the NEXT
+        // real record announce its model again.
+        if !synthetic, let model = message["model"] as? String, model != lastModel {
             lastModel = model
             events.append(ActivityEvent(sessionID: sessionID, kind: .model(model), timestamp: timestamp))
         }
@@ -181,12 +211,20 @@ public final class TranscriptFold {
             }
         }
 
-        if events.isEmpty {
-            if message["stop_reason"] as? String == "end_turn" {
-                events.append(ActivityEvent(sessionID: sessionID, kind: .turnEnded, timestamp: timestamp))
-            } else if sawThinking {
-                events.append(ActivityEvent(sessionID: sessionID, kind: .thinking, timestamp: timestamp))
-            }
+        // 🔎 The gate used to be `events.isEmpty`, and a `.model` event counts:
+        // a record that changed the model — the first reply after a /clear, a
+        // model switch — silently swallowed its own `end_turn`, and the turn
+        // never ended. What actually rules out an ending is a tool call.
+        let startedTool = events.contains {
+            if case .toolStarted = $0.kind { return true } else { return false }
+        }
+        guard !startedTool else { return events }
+        if let stop = message["stop_reason"] as? String, Self.terminalStopReasons.contains(stop) {
+            events.append(ActivityEvent(sessionID: sessionID,
+                                        kind: synthetic ? .turnAborted : .turnEnded,
+                                        timestamp: timestamp))
+        } else if sawThinking {
+            events.append(ActivityEvent(sessionID: sessionID, kind: .thinking, timestamp: timestamp))
         }
         return events
     }

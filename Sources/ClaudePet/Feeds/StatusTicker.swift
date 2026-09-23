@@ -76,6 +76,9 @@ public enum StatusTicker {
     /// for the rule.
     static let knownModels: [(prefix: String, name: String)] = [
         ("claude-fable-5", "Fable 5"),
+        ("claude-opus-5-5", "Opus 5.5"),
+        // ↑ Before "Opus 5": this table is matched by PREFIX, first row wins, so
+        // `claude-opus-5-5` used to read as "Opus 5".
         ("claude-opus-5", "Opus 5"),
         ("claude-sonnet-5", "Sonnet 5"),
         ("claude-haiku-4-5", "Haiku 4.5"),

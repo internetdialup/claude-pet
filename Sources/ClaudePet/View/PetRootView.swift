@@ -777,10 +777,30 @@ public final class PetViewModel: ObservableObject {
         speakSeq &+= 1
         let seq = speakSeq
         transientBubble = (text, until, mood)
-        let wait = max(0, until.timeIntervalSinceNow)
-        DispatchQueue.main.asyncAfter(wallDeadline: .now() + wait) { [weak self] in
+        scheduleClear(until) { [weak self] in
             guard let self, self.speakSeq == seq else { return }
             self.transientBubble = nil
+        }
+    }
+
+    /// Books the slot's clearing write for `deadline`. The default is exactly
+    /// the timer `speak` always used — the main queue, on the WALL clock, so a
+    /// lid-close cannot make it clear late. Tests replace it per instance and
+    /// fire the booking themselves instead of waiting on a clock.
+    ///
+    /// 🔎 The seam exists because the test that waited could not win. The
+    /// clearing timer and the test's polling loop both needed the main thread,
+    /// and at a load average of 20 a synchronous render suite held it for
+    /// seconds at a time: the failure arrived at 22.7 s against a 10 s budget,
+    /// which means the OBSERVER was frozen, not just the timer. The window had
+    /// already been widened twice (3 s, then 10 s), and a wider window only
+    /// raises the stall it takes to fail. Per instance rather than static,
+    /// because a static knob here would race another suite's model — the race
+    /// `ActivityCoordinator.forgetHeldLines` records.
+    var scheduleClear: (_ deadline: Date, _ fire: @escaping @MainActor () -> Void) -> Void = { deadline, fire in
+        let wait = max(0, deadline.timeIntervalSinceNow)
+        DispatchQueue.main.asyncAfter(wallDeadline: .now() + wait) {
+            MainActor.assumeIsolated { fire() }
         }
     }
     /// The completion badge's identity and appearance latches, managed by
