@@ -193,9 +193,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   costume's crown — Sonic's quills, the Gundam's fin, the beanie, Santa's
   hat — was drawn off-grid and lost. Each look now rises as far as its own
   crown allows.
-- **🐯 The tiger got real stripes.** Diagonal slashes leaning off a centre
-  spine — Tony's, not a barcode's — in a burnt orange instead of near-black,
-  with the forehead V. The five vertical bars read as a pattern on a box.
+- **🐯 The tiger got real stripes.** Tony's forehead V and one diagonal
+  slash down each flank, in a burnt orange instead of near-black. The five
+  vertical bars read as a pattern on a box, and a shell covered in slashes
+  read as noise. The swishing tail does the rest.
 
 ### Removed
 

@@ -607,12 +607,15 @@ enum CrabCostume {
             if layer == .onBody {
             // Third fitting, to the operator's note: "he doesn't have like
             // stripes... more Tony the Tiger diagonal." The five vertical
-            // bars read as a pattern on a box; a tiger's stripes SLANT, and
-            // they come in numbers. So: diagonal slashes, two cells wide,
-            // three rows long, leaning outward from a centre spine — `/` on
-            // his left flank, `\` on his right, mirror-symmetric — hanging
-            // off the crown, crossing each flank at eye level, and rising
-            // off the belly, plus the forehead V that Tony actually wears.
+            // bars read as a pattern on a box; a tiger's stripes SLANT. So:
+            // diagonal slashes, two cells wide, three rows long, leaning
+            // outward from a centre spine — `/` on his left flank, `\` on
+            // his right, mirror-symmetric — plus the forehead V that Tony
+            // actually wears. The fourth cut (2026-09-23, the operator's
+            // "simplify") kept the V and ONE slash a side at eye level; the
+            // four off the crown and the two rising off the belly went, and
+            // with nine marks down to three the tail does the rest of the
+            // tiger. `SimplerLooksTests` holds that count.
             // Every cell is clipped to the shell (`.body` only), so a slash
             // running off his edge stops at the edge instead of floating in
             // the air beside him. The face draws after this pass, so the eye
@@ -630,15 +633,11 @@ enum CrabCostume {
             // (start column, start row, lean): lean −1 steps the slash left
             // as it descends (`/`), +1 steps it right (`\`).
             let slashes: [(x: Int, y: Int, lean: Int)] = [
-                (11, 0, -1), (7, 0, -1),      // crown, left
-                (19, 0, 1), (23, 0, 1),       // crown, right
                 (8, 4, -1), (22, 4, 1),       // flanks, eye level
-                (10, 11, 1), (20, 11, -1),    // belly, rising outward
             ]
             for stroke in slashes {
                 for step in 0..<3 {
-                    let y = stroke.y + (stroke.y >= 11 ? -step : step)
-                    slash(stroke.x + stroke.lean * step, base + y)
+                    slash(stroke.x + stroke.lean * step, base + stroke.y + step)
                 }
             }
             // The forehead V, converging just above the bridge of the eyes.
