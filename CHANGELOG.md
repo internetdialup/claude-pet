@@ -197,6 +197,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
   slash down each flank, in a burnt orange instead of near-black. The five
   vertical bars read as a pattern on a box, and a shell covered in slashes
   read as noise. The swishing tail does the rest.
+- **🤖 The Gundam is simpler.** The V-fin, the black visor with its yellow
+  cameras, the blue vents down his flanks, the red crest, chin and boots,
+  and his white. The sensor gem, chest band, temple pods and glowing eyes
+  are gone. At desk size they were detail nobody could make out. His scan
+  still sweeps across him.
 
 ### Removed
 

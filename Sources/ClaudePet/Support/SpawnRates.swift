@@ -264,8 +264,6 @@ enum SpawnRates {
     static let santaBreath = Effect(salt: 17, chance: 0.4, period: 10, duration: 0.8)
     /// 🤖 The Gundam's camera scan.
     static let gundamScan = Effect(salt: 19, chance: 0.35, period: 12, duration: 1.8)
-    /// 🤖 …and its eye flare.
-    static let gundamEyeFlare = Effect(salt: 41, chance: 0.5, period: 7, duration: 0.6)
     /// 💨 Sonic's dash.
     static let sonicDash = Effect(salt: 23, chance: 0.4, period: 9, duration: 1.6)
     /// 💍 Sonic's rings.

@@ -1465,10 +1465,11 @@ public enum CrabRig {
                         let shaded: PixelBuffer.Ink = ridge ? .body : .bodyShade
                         switch front {
                         // His face goes, and the wrap rule does NOT get a
-                        // say in it: the ninja's headband, the gundam's
-                        // chest band and the skater's tee all cross a face
-                        // row, and each of them was carrying a pair of eyes
-                        // around to the back of his head.
+                        // say in it: the ninja's headband and the skater's
+                        // tee both cross a face row (the Gundam's chest band
+                        // did too, until his trim was cut), and each of them
+                        // was carrying a pair of eyes around to the back of
+                        // his head.
                         case .eye, .mouth: front = shaded
                         // The catchlight goes with the eye it belongs to,
                         // and so does any face paint under it — a white

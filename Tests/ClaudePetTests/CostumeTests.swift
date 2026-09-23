@@ -84,7 +84,7 @@ struct CostumeTests {
 
     /// Crown accessories step aside for the hard hat; status beats wardrobe.
     /// The yield suppresses the whole `.front` layer — under a hard hat the
-    /// Gundam also loses his chest band and red feet for the 20-second prop
+    /// Gundam also loses his red chin and boots for the 20-second prop
     /// spell, which is accepted and documented at the yield site. The visor
     /// lives on the `.onBody` layer and rightly persists: it is the face,
     /// not the crown.

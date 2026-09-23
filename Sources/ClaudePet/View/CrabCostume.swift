@@ -161,7 +161,7 @@ struct CostumeStyle {
                 inks: [
                     .body: rgb(0xE8_EAF0),      // RX-78 white
                     .bodyShade: rgb(0xC9_CDD8), // the turn shade's step — see ninja's note
-                    .costumeA: rgb(0x2C_4FA3),  // federation blue — shoulders, chest
+                    .costumeA: rgb(0x2C_4FA3),  // federation blue — the flank vents, nowhere else
                     .costumeB: rgb(0xC6_3A3A),  // the red — crest, chin, feet
                     .costumeC: rgb(0x14_161A),  // the visor recess — the black the face is built on
                     .eye: rgb(0xF2_D23C),       // camera-yellow, straight off the reference
@@ -219,7 +219,7 @@ struct CostumeStyle {
             // `.onBody`, which draws BEFORE `drawFace` — so the eyes and mouth
             // land on top of it and the open-eye rule holds — and `yawPass`
             // fades face-row paint out as he turns edge-on, which is how the
-            // Gundam's chest band has always passed the flank test.
+            // ninja's mask window and the Gundam's visor pass the flank test.
             return CostumeStyle(
                 inks: [
                     .body: rgb(0xF4_F1EA),      // the suit, off-white
@@ -702,12 +702,6 @@ enum CrabCostume {
                 // helmet, and the old red pixel here read as a third eye.
                 b.rect(15 + dx, 13 + dy, 3, 1, .body)
                 b.pixel(16 + dx, 14 + dy, .body)
-                // The nose: a small steel block dropping from the brow
-                // wedge's point, splitting the visor's black between the eye
-                // recesses the way every reference mask does. Body pass, so
-                // the eyes still paint after it — the face stays his.
-                b.pixel(16 + dx, 15 + dy, .steel)
-                b.pixel(16 + dx, 16 + dy, .steel)
                 // THE CARVE — the operator's grant: "you can adjust clawd's
                 // body so it isn't a full square, angle it like the
                 // reference", deepened on the sixth fitting ("the angled
@@ -730,111 +724,61 @@ enum CrabCostume {
                 }
                 b.pixel(bodyX + dx - squash, 20 + dy, .clear)
                 b.pixel(bodyX + bodyW - 1 + dx + squash, 20 + dy, .clear)
-                // 👁 The glow — "the eyes more glowly": a warm bloom
-                // spilling off each camera into the visor's black, one
-                // column outboard of each eye. Ember at rest; during a flare
-                // window (`97 &+ 41`, next free costume-effect addend — the
-                // holiday round has 3/5/7/17/37 reserved) it steps to gold.
-                // A re-ink between adjacent warm tones on cells already lit
-                // — the arcade marquee's class of scheduled swap, not an
-                // appearance — and it lives on the body pass, so a sideways
-                // gaze draws the eye OVER the bloom, never under it.
-                let flare = Self.effectWindow(at: pose.propPhase, SpawnRates.gundamEyeFlare) != nil
-                let bloom: PixelBuffer.Ink = flare ? .yellow : .ember
-                b.pixel(9 + dx, 14 + dy, bloom)
-                b.pixel(22 + dx, 14 + dy, bloom)
                 break
             }
             guard layer == .front else { break }
             let crown = bodyY + dy + squash
-            // The RX-78 head, fifth fitting — the operator's 16-bit
-            // reference, "almost 1:1". The stack from the top: green sensor
-            // gem in a steel housing, the red shield running from under it
-            // DOWN ONTO the white forehead, and the two-tone fin blades
-            // rooting INTO the helmet beside it.
+            // The RX-78 head, face-and-fin cut (2026-09-23). Six fittings
+            // built it up toward the operator's 16-bit reference — sensor
+            // gem, blue side armour, temple pods, vents, a chest band and
+            // collar, an ember bloom that flared gold — and the operator's
+            // ruling on the whole was "too complex". So it is cut back to
+            // what makes the read at 32 pixels: the fin, the visor with its
+            // cameras, the red, his white — and, on the fitting, the blue
+            // flank vents, which the operator put back as the signature
+            // ("hard to tell what's going on" without them). Anything added
+            // back has to beat one of those for the space.
+            // `SimplerLooksTests` holds the line.
             //
-            // The blades: orange (`.ember`) bodies with a gold highlight
-            // riding the top edge over the root half, gold tips — metal
-            // catching light, not a drawn line. The last step drops
-            // vertically INTO the shell edge, per the operator: "bring the
-            // little \ / down into the white part."
+            // The blades: one ink, camera yellow, 2px at the roots and 1px
+            // at the tips. The last step drops vertically INTO the shell
+            // edge, per the operator: "bring the little \ / down into the
+            // white part."
             for step in 0..<7 {
-                let blade: PixelBuffer.Ink = step == 0 ? .yellow : .ember
-                b.pixel(8 + step + dx, crown - 7 + step, blade)
-                b.pixel(23 - step + dx, crown - 7 + step, blade)
+                b.pixel(8 + step + dx, crown - 7 + step, .yellow)
+                b.pixel(23 - step + dx, crown - 7 + step, .yellow)
                 if step >= 4 {                          // 2px roots → 1px tips
                     b.pixel(8 + step + dx, crown - 8 + step, .yellow)
                     b.pixel(23 - step + dx, crown - 8 + step, .yellow)
                 }
             }
-            b.pixel(14 + dx, crown, .ember)             // the roots land on the shell
-            b.pixel(17 + dx, crown, .ember)
-            // The sensor gem: a green square in a steel housing above the
-            // blades' crossing — the head's brightest jewel after the eyes.
-            b.pixel(14 + dx, crown - 4, .steel)
-            b.pixel(17 + dx, crown - 4, .steel)
-            b.rect(15 + dx, crown - 4, 2, 1, .green)
-            b.pixel(14 + dx, crown - 3, .steel)
-            b.pixel(17 + dx, crown - 3, .steel)
-            b.rect(15 + dx, crown - 3, 2, 1, .green)
+            b.pixel(14 + dx, crown, .yellow)            // the roots land on the shell
+            b.pixel(17 + dx, crown, .yellow)
             // The red shield, ON the white part per the operator: a column
-            // from under the gem down the forehead, widest just above the
-            // brow, tapering into the wedge's point. Rows crown-2…crown+2 —
-            // the top two ride the helmet edge, the bottom three are on the
-            // shell itself.
+            // between the blades' roots down the forehead, widest just above
+            // the brow, tapering into the wedge's point. Rows
+            // crown-2…crown+2 — the top two ride the helmet edge, the bottom
+            // three are on the shell itself.
             b.rect(15 + dx, crown - 2, 2, 1, .costumeB)
             b.rect(15 + dx, crown - 1, 2, 1, .costumeB)
             b.rect(15 + dx, crown, 2, 1, .costumeB)
             b.rect(14 + dx, crown + 1, 4, 1, .costumeB)
             b.rect(15 + dx, crown + 2, 2, 1, .costumeB)
-            // The dome corners, sixth fitting: RED duct cells riding the
-            // carved diagonal's edge — the operator's "on each side on the
-            // top we get the red part", and nothing else up there. The
-            // first cut stacked red, blue AND a shadow down each angle,
-            // one pixel of each, and the crown read as confetti: at this
-            // scale an angle gets ONE colour.
-            b.pixel(bodyX + 3 + dx - squash, crown, .costumeB)
-            b.pixel(bodyX + 2 + dx - squash, crown + 1, .costumeB)
-            b.pixel(bodyX + bodyW - 4 + dx + squash, crown, .costumeB)
-            b.pixel(bodyX + bodyW - 3 + dx + squash, crown + 1, .costumeB)
-            b.rect(bodyX + 2 + dx, 17 + dy, 2, 1, .bodyShade)
-            b.rect(bodyX + bodyW - 4 + dx, 17 + dy, 2, 1, .bodyShade)
-            b.rect(bodyX + dx - squash, 17 + dy, 2, 3, .bodyShade)
-            b.rect(bodyX + bodyW - 2 + dx + squash, 17 + dy, 2, 3, .bodyShade)
-            // Side armor running down both flanks from the shoulders. Two
-            // columns, not three: the visor recess starts at `bodyX + 2`, and
-            // a wider flank would eat its frame.
-            b.rect(bodyX + dx - squash, crown + 2, 2, 5, .costumeA)
-            b.rect(bodyX + bodyW - 2 + dx + squash, crown + 2, 2, 5, .costumeA)
-            // Yellow temple pods on the cheeks, level with the visor — the
-            // reference heads all carry them.
-            b.pixel(bodyX + 1 + dx - squash, crown + 4, .yellow)
-            b.pixel(bodyX + bodyW - 2 + dx + squash, crown + 4, .yellow)
-            // Vent slits cut into the side armor, bracketing each temple
-            // pod — visor-black so the cuts read as depth, not decoration.
+            // The flank vents: federation-blue armour two columns wide down
+            // both sides, level with the visor, cut by two visor-black slits
+            // so the cuts read as depth. Two columns, not three: the visor
+            // recess starts at `bodyX + 2`, and a wider flank would eat its
+            // frame. The only blue on him — the chest band and the temple
+            // pods that once sat beside it stay cut.
             for flank in [bodyX + dx - squash, bodyX + bodyW - 2 + dx + squash] {
+                b.rect(flank, crown + 2, 2, 5, .costumeA)
                 b.rect(flank, crown + 3, 2, 1, .costumeC)
                 b.rect(flank, crown + 5, 2, 1, .costumeC)
             }
-            // The chest band is two rows of plate now, widening with the
-            // squash the way the shell does — anchored to the same
-            // expressions as the shoulder plates, so a kickflip crouch cannot
-            // open white gaps at its ends. Drawn FIRST so the collar, chin
-            // and vents read as fittings on the plate rather than under it.
-            b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 2, .costumeA)
-            // The COLLAR, per the reference: the band's top row re-plated
-            // orange — an armor collar directly under the head, the fin
-            // body's own ink, so head and collar rhyme.
-            b.rect(12 + dx - squash, 19 + dy, 9 + squash * 2, 1, .ember)
             // The chin is a downward TRIANGLE, not a bar — five cells, then
-            // three, converging the way the whole reference face does. ONE
-            // pair of vents beside its point, nothing else: the first cut
-            // scattered four yellow dots across two rows and the bottom read
-            // as clutter instead of armor (the operator's note).
+            // three, converging the way the whole reference face does.
             b.rect(14 + dx, 19 + dy, 5, 1, .costumeB)
             b.rect(15 + dx, 20 + dy, 3, 1, .costumeB)
-            b.pixel(13 + dx, 20 + dy, .yellow)
-            b.pixel(19 + dx, 20 + dy, .yellow)
             for (index, leg) in CrabRig.legX.enumerated() {  // boots, riding the gait
                 let lift = max(0, CrabRig.legSwing(index, pose: pose))
                 // The boot is as tall as the leg has room for: a lift of two
@@ -901,10 +845,9 @@ enum CrabCostume {
             b.rect(15 + dx, crown - 2, 2, 2, .costumeA)
             b.pixel(17 + dx, crown - 1, .costumeA)
             // 🕯 The candle flicker: the carved teeth glow from inside for a
-            // beat — the arcade's "lit from within" move. Salt 97 &+ 41 is
-            // the gundam flare's; this family shares by addend, and the
-            // holiday round's reserved addends are 3/5/7/17/37 — the flicker
-            // takes 5.
+            // beat — the arcade's "lit from within" move. This family
+            // shares by addend, and the holiday round's reserved addends are
+            // 3/5/7/17/37 — the flicker takes 5.
             if Self.effectWindow(at: pose.propPhase, SpawnRates.pumpkinFlicker) != nil {
                 for (i, x) in stride(from: 12, through: 20, by: 2).enumerated() {
                     b.pixel(x + dx, 19 + dy + (i % 2), .yellow)
