@@ -148,6 +148,13 @@ if let index = arguments.firstIndex(of: "--render-trick-loop"), index + 1 < argu
     exit(ok ? 0 : 1)
 }
 
+if let index = arguments.firstIndex(of: "--render-fire-loop"), index + 1 < arguments.count {
+    // 🔥 He thinks, catches fire, cools off, forever — 16:9 on cobalt for X,
+    // no type. Like the loops above, deliberately nowhere near `docs/media`.
+    let ok = MainActor.assumeIsolated { FireLoop.render(to: arguments[index + 1]) }
+    exit(ok ? 0 : 1)
+}
+
 if let index = arguments.firstIndex(of: "--render-skate-demo"), index + 1 < arguments.count {
     // 🛹 The demo reels: two short, type-free review cuts the operator watches
     // to fine-tune geometry before any marketing is generated from it. Same
